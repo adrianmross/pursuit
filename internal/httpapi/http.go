@@ -26,6 +26,7 @@ import (
 	"github.com/pursuit/pursuit/internal/dashboard"
 	"github.com/pursuit/pursuit/internal/domain"
 	"github.com/pursuit/pursuit/internal/impex"
+	"github.com/pursuit/pursuit/internal/oidcauth"
 	"github.com/pursuit/pursuit/internal/service"
 	"github.com/pursuit/pursuit/internal/spec"
 	"github.com/pursuit/pursuit/internal/sqlstore"
@@ -42,6 +43,15 @@ type Server struct {
 	TrustProxyAuth string
 	// CronSecret overrides CRON_SECRET for the link-check cron. Empty reads the environment.
 	CronSecret string
+	// TenantMode is "single" (default) or "multi". It gates whether a
+	// first-time OIDC login provisions a new tenant.
+	TenantMode string
+	// OIDC is nil when no social/OIDC login provider is configured.
+	OIDC *oidcauth.Manager
+}
+
+func (s *Server) multiTenant() bool {
+	return strings.EqualFold(strings.TrimSpace(s.TenantMode), "multi")
 }
 
 func (s *Server) Handler() http.Handler {
@@ -52,6 +62,10 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /openapi.json", s.openapi)
 	mux.HandleFunc("GET /llms.txt", s.llms)
 	mux.HandleFunc("GET /", s.dashboard)
+
+	mux.HandleFunc("GET /v1/auth/providers", s.authProviders)
+	mux.HandleFunc("GET /v1/auth/{provider}/start", s.authStart)
+	mux.HandleFunc("GET /v1/auth/{provider}/callback", s.authCallback)
 
 	mux.HandleFunc("GET /v1/me", s.me)
 	mux.HandleFunc("POST /v1/tokens", s.createToken)
@@ -204,7 +218,7 @@ func (s *Server) wrap(next http.Handler) http.Handler {
 // endpoints and every dashboard asset and client-side route (e.g. /app/:id),
 // which render the SPA shell and authenticate in the browser via the API.
 func isPublic(path string) bool {
-	return !strings.HasPrefix(path, "/v1/")
+	return !strings.HasPrefix(path, "/v1/") || strings.HasPrefix(path, "/v1/auth/")
 }
 
 func isCron(path string) bool {
@@ -230,12 +244,75 @@ func (s *Server) trustVercel() bool {
 	return strings.EqualFold(strings.TrimSpace(s.TrustProxyAuth), "vercel")
 }
 
+// proxyOwner trusts the platform in front of this process to have already
+// authenticated the caller as the owner. That only holds while there is
+// exactly one user: once a second user exists, "pick the first one" stops
+// being a safe guess, so this refuses instead of silently granting someone
+// else's scopes.
 func (s *Server) proxyOwner(ctx context.Context) (domain.Actor, error) {
+	n, err := s.Svc.DB.CountUsers(ctx)
+	if err != nil {
+		return domain.Actor{}, err
+	}
+	if n != 1 {
+		return domain.Actor{}, domain.Unauthorized()
+	}
 	user, err := s.Svc.DB.FirstUser(ctx)
 	if err != nil {
 		return domain.Actor{}, err
 	}
 	return domain.Actor{UserID: user.ID, Name: "vercel", Scopes: []string{"read", "write", "approve"}}, nil
+}
+
+func (s *Server) authProviders(w http.ResponseWriter, r *http.Request) {
+	type providerInfo struct {
+		Name  string `json:"name"`
+		Label string `json:"label"`
+	}
+	providers := []providerInfo{}
+	if s.OIDC != nil {
+		for _, p := range s.OIDC.Providers() {
+			providers = append(providers, providerInfo{Name: p.Name, Label: p.Label})
+		}
+	}
+	mode := "single"
+	if s.multiTenant() {
+		mode = "multi"
+	}
+	writeJSON(w, 200, map[string]any{"tenant_mode": mode, "providers": providers})
+}
+
+func (s *Server) authStart(w http.ResponseWriter, r *http.Request) {
+	if s.OIDC == nil {
+		writeErr(w, domain.NotFound("provider"))
+		return
+	}
+	if err := s.OIDC.Start(w, r, r.PathValue("provider")); err != nil {
+		writeErr(w, domain.Validation("%s", err.Error()))
+	}
+}
+
+func (s *Server) authCallback(w http.ResponseWriter, r *http.Request) {
+	if s.OIDC == nil {
+		writeErr(w, domain.NotFound("provider"))
+		return
+	}
+	identity, err := s.OIDC.Callback(r.Context(), w, r, r.PathValue("provider"))
+	if err != nil {
+		s.log().Warn("oidc callback", "provider", r.PathValue("provider"), "err", err.Error())
+		writeErr(w, domain.Unauthorized())
+		return
+	}
+	if !identity.EmailVerified {
+		writeErr(w, domain.Unauthorized())
+		return
+	}
+	secret, err := s.Svc.LoginIdentity(r.Context(), identity.Email, identity.Name, s.multiTenant())
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	http.Redirect(w, r, "/#token="+secret, http.StatusFound)
 }
 
 func (s *Server) cronSecret() string {

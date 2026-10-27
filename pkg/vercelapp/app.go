@@ -17,6 +17,7 @@ import (
 
 	"github.com/pursuit/pursuit/internal/httpapi"
 	"github.com/pursuit/pursuit/internal/links"
+	"github.com/pursuit/pursuit/internal/oidcauth"
 	"github.com/pursuit/pursuit/internal/service"
 	"github.com/pursuit/pursuit/internal/sqlstore"
 )
@@ -83,10 +84,42 @@ func ensure(ctx context.Context) (*runtime, error) {
 	if strings.EqualFold(trust, "vercel") {
 		log.Warn("proxy auth is on", "hint", "PURSUIT_TRUST_PROXY_AUTH=vercel treats a request with no Pursuit token as the owner. Only use this behind Vercel Authentication.")
 	}
-	api := &httpapi.Server{Svc: svc, Log: log, TrustProxyAuth: trust}
+	tenantMode := strings.ToLower(env("PURSUIT_TENANT_MODE", "single"))
+	oidcMgr, err := buildOIDC(ctx, log)
+	if err != nil {
+		store.Close()
+		slog.Error("oidc", "err", err.Error())
+		return nil, fmt.Errorf("oidc configuration failed")
+	}
+	api := &httpapi.Server{Svc: svc, Log: log, TrustProxyAuth: trust, TenantMode: tenantMode, OIDC: oidcMgr}
 	api.Ready.Store(true)
 	booted = &runtime{handler: api.Handler()}
 	return booted, nil
+}
+
+// buildOIDC returns nil when no provider is configured.
+func buildOIDC(ctx context.Context, log *slog.Logger) (*oidcauth.Manager, error) {
+	var specs []oidcauth.Spec
+	if id, secret := os.Getenv("PURSUIT_OIDC_GOOGLE_CLIENT_ID"), os.Getenv("PURSUIT_OIDC_GOOGLE_CLIENT_SECRET"); id != "" && secret != "" {
+		specs = append(specs, oidcauth.Spec{Name: "google", Label: "Google", IssuerURL: "https://accounts.google.com", ClientID: id, ClientSecret: secret})
+	}
+	if issuer, id, secret := os.Getenv("PURSUIT_OIDC_ISSUER_URL"), os.Getenv("PURSUIT_OIDC_ISSUER_CLIENT_ID"), os.Getenv("PURSUIT_OIDC_ISSUER_CLIENT_SECRET"); issuer != "" && id != "" && secret != "" {
+		specs = append(specs, oidcauth.Spec{Name: "custom", Label: env("PURSUIT_OIDC_ISSUER_NAME", "SSO"), IssuerURL: issuer, ClientID: id, ClientSecret: secret})
+	}
+	if len(specs) == 0 {
+		return nil, nil
+	}
+	secret := strings.TrimSpace(os.Getenv("PURSUIT_SESSION_SECRET"))
+	if secret == "" {
+		return nil, fmt.Errorf("PURSUIT_SESSION_SECRET is required when an OIDC provider is configured")
+	}
+	base := strings.TrimSpace(os.Getenv("PURSUIT_SERVER"))
+	if base == "" {
+		return nil, fmt.Errorf("PURSUIT_SERVER (the deployment's public URL) is required when an OIDC provider is configured")
+	}
+	base = strings.TrimRight(base, "/")
+	redirect := func(name string) string { return base + "/v1/auth/" + name + "/callback" }
+	return oidcauth.New(ctx, []byte(secret), specs, redirect)
 }
 
 func postgresURL() (string, error) {

@@ -12,29 +12,40 @@ import (
 )
 
 type Config struct {
-	Addr             string        `json:"addr,omitempty"`
-	DatabaseURL      string        `json:"database_url,omitempty"`
-	LogLevel         string        `json:"log_level,omitempty"`
-	LogFormat        string        `json:"log_format,omitempty"`
-	OwnerName        string        `json:"owner_name,omitempty"`
-	OwnerEmail       string        `json:"owner_email,omitempty"`
-	BootstrapToken   string        `json:"bootstrap_token,omitempty"`
-	BootstrapName    string        `json:"bootstrap_name,omitempty"`
-	CORSOrigins      []string      `json:"cors_origins,omitempty"`
-	ServerURL        string        `json:"server,omitempty"`
-	Token            string        `json:"token,omitempty"`
-	DataDir          string        `json:"data_dir,omitempty"`
-	ShutdownTimeout  time.Duration `json:"-"`
-	ShutdownSeconds  int           `json:"shutdown_timeout_seconds,omitempty"`
-	CheckInterval    time.Duration `json:"-"`
-	CheckSeconds     int           `json:"check_interval_seconds,omitempty"`
-	CheckJitter      float64       `json:"check_jitter,omitempty"`
-	CheckGap         time.Duration `json:"-"`
-	CheckGapMS       int           `json:"check_gap_ms,omitempty"`
-	ProfilePath      string        `json:"profile,omitempty"`
-	ResumeFile       string        `json:"resume_file,omitempty"`
-	ContactEmail     string        `json:"contact_email,omitempty"`
-	TrustProxyAuth   string        `json:"trust_proxy_auth,omitempty"`
+	Addr            string        `json:"addr,omitempty"`
+	DatabaseURL     string        `json:"database_url,omitempty"`
+	LogLevel        string        `json:"log_level,omitempty"`
+	LogFormat       string        `json:"log_format,omitempty"`
+	OwnerName       string        `json:"owner_name,omitempty"`
+	OwnerEmail      string        `json:"owner_email,omitempty"`
+	BootstrapToken  string        `json:"bootstrap_token,omitempty"`
+	BootstrapName   string        `json:"bootstrap_name,omitempty"`
+	CORSOrigins     []string      `json:"cors_origins,omitempty"`
+	ServerURL       string        `json:"server,omitempty"`
+	Token           string        `json:"token,omitempty"`
+	DataDir         string        `json:"data_dir,omitempty"`
+	ShutdownTimeout time.Duration `json:"-"`
+	ShutdownSeconds int           `json:"shutdown_timeout_seconds,omitempty"`
+	CheckInterval   time.Duration `json:"-"`
+	CheckSeconds    int           `json:"check_interval_seconds,omitempty"`
+	CheckJitter     float64       `json:"check_jitter,omitempty"`
+	CheckGap        time.Duration `json:"-"`
+	CheckGapMS      int           `json:"check_gap_ms,omitempty"`
+	ProfilePath     string        `json:"profile,omitempty"`
+	ResumeFile      string        `json:"resume_file,omitempty"`
+	ContactEmail    string        `json:"contact_email,omitempty"`
+	TrustProxyAuth  string        `json:"trust_proxy_auth,omitempty"`
+	// TenantMode is "single" (default: only the configured owner can log
+	// in) or "multi" (anyone with a verified email from a configured
+	// OIDC provider gets their own tenant).
+	TenantMode       string `json:"tenant_mode,omitempty"`
+	SessionSecret    string `json:"-"`
+	OIDCGoogleID     string `json:"-"`
+	OIDCGoogleSecret string `json:"-"`
+	OIDCIssuerURL    string `json:"-"`
+	OIDCIssuerName   string `json:"-"`
+	OIDCIssuerID     string `json:"-"`
+	OIDCIssuerSecret string `json:"-"`
 }
 
 func Defaults() Config {
@@ -46,6 +57,7 @@ func Defaults() Config {
 		OwnerEmail:      "adrian@localhost",
 		BootstrapName:   "owner",
 		ServerURL:       "http://127.0.0.1:8787",
+		TenantMode:      "single",
 		ShutdownTimeout: 15 * time.Second,
 		CheckInterval:   time.Hour,
 		CheckJitter:     0.1,
@@ -112,6 +124,9 @@ func fill(cfg *Config) {
 	if cfg.ServerURL == "" {
 		cfg.ServerURL = d.ServerURL
 	}
+	if cfg.TenantMode == "" {
+		cfg.TenantMode = d.TenantMode
+	}
 	if cfg.ShutdownTimeout <= 0 {
 		cfg.ShutdownTimeout = d.ShutdownTimeout
 	}
@@ -136,6 +151,11 @@ func applyEnv(cfg *Config) {
 		}
 	}
 	set(&cfg.Addr, "PURSUIT_ADDR")
+	if cfg.Addr == Defaults().Addr {
+		if port := strings.TrimSpace(os.Getenv("PORT")); port != "" {
+			cfg.Addr = ":" + port
+		}
+	}
 	set(&cfg.DatabaseURL, "PURSUIT_DATABASE_URL", "DATABASE_URL")
 	set(&cfg.LogLevel, "PURSUIT_LOG_LEVEL")
 	set(&cfg.LogFormat, "PURSUIT_LOG_FORMAT")
@@ -152,6 +172,16 @@ func applyEnv(cfg *Config) {
 	if v := strings.TrimSpace(os.Getenv("PURSUIT_TRUST_PROXY_AUTH")); v != "" {
 		cfg.TrustProxyAuth = v
 	}
+	if v := strings.ToLower(strings.TrimSpace(os.Getenv("PURSUIT_TENANT_MODE"))); v != "" {
+		cfg.TenantMode = v
+	}
+	set(&cfg.SessionSecret, "PURSUIT_SESSION_SECRET")
+	set(&cfg.OIDCGoogleID, "PURSUIT_OIDC_GOOGLE_CLIENT_ID")
+	set(&cfg.OIDCGoogleSecret, "PURSUIT_OIDC_GOOGLE_CLIENT_SECRET")
+	set(&cfg.OIDCIssuerURL, "PURSUIT_OIDC_ISSUER_URL")
+	set(&cfg.OIDCIssuerName, "PURSUIT_OIDC_ISSUER_NAME")
+	set(&cfg.OIDCIssuerID, "PURSUIT_OIDC_ISSUER_CLIENT_ID")
+	set(&cfg.OIDCIssuerSecret, "PURSUIT_OIDC_ISSUER_CLIENT_SECRET")
 	if v := strings.TrimSpace(os.Getenv("PURSUIT_CORS_ORIGINS")); v != "" {
 		cfg.CORSOrigins = splitComma(v)
 	}

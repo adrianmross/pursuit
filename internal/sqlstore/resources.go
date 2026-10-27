@@ -36,6 +36,21 @@ func (s *Store) FirstUser(ctx context.Context) (domain.User, error) {
 	return u, err
 }
 
+func (s *Store) FindUserByEmail(ctx context.Context, email string) (domain.User, error) {
+	var u domain.User
+	var created string
+	err := s.queryRow(ctx, `SELECT id, name, email, created_at FROM users WHERE lower(email)=lower(?)`, email).
+		Scan(&u.ID, &u.Name, &u.Email, &created)
+	if err == sql.ErrNoRows {
+		return domain.User{}, domain.NotFound("user")
+	}
+	if err != nil {
+		return domain.User{}, err
+	}
+	u.CreatedAt, err = parseTime(created)
+	return u, err
+}
+
 func (s *Store) GetUser(ctx context.Context, id string) (domain.User, error) {
 	var u domain.User
 	var created string

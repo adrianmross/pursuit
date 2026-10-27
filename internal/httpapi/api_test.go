@@ -843,6 +843,14 @@ func TestTrustProxyAuthAndCron(t *testing.T) {
 		t.Fatalf("read token write %d %#v", code, denied)
 	}
 
+	if err := e.api.Svc.DB.CreateUser(context.Background(), domain.User{ID: "u2", Name: "Second", Email: "second@localhost", CreatedAt: time.Now()}); err != nil {
+		t.Fatal(err)
+	}
+	code, _ = e.json(t, http.MethodGet, "/v1/me", "", nil)
+	if code != 401 {
+		t.Fatalf("proxy auth with two users %d", code)
+	}
+
 	code, _ = e.json(t, http.MethodGet, "/v1/cron/links", "", nil)
 	if code != 401 {
 		t.Fatalf("cron without secret %d", code)
@@ -859,6 +867,32 @@ func TestTrustProxyAuthAndCron(t *testing.T) {
 	code, report := e.json(t, http.MethodGet, "/v1/cron/links", "cron-secret-value", nil)
 	if code != 200 || report["checked"] != float64(0) {
 		t.Fatalf("cron %d %#v", code, report)
+	}
+}
+
+func TestLoginIdentityTenantGating(t *testing.T) {
+	e := newEnv(t)
+	ctx := context.Background()
+
+	if secret, err := e.svc.LoginIdentity(ctx, "adrian@localhost", "Adrian", false); err != nil || secret == "" {
+		t.Fatalf("single-tenant owner login: %v %q", err, secret)
+	}
+	if _, err := e.svc.LoginIdentity(ctx, "stranger@example.com", "Stranger", false); err == nil {
+		t.Fatal("single-tenant mode should refuse an unknown email")
+	}
+	secret, err := e.svc.LoginIdentity(ctx, "second@example.com", "Second", true)
+	if err != nil || secret == "" {
+		t.Fatalf("multi-tenant first login should provision a user: %v %q", err, secret)
+	}
+	u, err := e.svc.DB.FindUserByEmail(ctx, "second@example.com")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if secret2, err := e.svc.LoginIdentity(ctx, "second@example.com", "Second", true); err != nil || secret2 == "" {
+		t.Fatalf("second login for the same user: %v %q", err, secret2)
+	}
+	if u2, err := e.svc.DB.FindUserByEmail(ctx, "second@example.com"); err != nil || u2.ID != u.ID {
+		t.Fatalf("second login should reuse the same tenant, got %+v vs %+v (err %v)", u2, u, err)
 	}
 }
 

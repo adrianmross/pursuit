@@ -152,6 +152,60 @@ func (s *Service) Bootstrap(ctx context.Context, ownerName, ownerEmail, tokenNam
 	return issued, created, err
 }
 
+// LoginIdentity exchanges a verified external identity (from an OIDC
+// callback) for a fresh Pursuit API token. allowCreate is false in
+// single-tenant mode, where the email must already belong to the owner;
+// it is true in multi-tenant mode, where a first-time verified email
+// provisions a new tenant.
+func (s *Service) LoginIdentity(ctx context.Context, email, name string, allowCreate bool) (secret string, err error) {
+	email = strings.TrimSpace(email)
+	if email == "" {
+		return "", domain.Unauthorized()
+	}
+	err = s.DB.WithLock(ctx, func(ctx context.Context) error {
+		user, err := s.DB.FindUserByEmail(ctx, email)
+		if domain.IsCode(err, "not_found") {
+			if !allowCreate {
+				return domain.Unauthorized()
+			}
+			if strings.TrimSpace(name) == "" {
+				name = email
+			}
+			user = domain.User{ID: s.NewID(), Name: name, Email: email, CreatedAt: s.now()}
+			if err := s.DB.CreateUser(ctx, user); err != nil {
+				return err
+			}
+			if err := s.ensureDefaultCaps(ctx, user.ID); err != nil {
+				return err
+			}
+		} else if err != nil {
+			return err
+		}
+		scopes, err := auth.NormalizeScopes([]string{"read", "write", "approve"})
+		if err != nil {
+			return err
+		}
+		raw, prefix, hash, err := auth.Generate()
+		if err != nil {
+			return err
+		}
+		tok := domain.Token{
+			ID: s.NewID(), UserID: user.ID, Name: "login", Hash: hash,
+			Prefix: prefix, Scopes: scopes, CreatedAt: s.now(),
+		}
+		if err := s.DB.CreateToken(ctx, tok); err != nil {
+			return err
+		}
+		actor := domain.Actor{UserID: user.ID, TokenID: tok.ID, Name: tok.Name, Scopes: scopes}
+		if err := s.audit(domain.WithActor(ctx, actor), actor, "token.create", "token", tok.ID, "oidc login token", map[string]any{"prefix": tok.Prefix}); err != nil {
+			return err
+		}
+		secret = raw
+		return nil
+	})
+	return secret, err
+}
+
 type TokenInput struct {
 	Name   string   `json:"name"`
 	Scopes []string `json:"scopes"`

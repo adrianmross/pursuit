@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"math/rand"
 	"net/http"
@@ -20,6 +21,7 @@ import (
 	"github.com/pursuit/pursuit/internal/domain"
 	"github.com/pursuit/pursuit/internal/httpapi"
 	"github.com/pursuit/pursuit/internal/links"
+	"github.com/pursuit/pursuit/internal/oidcauth"
 	"github.com/pursuit/pursuit/internal/service"
 	"github.com/pursuit/pursuit/internal/sqlstore"
 )
@@ -72,7 +74,11 @@ func Run(ctx context.Context, cfg config.Config) error {
 	if strings.EqualFold(strings.TrimSpace(cfg.TrustProxyAuth), "vercel") {
 		log.Warn("proxy auth is on", "hint", "PURSUIT_TRUST_PROXY_AUTH=vercel treats a request with no Pursuit token as the owner. Only use this behind deployment protection.")
 	}
-	api := &httpapi.Server{Svc: svc, Log: log, CORS: cfg.CORSOrigins, TrustProxyAuth: cfg.TrustProxyAuth}
+	oidcMgr, err := buildOIDC(ctx, cfg)
+	if err != nil {
+		return err
+	}
+	api := &httpapi.Server{Svc: svc, Log: log, CORS: cfg.CORSOrigins, TrustProxyAuth: cfg.TrustProxyAuth, TenantMode: cfg.TenantMode, OIDC: oidcMgr}
 	srv := &http.Server{
 		Addr:              cfg.Addr,
 		Handler:           api.Handler(),
@@ -112,6 +118,30 @@ func Run(ctx context.Context, cfg config.Config) error {
 		return nil
 	}
 	return err
+}
+
+// buildOIDC returns nil when no provider is configured.
+func buildOIDC(ctx context.Context, cfg config.Config) (*oidcauth.Manager, error) {
+	var specs []oidcauth.Spec
+	if cfg.OIDCGoogleID != "" && cfg.OIDCGoogleSecret != "" {
+		specs = append(specs, oidcauth.Spec{Name: "google", Label: "Google", IssuerURL: "https://accounts.google.com", ClientID: cfg.OIDCGoogleID, ClientSecret: cfg.OIDCGoogleSecret})
+	}
+	if cfg.OIDCIssuerURL != "" && cfg.OIDCIssuerID != "" && cfg.OIDCIssuerSecret != "" {
+		label := cfg.OIDCIssuerName
+		if label == "" {
+			label = "SSO"
+		}
+		specs = append(specs, oidcauth.Spec{Name: "custom", Label: label, IssuerURL: cfg.OIDCIssuerURL, ClientID: cfg.OIDCIssuerID, ClientSecret: cfg.OIDCIssuerSecret})
+	}
+	if len(specs) == 0 {
+		return nil, nil
+	}
+	if cfg.SessionSecret == "" {
+		return nil, fmt.Errorf("PURSUIT_SESSION_SECRET is required when an OIDC provider is configured")
+	}
+	base := strings.TrimRight(cfg.ServerURL, "/")
+	redirect := func(name string) string { return base + "/v1/auth/" + name + "/callback" }
+	return oidcauth.New(ctx, []byte(cfg.SessionSecret), specs, redirect)
 }
 
 func runSweep(ctx context.Context, svc *service.Service, log *slog.Logger, cfg config.Config) {
