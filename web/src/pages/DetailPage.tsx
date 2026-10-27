@@ -3,6 +3,7 @@ import { Link, useParams } from "react-router-dom"
 import { api, ApiError } from "@/lib/api"
 import { useAuth } from "@/lib/auth"
 import { label, type Application, type Artifact, type Event, type Page, type Question } from "@/lib/types"
+import { CompanyAvatar } from "@/components/CompanyAvatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -103,9 +104,12 @@ export function DetailPage() {
       </Link>
 
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-semibold">{application.title || "Untitled"}</h1>
-          <p className="text-sm text-muted-foreground">{application.company || "Unknown company"}</p>
+        <div className="flex items-start gap-3">
+          <CompanyAvatar company={application.company} className="mt-1 size-9 text-sm" />
+          <div>
+            <h1 className="text-xl font-semibold">{application.title || "Untitled"}</h1>
+            <p className="text-sm text-muted-foreground">{application.company || "Unknown company"}</p>
+          </div>
         </div>
         <div className="flex items-center gap-2">
           <Badge variant="outline">{label(application.status)}</Badge>

@@ -5,6 +5,7 @@ import { Check, ExternalLink, MoreHorizontal, RefreshCw, X } from "lucide-react"
 import { api, ApiError } from "@/lib/api"
 import { useAuth } from "@/lib/auth"
 import { FILTERS, MORE, SORTS, label, statusTone, type Application, type Page } from "@/lib/types"
+import { CompanyAvatar } from "@/components/CompanyAvatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -293,7 +294,12 @@ export function PipelinePage() {
               const when = row.applied_date || row.updated_at
               return (
                 <TableRow key={row.id}>
-                  <TableCell className="font-medium">{row.company || "—"}</TableCell>
+                  <TableCell className="font-medium">
+                    <span className="flex items-center gap-2">
+                      <CompanyAvatar company={row.company} />
+                      {row.company || "—"}
+                    </span>
+                  </TableCell>
                   <TableCell>
                     <Link to={`/app/${encodeURIComponent(row.id)}`} className="hover:underline">
                       {row.title || "Untitled"}

@@ -3,6 +3,7 @@ import { Link } from "react-router-dom"
 import { api, ApiError } from "@/lib/api"
 import { useAuth } from "@/lib/auth"
 import type { Application, Page, Question } from "@/lib/types"
+import { CompanyAvatar } from "@/components/CompanyAvatar"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
@@ -73,13 +74,16 @@ function QueueCard({ row, onDecided }: { row: Application; onDecided: () => void
   return (
     <Card>
       <CardHeader className="flex-row items-start justify-between">
-        <div>
-          <CardTitle>
-            <Link to={`/app/${encodeURIComponent(row.id)}`} className="hover:underline">
-              {row.title || "Untitled"}
-            </Link>
-          </CardTitle>
-          <p className="text-sm text-muted-foreground">{row.company || "Unknown company"}</p>
+        <div className="flex items-start gap-3">
+          <CompanyAvatar company={row.company} className="mt-1" />
+          <div>
+            <CardTitle>
+              <Link to={`/app/${encodeURIComponent(row.id)}`} className="hover:underline">
+                {row.title || "Untitled"}
+              </Link>
+            </CardTitle>
+            <p className="text-sm text-muted-foreground">{row.company || "Unknown company"}</p>
+          </div>
         </div>
         {can("approve") ? (
           <div className="flex gap-2">
