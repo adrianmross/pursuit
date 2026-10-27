@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react"
 import { NavLink, Outlet, useLocation, useNavigate, useSearchParams } from "react-router-dom"
-import { Moon, Sun, Monitor, LogOut, MoreVertical, Search } from "lucide-react"
+import { Moon, Sun, Monitor, LogOut, MoreVertical, Search, Settings } from "lucide-react"
 import { useAuth } from "@/lib/auth"
 import { useTheme } from "@/lib/theme"
 import { CommandPalette } from "@/components/CommandPalette"
+import { SettingsSheet } from "@/components/SettingsSheet"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -58,6 +59,7 @@ function GlobalSearch() {
 export function AppShell() {
   const { me, signOut } = useAuth()
   const { theme, setTheme } = useTheme()
+  const [settingsOpen, setSettingsOpen] = useState(false)
   const identity = me ? `${me.token.name || "token"} · ${(me.token.scopes || []).join(", ")}` : ""
 
   return (
@@ -103,6 +105,10 @@ export function AppShell() {
                 <Monitor /> System {theme === "system" && "✓"}
               </DropdownMenuItem>
               <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => setSettingsOpen(true)}>
+                <Settings /> Settings
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
               <DropdownMenuItem onClick={signOut} variant="destructive">
                 <LogOut /> Sign out
               </DropdownMenuItem>
@@ -113,6 +119,7 @@ export function AppShell() {
       <main className="flex-1 p-4">
         <Outlet />
       </main>
+      <SettingsSheet open={settingsOpen} onOpenChange={setSettingsOpen} />
     </div>
   )
 }

@@ -4,6 +4,7 @@ import commandScore from "command-score"
 import { Check, ExternalLink, MoreHorizontal, RefreshCw, X } from "lucide-react"
 import { api, ApiError } from "@/lib/api"
 import { useAuth } from "@/lib/auth"
+import { getDefaultSort, getDefaultStatus } from "@/lib/settings"
 import { FILTERS, MORE, SORTS, label, statusTone, type Application, type Page } from "@/lib/types"
 import { CompanyAvatar } from "@/components/CompanyAvatar"
 import { Badge } from "@/components/ui/badge"
@@ -138,9 +139,9 @@ function RowActions({ row, can, onChanged }: { row: Application; can: (scope: st
 export function PipelinePage() {
   const { can } = useAuth()
   const [params, setParams] = useSearchParams()
-  const status = params.get("status") || ""
+  const status = params.get("status") ?? getDefaultStatus()
   const q = params.get("q") || ""
-  const sort = params.get("sort") || "-updated_at"
+  const sort = params.get("sort") || getDefaultSort()
 
   const [rows, setRows] = useState<Application[]>([])
   const [total, setTotal] = useState(0)
@@ -192,7 +193,7 @@ export function PipelinePage() {
   function patch(next: Record<string, string>) {
     const merged = new URLSearchParams(params)
     for (const [key, value] of Object.entries(next)) {
-      if (value) merged.set(key, value)
+      if (value || key === "status") merged.set(key, value)
       else merged.delete(key)
     }
     setParams(merged, { replace: true })
