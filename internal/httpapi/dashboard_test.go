@@ -23,9 +23,12 @@ func TestDashboardAssets(t *testing.T) {
 		t.Fatalf("csp %q", header.Get("Content-Security-Policy"))
 	}
 
-	code, body, header = e.do(t, http.MethodGet, "/dashboard.css", "", nil, nil)
-	if code != 200 || !strings.Contains(header.Get("Content-Type"), "text/css") || !strings.Contains(string(body), "--bg") {
-		t.Fatalf("css %d %s", code, body)
+	code, cssBody, header := e.do(t, http.MethodGet, "/dashboard.css", "", nil, nil)
+	if code != 200 || !strings.Contains(header.Get("Content-Type"), "text/css") || !strings.Contains(string(cssBody), "--bg") {
+		t.Fatalf("css %d %s", code, cssBody)
+	}
+	if !strings.Contains(string(cssBody), "link-dot") || !strings.Contains(string(cssBody), "-webkit-line-clamp") || !strings.Contains(string(cssBody), "account-pop") {
+		t.Fatal("dashboard css is missing the compact pipeline layout")
 	}
 	code, body, header = e.do(t, http.MethodGet, "/dashboard.js", "", nil, nil)
 	script := string(body)
@@ -40,6 +43,9 @@ func TestDashboardAssets(t *testing.T) {
 	}
 	if strings.Contains(script, "/v1/queue/claim") || strings.Contains(script, "/v1/queue/") {
 		t.Fatal("dashboard script claims queue work")
+	}
+	if strings.Contains(script, "More statuses") || !strings.Contains(script, "applied_date") || !strings.Contains(script, "link-dot") || !strings.Contains(script, "account-pop") {
+		t.Fatal("pipeline list is missing the compact row, date, or account menu")
 	}
 
 	code, _, _ = e.do(t, http.MethodGet, "/v1/applications", "", nil, nil)

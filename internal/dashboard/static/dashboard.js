@@ -73,8 +73,11 @@ let loadGen = 0;
 
 const app = document.getElementById("app");
 
+const SVG_NS = "http://www.w3.org/2000/svg";
+const SVG_TAGS = new Set(["svg", "path", "circle"]);
+
 function h(tag, props, ...children) {
-  const node = document.createElement(tag);
+  const node = SVG_TAGS.has(tag) ? document.createElementNS(SVG_NS, tag) : document.createElement(tag);
   for (const [key, value] of Object.entries(props || {})) {
     if (value == null || value === false) continue;
     if (key === "class") node.className = value;
@@ -116,6 +119,65 @@ function linkPill(status) {
   if (status === "unknown") return h("span", { class: "pill pill-warn" }, "Unknown");
   if (status === "live") return h("span", { class: "pill pill-ok" }, "Live");
   return h("span", { class: "pill" }, "Unchecked");
+}
+
+function linkDot(status) {
+  const dead = status === "closed";
+  const text = dead ? "Dead link" : status === "live" ? "Posting is live" : status === "unknown" ? "Link status unknown" : "Link not checked";
+  return h("span", {
+    class: dead ? "link-dot link-dot-dead" : "link-dot",
+    title: text,
+    role: "img",
+    "aria-label": text,
+  });
+}
+
+function postingIcon() {
+  return h("svg", { viewBox: "0 0 16 16", width: "15", height: "15", "aria-hidden": "true" },
+    h("path", {
+      d: "M6.5 3.5H3.8A1.3 1.3 0 0 0 2.5 4.8v7.4A1.3 1.3 0 0 0 3.8 13.5h7.4a1.3 1.3 0 0 0 1.3-1.3V9.5",
+      fill: "none", stroke: "currentColor", "stroke-width": "1.4", "stroke-linecap": "round",
+    }),
+    h("path", {
+      d: "M9 2.5h4.5V7",
+      fill: "none", stroke: "currentColor", "stroke-width": "1.4", "stroke-linecap": "round", "stroke-linejoin": "round",
+    }),
+    h("path", {
+      d: "M13.5 2.5 7.5 8.5",
+      fill: "none", stroke: "currentColor", "stroke-width": "1.4", "stroke-linecap": "round",
+    }));
+}
+
+function menuGlyph() {
+  return h("svg", { viewBox: "0 0 16 16", width: "18", height: "18", "aria-hidden": "true" },
+    h("circle", { cx: "3.5", cy: "8", r: "1.15", fill: "currentColor" }),
+    h("circle", { cx: "8", cy: "8", r: "1.15", fill: "currentColor" }),
+    h("circle", { cx: "12.5", cy: "8", r: "1.15", fill: "currentColor" }));
+}
+
+function shortWhen(value) {
+  if (!value) return "—";
+  const raw = String(value);
+  const match = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!match) return raw;
+  const time = raw.match(/T(\d{2}):(\d{2}):(\d{2})/);
+  const date = time
+    ? new Date(`${match[1]}-${match[2]}-${match[3]}T${time[1]}:${time[2]}:${time[3]}Z`)
+    : new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+  if (Number.isNaN(date.getTime())) return match[1] + "-" + match[2] + "-" + match[3];
+  const now = new Date();
+  const start = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const diff = Math.round((today.getTime() - start.getTime()) / 86400000);
+  if (diff === 0) return "today";
+  if (diff > 0 && diff < 7) return diff + "d ago";
+  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  const label = months[date.getMonth()] + " " + date.getDate();
+  return date.getFullYear() === now.getFullYear() ? label : label + ", " + date.getFullYear();
+}
+
+function rowWhen(row) {
+  return shortWhen(row.applied_date || row.updated_at);
 }
 
 function fmt(value) {
@@ -225,17 +287,28 @@ function shell(route) {
     ["#/queue", "Queue", route.name === "queue"],
     ["#/links", "Links", route.name === "links"],
   ];
+  const identity = state.me
+    ? (state.me.token.name || "token") + " · " + (state.me.token.scopes || []).join(", ")
+    : "";
   const who = state.me
     ? h("div", { class: "who" },
-      h("span", {}, state.me.token.name || "token", " · ", (state.me.token.scopes || []).join(", ")),
+      h("span", {}, identity),
       h("button", { class: "btn", type: "button", onClick: signOut }, "Sign out"))
+    : null;
+  const account = state.me
+    ? h("details", { class: "account" },
+      h("summary", { class: "account-btn", "aria-label": "Account" }, menuGlyph()),
+      h("div", { class: "account-pop" },
+        h("p", { class: "account-name" }, identity),
+        h("button", { class: "btn", type: "button", onClick: signOut }, "Sign out")))
     : null;
   app.replaceChildren(h("div", { class: "shell" },
     h("header", { class: "top" },
       h("a", { class: "brand", href: "#/" }, "Pursuit"),
       h("nav", { class: "nav" }, links.map(([href, text, current]) =>
         h("a", { href, "aria-current": current ? "page" : null }, text))),
-      who),
+      who,
+      account),
     h("main", { class: "main", id: "main" },
       h("div", { class: "banner", id: "banner" })),
     h("dialog", { id: "confirm" },
@@ -324,7 +397,7 @@ async function render() {
 function renderPipeline(route) {
   document.title = "Pipeline · Pursuit";
   const main = document.getElementById("main");
-  const known = FILTERS.some(([value]) => value === route.status);
+  const statuses = FILTERS.concat(MORE);
   main.append(
     h("div", { class: "page-head" },
       h("div", {},
@@ -347,20 +420,23 @@ function renderPipeline(route) {
           class: "select", id: "sort", "aria-label": "Sort",
           onChange: (event) => { location.hash = pipelineHash(currentPipeline({ sort: event.target.value })); },
         }, SORTS.map(([value, text]) => h("option", { value, selected: value === route.sort }, text))))),
-    h("div", { class: "filters" },
-      FILTERS.map(([value, text]) => h("button", {
+    h("div", { class: "filters", role: "toolbar", "aria-label": "Status" },
+      statuses.map(([value, text]) => h("button", {
         class: "chip", type: "button", "aria-pressed": route.status === value ? "true" : "false",
         onClick: () => { location.hash = pipelineHash(currentPipeline({ status: value })); },
-      }, text)),
-      h("select", {
-        class: "select", "aria-label": "More statuses",
-        onChange: (event) => { location.hash = pipelineHash(currentPipeline({ status: event.target.value })); },
-      },
-      h("option", { value: "", selected: known }, "More statuses"),
-      MORE.map(([value, text]) => h("option", { value, selected: route.status === value }, text)))),
-    h("div", { class: "table-wrap" },
-      h("table", {},
-        h("thead", {}, h("tr", {}, ["Company", "Role", "Status", "Link", "Updated"].map((text) => h("th", {}, text)))),
+      }, text))),
+    h("div", { class: "table-wrap pipeline-wrap" },
+      h("table", { class: "pipeline" },
+        h("thead", {}, h("tr", {}, [
+          ["Company", "col-company"],
+          ["Role", "col-role"],
+          ["Status", "col-status"],
+          ["Link", "col-link"],
+          ["Date", "col-date"],
+        ].map(([text, cls]) => h("th", {
+          class: cls,
+          title: text === "Date" ? "Applied date when one is set, otherwise the last update" : null,
+        }, text)))),
         h("tbody", { id: "rows" }))),
     h("button", { class: "btn more", id: "more", type: "button", hidden: true, onClick: () => loadResults(parseRoute(), state.next) }, "Load more"));
   return loadResults(route);
@@ -387,19 +463,32 @@ async function loadResults(route, cursor) {
   if (!body) return;
   body.replaceChildren();
   if (state.rows.length === 0) {
-    body.append(h("tr", {}, h("td", { colspan: "5", class: "empty", "data-label": "" }, "No applications match.")));
+    body.append(h("tr", { class: "empty-row" }, h("td", { colspan: "5", class: "empty" }, "No applications match.")));
   }
-  for (const row of state.rows) {
-    const href = safeURL(row.posting_url);
-    body.append(h("tr", {},
-      h("td", { "data-label": "Company" }, row.company || "—"),
-      h("td", { "data-label": "Role" }, h("a", { class: "title-link", href: "#/app/" + encodeURIComponent(row.id) }, row.title || "Untitled")),
-      h("td", { "data-label": "Status" }, h("span", { class: pillClass(row.status) }, label(row.status))),
-      h("td", { "data-label": "Link" }, href ? h("a", { href, target: "_blank", rel: "noopener noreferrer" }, "Posting") : "—", " ", linkPill(row.link_status)),
-      h("td", { "data-label": "Updated" }, fmt(row.updated_at))));
-  }
+  for (const row of state.rows) body.append(pipelineRow(row));
   const more = document.getElementById("more");
   if (more) more.hidden = !state.hasMore;
+}
+
+function pipelineRow(row) {
+  const href = safeURL(row.posting_url);
+  const detail = "#/app/" + encodeURIComponent(row.id);
+  const when = row.applied_date || row.updated_at || "";
+  return h("tr", { class: "app-row" },
+    h("td", { class: "col-company" }, h("span", { class: "company" }, row.company || "—")),
+    h("td", { class: "col-role" },
+      h("a", { class: "title-link stretch", href: detail },
+        h("span", { class: "role-text" }, row.title || "Untitled"))),
+    h("td", { class: "col-status" }, h("span", { class: pillClass(row.status) }, label(row.status))),
+    h("td", { class: "col-link" },
+      h("span", { class: "link-bits" },
+        linkDot(row.link_status),
+        href ? h("a", {
+          class: "posting-icon", href, target: "_blank", rel: "noopener noreferrer",
+          "aria-label": "Open posting",
+        }, postingIcon()) : null)),
+    h("td", { class: "col-date" },
+      h("span", { class: "when", title: row.applied_date ? "Applied " + row.applied_date : when ? "Updated " + when : "" }, rowWhen(row))));
 }
 
 async function renderDetail(id) {
