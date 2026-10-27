@@ -35,11 +35,13 @@ func rootCommand() *Command {
 			cmdExport(),
 			cmdApply(),
 			cmdApprove(),
+			cmdReject(),
 			cmdQueue(),
 			cmdArtifacts(),
 			cmdStanding(),
 			cmdCaps(),
 			cmdCheckLinks(),
+			cmdLinks(),
 			cmdWebhooks(),
 		},
 	}
@@ -634,6 +636,24 @@ func cmdApprove() *Command {
 	}
 }
 
+func cmdReject() *Command {
+	return &Command{
+		Name: "reject", Summary: "decline a prepared application without submitting it",
+		Usage: "pursuit reject <id> [<id>...]",
+		Example: "pursuit reject APP1",
+		Mutating: true,
+		Args: []Arg{{Name: "id", Required: true, Many: true}},
+		Flags: []Flag{{Name: "note", Type: "string", Help: "note stored with the rejection"}},
+		Run: func(e *exec) error {
+			b, err := e.jsonBody(map[string]any{"ids": e.args, "note": e.flag("note")})
+			if err != nil {
+				return err
+			}
+			return e.send("POST", "/v1/approvals/reject", nil, b, "application/json", true, false)
+		},
+	}
+}
+
 func cmdQueue() *Command {
 	worker := Flag{Name: "worker", Type: "string", Help: "worker id that holds the lease"}
 	return &Command{Name: "queue", Summary: "lease application work", Children: []*Command{
@@ -735,6 +755,37 @@ func cmdCheckLinks() *Command {
 				return &exitError{code: 2, message: "pass --all or an application id", hint: "pursuit check-links --all"}
 			}
 			return e.send("POST", "/v1/applications/"+url.PathEscape(e.args[0])+"/check-link", nil, []byte("{}"), "application/json", true, false)
+		},
+	}
+}
+
+func cmdLinks() *Command {
+	return &Command{
+		Name: "links", Summary: "list postings the checker marked closed or changed",
+		Usage: "pursuit links [--all | --status <status> | --changed]",
+		Example: "pursuit links --fields company,title,status,detail",
+		Flags: []Flag{
+			{Name: "all", Type: "bool", Help: "every checked posting, not only closed or changed"},
+			{Name: "status", Type: "string", Help: "live, closed, or unknown"},
+			{Name: "changed", Type: "bool", Help: "only postings whose status changed since the previous check"},
+			{Name: "limit", Type: "string", Help: "page size, 1-200, default 50"},
+			{Name: "cursor", Type: "string", Help: "next_cursor from the previous page"},
+			{Name: "sort", Type: "string", Help: "checked_at, company, or status, with an optional leading -"},
+		},
+		Run: func(e *exec) error {
+			q := url.Values{}
+			for _, k := range []string{"status", "limit", "cursor", "sort"} {
+				if v := e.flag(k); v != "" {
+					q.Set(k, v)
+				}
+			}
+			if e.flag("changed") == "true" {
+				q.Set("changed", "true")
+			}
+			if e.flag("all") != "true" && q.Get("status") == "" && q.Get("changed") == "" {
+				q.Set("attention", "true")
+			}
+			return e.send("GET", "/v1/links", q, nil, "", false, true)
 		},
 	}
 }

@@ -648,6 +648,172 @@ func TestLinkCheckStaleAndWebhook(t *testing.T) {
 	_ = hits
 }
 
+func TestRejectDoesNotApproveOrSubmit(t *testing.T) {
+	e := newEnv(t)
+	code, app := e.json(t, http.MethodPost, "/v1/applications", e.token, map[string]any{
+		"company": "ReviewCo", "title": "Prepared role", "status": "to_apply", "notes": "draft answers",
+	})
+	if code != 201 {
+		t.Fatal(app)
+	}
+	id := app["id"].(string)
+	ver := int(app["version"].(float64))
+	code, moved := e.json(t, http.MethodPost, "/v1/applications/"+id+"/transition", e.token, map[string]any{
+		"version": ver, "status": "awaiting_review",
+	})
+	if code != 200 || moved["status"] != domain.StatusAwaitingReview {
+		t.Fatalf("queue %d %#v", code, moved)
+	}
+
+	code, other := e.json(t, http.MethodPost, "/v1/applications", e.token, map[string]any{
+		"company": "ReviewCo", "title": "Still drafting", "status": "to_apply",
+	})
+	if code != 201 {
+		t.Fatal(other)
+	}
+	code, early := e.json(t, http.MethodPost, "/v1/approvals/reject", e.token, map[string]any{"ids": []string{other["id"].(string)}})
+	if code != 400 || errCode(early) != "validation" {
+		t.Fatalf("early reject %d %#v", code, early)
+	}
+
+	for _, scopes := range [][]string{{"read"}, {"write"}} {
+		code, issued := e.json(t, http.MethodPost, "/v1/tokens", e.token, map[string]any{"name": scopes[0], "scopes": scopes})
+		if code != 201 {
+			t.Fatal(issued)
+		}
+		code, denied := e.json(t, http.MethodPost, "/v1/approvals/reject", issued["secret"].(string), map[string]any{"ids": []string{id}})
+		if code != 403 || errCode(denied) != "forbidden" {
+			t.Fatalf("scope %v reject %d %#v", scopes, code, denied)
+		}
+	}
+
+	code, raw, _ := e.do(t, http.MethodPost, "/v1/approvals/reject", e.token, []byte(`{"ids":["`+id+`"],"note":"hold off"}`), map[string]string{"Content-Type": "application/json"})
+	if code != 200 || !bytes.Contains(raw, []byte(`"status":"withdrawn"`)) || bytes.Contains(raw, []byte(`"status":"approved"`)) || bytes.Contains(raw, []byte(`"status":"submitting"`)) || bytes.Contains(raw, []byte(`"status":"submitted"`)) {
+		t.Fatalf("reject %d %s", code, raw)
+	}
+	code, got := e.json(t, http.MethodGet, "/v1/applications/"+id, e.token, nil)
+	if code != 200 || got["status"] != domain.StatusWithdrawn {
+		t.Fatalf("stored %#v", got)
+	}
+	code, events := e.json(t, http.MethodGet, "/v1/applications/"+id+"/events", e.token, nil)
+	if code != 200 {
+		t.Fatal(events)
+	}
+	found := false
+	for _, item := range events["data"].([]any) {
+		ev := item.(map[string]any)
+		if ev["kind"] == domain.EventApproval && ev["title"] == "Approval rejected" && ev["to_status"] == domain.StatusWithdrawn && ev["body"] == "hold off" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("events %#v", events)
+	}
+	ver = int(got["version"].(float64))
+	code, jump := e.json(t, http.MethodPost, "/v1/applications/"+id+"/transition", e.token, map[string]any{
+		"version": ver, "status": "submitting",
+	})
+	if code != 409 || errCode(jump) != "conflict" {
+		t.Fatalf("submit after reject %d %#v", code, jump)
+	}
+	code, claim := e.json(t, http.MethodPost, "/v1/queue/claim", e.token, map[string]any{"worker": "agent-1"})
+	if code != 200 || claim["work"] != nil {
+		t.Fatalf("reject enqueued work %#v", claim)
+	}
+	code, again := e.json(t, http.MethodPost, "/v1/approvals/reject", e.token, map[string]any{"ids": []string{id}, "note": "again"})
+	if code != 400 {
+		t.Fatalf("second reject %d %#v", code, again)
+	}
+}
+
+func TestLinkHealthList(t *testing.T) {
+	e := newEnv(t)
+	page := "<html>open role</html>"
+	site := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(page))
+	}))
+	defer site.Close()
+	e.svc.Links = &links.Client{HTTP: site.Client(), Gap: 0}
+
+	code, _ := e.json(t, http.MethodGet, "/v1/links?attention=true", "", nil)
+	if code != 401 {
+		t.Fatalf("anon %d", code)
+	}
+	code, issued := e.json(t, http.MethodPost, "/v1/tokens", e.token, map[string]any{"name": "reader", "scopes": []string{"read"}})
+	if code != 201 {
+		t.Fatal(issued)
+	}
+	readTok := issued["secret"].(string)
+
+	page = "<html>this job is no longer accepting applications</html>"
+	deadID := createChecked(t, e, site.URL+"/jobs/dead", "DeadCo", "Old role")
+	page = "<html>open role</html>"
+	liveID := createChecked(t, e, site.URL+"/jobs/live", "LiveCo", "Open role")
+
+	code, attention := e.json(t, http.MethodGet, "/v1/links?attention=true", readTok, nil)
+	if code != 200 || attention["page"].(map[string]any)["total"].(float64) != 1 {
+		t.Fatalf("attention %#v", attention)
+	}
+	row := attention["data"].([]any)[0].(map[string]any)
+	if row["application_id"] != deadID || row["status"] != "closed" || row["changed"] != false || !strings.Contains(row["detail"].(string), "no longer accepting") {
+		t.Fatalf("dead row %#v", row)
+	}
+	code, live := e.json(t, http.MethodGet, "/v1/links?status=live", e.token, nil)
+	if code != 200 || live["page"].(map[string]any)["total"].(float64) != 1 {
+		t.Fatalf("live %#v", live)
+	}
+	if live["data"].([]any)[0].(map[string]any)["application_id"] != liveID {
+		t.Fatalf("live row %#v", live)
+	}
+
+	page = "<html>this job is no longer accepting applications</html>"
+	code, checked := e.json(t, http.MethodPost, "/v1/applications/"+liveID+"/check-link", e.token, nil)
+	if code != 200 || checked["status"] != "closed" || checked["changed"] != true {
+		t.Fatalf("recheck %#v", checked)
+	}
+	code, attention = e.json(t, http.MethodGet, "/v1/links?attention=true&sort=company", e.token, nil)
+	if code != 200 || attention["page"].(map[string]any)["total"].(float64) != 2 {
+		t.Fatalf("both %#v", attention)
+	}
+	var sawChanged bool
+	for _, item := range attention["data"].([]any) {
+		row := item.(map[string]any)
+		if row["application_id"] == liveID {
+			if row["changed"] != true || row["status"] != "closed" {
+				t.Fatalf("changed row %#v", row)
+			}
+			sawChanged = true
+		}
+	}
+	if !sawChanged {
+		t.Fatalf("missing changed row %#v", attention)
+	}
+	code, bad := e.json(t, http.MethodGet, "/v1/links?attention=true&status=live", e.token, nil)
+	if code != 400 || errCode(bad) != "validation" {
+		t.Fatalf("combined %d %#v", code, bad)
+	}
+	code, bad = e.json(t, http.MethodGet, "/v1/links?status=nope", e.token, nil)
+	if code != 400 {
+		t.Fatalf("bad status %d %#v", code, bad)
+	}
+}
+
+func createChecked(t *testing.T, e *env, postingURL, company, title string) string {
+	t.Helper()
+	code, app := e.json(t, http.MethodPost, "/v1/applications", e.token, map[string]any{
+		"company": company, "title": title, "status": "to_apply", "posting_url": postingURL,
+	})
+	if code != 201 {
+		t.Fatal(app)
+	}
+	id := app["id"].(string)
+	code, checked := e.json(t, http.MethodPost, "/v1/applications/"+id+"/check-link", e.token, nil)
+	if code != 200 {
+		t.Fatalf("check %s %#v", postingURL, checked)
+	}
+	return id
+}
+
 type rewriteRT struct{ base string }
 
 func rewriteTransport(base string) http.RoundTripper { return rewriteRT{base} }

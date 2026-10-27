@@ -391,8 +391,12 @@ func sortSpec(kind string) (map[string]string, string, error) {
 	case "application":
 		return map[string]string{
 			"updated_at": "a.updated_at", "created_at": "a.created_at",
-			"applied_date": "COALESCE(a.applied_date, '')", "company": "c.name", "status": "a.status",
+			"applied_date": "COALESCE(a.applied_date, '')", "company": "c.name", "status": "a.status", "title": "r.title",
 		}, "-updated_at", nil
+	case "link":
+		return map[string]string{
+			"checked_at": "pc.checked_at", "company": "c.name", "status": "pc.status",
+		}, "-checked_at", nil
 	case "event":
 		return map[string]string{"occurred_at": "e.occurred_at", "created_at": "e.created_at"}, "-occurred_at", nil
 	case "audit":

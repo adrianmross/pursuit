@@ -658,6 +658,10 @@ type ListQuery struct {
 	Stale         bool
 	AfterID       string
 	AfterTime     string
+	// Link listing. Attention means closed or changed since the previous check.
+	LinkStatus string
+	Changed    *bool
+	Attention  bool
 }
 
 type Cursor struct {
@@ -709,7 +713,22 @@ var (
 	TagFields     = []string{"id", "name", "created_at"}
 	TokenFields   = []string{"id", "name", "prefix", "scopes", "created_at", "last_used_at", "revoked_at"}
 	AuditFields   = []string{"id", "token_id", "actor_name", "action", "entity_type", "entity_id", "summary", "metadata", "created_at"}
+	LinkFields    = []string{"application_id", "role_id", "company", "title", "posting_url", "status", "detail", "http_status", "changed", "checked_at"}
 )
+
+// LinkHealth is one posting the link checker has already classified.
+type LinkHealth struct {
+	ApplicationID string `json:"application_id"`
+	RoleID        string `json:"role_id"`
+	Company       string `json:"company"`
+	Title         string `json:"title"`
+	PostingURL    string `json:"posting_url"`
+	Status        string `json:"status"`
+	Detail        string `json:"detail"`
+	HTTPStatus    int    `json:"http_status"`
+	Changed       bool   `json:"changed"`
+	CheckedAt     string `json:"checked_at"`
+}
 
 func ValidateFields(requested, allowed []string) error {
 	allow := map[string]bool{}

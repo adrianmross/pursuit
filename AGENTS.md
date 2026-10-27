@@ -9,7 +9,7 @@ export PURSUIT_TOKEN=pst_...   # write scope to prepare; never put approve on an
 
 Stdout is compact JSON when piped. Errors are JSON on stderr. Exit codes: 0 ok, 2 usage, 3 not found, 4 conflict, 5 auth, 6 validation, 1 other. Pass `--fields` to keep payloads small, `--dry-run` before a mutation, and `--idempotency-key` on writes.
 
-Prepare and enqueue are allowed. `pursuit approve` is human-only (`approve` scope). Do not transition to `submitting` or `submitted` yourself. After approval, `pursuit queue claim --worker <id>` returns submit work. Heartbeat before the 2 minute lease expires. Complete with `awaiting_review`, `needs_input`, `submitted`, or `failed`.
+Prepare and enqueue are allowed. `pursuit approve` and `pursuit reject` are human-only (`approve` scope). Do not transition to `submitting` or `submitted` yourself. After approval, `pursuit queue claim --worker <id>` returns submit work. Heartbeat before the 2 minute lease expires. Complete with `awaiting_review`, `needs_input`, `submitted`, or `failed`. The web dashboard is the human UI for the same API. Do not drive it.
 
 ```bash
 pursuit apply APP_ID --async

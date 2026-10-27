@@ -18,5 +18,5 @@ Looked at Simplify Copilot, Teal's Job Search Chrome extension, and Huntr's clip
 - Autofill on Workday, iCIMS, Taleo, Indeed, or Glassdoor. Capture knows Workday and LinkedIn job views. Filling is Greenhouse, Ashby, and Lever.
 - Crawling, background fetches of job pages, and any LinkedIn API or automated LinkedIn request. The content script only reads the document the user opened, and only when the popup asks.
 - Clicking Apply or Submit, multi-page "keep filling as you go" bots, and setting a résumé file input. Browsers block that assignment, so the popup downloads the prepared PDF instead.
-- Kanban, contacts, tasks, maps, email templates, unemployment logs, and a web dashboard. The dashboard is a later phase.
+- Kanban, contacts, tasks, maps, email templates, and unemployment logs. The web dashboard is a separate page served by `pursuit serve`, not part of the extension.
 - A company database or prefilled company research. The company name comes from the page.

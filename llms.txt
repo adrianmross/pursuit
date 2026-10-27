@@ -14,6 +14,8 @@ pursuit apply APP_ID --prepare
 pursuit apply --batch status=to_apply --async
 pursuit queue claim --worker agent-1
 pursuit approve APP_ID
+pursuit reject APP_ID
+pursuit links
 pursuit events --follow
 pursuit check-links --all
 pursuit schema apps update
@@ -23,3 +25,5 @@ OpenAPI: GET /openapi.json. One command's flags: `pursuit schema <command>`.
 SQLite is the default database. Postgres is for more than one replica.
 
 The browser extension uses GET /v1/profile, GET /v1/applications/by-url?url=, and POST /v1/applications/capture. It needs a write token and PURSUIT_CORS_ORIGINS. It does not approve or submit.
+
+The dashboard at `/` is for a person. Agents keep using the CLI. `POST /v1/approvals/reject` declines `awaiting_review` work (approve scope) and does not submit. `GET /v1/links?attention=true` lists closed or changed postings.

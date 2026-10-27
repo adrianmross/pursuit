@@ -73,6 +73,16 @@ Use `sslmode=require` for Neon. Two replicas can share one Postgres database. Qu
 
 `docker compose up --build` starts Postgres and two replicas on ports 8787 and 8788.
 
+## Dashboard
+
+`pursuit serve` embeds a small web dashboard and serves it at the same address as the API, `http://127.0.0.1:8787/`. The pages are static files in the binary. They call the REST API and do not have a private backend.
+
+Open that URL and paste a token once. The browser keeps it in `localStorage` and sends it as `Authorization: Bearer`. A read token can browse. Approve and Reject need the `approve` scope. Re-checking a posting needs `write`. The bootstrap token has all three. On localhost the page and the API share an origin, so you do not set `PURSUIT_CORS_ORIGINS` for the dashboard.
+
+The pipeline lists applications with status filters, search, and sorting. An application page shows the posting, notes, history, and prepared artifacts. The approval queue lists `awaiting_review` work. Approve calls `POST /v1/approvals`, which marks the application `approved` and does not submit the form. Reject calls `POST /v1/approvals/reject`, which marks it `withdrawn` and does not submit either. Link health lists postings the checker marked closed and postings whose status changed since the previous check. Re-check calls the existing link endpoints.
+
+The UI is plain HTML, CSS, and JavaScript, with no build step, so those files embed in the one binary and call the JSON API.
+
 ## Daemon
 
 `deploy/pursuit.service` is a systemd unit. `deploy/com.pursuit.plist` is a launchd agent. Both run `pursuit serve` with SQLite. `deploy/config.example.json` has no secrets.
@@ -102,16 +112,17 @@ pursuit queue claim --worker agent-1
 pursuit queue heartbeat WORK_ID --worker agent-1
 pursuit queue complete WORK_ID --worker agent-1 --status awaiting_review
 pursuit approve APP_ID
+pursuit reject APP_ID
 pursuit events --follow
 pursuit check-links --all
 pursuit list --stale
 ```
 
-Nothing enters `submitting` or `submitted` without an approval row. `pursuit approve` requires a token with `approve`. A write token can prepare and can finish a submit only after that approval exists.
+Nothing enters `submitting` or `submitted` without an approval row. `pursuit approve` requires a token with `approve`. It marks the application `approved` and enqueues submit work; it does not submit a form. `pursuit reject` uses the same scope, marks an `awaiting_review` application `withdrawn`, and does not enqueue submit. A write token can prepare and can finish a submit only after an approval exists.
 
 Company caps ship as Coinbase 3 active per 180 days, OpenAI 5 submitted per 180 days, and Block 9 active per 60 days. Exceeding a cap is a conflict.
 
-The link checker prefers Greenhouse, Ashby, and Lever APIs, then HTTP status and closed-posting phrases. It records `link_status` and does not change the pipeline status. Closed postings show up in `pursuit list --stale`.
+The link checker prefers Greenhouse, Ashby, and Lever APIs, then HTTP status and closed-posting phrases. It records `link_status` and does not change the pipeline status. Closed postings show up in `pursuit list --stale`. `pursuit links` lists closed postings and postings whose check status changed since the previous check. `pursuit links --all` lists every checked posting.
 
 ## Import and export
 
@@ -125,4 +136,4 @@ MIT. See [LICENSE](LICENSE).
 
 ## Not in this build
 
-A web dashboard, Workday autofill, clicking Submit, JSON-RPC, and gRPC. The HTTP handlers are a thin adapter over `service.Service`. `api/proto/pursuit/v1/pursuit.proto` is the future contract and is not compiled. There is no MCP server.
+Workday autofill, clicking Submit, JSON-RPC, and gRPC. The HTTP handlers are a thin adapter over `service.Service`. `api/proto/pursuit/v1/pursuit.proto` is the future contract and is not compiled. There is no MCP server.

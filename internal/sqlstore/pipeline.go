@@ -84,6 +84,9 @@ type PostingCheck struct {
 	Detail     string
 	HTTPStatus int
 	CheckedAt  string
+	// Changed is true when this result differs from a previous check.
+	// The first observation is not a change.
+	Changed bool
 }
 
 type Webhook struct {
@@ -397,20 +400,94 @@ func (s *Store) CountCap(ctx context.Context, userID, company, since, excludeID,
 }
 
 func (s *Store) UpsertPostingCheck(ctx context.Context, c PostingCheck) error {
-	_, err := s.exec(ctx, `INSERT INTO posting_checks (role_id, user_id, status, detail, http_status, checked_at) VALUES (?, ?, ?, ?, ?, ?)
-		ON CONFLICT(role_id) DO UPDATE SET status=excluded.status, detail=excluded.detail, http_status=excluded.http_status, checked_at=excluded.checked_at, user_id=excluded.user_id`,
-		c.RoleID, c.UserID, c.Status, c.Detail, c.HTTPStatus, c.CheckedAt)
+	changed := 0
+	if c.Changed {
+		changed = 1
+	}
+	_, err := s.exec(ctx, `INSERT INTO posting_checks (role_id, user_id, status, detail, http_status, checked_at, changed) VALUES (?, ?, ?, ?, ?, ?, ?)
+		ON CONFLICT(role_id) DO UPDATE SET status=excluded.status, detail=excluded.detail, http_status=excluded.http_status, checked_at=excluded.checked_at, user_id=excluded.user_id, changed=excluded.changed`,
+		c.RoleID, c.UserID, c.Status, c.Detail, c.HTTPStatus, c.CheckedAt, changed)
 	return err
 }
 
 func (s *Store) GetPostingCheck(ctx context.Context, roleID string) (PostingCheck, bool, error) {
 	var c PostingCheck
-	err := s.queryRow(ctx, `SELECT role_id, user_id, status, detail, http_status, checked_at FROM posting_checks WHERE role_id=?`, roleID).
-		Scan(&c.RoleID, &c.UserID, &c.Status, &c.Detail, &c.HTTPStatus, &c.CheckedAt)
+	var changed int
+	err := s.queryRow(ctx, `SELECT role_id, user_id, status, detail, http_status, checked_at, changed FROM posting_checks WHERE role_id=?`, roleID).
+		Scan(&c.RoleID, &c.UserID, &c.Status, &c.Detail, &c.HTTPStatus, &c.CheckedAt, &changed)
 	if err == sql.ErrNoRows {
 		return PostingCheck{}, false, nil
 	}
+	c.Changed = changed != 0
 	return c, err == nil, err
+}
+
+func (s *Store) CancelOpenWork(ctx context.Context, userID, applicationID, now string) error {
+	_, err := s.exec(ctx, `UPDATE work_items SET state='canceled', lease_owner='', lease_until=NULL, updated_at=?
+		WHERE user_id=? AND application_id=? AND state IN ('queued','leased')`, now, userID, applicationID)
+	return err
+}
+
+func (s *Store) ListLinkHealth(ctx context.Context, userID string, q domain.ListQuery) ([]domain.LinkHealth, int, error) {
+	expr, desc, _, err := PrepareSort("link", q.Sort, q.Cursor)
+	if err != nil {
+		return nil, 0, err
+	}
+	w := where{}
+	w.add("a.user_id=?", userID)
+	if q.Attention {
+		w.add("(pc.status=? OR pc.changed=1)", domain.LinkClosed)
+	} else {
+		if q.LinkStatus != "" {
+			w.add("pc.status=?", q.LinkStatus)
+		}
+		if q.Changed != nil {
+			v := 0
+			if *q.Changed {
+				v = 1
+			}
+			w.add("pc.changed=?", v)
+		}
+	}
+	from := `FROM applications a
+		JOIN roles r ON r.id = a.role_id
+		JOIN companies c ON c.id = r.company_id
+		JOIN posting_checks pc ON pc.role_id = r.id `
+	countSQL := `SELECT COUNT(*) ` + from + w.sql()
+	countArgs := append([]any{}, w.args...)
+	if q.Cursor != nil && q.Cursor.ID != "" {
+		w.add(cursorSQL(expr, "a.id", desc), q.Cursor.K, q.Cursor.K, q.Cursor.ID)
+	}
+	limit := q.Limit
+	if limit <= 0 {
+		limit = 51
+	}
+	rows, err := s.query(ctx, `SELECT a.id, r.id, c.name, r.title, r.posting_url, pc.status, pc.detail, pc.http_status, pc.changed, pc.checked_at `+from+w.sql()+` `+orderSQL(expr, "a.id", desc)+` LIMIT ?`, append(w.args, limit)...)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+	var out []domain.LinkHealth
+	for rows.Next() {
+		var row domain.LinkHealth
+		var changed int
+		if err := rows.Scan(&row.ApplicationID, &row.RoleID, &row.Company, &row.Title, &row.PostingURL, &row.Status, &row.Detail, &row.HTTPStatus, &changed, &row.CheckedAt); err != nil {
+			return nil, 0, err
+		}
+		row.Changed = changed != 0
+		out = append(out, row)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, 0, err
+	}
+	var total int
+	if err := s.queryRow(ctx, countSQL, countArgs...).Scan(&total); err != nil {
+		return nil, 0, err
+	}
+	if out == nil {
+		out = []domain.LinkHealth{}
+	}
+	return out, total, nil
 }
 
 func (s *Store) ListRoleIDsForCheck(ctx context.Context, userID string) ([]string, error) {

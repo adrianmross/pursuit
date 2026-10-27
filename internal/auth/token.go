@@ -50,7 +50,7 @@ func Prefix(secret string) string {
 // write implies read. approve implies read and does not imply write.
 // An empty list defaults to read only. Agents that prepare applications
 // must not be given approve; only a human approval token can move work
-// from awaiting_review to approved.
+// from awaiting_review to approved, or reject that review.
 func NormalizeScopes(in []string) ([]string, error) {
 	set := map[string]bool{}
 	for _, raw := range in {

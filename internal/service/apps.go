@@ -335,6 +335,8 @@ func appSortKey(a domain.Application, sort string) string {
 		return a.Company
 	case "status":
 		return a.Status
+	case "title":
+		return a.Title
 	default:
 		return domain.FormatTime(a.UpdatedAt)
 	}

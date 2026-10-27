@@ -126,6 +126,30 @@ func (s *Service) enforceCaps(ctx context.Context, userID, company, excludeID, a
 	return nil
 }
 
+func (s *Service) ListLinks(ctx context.Context, q domain.ListQuery) (domain.Page[domain.LinkHealth], error) {
+	if q.LinkStatus != "" {
+		switch q.LinkStatus {
+		case domain.LinkLive, domain.LinkClosed, domain.LinkUnknown:
+		default:
+			return domain.Page[domain.LinkHealth]{}, domain.Validation("invalid link status %q", q.LinkStatus).WithHint("status is live, closed, or unknown")
+		}
+	}
+	return listPage(s, ctx, false, "link", q, s.DB.ListLinkHealth, func(row domain.LinkHealth) string {
+		return linkSortKey(row, q.Sort)
+	}, func(row domain.LinkHealth) string { return row.ApplicationID })
+}
+
+func linkSortKey(row domain.LinkHealth, sort string) string {
+	switch strings.TrimPrefix(sort, "-") {
+	case "company":
+		return row.Company
+	case "status":
+		return row.Status
+	default:
+		return row.CheckedAt
+	}
+}
+
 func (s *Service) ListCaps(ctx context.Context) ([]sqlstore.CompanyCap, error) {
 	a, err := s.actor(ctx, false)
 	if err != nil {
@@ -341,6 +365,67 @@ func (s *Service) Approve(ctx context.Context, ids []string, note string) ([]dom
 				return err
 			}
 			if err := s.audit(ctx, a, "application.approve", "application", app.ID, "approved "+app.Title, map[string]any{"token_id": a.TokenID}); err != nil {
+				return err
+			}
+			got, err := s.DB.GetApplication(ctx, a.UserID, app.ID)
+			if err != nil {
+				return err
+			}
+			out = append(out, got)
+		}
+		return nil
+	})
+	return out, err
+}
+
+// Reject declines prepared applications. It requires the approve scope, moves
+// awaiting_review work to withdrawn, and does not enqueue a submit.
+func (s *Service) Reject(ctx context.Context, ids []string, note string) ([]domain.Application, error) {
+	a, err := s.actor(ctx, false)
+	if err != nil {
+		return nil, err
+	}
+	if !a.Can("approve") {
+		return nil, domain.Forbidden("approve")
+	}
+	if len(ids) == 0 {
+		return nil, domain.Validation("at least one application id is required").WithHint("pursuit reject <id> [<id>...]")
+	}
+	note, err = domain.BoundText("note", note, 2000)
+	if err != nil {
+		return nil, err
+	}
+	var out []domain.Application
+	err = s.DB.WithTx(ctx, func(ctx context.Context) error {
+		for _, id := range ids {
+			app, err := s.DB.GetApplication(ctx, a.UserID, id)
+			if err != nil {
+				return err
+			}
+			if app.Status != domain.StatusAwaitingReview {
+				return domain.Validation("application %s is %s", id, app.Status).WithHint("only awaiting_review applications can be rejected")
+			}
+			if err := s.guardTransition(ctx, a, app.ID, app.Company, app.Status, domain.StatusWithdrawn); err != nil {
+				return err
+			}
+			from := app.Status
+			app.Status = domain.StatusWithdrawn
+			app.UpdatedAt = s.now()
+			if err := s.DB.UpdateApplication(ctx, app); err != nil {
+				return err
+			}
+			now := domain.FormatTime(s.now())
+			if err := s.DB.CancelOpenWork(ctx, a.UserID, app.ID, now); err != nil {
+				return err
+			}
+			if err := s.recordEvent(ctx, domain.Event{
+				ID: s.NewID(), UserID: a.UserID, ApplicationID: app.ID, Kind: domain.EventApproval,
+				FromStatus: from, ToStatus: domain.StatusWithdrawn, Title: "Approval rejected", Body: note,
+				OccurredAt: s.now(), CreatedAt: s.now(), Actor: domain.ActorRef{TokenID: a.TokenID, Name: a.Name},
+			}); err != nil {
+				return err
+			}
+			if err := s.audit(ctx, a, "application.reject", "application", app.ID, "rejected "+app.Title, map[string]any{"token_id": a.TokenID}); err != nil {
 				return err
 			}
 			got, err := s.DB.GetApplication(ctx, a.UserID, app.ID)
@@ -911,13 +996,17 @@ func (s *Service) checkRole(ctx context.Context, a domain.Actor, roleID, posting
 	}
 	res := s.links().Check(ctx, postingURL)
 	checked := domain.FormatTime(res.CheckedAt)
+	// The response reports a change on the first observation. The stored flag
+	// is only set when a previous result existed and the status moved.
+	responseChanged := !found || prev.Status != res.Status
+	storedChanged := found && prev.Status != res.Status
 	if err := s.DB.UpsertPostingCheck(ctx, sqlstore.PostingCheck{
 		RoleID: roleID, UserID: a.UserID, Status: res.Status, Detail: res.Detail,
-		HTTPStatus: res.HTTPStatus, CheckedAt: checked,
+		HTTPStatus: res.HTTPStatus, CheckedAt: checked, Changed: storedChanged,
 	}); err != nil {
 		return LinkCheckView{}, err
 	}
-	changed := !found || prev.Status != res.Status
+	changed := responseChanged
 	view := LinkCheckView{RoleID: roleID, PostingURL: postingURL, Status: res.Status, Detail: res.Detail, Changed: changed, HTTPStatus: res.HTTPStatus}
 	if !changed {
 		return view, nil

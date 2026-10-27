@@ -11,6 +11,8 @@ service Pursuit {
   rpc Enqueue(EnqueueRequest) returns (Work);
   rpc Claim(ClaimRequest) returns (ClaimResponse);
   rpc Approve(ApproveRequest) returns (ApproveResponse);
+  rpc Reject(RejectRequest) returns (RejectResponse);
+  rpc ListLinks(ListLinksRequest) returns (ListLinksResponse);
   rpc CheckLink(CheckLinkRequest) returns (CheckLinkResponse);
 }
 
@@ -74,6 +76,40 @@ message ApproveRequest {
 
 message ApproveResponse {
   repeated Application applications = 1;
+}
+
+message RejectRequest {
+  repeated string ids = 1;
+  string note = 2;
+}
+
+message RejectResponse {
+  repeated Application applications = 1;
+}
+
+message ListLinksRequest {
+  bool attention = 1;
+  string status = 2;
+  bool changed = 3;
+  int32 limit = 4;
+  string cursor = 5;
+}
+
+message LinkHealth {
+  string application_id = 1;
+  string company = 2;
+  string title = 3;
+  string posting_url = 4;
+  string status = 5;
+  string detail = 6;
+  int32 http_status = 7;
+  bool changed = 8;
+  string checked_at = 9;
+}
+
+message ListLinksResponse {
+  repeated LinkHealth links = 1;
+  string next_cursor = 2;
 }
 
 message CheckLinkRequest {

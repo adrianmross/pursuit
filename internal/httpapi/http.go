@@ -20,6 +20,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/pursuit/pursuit/internal/dashboard"
 	"github.com/pursuit/pursuit/internal/domain"
 	"github.com/pursuit/pursuit/internal/impex"
 	"github.com/pursuit/pursuit/internal/service"
@@ -42,6 +43,9 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /version", s.version)
 	mux.HandleFunc("GET /openapi.json", s.openapi)
 	mux.HandleFunc("GET /llms.txt", s.llms)
+	mux.HandleFunc("GET /{$}", s.dashboard)
+	mux.HandleFunc("GET /dashboard.css", s.dashboard)
+	mux.HandleFunc("GET /dashboard.js", s.dashboard)
 
 	mux.HandleFunc("GET /v1/me", s.me)
 	mux.HandleFunc("POST /v1/tokens", s.createToken)
@@ -80,6 +84,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /v1/applications/{id}/check-link", s.checkOne)
 
 	mux.HandleFunc("POST /v1/approvals", s.approve)
+	mux.HandleFunc("POST /v1/approvals/reject", s.reject)
+	mux.HandleFunc("GET /v1/links", s.listLinks)
 	mux.HandleFunc("POST /v1/apply", s.applyBatch)
 	mux.HandleFunc("POST /v1/queue/claim", s.claim)
 	mux.HandleFunc("POST /v1/queue/{id}/heartbeat", s.heartbeat)
@@ -172,7 +178,7 @@ func (s *Server) wrap(next http.Handler) http.Handler {
 
 func isPublic(path string) bool {
 	switch path {
-	case "/healthz", "/readyz", "/version", "/openapi.json", "/llms.txt":
+	case "/healthz", "/readyz", "/version", "/openapi.json", "/llms.txt", "/", "/dashboard.css", "/dashboard.js":
 		return true
 	default:
 		return false
@@ -238,6 +244,24 @@ func (s *Server) llms(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.WriteHeader(200)
 	_, _ = w.Write(spec.LLMS)
+}
+
+func (s *Server) dashboard(w http.ResponseWriter, r *http.Request) {
+	name := strings.TrimPrefix(r.URL.Path, "/")
+	body, contentType, err := dashboard.Open(name)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	w.Header().Set("Content-Type", contentType)
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	if strings.HasPrefix(contentType, "text/html") {
+		w.Header().Set("Content-Security-Policy", "default-src 'self'; style-src 'self'; script-src 'self'; connect-src 'self'; img-src 'self' data:; base-uri 'self'; form-action 'self'")
+		w.Header().Set("Referrer-Policy", "no-referrer")
+	}
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(body)
 }
 
 func query(r *http.Request, allowed ...string) (map[string][]string, error) {
@@ -1120,6 +1144,88 @@ func (s *Server) approve(w http.ResponseWriter, r *http.Request) {
 		}
 		return s.Svc.Approve(ctx, in.IDs, in.Note)
 	})
+}
+
+func (s *Server) reject(w http.ResponseWriter, r *http.Request) {
+	s.jsonMut(w, r, 200, nil, func(ctx context.Context, body []byte) (any, error) {
+		var in struct {
+			IDs  []string `json:"ids"`
+			Note string   `json:"note"`
+		}
+		if err := decode(body, &in); err != nil {
+			return nil, err
+		}
+		return s.Svc.Reject(ctx, in.IDs, in.Note)
+	})
+}
+
+func (s *Server) listLinks(w http.ResponseWriter, r *http.Request) {
+	raw, err := query(r, "limit", "cursor", "sort", "status", "changed", "attention", "fields")
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	base := map[string][]string{}
+	for _, k := range []string{"limit", "cursor", "sort"} {
+		if v, ok := raw[k]; ok {
+			base[k] = v
+		}
+	}
+	lq, err := listQuery(base)
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	status := strings.ToLower(strings.TrimSpace(first(raw, "status")))
+	switch status {
+	case "", domain.LinkLive, domain.LinkClosed, domain.LinkUnknown:
+		lq.LinkStatus = status
+	default:
+		writeErr(w, domain.Validation("invalid link status %q", first(raw, "status")).WithHint("status is live, closed, or unknown"))
+		return
+	}
+	attention, err := parseBoolFlag(first(raw, "attention"), "attention")
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	var changed *bool
+	if rawChanged := first(raw, "changed"); rawChanged != "" {
+		v, err := parseBoolFlag(rawChanged, "changed")
+		if err != nil {
+			writeErr(w, err)
+			return
+		}
+		changed = &v
+	}
+	if attention && (status != "" || changed != nil) {
+		writeErr(w, domain.Validation("attention cannot be combined with status or changed").WithHint("pass attention=true, or filter by status and changed"))
+		return
+	}
+	lq.Attention = attention
+	lq.Changed = changed
+	fields := fieldsOf(raw)
+	if err := domain.ValidateFields(fields, domain.LinkFields); err != nil {
+		writeErr(w, err)
+		return
+	}
+	page, err := s.Svc.ListLinks(r.Context(), lq)
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	writeProjected(w, 200, page, fields)
+}
+
+func parseBoolFlag(v, name string) (bool, error) {
+	switch strings.ToLower(strings.TrimSpace(v)) {
+	case "", "0", "false":
+		return false, nil
+	case "1", "true":
+		return true, nil
+	default:
+		return false, domain.Validation("invalid %s", name).WithHint(name + " is true or false")
+	}
 }
 
 func (s *Server) applyBatch(w http.ResponseWriter, r *http.Request) {

@@ -309,4 +309,9 @@ var migrations = []migration{{
 			lease_until TEXT NOT NULL
 		)`,
 	},
+}, {
+	version: "003",
+	stmts: []string{
+		`ALTER TABLE posting_checks ADD COLUMN changed BIGINT NOT NULL DEFAULT 0`,
+	},
 }}
