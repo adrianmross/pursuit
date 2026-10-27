@@ -17,6 +17,8 @@ go build -o bin/pursuit ./cmd/pursuit
 
 With no database URL the daemon creates `~/.local/share/pursuit/pursuit.db` and listens on `:8787`. The first start logs a bootstrap token once. Save it. It is not written to disk.
 
+In `devenv shell`, `pursuit-dev` runs it through [portless](https://github.com/portless-dev/portless) instead, giving it a stable `https://pursuit.localhost` URL (`$PORT` overrides the listen address; `PURSUIT_ADDR` still wins if both are set).
+
 ```bash
 export PURSUIT_TOKEN=pst_...
 export PURSUIT_SERVER=http://127.0.0.1:8787
@@ -73,7 +75,30 @@ Use `sslmode=require` for Neon. Two replicas can share one Postgres database. Qu
 
 `docker compose up --build` starts Postgres and two replicas on ports 8787 and 8788.
 
+## Dev environment (devenv)
+
+[devenv](https://devenv.sh) sets up Go for you. Plain `devenv shell` just gives you Go; `pursuit serve` still defaults to SQLite.
+
+```bash
+devenv shell          # Go only, SQLite default
+pursuit-build && ./bin/pursuit serve
+```
+
+Add `--profile postgres` to run a local Postgres instead:
+
+```bash
+devenv up --profile postgres   # starts Postgres, exports PURSUIT_DATABASE_URL
+```
+
+Add `--profile neon` to point at an existing Neon database. Put the connection string in a git-ignored `.env.neon` (`PURSUIT_DATABASE_URL=postgres://...neon.tech/...?sslmode=require`), which devenv loads automatically:
+
+```bash
+devenv shell --profile neon
+```
+
 ## Dashboard
+
+Fastest path: `go build -o bin/pursuit ./cmd/pursuit && ./bin/pursuit serve`, then open `http://127.0.0.1:8787/` and paste the bootstrap token the first start printed. No database setup needed; it uses SQLite by default.
 
 `pursuit serve` embeds a small web dashboard and serves it at the same address as the API, `http://127.0.0.1:8787/`. The pages are static files in the binary. They call the REST API and do not have a private backend.
 

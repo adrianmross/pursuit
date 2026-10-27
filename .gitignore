@@ -13,3 +13,8 @@
 /web/dist/
 /internal/dashboard/dist/
 /.vercel/
+.devenv/
+.direnv/
+.env.neon
+.env*
+/.devdata/
