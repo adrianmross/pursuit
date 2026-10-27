@@ -9,3 +9,5 @@
 /uploads/
 /extension/node_modules/
 /extension/dist/
+/web/node_modules/
+/web/dist/

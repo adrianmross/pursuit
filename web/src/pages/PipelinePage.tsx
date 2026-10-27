@@ -1,0 +1,230 @@
+import { useEffect, useRef, useState } from "react"
+import { Link, useSearchParams } from "react-router-dom"
+import { api, ApiError } from "@/lib/api"
+import { FILTERS, MORE, SORTS, label, statusTone, type Application, type Page } from "@/lib/types"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+
+const STATUSES = FILTERS.concat(MORE)
+
+function safeURL(raw?: string) {
+  if (!raw) return ""
+  try {
+    const url = new URL(raw)
+    return url.protocol === "http:" || url.protocol === "https:" ? url.href : ""
+  } catch {
+    return ""
+  }
+}
+
+function shortWhen(value?: string) {
+  if (!value) return "—"
+  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})/)
+  if (!match) return value
+  const date = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]))
+  if (Number.isNaN(date.getTime())) return value
+  const now = new Date()
+  const diff = Math.round(
+    (new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime() -
+      new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime()) /
+      86400000,
+  )
+  if (diff === 0) return "today"
+  if (diff > 0 && diff < 7) return diff + "d ago"
+  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+  const text = months[date.getMonth()] + " " + date.getDate()
+  return date.getFullYear() === now.getFullYear() ? text : text + ", " + date.getFullYear()
+}
+
+function StatusBadge({ status }: { status: string }) {
+  const tone = statusTone(status)
+  const variant = tone === "bad" ? "destructive" : tone === "default" ? "secondary" : "outline"
+  return <Badge variant={variant}>{label(status)}</Badge>
+}
+
+function LinkDot({ status }: { status?: string }) {
+  const dead = status === "closed"
+  const text = dead ? "Dead link" : status === "live" ? "Posting is live" : status === "unknown" ? "Link status unknown" : "Link not checked"
+  return (
+    <span
+      title={text}
+      role="img"
+      aria-label={text}
+      className={`inline-block size-2 rounded-full ${dead ? "bg-destructive" : status === "live" ? "bg-emerald-500" : "bg-muted-foreground/40"}`}
+    />
+  )
+}
+
+export function PipelinePage() {
+  const [params, setParams] = useSearchParams()
+  const status = params.get("status") || ""
+  const q = params.get("q") || ""
+  const sort = params.get("sort") || "-updated_at"
+
+  const [rows, setRows] = useState<Application[]>([])
+  const [total, setTotal] = useState(0)
+  const [nextCursor, setNextCursor] = useState("")
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const loadGen = useRef(0)
+
+  async function load(cursor?: string) {
+    const gen = ++loadGen.current
+    setLoading(true)
+    const qs = new URLSearchParams()
+    qs.set("limit", "50")
+    if (sort) qs.set("sort", sort)
+    if (q) qs.set("q", q)
+    if (status) qs.set("status", status)
+    if (cursor) qs.set("cursor", cursor)
+    try {
+      const page = await api<Page<Application>>("/v1/applications?" + qs.toString())
+      if (gen !== loadGen.current) return
+      setRows((prev) => (cursor ? prev.concat(page.data) : page.data))
+      setTotal(page.page.total)
+      setNextCursor(page.page.next_cursor || "")
+      setError(null)
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Failed to load applications")
+    } finally {
+      if (gen === loadGen.current) setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    void load()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status, q, sort])
+
+  function patch(next: Record<string, string>) {
+    const merged = new URLSearchParams(params)
+    for (const [key, value] of Object.entries(next)) {
+      if (value) merged.set(key, value)
+      else merged.delete(key)
+    }
+    setParams(merged, { replace: true })
+  }
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-semibold">Pipeline</h1>
+          <p className="text-sm text-muted-foreground">
+            {loading && rows.length === 0 ? "Loading applications" : `${total} application${total === 1 ? "" : "s"}`}
+          </p>
+        </div>
+        <div className="flex gap-2">
+          <Input
+            placeholder="Search company, title, notes"
+            defaultValue={q}
+            className="w-64"
+            onChange={(event) => {
+              const value = event.target.value
+              window.clearTimeout((window as unknown as { __q?: number }).__q)
+              ;(window as unknown as { __q?: number }).__q = window.setTimeout(() => patch({ q: value }), 200)
+            }}
+          />
+          <Select value={sort} onValueChange={(value) => patch({ sort: value })}>
+            <SelectTrigger className="w-44" aria-label="Sort">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {SORTS.map(([value, text]) => (
+                <SelectItem key={value} value={value}>
+                  {text}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      <div className="flex flex-wrap gap-1.5">
+        {STATUSES.map(([value, text]) => (
+          <Button
+            key={value}
+            size="sm"
+            variant={status === value ? "default" : "outline"}
+            onClick={() => patch({ status: value })}
+          >
+            {text}
+          </Button>
+        ))}
+      </div>
+
+      {error && <p className="text-sm text-destructive">{error}</p>}
+
+      <div className="rounded-md border">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Company</TableHead>
+              <TableHead>Role</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead>Link</TableHead>
+              <TableHead>Date</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {rows.length === 0 && !loading && (
+              <TableRow>
+                <TableCell colSpan={5} className="text-center text-muted-foreground">
+                  No applications match.
+                </TableCell>
+              </TableRow>
+            )}
+            {rows.map((row) => {
+              const href = safeURL(row.posting_url)
+              const when = row.applied_date || row.updated_at
+              return (
+                <TableRow key={row.id}>
+                  <TableCell className="font-medium">{row.company || "—"}</TableCell>
+                  <TableCell>
+                    <Link to={`/app/${encodeURIComponent(row.id)}`} className="hover:underline">
+                      {row.title || "Untitled"}
+                    </Link>
+                  </TableCell>
+                  <TableCell>
+                    <StatusBadge status={row.status} />
+                  </TableCell>
+                  <TableCell>
+                    <span className="flex items-center gap-2">
+                      <LinkDot status={row.link_status} />
+                      {href && (
+                        <a href={href} target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-foreground">
+                          Open
+                        </a>
+                      )}
+                    </span>
+                  </TableCell>
+                  <TableCell
+                    className="text-muted-foreground"
+                    title={row.applied_date ? "Applied " + row.applied_date : when ? "Updated " + when : ""}
+                  >
+                    {shortWhen(when)}
+                  </TableCell>
+                </TableRow>
+              )
+            })}
+          </TableBody>
+        </Table>
+      </div>
+
+      {nextCursor && (
+        <Button variant="outline" onClick={() => load(nextCursor)} disabled={loading}>
+          Load more
+        </Button>
+      )}
+    </div>
+  )
+}
