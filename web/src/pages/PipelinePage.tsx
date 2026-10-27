@@ -1,12 +1,18 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import { Link, useSearchParams } from "react-router-dom"
 import commandScore from "command-score"
-import { RefreshCw } from "lucide-react"
+import { Check, ExternalLink, MoreHorizontal, RefreshCw, X } from "lucide-react"
 import { api, ApiError } from "@/lib/api"
 import { useAuth } from "@/lib/auth"
 import { FILTERS, MORE, SORTS, label, statusTone, type Application, type Page } from "@/lib/types"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import {
   Select,
   SelectContent,
@@ -63,6 +69,68 @@ function LinkDot({ status }: { status?: string }) {
       aria-label={text}
       className={`inline-block size-2 rounded-full ${dead ? "bg-destructive" : status === "live" ? "bg-emerald-500" : "bg-muted-foreground/40"}`}
     />
+  )
+}
+
+function RowActions({ row, can, onChanged }: { row: Application; can: (scope: string) => boolean; onChanged: () => void }) {
+  const [busy, setBusy] = useState(false)
+  const href = safeURL(row.posting_url)
+
+  async function recheckLink() {
+    setBusy(true)
+    try {
+      await api(`/v1/applications/${encodeURIComponent(row.id)}/check-link`, { method: "POST", body: {} })
+      onChanged()
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function decide(kind: "approve" | "reject") {
+    setBusy(true)
+    try {
+      await api(kind === "approve" ? "/v1/approvals" : "/v1/approvals/reject", {
+        method: "POST",
+        body: { ids: [row.id], note: "" },
+      })
+      onChanged()
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="ghost" size="icon" className="size-7" disabled={busy} aria-label="Actions">
+          <MoreHorizontal />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        {href && (
+          <DropdownMenuItem asChild>
+            <a href={href} target="_blank" rel="noopener noreferrer">
+              <ExternalLink /> Open posting
+            </a>
+          </DropdownMenuItem>
+        )}
+        {can("write") && (
+          <DropdownMenuItem onClick={recheckLink}>
+            <RefreshCw /> Re-check link
+          </DropdownMenuItem>
+        )}
+        {row.status === "awaiting_review" && can("approve") && (
+          <>
+            <DropdownMenuItem onClick={() => decide("approve")}>
+              <Check /> Approve
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => decide("reject")} variant="destructive">
+              <X /> Reject
+            </DropdownMenuItem>
+          </>
+        )}
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }
 
@@ -209,12 +277,13 @@ export function PipelinePage() {
               <TableHead>Status</TableHead>
               <TableHead>Link</TableHead>
               <TableHead>Date</TableHead>
+              <TableHead className="w-10" />
             </TableRow>
           </TableHeader>
           <TableBody>
             {visibleRows.length === 0 && !loading && (
               <TableRow>
-                <TableCell colSpan={5} className="text-center text-muted-foreground">
+                <TableCell colSpan={6} className="text-center text-muted-foreground">
                   No applications match.
                 </TableCell>
               </TableRow>
@@ -257,6 +326,9 @@ export function PipelinePage() {
                     title={row.applied_date ? "Applied " + row.applied_date : when ? "Updated " + when : ""}
                   >
                     {shortWhen(when)}
+                  </TableCell>
+                  <TableCell>
+                    <RowActions row={row} can={can} onChanged={() => load()} />
                   </TableCell>
                 </TableRow>
               )

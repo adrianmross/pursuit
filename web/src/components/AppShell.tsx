@@ -3,6 +3,7 @@ import { NavLink, Outlet, useLocation, useNavigate, useSearchParams } from "reac
 import { Moon, Sun, Monitor, LogOut, MoreVertical, Search } from "lucide-react"
 import { useAuth } from "@/lib/auth"
 import { useTheme } from "@/lib/theme"
+import { CommandPalette } from "@/components/CommandPalette"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -81,6 +82,8 @@ export function AppShell() {
         </nav>
         <GlobalSearch />
         <div className="ml-auto flex items-center gap-2">
+          <CommandPalette />
+          <kbd className="hidden rounded border bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground sm:inline">⌘K</kbd>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="icon" aria-label="Account">
