@@ -171,7 +171,8 @@ function currentPipeline(patch) {
 }
 
 async function api(path, options = {}) {
-  const headers = { Authorization: "Bearer " + state.token };
+  const headers = {};
+  if (state.token) headers.Authorization = "Bearer " + state.token;
   const init = { method: options.method || "GET", headers };
   if (options.body !== undefined) {
     headers["Content-Type"] = "application/json";
@@ -188,9 +189,13 @@ async function api(path, options = {}) {
     }
   }
   if (response.status === 401) {
+    const hadToken = state.token !== "";
     state.token = "";
     state.me = null;
     localStorage.removeItem(TOKEN_KEY);
+    if (hadToken && !options.retried) {
+      return api(path, { ...options, retried: true });
+    }
     const error = new Error("That token was rejected.");
     error.status = 401;
     throw error;
@@ -254,7 +259,7 @@ function renderSignIn(message) {
   document.title = "Pursuit";
   app.replaceChildren(h("div", { class: "sign-in" },
     h("h1", {}, "Pursuit"),
-    h("p", { class: "muted" }, "Paste a token once. It stays in this browser and is sent as a bearer token to this server."),
+    h("p", { class: "muted" }, "Paste a token once. It stays in this browser and is sent as a bearer token to this server. When the server trusts the deployment in front of it, this form stays hidden and the page opens as the owner."),
     message ? h("div", { class: "banner" }, message) : null,
     h("form", { onSubmit: onSignIn },
       h("label", {}, "API token",
@@ -269,7 +274,7 @@ async function onSignIn(event) {
   state.token = token;
   try {
     state.me = await api("/v1/me");
-    localStorage.setItem(TOKEN_KEY, token);
+    if (state.token) localStorage.setItem(TOKEN_KEY, state.token);
     render();
   } catch (error) {
     state.token = "";
@@ -296,15 +301,14 @@ function confirmAction({ title, body, confirm, danger }) {
 
 async function render() {
   const route = parseRoute();
-  if (!state.token) {
-    renderSignIn();
-    return;
-  }
-  try {
-    if (!state.me) state.me = await api("/v1/me");
-  } catch (error) {
-    renderSignIn(error.message);
-    return;
+  const hadToken = state.token !== "";
+  if (!state.me) {
+    try {
+      state.me = await api("/v1/me");
+    } catch (error) {
+      renderSignIn(hadToken || error.status !== 401 ? error.message : "");
+      return;
+    }
   }
   shell(route);
   try {

@@ -35,6 +35,9 @@ func TestDashboardAssets(t *testing.T) {
 	if !strings.Contains(script, "/v1/approvals/reject") || !strings.Contains(script, "does not submit the form") {
 		t.Fatal("dashboard script is missing the approval actions")
 	}
+	if !strings.Contains(script, "retried") {
+		t.Fatal("dashboard script does not retry without a token")
+	}
 	if strings.Contains(script, "/v1/queue/claim") || strings.Contains(script, "/v1/queue/") {
 		t.Fatal("dashboard script claims queue work")
 	}

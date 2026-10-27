@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
+	"crypto/subtle"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -13,6 +14,7 @@ import (
 	"mime"
 	"mime/multipart"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -34,6 +36,11 @@ type Server struct {
 	Log   *slog.Logger
 	CORS  []string
 	Ready atomic.Bool
+	// TrustProxyAuth is "vercel" only when a platform in front of this
+	// process already authenticates every caller. Empty keeps bearer tokens required.
+	TrustProxyAuth string
+	// CronSecret overrides CRON_SECRET for the link-check cron. Empty reads the environment.
+	CronSecret string
 }
 
 func (s *Server) Handler() http.Handler {
@@ -97,6 +104,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /v1/standing", s.setStanding)
 	mux.HandleFunc("GET /v1/caps", s.caps)
 	mux.HandleFunc("POST /v1/links/check", s.checkAll)
+	mux.HandleFunc("GET /v1/cron/links", s.cronLinks)
 	mux.HandleFunc("GET /v1/webhooks", s.listHooks)
 	mux.HandleFunc("POST /v1/webhooks", s.createHook)
 	mux.HandleFunc("DELETE /v1/webhooks/{id}", s.deleteHook)
@@ -154,23 +162,33 @@ func (s *Server) wrap(next http.Handler) http.Handler {
 			}
 		}
 		ctx := r.Context()
+		if isCron(r.URL.Path) {
+			if !s.cronAuthorized(r) {
+				writeErr(w, domain.Unauthorized())
+				return
+			}
+			next.ServeHTTP(rec, r.WithContext(ctx))
+			return
+		}
 		if !isPublic(r.URL.Path) {
-			header := strings.TrimSpace(r.Header.Get("Authorization"))
-			if len(header) < 7 || !strings.EqualFold(header[:7], "bearer ") {
+			if raw, ok := bearerToken(r.Header.Get("Authorization")); ok {
+				actor, err := s.Svc.Authenticate(ctx, raw)
+				if err != nil {
+					writeErr(w, err)
+					return
+				}
+				ctx = domain.WithActor(ctx, actor)
+			} else if s.trustVercel() {
+				actor, err := s.proxyOwner(ctx)
+				if err != nil {
+					writeErr(w, err)
+					return
+				}
+				ctx = domain.WithActor(ctx, actor)
+			} else {
 				writeErr(w, domain.Unauthorized())
 				return
 			}
-			raw := strings.TrimSpace(header[7:])
-			if raw == "" {
-				writeErr(w, domain.Unauthorized())
-				return
-			}
-			actor, err := s.Svc.Authenticate(ctx, raw)
-			if err != nil {
-				writeErr(w, err)
-				return
-			}
-			ctx = domain.WithActor(ctx, actor)
 		}
 		next.ServeHTTP(rec, r.WithContext(ctx))
 	})
@@ -183,6 +201,56 @@ func isPublic(path string) bool {
 	default:
 		return false
 	}
+}
+
+func isCron(path string) bool {
+	return path == "/v1/cron/links"
+}
+
+func bearerToken(header string) (string, bool) {
+	header = strings.TrimSpace(header)
+	const prefix = "bearer "
+	if len(header) < len(prefix) || !strings.EqualFold(header[:len(prefix)], prefix) {
+		return "", false
+	}
+	raw := strings.TrimSpace(header[len(prefix):])
+	if raw == "" {
+		return "", false
+	}
+	return raw, true
+}
+
+// trustVercel is off unless PURSUIT_TRUST_PROXY_AUTH is exactly "vercel".
+// That mode is only safe when deployment protection already gates the process.
+func (s *Server) trustVercel() bool {
+	return strings.EqualFold(strings.TrimSpace(s.TrustProxyAuth), "vercel")
+}
+
+func (s *Server) proxyOwner(ctx context.Context) (domain.Actor, error) {
+	user, err := s.Svc.DB.FirstUser(ctx)
+	if err != nil {
+		return domain.Actor{}, err
+	}
+	return domain.Actor{UserID: user.ID, Name: "vercel", Scopes: []string{"read", "write", "approve"}}, nil
+}
+
+func (s *Server) cronSecret() string {
+	if strings.TrimSpace(s.CronSecret) != "" {
+		return s.CronSecret
+	}
+	return strings.TrimSpace(os.Getenv("CRON_SECRET"))
+}
+
+func (s *Server) cronAuthorized(r *http.Request) bool {
+	secret := s.cronSecret()
+	if secret == "" {
+		return false
+	}
+	got, ok := bearerToken(r.Header.Get("Authorization"))
+	if !ok {
+		return false
+	}
+	return subtle.ConstantTimeCompare([]byte(got), []byte(secret)) == 1
 }
 
 func (s *Server) allowOrigin(origin string) bool {
@@ -1443,6 +1511,19 @@ func (s *Server) checkOne(w http.ResponseWriter, r *http.Request) {
 	s.mutate(w, r, 200, nil, []byte(id), func(ctx context.Context) (any, error) {
 		return s.Svc.CheckApplicationLink(ctx, id)
 	})
+}
+
+func (s *Server) cronLinks(w http.ResponseWriter, r *http.Request) {
+	if _, err := query(r); err != nil {
+		writeErr(w, err)
+		return
+	}
+	report, err := s.Svc.SweepAsOwner(r.Context(), "vercel-cron")
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	writeJSON(w, 200, report)
 }
 
 func (s *Server) checkAll(w http.ResponseWriter, r *http.Request) {

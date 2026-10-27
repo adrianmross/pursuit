@@ -832,6 +832,17 @@ func (s *Service) importRow(ctx context.Context, a domain.Actor, row impex.Row, 
 			return err
 		}
 	}
+	if url, err := domain.ParseURL(row.PostingURL); err != nil {
+		return err
+	} else if url != "" {
+		existing, err := s.DB.GetApplicationByPostingURL(ctx, a.UserID, url)
+		if err == nil {
+			return s.updateImported(ctx, a, existing, row, result)
+		}
+		if !domain.IsCode(err, "not_found") {
+			return err
+		}
+	}
 	company, createdCo, err := s.ensureCompany(ctx, a, "", row.Company, domain.Origin(row.PostingURL))
 	if err != nil {
 		return err

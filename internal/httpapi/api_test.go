@@ -798,6 +798,144 @@ func TestLinkHealthList(t *testing.T) {
 	}
 }
 
+func TestTrustProxyAuthAndCron(t *testing.T) {
+	e := newEnv(t)
+	code, _ := e.json(t, http.MethodGet, "/v1/me", "", nil)
+	if code != 401 {
+		t.Fatalf("default anon %d", code)
+	}
+	e.api.TrustProxyAuth = "on"
+	code, _ = e.json(t, http.MethodGet, "/v1/me", "", nil)
+	if code != 401 {
+		t.Fatalf("non-vercel proxy %d", code)
+	}
+	e.api.TrustProxyAuth = "vercel"
+	code, me := e.json(t, http.MethodGet, "/v1/me", "", nil)
+	if code != 200 {
+		t.Fatalf("proxy me %d %#v", code, me)
+	}
+	tok, _ := me["token"].(map[string]any)
+	if tok["name"] != "vercel" {
+		t.Fatalf("proxy token %#v", tok)
+	}
+	scopes := map[string]bool{}
+	for _, s := range tok["scopes"].([]any) {
+		scopes[s.(string)] = true
+	}
+	if !scopes["read"] || !scopes["write"] || !scopes["approve"] {
+		t.Fatalf("proxy scopes %#v", tok["scopes"])
+	}
+	code, issued := e.json(t, http.MethodPost, "/v1/tokens", e.token, map[string]any{"name": "reader", "scopes": []string{"read"}})
+	if code != 201 {
+		t.Fatal(issued)
+	}
+	readTok := issued["secret"].(string)
+	code, asReader := e.json(t, http.MethodGet, "/v1/me", readTok, nil)
+	if code != 200 {
+		t.Fatal(asReader)
+	}
+	readerScopes, _ := asReader["token"].(map[string]any)["scopes"].([]any)
+	if len(readerScopes) != 1 || readerScopes[0] != "read" {
+		t.Fatalf("token should win over proxy %#v", asReader["token"])
+	}
+	code, denied := e.json(t, http.MethodPost, "/v1/companies", readTok, map[string]any{"name": "Nope"})
+	if code != 403 {
+		t.Fatalf("read token write %d %#v", code, denied)
+	}
+
+	code, _ = e.json(t, http.MethodGet, "/v1/cron/links", "", nil)
+	if code != 401 {
+		t.Fatalf("cron without secret %d", code)
+	}
+	code, _ = e.json(t, http.MethodGet, "/v1/cron/links", e.token, nil)
+	if code != 401 {
+		t.Fatalf("pursuit token must not authorize cron %d", code)
+	}
+	e.api.CronSecret = "cron-secret-value"
+	code, _ = e.json(t, http.MethodGet, "/v1/cron/links", "nope", nil)
+	if code != 401 {
+		t.Fatalf("wrong cron secret %d", code)
+	}
+	code, report := e.json(t, http.MethodGet, "/v1/cron/links", "cron-secret-value", nil)
+	if code != 200 || report["checked"] != float64(0) {
+		t.Fatalf("cron %d %#v", code, report)
+	}
+}
+
+func TestImportSamePostingURLUpdates(t *testing.T) {
+	e := newEnv(t)
+	csv := strings.Join([]string{
+		"id,company,role,location,salary,fit,status,applied_date,next_step,posting_url,notes,last_updated",
+		"ext-1,Acme,Engineer,Remote,$100k,Strong,Applied,2026-01-02,Follow up,https://example.com/jobs/1,first note,2026-01-03",
+		"ext-2,Acme,Engineer,Remote,$120k,Strong,Prepared,2026-01-02,Send portfolio,https://example.com/jobs/1,updated note,2026-01-04",
+		"ext-3,Beta,Designer,NYC,,Maybe,INTERVIEWING,2026-02-01,Onsite,https://example.com/jobs/2,loop notes,2026-02-01",
+	}, "\n")
+	code, body, _ := e.do(t, http.MethodPost, "/v1/import/csv", e.token, []byte(csv), map[string]string{"Content-Type": "text/csv"})
+	if code != 200 {
+		t.Fatalf("import %d %s", code, body)
+	}
+	var imported map[string]any
+	if err := json.Unmarshal(body, &imported); err != nil {
+		t.Fatal(err)
+	}
+	if imported["applications_created"] != float64(2) || imported["applications_updated"] != float64(1) {
+		t.Fatalf("counts %#v", imported)
+	}
+	code, raw, _ := e.do(t, http.MethodGet, "/v1/export/json", e.token, nil, nil)
+	if code != 200 {
+		t.Fatalf("export %d %s", code, raw)
+	}
+	var exported struct {
+		Applications []domain.Application `json:"applications"`
+	}
+	if err := json.Unmarshal(raw, &exported); err != nil {
+		t.Fatal(err)
+	}
+	if len(exported.Applications) != 2 {
+		t.Fatalf("apps %d", len(exported.Applications))
+	}
+	byURL := map[string]domain.Application{}
+	for _, app := range exported.Applications {
+		byURL[app.PostingURL] = app
+	}
+	acme := byURL["https://example.com/jobs/1"]
+	if acme.Status != domain.StatusAwaitingReview || acme.NextStep != "Send portfolio" || acme.Notes != "updated note" {
+		t.Fatalf("acme %#v", acme)
+	}
+	beta := byURL["https://example.com/jobs/2"]
+	if beta.Status != domain.StatusInterviewing || beta.NextStep != "Onsite" || beta.Notes != "loop notes" {
+		t.Fatalf("beta %#v", beta)
+	}
+	code, body, _ = e.do(t, http.MethodPost, "/v1/import/csv", e.token, []byte(csv), map[string]string{"Content-Type": "text/csv"})
+	if code != 200 {
+		t.Fatalf("reimport %d %s", code, body)
+	}
+	if err := json.Unmarshal(body, &imported); err != nil {
+		t.Fatal(err)
+	}
+	if imported["applications_created"] != float64(0) || imported["applications_updated"] != float64(3) {
+		t.Fatalf("reimport %#v", imported)
+	}
+	code, raw, _ = e.do(t, http.MethodGet, "/v1/export/json", e.token, nil, nil)
+	if code != 200 {
+		t.Fatalf("export after reimport %d %s", code, raw)
+	}
+	if err := json.Unmarshal(raw, &exported); err != nil {
+		t.Fatal(err)
+	}
+	if len(exported.Applications) != 2 {
+		t.Fatalf("apps after reimport %d", len(exported.Applications))
+	}
+	byURL = map[string]domain.Application{}
+	for _, app := range exported.Applications {
+		byURL[app.PostingURL] = app
+	}
+	acme = byURL["https://example.com/jobs/1"]
+	if acme.Status != domain.StatusAwaitingReview || acme.NextStep != "Send portfolio" || acme.Notes != "updated note" {
+		t.Fatalf("acme after reimport %#v", acme)
+	}
+}
+
 func createChecked(t *testing.T, e *env, postingURL, company, title string) string {
 	t.Helper()
 	code, app := e.json(t, http.MethodPost, "/v1/applications", e.token, map[string]any{

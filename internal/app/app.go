@@ -66,7 +66,13 @@ func Run(ctx context.Context, cfg config.Config) error {
 		log.Info("bootstrap token created", "token", secret, "hint", "save this token; it will not be shown again")
 	}
 
-	api := &httpapi.Server{Svc: svc, Log: log, CORS: cfg.CORSOrigins}
+	if v := strings.TrimSpace(cfg.TrustProxyAuth); v != "" && !strings.EqualFold(v, "vercel") {
+		log.Warn("PURSUIT_TRUST_PROXY_AUTH ignored", "value", v)
+	}
+	if strings.EqualFold(strings.TrimSpace(cfg.TrustProxyAuth), "vercel") {
+		log.Warn("proxy auth is on", "hint", "PURSUIT_TRUST_PROXY_AUTH=vercel treats a request with no Pursuit token as the owner. Only use this behind deployment protection.")
+	}
+	api := &httpapi.Server{Svc: svc, Log: log, CORS: cfg.CORSOrigins, TrustProxyAuth: cfg.TrustProxyAuth}
 	srv := &http.Server{
 		Addr:              cfg.Addr,
 		Handler:           api.Handler(),

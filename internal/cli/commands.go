@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"bytes"
 	"context"
 	"io"
 	"net/url"
@@ -11,6 +12,9 @@ import (
 
 	"github.com/pursuit/pursuit/internal/apiclient"
 	"github.com/pursuit/pursuit/internal/app"
+	"github.com/pursuit/pursuit/internal/domain"
+	"github.com/pursuit/pursuit/internal/service"
+	"github.com/pursuit/pursuit/internal/sqlstore"
 )
 
 func rootCommand() *Command {
@@ -487,7 +491,7 @@ func cmdAudit() *Command {
 func cmdImport() *Command {
 	file := []Arg{{Name: "file", Required: true, Help: "path or - for stdin"}}
 	return &Command{Name: "import", Summary: "import CSV, JSON, markdown, or the example seed", Children: []*Command{
-		{Name: "csv", Summary: "import tracker CSV", Mutating: true, Usage: "pursuit import csv <file>", Args: file, Run: func(e *exec) error { return e.importFile("csv", "/v1/import/csv", "text/csv") }},
+		{Name: "csv", Summary: "import tracker CSV", Mutating: true, Usage: "pursuit import csv <file> [--database-url DSN]", Example: "pursuit import csv applications.csv --database-url \"$DATABASE_URL\"", Args: file, Flags: []Flag{{Name: "database-url", Type: "string", Help: "import into this Postgres or SQLite DSN instead of PURSUIT_SERVER"}}, Run: func(e *exec) error { return e.importFile("csv", "/v1/import/csv", "text/csv") }},
 		{Name: "json", Summary: "import a JSON array of postings", Mutating: true, Usage: "pursuit import json <file>", Args: file, Run: func(e *exec) error { return e.importFile("json", "/v1/import/json", "application/json") }},
 		{Name: "markdown", Summary: "import markdown tables as to_apply", Mutating: true, Usage: "pursuit import markdown <file>", Args: file, Run: func(e *exec) error { return e.importFile("markdown", "/v1/import/markdown", "text/markdown") }},
 		{Name: "seed", Summary: "import the example applications and role batches", Mutating: true, Usage: "pursuit import seed", Run: func(e *exec) error {
@@ -507,7 +511,54 @@ func (e *exec) importFile(kind, path, ct string) error {
 	if err != nil {
 		return &exitError{code: 2, message: err.Error(), hint: "pass a readable " + kind + " file"}
 	}
+	if kind == "csv" {
+		if dsn := strings.TrimSpace(e.flag("database-url")); dsn != "" {
+			return e.importCSVDatabase(b, dsn)
+		}
+	}
 	return e.send("POST", path, nil, b, ct, true, false)
+}
+
+func (e *exec) importCSVDatabase(body []byte, dsn string) error {
+	ctx := context.Background()
+	store, err := sqlstore.Open(ctx, dsn)
+	if err != nil {
+		return &exitError{code: 1, message: redactSecret(err.Error(), dsn), hint: "pass a postgres:// or sqlite:// URL"}
+	}
+	defer store.Close()
+	svc := service.New(store)
+	supplied := strings.TrimSpace(e.cfg.BootstrapToken)
+	secret, created, err := svc.Bootstrap(ctx, e.cfg.OwnerName, e.cfg.OwnerEmail, e.cfg.BootstrapName, supplied)
+	if err != nil {
+		return &exitError{code: 1, message: redactSecret(err.Error(), dsn), hint: "check the database URL"}
+	}
+	user, err := store.FirstUser(ctx)
+	if err != nil {
+		return &exitError{code: 1, message: err.Error(), hint: "check the database URL"}
+	}
+	ctx = domain.WithActor(ctx, domain.Actor{UserID: user.ID, Name: "import", Scopes: []string{"read", "write", "approve"}})
+	result, err := svc.ImportCSV(ctx, bytes.NewReader(body))
+	if err != nil {
+		if de, ok := domain.As(err); ok {
+			return &exitError{code: exitStatus(de.Status), message: de.Message, hint: de.Hint}
+		}
+		return &exitError{code: 1, message: err.Error(), hint: "check the CSV columns"}
+	}
+	out := struct {
+		service.ImportResult
+		BootstrapToken string `json:"bootstrap_token,omitempty"`
+	}{ImportResult: result}
+	if created && supplied == "" {
+		out.BootstrapToken = secret
+	}
+	return e.printObj(out)
+}
+
+func redactSecret(msg, secret string) string {
+	if secret == "" {
+		return msg
+	}
+	return strings.ReplaceAll(msg, secret, "[redacted]")
 }
 
 func cmdExport() *Command {

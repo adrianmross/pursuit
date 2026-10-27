@@ -83,6 +83,41 @@ The pipeline lists applications with status filters, search, and sorting. An app
 
 The UI is plain HTML, CSS, and JavaScript, with no build step, so those files embed in the one binary and call the JSON API.
 
+## Deploy to Vercel
+
+The same dashboard and API can run as one Go function on Vercel, with Neon Postgres from the Vercel Marketplace. This does not change `pursuit serve`. With the variables below unset, the binary still uses its own database URL, still requires a Pursuit token, and still runs the link checker in the daemon.
+
+Turn on Deployment Protection and choose Vercel Authentication so the deployment is private to you. `PURSUIT_TRUST_PROXY_AUTH=vercel` is safe only in that case. It is off unless that exact value is set. Anyone who can open a deployment without protection would be the owner.
+
+### Environment
+
+| Name | Required | Value |
+| --- | --- | --- |
+| `DATABASE_URL` | yes, unless `POSTGRES_URL` is set | Neon connection string. Read first. `postgres://` or `postgresql://`. Use `sslmode=require` for Neon. A SQLite URL is rejected. |
+| `POSTGRES_URL` | fallback | Used only when `DATABASE_URL` is empty. The Marketplace usually sets both. |
+| `PURSUIT_TRUST_PROXY_AUTH` | yes, for the private dashboard | `vercel`. A request with no Pursuit token is the single owner and has `read`, `write`, and `approve`. A request that sends `Authorization: Bearer` is still that token, so the CLI and agents keep using scoped tokens. Any other value is ignored. |
+| `CRON_SECRET` | yes, for the daily link check | A long random secret. Vercel Cron sends `GET /v1/cron/links` with `Authorization: Bearer <CRON_SECRET>`. There is no background checker on Vercel. A missing or wrong secret is 401, including when proxy auth is on. |
+
+Optional: `PURSUIT_BOOTSTRAP_TOKEN` chooses the owner token created on the first cold start. `PURSUIT_OWNER_NAME`, `PURSUIT_OWNER_EMAIL`, and `PURSUIT_BOOTSTRAP_NAME` override the owner defaults. If you leave the bootstrap token unset, the generated secret is written once to the function log.
+
+The function opens Postgres on cold start and runs the same migrations the daemon runs. They are safe to run again.
+
+`vercel.json` sends every path to `api/index.go` and schedules the link check daily at 08:00 UTC. The dashboard files are already embedded, so the Vercel build does not need Node. `go.mod` selects Go 1.22.
+
+### Seed
+
+From a machine that can reach Neon, load the CSV straight into the database. This does not go through the Vercel URL, so deployment protection does not block it:
+
+```bash
+pursuit import csv applications.csv --database-url "$DATABASE_URL"
+```
+
+Columns: `id`, `company`, `role`, `location`, `salary`, `fit`, `status`, `applied_date`, `next_step`, `posting_url`, `notes`, `last_updated`.
+
+`Applied` is stored as `applied`. `Prepared` is stored as `awaiting_review`, which is the prepared state (the dashboard label is Prepared). Other statuses match case-insensitively (`Interviewing` becomes `interviewing`). `next_step` and `notes` are stored. The same `posting_url` updates that application instead of inserting another one. A matching `id` still updates that row first.
+
+Without `--database-url`, `pursuit import csv` still posts the file to `PURSUIT_SERVER` and needs a write token. If the database has no token yet, the JSON from `--database-url` includes `bootstrap_token` once. Set `PURSUIT_BOOTSTRAP_TOKEN` first when you want to choose that secret.
+
 ## Daemon
 
 `deploy/pursuit.service` is a systemd unit. `deploy/com.pursuit.plist` is a launchd agent. Both run `pursuit serve` with SQLite. `deploy/config.example.json` has no secrets.
@@ -126,7 +161,7 @@ The link checker prefers Greenhouse, Ashby, and Lever APIs, then HTTP status and
 
 ## Import and export
 
-`pursuit import csv`, `import json`, and `import markdown` accept a file. Markdown tables and "also live" bullets become `to_apply` and skip a posting URL that already exists. `pursuit import seed` loads the example files in `internal/seed/data` (Example Corp only; the same files are in `testdata/seed`). CSV status `Applied` stays `applied`. `Prepared` becomes `awaiting_review`.
+`pursuit import csv`, `import json`, and `import markdown` accept a file. Markdown tables and "also live" bullets become `to_apply` and skip a posting URL that already exists. `pursuit import seed` loads the example files in `internal/seed/data` (Example Corp only; the same files are in `testdata/seed`). CSV status `Applied` stays `applied`. `Prepared` becomes `awaiting_review`. Other statuses match case-insensitively. `next_step` and `notes` are kept. Importing the same `posting_url` again updates that application. `pursuit import csv applications.csv --database-url "$DATABASE_URL"` writes the file into that database directly. Omit `--database-url` to post the file to the running server, which is what a local daemon expects.
 
 `pursuit export simplify` writes the Simplify Job Tracker columns: Company name, Position Title, Location, Job type, Status, Notes, Posting link.
 

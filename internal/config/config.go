@@ -34,6 +34,7 @@ type Config struct {
 	ProfilePath      string        `json:"profile,omitempty"`
 	ResumeFile       string        `json:"resume_file,omitempty"`
 	ContactEmail     string        `json:"contact_email,omitempty"`
+	TrustProxyAuth   string        `json:"trust_proxy_auth,omitempty"`
 }
 
 func Defaults() Config {
@@ -148,6 +149,9 @@ func applyEnv(cfg *Config) {
 	set(&cfg.ProfilePath, "PURSUIT_PROFILE")
 	set(&cfg.ResumeFile, "PURSUIT_RESUME_FILE")
 	set(&cfg.ContactEmail, "PURSUIT_CONTACT_EMAIL")
+	if v := strings.TrimSpace(os.Getenv("PURSUIT_TRUST_PROXY_AUTH")); v != "" {
+		cfg.TrustProxyAuth = v
+	}
 	if v := strings.TrimSpace(os.Getenv("PURSUIT_CORS_ORIGINS")); v != "" {
 		cfg.CORSOrigins = splitComma(v)
 	}
