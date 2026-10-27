@@ -102,7 +102,7 @@ Optional: `PURSUIT_BOOTSTRAP_TOKEN` chooses the owner token created on the first
 
 The function opens Postgres on cold start and runs the same migrations the daemon runs. They are safe to run again.
 
-`vercel.json` sends every path to `api/index.go` and schedules the link check daily at 08:00 UTC. The dashboard files are already embedded, so the Vercel build does not need Node. `go.mod` selects Go 1.22.
+`vercel.json` sends every path to `api/index.go` and schedules the link check daily at 08:00 UTC. That file only calls `pkg/vercelapp`, which opens Postgres, runs migrations, and serves the embedded dashboard. Vercel compiles `api/index.go` outside this module, so it cannot import `internal/`. The dashboard files are already embedded, so the Vercel build does not need Node. `go.mod` selects Go 1.22.
 
 ### Seed
 
