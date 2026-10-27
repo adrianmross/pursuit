@@ -1,0 +1,8 @@
+{
+  "addr": ":8787",
+  "log_level": "info",
+  "log_format": "json",
+  "check_interval_seconds": 3600,
+  "check_jitter": 0.1,
+  "check_gap_ms": 250
+}

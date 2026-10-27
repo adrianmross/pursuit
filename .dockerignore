@@ -1,0 +1,6 @@
+bin/
+.git/
+*.db
+*.db-wal
+*.db-shm
+dist/

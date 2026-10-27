@@ -1,0 +1,10 @@
+.PHONY: test build run
+
+test:
+	go test ./...
+
+build:
+	CGO_ENABLED=0 go build -o bin/pursuit ./cmd/pursuit
+
+run: build
+	./bin/pursuit serve

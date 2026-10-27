@@ -1,0 +1,43 @@
+body {
+  width: 320px;
+  margin: 0;
+  font: 13px/1.4 "Segoe UI", system-ui, sans-serif;
+  color: #1c1917;
+  background: #faf7f2;
+}
+header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 12px;
+  background: #1c1917;
+  color: #faf7f2;
+}
+header button {
+  color: inherit;
+  background: transparent;
+  border: 1px solid #78716c;
+}
+section { padding: 12px; }
+label { display: block; margin: 0 0 8px; }
+input, select, button { font: inherit; }
+input, select {
+  width: 100%;
+  box-sizing: border-box;
+  margin-top: 4px;
+  padding: 6px 8px;
+  border: 1px solid #d6d3d1;
+  background: white;
+}
+.row { display: flex; gap: 8px; }
+button {
+  padding: 6px 10px;
+  border: 1px solid #1c1917;
+  background: #1c1917;
+  color: #faf7f2;
+  cursor: pointer;
+}
+button:disabled { opacity: 0.45; cursor: default; }
+#resume { margin-top: 8px; background: transparent; color: #1c1917; }
+.hint, #note, #status-line { color: #57534e; }
+#error { min-height: 1.2em; margin: 0 12px 12px; color: #9a3412; }

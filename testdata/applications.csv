@@ -1,0 +1,3 @@
+id,company,role,location,salary,fit,status,applied_date,next_step,posting_url,notes,last_updated
+1,Example Corp,Platform Engineer,Remote,$100K–$150K,Strong,Applied,2026-01-15,Wait for a sample reply,https://example.com/jobs/platform,Example note only,2026-01-15
+2,Example Corp,Support Engineer,Remote,Not listed,Reach,Applied,2026-01-16,Wait for a sample reply,https://example.com/jobs/support,Another example note,2026-01-16

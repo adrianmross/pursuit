@@ -1,0 +1,11 @@
+/bin/
+/pursuit
+*.db
+*.db-wal
+*.db-shm
+*.db-journal
+.pursuit.json
+/dist/
+/uploads/
+/extension/node_modules/
+/extension/dist/

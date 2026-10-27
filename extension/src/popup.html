@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Pursuit</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <header>
+      <strong>Pursuit</strong>
+      <button id="settings" type="button">Pair</button>
+    </header>
+    <section id="pair" hidden>
+      <label>Server <input id="server" type="url" placeholder="http://127.0.0.1:8787" /></label>
+      <label>Token <input id="token" type="password" placeholder="pst_…" autocomplete="off" /></label>
+      <button id="save-pair" type="button">Save pairing</button>
+      <p class="hint">Use a token with the write scope. Leave approve off this token.</p>
+    </section>
+    <section id="job" hidden>
+      <p id="page"></p>
+      <p id="status-line"></p>
+      <label>Status <select id="status"></select></label>
+      <div class="row">
+        <button id="save-job" type="button">Save job</button>
+        <button id="autofill" type="button">Autofill</button>
+      </div>
+      <button id="resume" type="button" hidden>Download résumé</button>
+      <p id="note"></p>
+    </section>
+    <p id="error"></p>
+    <script src="popup.js"></script>
+  </body>
+</html>

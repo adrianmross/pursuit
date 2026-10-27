@@ -1,0 +1,87 @@
+syntax = "proto3";
+
+package pursuit.v1;
+
+// Future contract. Not compiled or served. The REST adapter is the one that runs.
+option go_package = "github.com/pursuit/pursuit/internal/gen/pursuit/v1;pursuitv1";
+
+service Pursuit {
+  rpc ListApplications(ListApplicationsRequest) returns (ListApplicationsResponse);
+  rpc Prepare(PrepareRequest) returns (PrepareResponse);
+  rpc Enqueue(EnqueueRequest) returns (Work);
+  rpc Claim(ClaimRequest) returns (ClaimResponse);
+  rpc Approve(ApproveRequest) returns (ApproveResponse);
+  rpc CheckLink(CheckLinkRequest) returns (CheckLinkResponse);
+}
+
+message ListApplicationsRequest {
+  string status = 1;
+  bool stale = 2;
+  int32 limit = 3;
+  string cursor = 4;
+}
+
+message ListApplicationsResponse {
+  repeated Application applications = 1;
+  string next_cursor = 2;
+}
+
+message Application {
+  string id = 1;
+  string company = 2;
+  string title = 3;
+  string status = 4;
+  string posting_url = 5;
+  string link_status = 6;
+  int64 version = 7;
+}
+
+message PrepareRequest {
+  string application_id = 1;
+}
+
+message PrepareResponse {
+  Application application = 1;
+  int32 unknowns = 2;
+}
+
+message EnqueueRequest {
+  string application_id = 1;
+  string kind = 2;
+}
+
+message Work {
+  string id = 1;
+  string application_id = 2;
+  string kind = 3;
+  string state = 4;
+  string lease_owner = 5;
+}
+
+message ClaimRequest {
+  string worker = 1;
+}
+
+message ClaimResponse {
+  Work work = 1;
+  Application application = 2;
+}
+
+message ApproveRequest {
+  repeated string ids = 1;
+  string note = 2;
+}
+
+message ApproveResponse {
+  repeated Application applications = 1;
+}
+
+message CheckLinkRequest {
+  string application_id = 1;
+}
+
+message CheckLinkResponse {
+  string status = 1;
+  string detail = 2;
+  bool changed = 3;
+}

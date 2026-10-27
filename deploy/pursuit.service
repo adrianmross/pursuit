@@ -1,0 +1,14 @@
+[Unit]
+Description=Pursuit job application tracker
+After=network.target
+
+[Service]
+ExecStart=/usr/local/bin/pursuit serve
+Environment=PURSUIT_ADDR=:8787
+Restart=on-failure
+# Optional: Environment=PURSUIT_DATABASE_URL=postgres://...
+# Optional: Environment=PURSUIT_PROFILE=%h/.config/pursuit/profile.json
+# Optional: Environment=PURSUIT_RESUME_FILE=%h/.config/pursuit/resume.pdf
+
+[Install]
+WantedBy=multi-user.target

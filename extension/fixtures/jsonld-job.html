@@ -1,0 +1,33 @@
+<!doctype html>
+<html>
+  <body>
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org/",
+        "@graph": [
+          { "@type": "Organization", "name": "Ignore Me" },
+          {
+            "@type": "JobPosting",
+            "title": "Staff Engineer",
+            "hiringOrganization": { "@type": "Organization", "name": "Northwind" },
+            "jobLocation": {
+              "@type": "Place",
+              "address": {
+                "addressLocality": "Seattle",
+                "addressRegion": "WA",
+                "addressCountry": "US"
+              }
+            },
+            "baseSalary": {
+              "@type": "MonetaryAmount",
+              "currency": "USD",
+              "value": { "@type": "QuantitativeValue", "minValue": 140000, "maxValue": 200000, "unitText": "YEAR" }
+            }
+          }
+        ]
+      }
+    </script>
+    <h1>Page title that must lose</h1>
+    <div class="company-name">Wrong Co</div>
+  </body>
+</html>

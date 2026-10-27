@@ -1,0 +1,27 @@
+<!doctype html>
+<html>
+  <body>
+    <form id="application">
+      <label for="first_name">First Name*</label>
+      <input id="first_name" name="job_application[first_name]" required />
+      <label for="last_name">Last Name*</label>
+      <input id="last_name" name="job_application[last_name]" required />
+      <label for="email">Email*</label>
+      <input id="email" type="email" required />
+      <label for="phone">Phone</label>
+      <input id="phone" type="tel" />
+      <label>Why us? <textarea name="job_application[answers][why]"></textarea></label>
+      <label for="auth">Are you authorized to work in the United States?*</label>
+      <select id="auth" required>
+        <option value="">Select</option>
+        <option value="yes">Yes</option>
+        <option value="no">No</option>
+      </select>
+      <label for="linkedin">LinkedIn Profile*</label>
+      <input id="linkedin" required />
+      <label for="resume">Resume*</label>
+      <input id="resume" type="file" name="resume" />
+      <button id="submit" type="submit">Submit application</button>
+    </form>
+  </body>
+</html>

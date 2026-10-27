@@ -1,0 +1,171 @@
+package spec
+
+import (
+	_ "embed"
+	"encoding/json"
+)
+
+//go:embed llms.txt
+var LLMS []byte
+
+// Document is the OpenAPI description served at /openapi.json.
+func Document() []byte {
+	if len(cached) == 0 {
+		cached = build()
+	}
+	out := make([]byte, len(cached))
+	copy(out, cached)
+	if out[len(out)-1] != '\n' {
+		out = append(out, '\n')
+	}
+	return out
+}
+
+var cached []byte
+
+func build() []byte {
+	paths := map[string]any{}
+	add := func(path, method, summary string, write bool, extra map[string]any) {
+		op := map[string]any{
+			"summary":     summary,
+			"operationId": method + "_" + slug(path),
+			"responses": map[string]any{
+				"200": map[string]any{"description": "JSON body"},
+				"400": errRef(),
+				"401": errRef(),
+				"403": errRef(),
+				"404": errRef(),
+				"409": errRef(),
+			},
+		}
+		if write {
+			op["parameters"] = []any{map[string]any{"$ref": "#/components/parameters/IdempotencyKey"}, map[string]any{"$ref": "#/components/parameters/DryRun"}}
+		}
+		for k, v := range extra {
+			op[k] = v
+		}
+		item, _ := paths[path].(map[string]any)
+		if item == nil {
+			item = map[string]any{}
+		}
+		item[method] = op
+		paths[path] = item
+	}
+	pub := map[string]string{
+		"/healthz": "liveness", "/readyz": "readiness", "/version": "version", "/openapi.json": "this document", "/llms.txt": "short agent guide",
+	}
+	for p, s := range pub {
+		add(p, "get", s, false, map[string]any{"security": []any{}})
+	}
+	add("/v1/me", "get", "current user and token", false, nil)
+	add("/v1/tokens", "get", "list tokens", false, nil)
+	add("/v1/tokens", "post", "create a token; secret is returned once", true, nil)
+	add("/v1/tokens/{id}", "delete", "revoke a token", true, nil)
+	add("/v1/companies", "get", "list companies", false, nil)
+	add("/v1/companies", "post", "create a company", true, nil)
+	add("/v1/companies/{id}", "get", "get a company", false, nil)
+	add("/v1/companies/{id}", "patch", "update a company; body.version is required", true, nil)
+	add("/v1/companies/{id}", "delete", "delete a company; version query or If-Match", true, nil)
+	add("/v1/roles", "get", "list roles", false, nil)
+	add("/v1/roles", "post", "create a role", true, nil)
+	add("/v1/roles/{id}", "get", "get a role", false, nil)
+	add("/v1/roles/{id}", "patch", "update a role", true, nil)
+	add("/v1/roles/{id}", "delete", "delete a role", true, nil)
+	add("/v1/applications", "get", "list applications. status, company, fit, source, tag, q, stale, cursor, limit, sort, fields", false, nil)
+	add("/v1/applications/by-url", "get", "lookup one application by posting URL. query url. 404 when the page is not tracked", false, nil)
+	add("/v1/applications/capture", "post", "save the posting the user is viewing. dedupes by URL and creates status to_apply", true, nil)
+	add("/v1/applications", "post", "create an application", true, nil)
+	add("/v1/applications/{id}", "get", "get an application", false, nil)
+	add("/v1/applications/{id}", "patch", "update an application. status changes obey the approval rule", true, nil)
+	add("/v1/applications/{id}", "delete", "delete an application", true, nil)
+	add("/v1/applications/{id}/transition", "post", "change status. approved requires the approve scope. submitting requires a stored approval", true, nil)
+	add("/v1/applications/{id}/events", "get", "list events for an application", false, nil)
+	add("/v1/applications/{id}/events", "post", "append email_received, interview_scheduled, or note", true, nil)
+	add("/v1/applications/{id}/tags", "post", "attach a tag by name or tag_id", true, nil)
+	add("/v1/applications/{id}/tags/{tagID}", "delete", "detach a tag", true, nil)
+	add("/v1/applications/{id}/prepare", "post", "one-step prepare: pull questions, draft answers, stop at awaiting_review or needs_input", true, nil)
+	add("/v1/applications/{id}/enqueue", "post", "enqueue prepare or submit work", true, nil)
+	add("/v1/applications/{id}/artifacts", "get", "list artifact metadata", false, nil)
+	add("/v1/applications/{id}/artifacts", "post", "attach resume_pdf, cover_letter, answers_json, form_snapshot, or confirmation", true, nil)
+	add("/v1/applications/{id}/questions", "get", "list form questions and answers", false, nil)
+	add("/v1/applications/{id}/check-link", "post", "re-check this posting", true, nil)
+	add("/v1/approvals", "post", "human approval. requires the approve scope and records the token", true, nil)
+	add("/v1/apply", "post", "batch prepare or async enqueue", true, nil)
+	add("/v1/queue/claim", "post", "lease the next work item. replicas use FOR UPDATE SKIP LOCKED on Postgres", true, nil)
+	add("/v1/queue/{id}/heartbeat", "post", "extend a lease", true, nil)
+	add("/v1/queue/{id}/complete", "post", "finish leased work and set the resulting status", true, nil)
+	add("/v1/artifacts/{id}", "get", "fetch an artifact body", false, nil)
+	add("/v1/profile", "get", "applicant profile: standing answers as a map, for the browser extension", false, nil)
+	add("/v1/standing", "get", "list standing answers", false, nil)
+	add("/v1/standing", "post", "set a standing answer. profile values also load from PURSUIT_PROFILE", true, nil)
+	add("/v1/caps", "get", "per-company application caps", false, nil)
+	add("/v1/links/check", "post", "sweep postings. one replica holds the advisory lock", true, nil)
+	add("/v1/webhooks", "get", "list webhooks", false, nil)
+	add("/v1/webhooks", "post", "register a webhook", true, nil)
+	add("/v1/webhooks/{id}", "delete", "delete a webhook", true, nil)
+	add("/v1/events", "get", "list events. after plus wait_ms long-polls", false, nil)
+	add("/v1/tags", "get", "list tags", false, nil)
+	add("/v1/tags", "post", "create a tag", true, nil)
+	add("/v1/tags/{id}", "delete", "delete a tag", true, nil)
+	add("/v1/audit", "get", "audit log, including actor_name", false, nil)
+	add("/v1/import/csv", "post", "import the tracker CSV. Prepared maps to awaiting_review. Applied stays applied", true, nil)
+	add("/v1/import/json", "post", "import a JSON array of postings", true, nil)
+	add("/v1/import/markdown", "post", "import markdown tables of roles as to_apply, deduped by URL", true, nil)
+	add("/v1/import/seed", "post", "import the committed seed", true, nil)
+	add("/v1/export/simplify", "get", "Simplify Job Tracker CSV", false, nil)
+	add("/v1/export/json", "get", "JSON export", false, nil)
+
+	doc := map[string]any{
+		"openapi": "3.0.3",
+		"info": map[string]any{
+			"title":       "Pursuit",
+			"version":     "0.1.0",
+			"description": "Job-application tracker. Agents should prefer the pursuit CLI. Fetch this document when you need the HTTP shape; use `pursuit schema <command>` for one CLI command.",
+		},
+		"servers":  []any{map[string]any{"url": "http://127.0.0.1:8787"}},
+		"security": []any{map[string]any{"bearerAuth": []any{}}},
+		"paths":    paths,
+		"components": map[string]any{
+			"securitySchemes": map[string]any{
+				"bearerAuth": map[string]any{"type": "http", "scheme": "bearer"},
+			},
+			"parameters": map[string]any{
+				"IdempotencyKey": map[string]any{"name": "Idempotency-Key", "in": "header", "schema": map[string]any{"type": "string"}},
+				"DryRun":         map[string]any{"name": "X-Dry-Run", "in": "header", "schema": map[string]any{"type": "string", "enum": []string{"true"}}},
+			},
+			"schemas": map[string]any{
+				"Error": map[string]any{
+					"type": "object",
+					"properties": map[string]any{
+						"error": map[string]any{"type": "object", "properties": map[string]any{
+							"code": map[string]any{"type": "string"}, "message": map[string]any{"type": "string"},
+							"hint": map[string]any{"type": "string"}, "details": map[string]any{"type": "object"},
+						}},
+					},
+				},
+			},
+		},
+	}
+	b, err := json.Marshal(doc)
+	if err != nil {
+		panic(err)
+	}
+	return b
+}
+
+func errRef() map[string]any {
+	return map[string]any{"description": "error", "content": map[string]any{"application/json": map[string]any{"schema": map[string]any{"$ref": "#/components/schemas/Error"}}}}
+}
+
+func slug(path string) string {
+	out := make([]byte, 0, len(path))
+	for i := 0; i < len(path); i++ {
+		c := path[i]
+		if c == '/' || c == '{' || c == '}' {
+			out = append(out, '_')
+			continue
+		}
+		out = append(out, c)
+	}
+	return string(out)
+}

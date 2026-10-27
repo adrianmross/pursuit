@@ -1,0 +1,25 @@
+# Pursuit
+
+Self-hosted job-application tracker. The CLI is the agent interface. Do not expect an MCP server.
+
+Auth: `Authorization: Bearer $PURSUIT_TOKEN` or `pursuit --token`. Scopes: read, write, approve. write does not grant approve. Nothing moves to submitting without `pursuit approve` from an approve-scoped token.
+
+JSON: stdout is compact JSON when it is not a terminal, or with `--json`. Errors are always JSON on stderr. `--fields a,b` trims responses. `--dry-run` on mutations writes nothing. `--idempotency-key` replays a successful mutation.
+
+Exit codes: 0 ok, 2 usage, 3 not found, 4 conflict, 5 auth, 6 validation, 1 other.
+
+```
+pursuit apps list --status to_apply --fields id,company,title,status
+pursuit apply APP_ID --prepare
+pursuit apply --batch status=to_apply --async
+pursuit queue claim --worker agent-1
+pursuit approve APP_ID
+pursuit events --follow
+pursuit check-links --all
+pursuit schema apps update
+```
+
+OpenAPI: GET /openapi.json. One command's flags: `pursuit schema <command>`.
+SQLite is the default database. Postgres is for more than one replica.
+
+The browser extension uses GET /v1/profile, GET /v1/applications/by-url?url=, and POST /v1/applications/capture. It needs a write token and PURSUIT_CORS_ORIGINS. It does not approve or submit.
