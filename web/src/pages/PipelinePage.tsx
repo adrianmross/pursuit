@@ -1,10 +1,10 @@
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { Link, useSearchParams } from "react-router-dom"
+import commandScore from "command-score"
 import { api, ApiError } from "@/lib/api"
 import { FILTERS, MORE, SORTS, label, statusTone, type Application, type Page } from "@/lib/types"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import {
   Select,
   SelectContent,
@@ -83,7 +83,6 @@ export function PipelinePage() {
     const qs = new URLSearchParams()
     qs.set("limit", "50")
     if (sort) qs.set("sort", sort)
-    if (q) qs.set("q", q)
     if (status) qs.set("status", status)
     if (cursor) qs.set("cursor", cursor)
     try {
@@ -103,7 +102,7 @@ export function PipelinePage() {
   useEffect(() => {
     void load()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [status, q, sort])
+  }, [status, sort])
 
   function patch(next: Record<string, string>) {
     const merged = new URLSearchParams(params)
@@ -114,26 +113,32 @@ export function PipelinePage() {
     setParams(merged, { replace: true })
   }
 
+  const visibleRows = useMemo(() => {
+    if (!q) return rows
+    return rows
+      .map((row) => {
+        const haystack = [row.company, row.title, label(row.status), ...(row.tags || [])].filter(Boolean).join(" ")
+        return { row, score: commandScore(haystack, q) }
+      })
+      .filter((entry) => entry.score > 0)
+      .sort((a, b) => b.score - a.score)
+      .map((entry) => entry.row)
+  }, [rows, q])
+
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold">Pipeline</h1>
           <p className="text-sm text-muted-foreground">
-            {loading && rows.length === 0 ? "Loading applications" : `${total} application${total === 1 ? "" : "s"}`}
+            {loading && rows.length === 0
+              ? "Loading applications"
+              : q
+                ? `${visibleRows.length} of ${total} application${total === 1 ? "" : "s"} match "${q}"`
+                : `${total} application${total === 1 ? "" : "s"}`}
           </p>
         </div>
         <div className="flex gap-2">
-          <Input
-            placeholder="Search company, title, notes"
-            defaultValue={q}
-            className="w-64"
-            onChange={(event) => {
-              const value = event.target.value
-              window.clearTimeout((window as unknown as { __q?: number }).__q)
-              ;(window as unknown as { __q?: number }).__q = window.setTimeout(() => patch({ q: value }), 200)
-            }}
-          />
           <Select value={sort} onValueChange={(value) => patch({ sort: value })}>
             <SelectTrigger className="w-44" aria-label="Sort">
               <SelectValue />
@@ -176,14 +181,14 @@ export function PipelinePage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {rows.length === 0 && !loading && (
+            {visibleRows.length === 0 && !loading && (
               <TableRow>
                 <TableCell colSpan={5} className="text-center text-muted-foreground">
                   No applications match.
                 </TableCell>
               </TableRow>
             )}
-            {rows.map((row) => {
+            {visibleRows.map((row) => {
               const href = safeURL(row.posting_url)
               const when = row.applied_date || row.updated_at
               return (
@@ -193,6 +198,15 @@ export function PipelinePage() {
                     <Link to={`/app/${encodeURIComponent(row.id)}`} className="hover:underline">
                       {row.title || "Untitled"}
                     </Link>
+                    {(row.tags || []).length > 0 && (
+                      <span className="ml-2 inline-flex gap-1">
+                        {row.tags!.map((tag) => (
+                          <Badge key={tag} variant="secondary" className="text-[10px]">
+                            {tag}
+                          </Badge>
+                        ))}
+                      </span>
+                    )}
                   </TableCell>
                   <TableCell>
                     <StatusBadge status={row.status} />
