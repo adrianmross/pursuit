@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import { Link, useSearchParams } from "react-router-dom"
 import commandScore from "command-score"
+import { RefreshCw } from "lucide-react"
 import { api, ApiError } from "@/lib/api"
+import { useAuth } from "@/lib/auth"
 import { FILTERS, MORE, SORTS, label, statusTone, type Application, type Page } from "@/lib/types"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -65,6 +67,7 @@ function LinkDot({ status }: { status?: string }) {
 }
 
 export function PipelinePage() {
+  const { can } = useAuth()
   const [params, setParams] = useSearchParams()
   const status = params.get("status") || ""
   const q = params.get("q") || ""
@@ -75,6 +78,7 @@ export function PipelinePage() {
   const [nextCursor, setNextCursor] = useState("")
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [checkingLinks, setCheckingLinks] = useState(false)
   const loadGen = useRef(0)
 
   async function load(cursor?: string) {
@@ -104,6 +108,18 @@ export function PipelinePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status, sort])
 
+  async function recheckAllLinks() {
+    setCheckingLinks(true)
+    try {
+      await api("/v1/links/check", { method: "POST", body: { owner: "dashboard" } })
+      await load()
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Failed to re-check links")
+    } finally {
+      setCheckingLinks(false)
+    }
+  }
+
   function patch(next: Record<string, string>) {
     const merged = new URLSearchParams(params)
     for (const [key, value] of Object.entries(next)) {
@@ -129,7 +145,22 @@ export function PipelinePage() {
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-xl font-semibold">Pipeline</h1>
+          <div className="flex items-center gap-1.5">
+            <h1 className="text-xl font-semibold">Pipeline</h1>
+            {can("write") && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="size-6"
+                title="Re-check all posting links"
+                aria-label="Re-check all posting links"
+                onClick={recheckAllLinks}
+                disabled={checkingLinks}
+              >
+                <RefreshCw className={checkingLinks ? "animate-spin" : ""} />
+              </Button>
+            )}
+          </div>
           <p className="text-sm text-muted-foreground">
             {loading && rows.length === 0
               ? "Loading applications"
