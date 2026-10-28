@@ -15,6 +15,7 @@ export type Application = {
   fit?: string
   source?: string
   next_step?: string
+  version?: number
 }
 
 export type Page<T> = {

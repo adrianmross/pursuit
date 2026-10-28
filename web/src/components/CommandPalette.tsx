@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react"
 import { useNavigate } from "react-router-dom"
-import { ListChecks, LogOut, Table2 } from "lucide-react"
+import { LogOut, Plus } from "lucide-react"
 import { api } from "@/lib/api"
 import { useAuth } from "@/lib/auth"
 import { label, type Application, type Page } from "@/lib/types"
@@ -47,12 +47,9 @@ export function CommandPalette() {
       <CommandInput placeholder="Jump to an application or run a command…" />
       <CommandList>
         <CommandEmpty>No matches.</CommandEmpty>
-        <CommandGroup heading="Go to">
-          <CommandItem onSelect={() => go(() => navigate("/"))}>
-            <Table2 /> Pipeline
-          </CommandItem>
-          <CommandItem onSelect={() => go(() => navigate("/queue"))}>
-            <ListChecks /> Queue
+        <CommandGroup heading="Actions">
+          <CommandItem onSelect={() => go(() => navigate("/?new=1"))}>
+            <Plus /> Add application
           </CommandItem>
         </CommandGroup>
         <CommandGroup heading="Applications">

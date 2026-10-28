@@ -16,11 +16,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 
-const NAV = [
-  { to: "/", label: "Pipeline" },
-  { to: "/queue", label: "Queue" },
-]
-
 function GlobalSearch() {
   const location = useLocation()
   const navigate = useNavigate()
@@ -44,11 +39,11 @@ function GlobalSearch() {
   }
 
   return (
-    <div className="relative w-64">
-      <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+    <div className="relative mx-auto w-full max-w-md">
+      <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
       <Input
-        placeholder="Search company, title, status, tags"
-        className="pl-8"
+        placeholder="Search"
+        className="h-10 pl-9 text-base"
         value={value}
         onChange={(event) => onChange(event.target.value)}
       />
@@ -64,26 +59,12 @@ export function AppShell() {
 
   return (
     <div className="flex min-h-svh flex-col">
-      <header className="flex items-center gap-4 border-b px-4 py-2.5">
+      <header className="grid grid-cols-[1fr_auto_1fr] items-center gap-4 border-b px-4 py-2.5">
         <NavLink to="/" className="font-semibold">
           Pursuit
         </NavLink>
-        <nav className="flex gap-1">
-          {NAV.map((item) => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              end={item.to === "/"}
-              className={({ isActive }) =>
-                `rounded-md px-3 py-1.5 text-sm ${isActive ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:text-foreground"}`
-              }
-            >
-              {item.label}
-            </NavLink>
-          ))}
-        </nav>
         <GlobalSearch />
-        <div className="ml-auto flex items-center gap-2">
+        <div className="flex items-center justify-end gap-2">
           <CommandPalette />
           <kbd className="hidden rounded border bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground sm:inline">⌘K</kbd>
           <DropdownMenu>

@@ -1,12 +1,21 @@
 import { useEffect, useState } from "react"
-import { Link, useParams } from "react-router-dom"
+import { Link, useNavigate, useParams } from "react-router-dom"
+import { ChevronDown, Pencil, RefreshCw, Trash2 } from "lucide-react"
 import { api, ApiError } from "@/lib/api"
 import { useAuth } from "@/lib/auth"
 import { label, type Application, type Artifact, type Event, type Page, type Question } from "@/lib/types"
 import { CompanyAvatar } from "@/components/CompanyAvatar"
+import { ApplicationDialog } from "@/components/ApplicationDialog"
+import { ConfirmDialog } from "@/components/ConfirmDialog"
+import { PreparedAnswers } from "@/components/PreparedAnswers"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible"
 import {
   Dialog,
   DialogContent,
@@ -36,8 +45,19 @@ function fmt(value?: string) {
   return date.toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })
 }
 
+function Field({ label: name, value }: { label: string; value?: string | null }) {
+  if (!value) return null
+  return (
+    <div className="flex flex-col gap-0.5">
+      <span className="text-xs text-muted-foreground">{name}</span>
+      <span className="text-sm">{value}</span>
+    </div>
+  )
+}
+
 export function DetailPage() {
   const { id = "" } = useParams()
+  const navigate = useNavigate()
   const { can } = useAuth()
   const [application, setApplication] = useState<Application | null>(null)
   const [events, setEvents] = useState<Event[]>([])
@@ -47,6 +67,8 @@ export function DetailPage() {
   const [decision, setDecision] = useState<"approve" | "reject" | null>(null)
   const [note, setNote] = useState("")
   const [recheckBusy, setRecheckBusy] = useState(false)
+  const [editing, setEditing] = useState(false)
+  const [deleting, setDeleting] = useState(false)
 
   async function load() {
     try {
@@ -98,7 +120,7 @@ export function DetailPage() {
   const posting = safeURL(application.posting_url)
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="mx-auto flex max-w-3xl flex-col gap-4">
       <Link to="/" className="text-sm text-muted-foreground hover:text-foreground">
         ← Pipeline
       </Link>
@@ -126,123 +148,132 @@ export function DetailPage() {
             ) : (
               <span className="text-sm text-muted-foreground">Approve needs the approve scope.</span>
             ))}
+          {can("write") && (
+            <>
+              <Button size="sm" variant="outline" onClick={() => setEditing(true)}>
+                <Pencil /> Edit
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => setDeleting(true)}>
+                <Trash2 /> Delete
+              </Button>
+            </>
+          )}
         </div>
       </div>
 
       <Card>
-        <CardContent className="flex flex-col gap-3 pt-6">
-          <div className="flex flex-wrap gap-3 text-sm text-muted-foreground">
+        <CardContent className="grid grid-cols-2 gap-4 pt-6 sm:grid-cols-3">
+          <Field label="Location" value={application.location} />
+          <Field label="Salary" value={application.salary} />
+          <Field label="Fit" value={application.fit} />
+          <Field label="Source" value={application.source} />
+          <Field label="Applied" value={application.applied_date} />
+          <div className="flex flex-col gap-0.5">
+            <span className="text-xs text-muted-foreground">Posting</span>
             {posting ? (
-              <a href={posting} target="_blank" rel="noopener noreferrer" className="hover:text-foreground">
+              <a href={posting} target="_blank" rel="noopener noreferrer" className="text-sm hover:underline">
                 Open posting
               </a>
             ) : (
-              "No posting link"
+              <span className="text-sm text-muted-foreground">No link</span>
             )}
-            {application.location}
-            {application.salary}
-            {application.fit && `Fit ${application.fit}`}
-            {application.source}
-            {application.applied_date && `Applied ${application.applied_date}`}
           </div>
           {application.next_step && (
-            <p className="text-sm">
-              <strong>Next: </strong>
-              {application.next_step}
-            </p>
+            <div className="col-span-2 flex flex-col gap-0.5 sm:col-span-3">
+              <span className="text-xs text-muted-foreground">Next step</span>
+              <span className="text-sm">{application.next_step}</span>
+            </div>
           )}
           {(application.tags || []).length > 0 && (
-            <div className="flex gap-1.5">
+            <div className="col-span-2 flex items-center gap-1.5 sm:col-span-3">
               {application.tags!.map((tag) => (
-                <Badge key={tag} variant="secondary">
+                <span key={tag} className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
                   {tag}
-                </Badge>
+                </span>
               ))}
             </div>
           )}
-          {can("write") ? (
-            <Button size="sm" variant="outline" className="self-start" onClick={recheckLink} disabled={recheckBusy}>
-              Re-check link
-            </Button>
-          ) : (
-            <p className="text-sm text-muted-foreground">Re-checking this posting needs a token with write.</p>
+          {can("write") && (
+            <div className="col-span-2 sm:col-span-3">
+              <Button size="sm" variant="outline" onClick={recheckLink} disabled={recheckBusy}>
+                <RefreshCw /> Re-check link
+              </Button>
+            </div>
           )}
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Notes</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {application.notes ? <p className="text-sm">{application.notes}</p> : <p className="text-sm text-muted-foreground">No notes.</p>}
-        </CardContent>
-      </Card>
+      {application.notes && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Notes</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm">{application.notes}</p>
+          </CardContent>
+        </Card>
+      )}
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Prepared answers</CardTitle>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-2">
-          {questions.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No prepared answers yet.</p>
-          ) : (
-            questions.map((q, idx) => (
-              <div key={idx} className="rounded-md border p-2 text-sm">
-                <div className="font-medium">{q.prompt || "Question"}</div>
-                <div className="text-muted-foreground">{q.answer || "No answer"}</div>
-              </div>
-            ))
-          )}
-        </CardContent>
-      </Card>
+      {questions.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Prepared answers</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <PreparedAnswers questions={questions} />
+          </CardContent>
+        </Card>
+      )}
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Artifacts</CardTitle>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-2">
-          {artifacts.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No artifacts.</p>
-          ) : (
-            artifacts.map((a) => (
+      {artifacts.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Artifacts</CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-2">
+            {artifacts.map((a) => (
               <div key={a.id} className="flex items-center justify-between rounded-md border p-2 text-sm">
                 <span>{a.filename || a.kind}</span>
                 <span className="text-muted-foreground">{a.kind}</span>
               </div>
-            ))
-          )}
-        </CardContent>
-      </Card>
+            ))}
+          </CardContent>
+        </Card>
+      )}
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">History</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {events.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No history yet.</p>
-          ) : (
-            <ol className="flex flex-col gap-3">
-              {events.map((e, idx) => (
-                <li key={idx} className="text-sm">
-                  <div className="font-medium">{e.title || e.kind}</div>
-                  <div className="text-muted-foreground">
-                    {fmt(e.occurred_at)}
-                    {e.actor?.name ? ` · ${e.actor.name}` : ""}
-                  </div>
-                  {(e.from_status || e.to_status) && (
-                    <div>
-                      {label(e.from_status)} → {label(e.to_status)}
-                    </div>
-                  )}
-                  {e.body && <div className="text-muted-foreground">{e.body}</div>}
-                </li>
-              ))}
-            </ol>
-          )}
-        </CardContent>
-      </Card>
+      <Collapsible>
+        <Card>
+          <CollapsibleTrigger className="flex w-full items-center justify-between p-6 text-left">
+            <CardTitle className="text-base">History ({events.length})</CardTitle>
+            <ChevronDown className="size-4 text-muted-foreground" />
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <CardContent className="pt-0">
+              {events.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No history yet.</p>
+              ) : (
+                <ol className="flex flex-col gap-3">
+                  {events.map((e, idx) => (
+                    <li key={idx} className="text-sm">
+                      <div className="font-medium">{e.title || e.kind}</div>
+                      <div className="text-muted-foreground">
+                        {fmt(e.occurred_at)}
+                        {e.actor?.name ? ` · ${e.actor.name}` : ""}
+                      </div>
+                      {(e.from_status || e.to_status) && (
+                        <div>
+                          {label(e.from_status)} → {label(e.to_status)}
+                        </div>
+                      )}
+                      {e.body && <div className="text-muted-foreground">{e.body}</div>}
+                    </li>
+                  ))}
+                </ol>
+              )}
+            </CardContent>
+          </CollapsibleContent>
+        </Card>
+      </Collapsible>
 
       <Dialog open={decision != null} onOpenChange={(open) => !open && setDecision(null)}>
         <DialogContent>
@@ -265,6 +296,20 @@ export function DetailPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ApplicationDialog open={editing} onOpenChange={setEditing} application={application} onSaved={() => load()} />
+      <ConfirmDialog
+        open={deleting}
+        onOpenChange={setDeleting}
+        title="Delete application"
+        description={`This permanently deletes ${application.title || "this application"} at ${application.company || "this company"}. This can't be undone.`}
+        confirmLabel="Delete"
+        danger
+        onConfirm={async () => {
+          await api(`/v1/applications/${encodeURIComponent(application.id)}`, { method: "DELETE" })
+          navigate("/")
+        }}
+      />
     </div>
   )
 }
