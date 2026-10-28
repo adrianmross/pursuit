@@ -252,7 +252,7 @@ export function DetailPage() {
   if (isNew) {
     return (
       <div className="mx-auto flex max-w-3xl flex-col gap-4">
-        <Link to="/" aria-label="Back to pipeline" className="text-muted-foreground hover:text-foreground">
+        <Link to="/pipeline" aria-label="Back to pipeline" className="text-muted-foreground hover:text-foreground">
           <ArrowLeft className="size-4" />
         </Link>
         <h1 className="text-xl font-semibold">Add application</h1>
@@ -279,7 +279,7 @@ export function DetailPage() {
           <Button onClick={createApplication} disabled={createBusy || !createAttrs.company.trim()}>
             Add application
           </Button>
-          <Button variant="outline" onClick={() => navigate("/")}>
+          <Button variant="outline" onClick={() => navigate("/pipeline")}>
             Cancel
           </Button>
         </div>
@@ -296,7 +296,7 @@ export function DetailPage() {
 
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-4">
-      <Link to="/" aria-label="Back to pipeline" className="text-muted-foreground hover:text-foreground">
+      <Link to="/pipeline" aria-label="Back to pipeline" className="text-muted-foreground hover:text-foreground">
         <ArrowLeft className="size-4" />
       </Link>
 
@@ -594,7 +594,7 @@ export function DetailPage() {
         danger
         onConfirm={async () => {
           await api(`/v1/applications/${encodeURIComponent(application.id)}`, { method: "DELETE" })
-          navigate("/")
+          navigate("/pipeline")
         }}
       />
     </div>

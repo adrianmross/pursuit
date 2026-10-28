@@ -22,6 +22,10 @@ export function setToken(token: string) {
 type ApiOptions = {
   method?: string
   body?: unknown
+  // rawBody sends its text verbatim with the given content type, instead of
+  // JSON-encoding `body` — for import endpoints that expect a file's own
+  // content type (CSV/markdown text, or a raw JSON array).
+  rawBody?: { text: string; contentType: string }
   retried?: boolean
 }
 
@@ -30,7 +34,10 @@ export async function api<T>(path: string, options: ApiOptions = {}): Promise<T>
   const headers: Record<string, string> = {}
   if (token) headers.Authorization = "Bearer " + token
   const init: RequestInit = { method: options.method || "GET", headers }
-  if (options.body !== undefined) {
+  if (options.rawBody) {
+    headers["Content-Type"] = options.rawBody.contentType
+    init.body = options.rawBody.text
+  } else if (options.body !== undefined) {
     headers["Content-Type"] = "application/json"
     init.body = JSON.stringify(options.body)
   }
