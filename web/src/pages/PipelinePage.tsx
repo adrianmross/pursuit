@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from "react"
-import { Link, useSearchParams } from "react-router-dom"
+import { Link, useNavigate, useSearchParams } from "react-router-dom"
 import commandScore from "command-score"
 import {
   Archive,
@@ -19,7 +19,6 @@ import { useAuth } from "@/lib/auth"
 import { getDefaultSort, getDefaultStatus } from "@/lib/settings"
 import { FILTERS, MORE, SORTS, label, statusTone, type Application, type Page, type Question } from "@/lib/types"
 import { CompanyAvatar } from "@/components/CompanyAvatar"
-import { ApplicationDialog } from "@/components/ApplicationDialog"
 import { ConfirmDialog } from "@/components/ConfirmDialog"
 import { PreparedAnswers } from "@/components/PreparedAnswers"
 import { Badge } from "@/components/ui/badge"
@@ -376,6 +375,7 @@ function RowActions({
 
 export function PipelinePage() {
   const { can } = useAuth()
+  const navigate = useNavigate()
   const [params, setParams] = useSearchParams()
   const status = params.get("status") ?? getDefaultStatus()
   const q = params.get("q") || ""
@@ -388,7 +388,6 @@ export function PipelinePage() {
   const [error, setError] = useState<string | null>(null)
   const [expanded, setExpanded] = useState<string | null>(null)
   const [selected, setSelected] = useState<Set<string>>(new Set())
-  const [dialogApp, setDialogApp] = useState<Application | null | undefined>(undefined)
   const [deleteTarget, setDeleteTarget] = useState<Application | null>(null)
   const [bulkBusy, setBulkBusy] = useState(false)
   const [checkingAll, setCheckingAll] = useState(false)
@@ -420,16 +419,6 @@ export function PipelinePage() {
     void load()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status, sort])
-
-  useEffect(() => {
-    if (params.get("new") === "1") {
-      setDialogApp(null)
-      const next = new URLSearchParams(params)
-      next.delete("new")
-      setParams(next, { replace: true })
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
 
   function patch(next: Record<string, string>) {
     const merged = new URLSearchParams(params)
@@ -521,7 +510,7 @@ export function PipelinePage() {
         <div className="flex gap-2">
           <FilterSortBar status={status} sort={sort} onPatch={patch} />
           {can("write") && (
-            <Button size="sm" onClick={() => setDialogApp(null)}>
+            <Button size="sm" onClick={() => navigate("/app/new")}>
               <Plus /> Add
             </Button>
           )}
@@ -719,12 +708,6 @@ export function PipelinePage() {
         </Button>
       )}
 
-      <ApplicationDialog
-        open={dialogApp !== undefined}
-        onOpenChange={(open) => !open && setDialogApp(undefined)}
-        application={dialogApp}
-        onSaved={() => load()}
-      />
       <ConfirmDialog
         open={deleteTarget != null}
         onOpenChange={(open) => !open && setDeleteTarget(null)}

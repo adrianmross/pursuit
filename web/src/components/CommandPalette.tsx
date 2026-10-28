@@ -48,7 +48,7 @@ export function CommandPalette() {
       <CommandList>
         <CommandEmpty>No matches.</CommandEmpty>
         <CommandGroup heading="Actions">
-          <CommandItem onSelect={() => go(() => navigate("/?new=1"))}>
+          <CommandItem onSelect={() => go(() => navigate("/app/new"))}>
             <Plus /> Add application
           </CommandItem>
         </CommandGroup>

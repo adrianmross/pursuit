@@ -1,11 +1,11 @@
 import { useEffect, useState } from "react"
 import { Link, useNavigate, useParams } from "react-router-dom"
-import { Archive, ChevronDown, ExternalLink, Pencil, RefreshCw, Trash2 } from "lucide-react"
+import { Archive, Check, ChevronDown, ExternalLink, Pencil, RefreshCw, Trash2, X } from "lucide-react"
 import { api, ApiError } from "@/lib/api"
 import { useAuth } from "@/lib/auth"
 import { label, type Application, type Artifact, type Event, type Page, type Question } from "@/lib/types"
 import { CompanyAvatar } from "@/components/CompanyAvatar"
-import { ApplicationDialog } from "@/components/ApplicationDialog"
+import { AttributesForm, EMPTY_ATTRIBUTES, type AttributesFormState } from "@/components/AttributesForm"
 import { ConfirmDialog } from "@/components/ConfirmDialog"
 import { PreparedAnswers } from "@/components/PreparedAnswers"
 import { Badge } from "@/components/ui/badge"
@@ -55,8 +55,21 @@ function Field({ label: name, value }: { label: string; value?: string | null })
   )
 }
 
+function toFormState(app: Application): AttributesFormState {
+  return {
+    company: app.company || "",
+    title: app.title || "",
+    location: app.location || "",
+    salary: app.salary || "",
+    fit: app.fit || "",
+    posting_url: app.posting_url || "",
+    status: app.status,
+  }
+}
+
 export function DetailPage() {
   const { id = "" } = useParams()
+  const isNew = id === "new"
   const navigate = useNavigate()
   const { can } = useAuth()
   const [application, setApplication] = useState<Application | null>(null)
@@ -67,11 +80,19 @@ export function DetailPage() {
   const [decision, setDecision] = useState<"approve" | "reject" | null>(null)
   const [note, setNote] = useState("")
   const [recheckBusy, setRecheckBusy] = useState(false)
-  const [editing, setEditing] = useState(false)
-  const [deleting, setDeleting] = useState(false)
   const [archiveBusy, setArchiveBusy] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+
+  const [editing, setEditing] = useState(isNew)
+  const [attrs, setAttrs] = useState<AttributesFormState>(EMPTY_ATTRIBUTES)
+  const [attrsBusy, setAttrsBusy] = useState(false)
+  const [attrsError, setAttrsError] = useState<string | null>(null)
+
+  const [notesDraft, setNotesDraft] = useState("")
+  const [notesBusy, setNotesBusy] = useState(false)
 
   async function load() {
+    if (isNew) return
     try {
       const [app, eventsPage, artifactsPage, questionsPage] = await Promise.all([
         api<Application>(`/v1/applications/${encodeURIComponent(id)}`),
@@ -80,6 +101,8 @@ export function DetailPage() {
         api<Page<Question>>(`/v1/applications/${encodeURIComponent(id)}/questions`),
       ])
       setApplication(app)
+      setAttrs(toFormState(app))
+      setNotesDraft(app.notes || "")
       setEvents(eventsPage.data || [])
       setArtifacts(artifactsPage.data || [])
       setQuestions(questionsPage.data || [])
@@ -95,9 +118,10 @@ export function DetailPage() {
   }, [id])
 
   async function recheckLink() {
+    if (!application) return
     setRecheckBusy(true)
     try {
-      await api(`/v1/applications/${encodeURIComponent(id)}/check-link`, { method: "POST", body: {} })
+      await api(`/v1/applications/${encodeURIComponent(application.id)}/check-link`, { method: "POST", body: {} })
       await load()
     } finally {
       setRecheckBusy(false)
@@ -129,10 +153,95 @@ export function DetailPage() {
     await load()
   }
 
+  async function saveAttributes() {
+    setAttrsBusy(true)
+    setAttrsError(null)
+    try {
+      if (isNew) {
+        const created = await api<Application>("/v1/applications", {
+          method: "POST",
+          body: { ...attrs, notes: notesDraft },
+        })
+        navigate(`/app/${encodeURIComponent(created.id)}`, { replace: true })
+        return
+      }
+      if (!application) return
+      await api<Application>(`/v1/applications/${encodeURIComponent(application.id)}`, {
+        method: "PATCH",
+        body: { version: application.version, ...attrs },
+      })
+      setEditing(false)
+      await load()
+    } catch (err) {
+      setAttrsError(err instanceof ApiError ? err.message : "Failed to save")
+    } finally {
+      setAttrsBusy(false)
+    }
+  }
+
+  function cancelEdit() {
+    if (application) setAttrs(toFormState(application))
+    setAttrsError(null)
+    setEditing(false)
+  }
+
+  async function saveNotes() {
+    if (!application) return
+    setNotesBusy(true)
+    try {
+      await api<Application>(`/v1/applications/${encodeURIComponent(application.id)}`, {
+        method: "PATCH",
+        body: { version: application.version, notes: notesDraft },
+      })
+      await load()
+    } finally {
+      setNotesBusy(false)
+    }
+  }
+
+  if (isNew) {
+    return (
+      <div className="mx-auto flex max-w-3xl flex-col gap-4">
+        <Link to="/" className="text-sm text-muted-foreground hover:text-foreground">
+          ← Pipeline
+        </Link>
+        <h1 className="text-xl font-semibold">Add application</h1>
+        <Card>
+          <CardContent className="pt-6">
+            <AttributesForm value={attrs} onChange={setAttrs} showCompany />
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Notes</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Textarea
+              className="min-h-40"
+              placeholder="Anything worth remembering about this one…"
+              value={notesDraft}
+              onChange={(e) => setNotesDraft(e.target.value)}
+            />
+          </CardContent>
+        </Card>
+        {attrsError && <p className="text-sm text-destructive">{attrsError}</p>}
+        <div className="flex gap-2">
+          <Button onClick={saveAttributes} disabled={attrsBusy || !attrs.company.trim()}>
+            Add application
+          </Button>
+          <Button variant="outline" onClick={() => navigate("/")}>
+            Cancel
+          </Button>
+        </div>
+      </div>
+    )
+  }
+
   if (error) return <p className="text-sm text-destructive">{error}</p>
   if (!application) return <p className="text-sm text-muted-foreground">Loading…</p>
 
   const posting = safeURL(application.posting_url)
+  const notesDirty = notesDraft !== (application.notes || "")
 
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-4">
@@ -163,7 +272,7 @@ export function DetailPage() {
             ) : (
               <span className="text-sm text-muted-foreground">Approve needs the approve scope.</span>
             ))}
-          {can("write") && (
+          {can("write") && !editing && (
             <>
               <Button size="sm" variant="outline" onClick={() => setEditing(true)}>
                 <Pencil /> Edit
@@ -182,69 +291,100 @@ export function DetailPage() {
       </div>
 
       <Card>
-        <CardContent className="grid grid-cols-2 gap-4 pt-6 sm:grid-cols-3">
-          <Field label="Location" value={application.location} />
-          <Field label="Salary" value={application.salary} />
-          <Field label="Fit" value={application.fit} />
-          <Field label="Source" value={application.source} />
-          <Field label="Applied" value={application.applied_date} />
-          <div className="flex flex-col gap-0.5">
-            <span className="text-xs text-muted-foreground">Posting</span>
-            <span className="flex items-center gap-1.5">
-              {posting ? (
-                <a
-                  href={posting}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-1 text-sm hover:underline"
-                >
-                  <ExternalLink className="size-3.5" /> Open posting
-                </a>
-              ) : (
-                <span className="text-sm text-muted-foreground">No link</span>
-              )}
-              {can("write") && (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="size-6"
-                  aria-label="Re-check link"
-                  onClick={recheckLink}
-                  disabled={recheckBusy}
-                >
-                  <RefreshCw className="size-3.5" />
+        <CardContent className="pt-6">
+          {editing ? (
+            <div className="flex flex-col gap-3">
+              <AttributesForm value={attrs} onChange={setAttrs} />
+              {attrsError && <p className="text-sm text-destructive">{attrsError}</p>}
+              <div className="flex gap-2">
+                <Button size="sm" onClick={saveAttributes} disabled={attrsBusy}>
+                  <Check /> Save
                 </Button>
-              )}
-            </span>
-          </div>
-          {application.next_step && (
-            <div className="col-span-2 flex flex-col gap-0.5 sm:col-span-3">
-              <span className="text-xs text-muted-foreground">Next step</span>
-              <span className="text-sm">{application.next_step}</span>
+                <Button size="sm" variant="outline" onClick={cancelEdit}>
+                  <X /> Cancel
+                </Button>
+              </div>
             </div>
-          )}
-          {(application.tags || []).length > 0 && (
-            <div className="col-span-2 flex items-center gap-1.5 sm:col-span-3">
-              {application.tags!.map((tag) => (
-                <span key={tag} className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
-                  {tag}
+          ) : (
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+              <Field label="Location" value={application.location} />
+              <Field label="Salary" value={application.salary} />
+              <Field label="Fit" value={application.fit} />
+              <Field label="Source" value={application.source} />
+              <Field label="Applied" value={application.applied_date} />
+              <div className="flex flex-col gap-0.5">
+                <span className="text-xs text-muted-foreground">Posting</span>
+                <span className="flex items-center gap-1.5">
+                  {posting ? (
+                    <a
+                      href={posting}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-1 text-sm hover:underline"
+                    >
+                      <ExternalLink className="size-3.5" /> Open posting
+                    </a>
+                  ) : (
+                    <span className="text-sm text-muted-foreground">No link</span>
+                  )}
+                  {can("write") && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="size-6"
+                      aria-label="Re-check link"
+                      onClick={recheckLink}
+                      disabled={recheckBusy}
+                    >
+                      <RefreshCw className="size-3.5" />
+                    </Button>
+                  )}
                 </span>
-              ))}
+              </div>
+              {application.next_step && (
+                <div className="col-span-2 flex flex-col gap-0.5 sm:col-span-3">
+                  <span className="text-xs text-muted-foreground">Next step</span>
+                  <span className="text-sm">{application.next_step}</span>
+                </div>
+              )}
+              {(application.tags || []).length > 0 && (
+                <div className="col-span-2 flex items-center gap-1.5 sm:col-span-3">
+                  {application.tags!.map((tag) => (
+                    <span key={tag} className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </CardContent>
       </Card>
 
-      {application.notes && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Notes</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm">{application.notes}</p>
-          </CardContent>
-        </Card>
-      )}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Notes</CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-2">
+          <Textarea
+            className="min-h-40"
+            placeholder="Anything worth remembering about this one…"
+            value={notesDraft}
+            onChange={(e) => setNotesDraft(e.target.value)}
+            disabled={!can("write")}
+          />
+          {notesDirty && can("write") && (
+            <div className="flex gap-2">
+              <Button size="sm" onClick={saveNotes} disabled={notesBusy}>
+                Save notes
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => setNotesDraft(application.notes || "")}>
+                Discard
+              </Button>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {questions.length > 0 && (
         <Card>
@@ -329,7 +469,6 @@ export function DetailPage() {
         </DialogContent>
       </Dialog>
 
-      <ApplicationDialog open={editing} onOpenChange={setEditing} application={application} onSaved={() => load()} />
       <ConfirmDialog
         open={deleting}
         onOpenChange={setDeleting}
