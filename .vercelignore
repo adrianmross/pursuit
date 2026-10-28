@@ -1,0 +1,9 @@
+.devenv/
+.devdata/
+.direnv/
+bin/
+extension/node_modules/
+extension/dist/
+*.db
+*.db-wal
+*.db-shm
