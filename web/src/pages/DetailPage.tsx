@@ -1,12 +1,13 @@
 import { useEffect, useState } from "react"
 import { Link, useNavigate, useParams } from "react-router-dom"
-import { Archive, Check, ChevronDown, ExternalLink, Pencil, RefreshCw, Trash2, X } from "lucide-react"
+import { ArrowLeft, Check, ChevronDown, ExternalLink, MoreHorizontal, RefreshCw, X } from "lucide-react"
 import { api, ApiError } from "@/lib/api"
 import { useAuth } from "@/lib/auth"
 import { label, type Application, type Artifact, type Event, type Page, type Question } from "@/lib/types"
 import { CompanyAvatar } from "@/components/CompanyAvatar"
-import { AttributesForm, EMPTY_ATTRIBUTES, type AttributesFormState } from "@/components/AttributesForm"
+import { AttributesForm, EMPTY_ATTRIBUTES, FIT_OPTIONS, STATUS_OPTIONS, type AttributesFormState } from "@/components/AttributesForm"
 import { ConfirmDialog } from "@/components/ConfirmDialog"
+import { InlineSelect, InlineText } from "@/components/InlineEdit"
 import { PreparedAnswers } from "@/components/PreparedAnswers"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -24,7 +25,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { Textarea } from "@/components/ui/textarea"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 
 function safeURL(raw?: string) {
   if (!raw) return ""
@@ -45,28 +53,6 @@ function fmt(value?: string) {
   return date.toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })
 }
 
-function Field({ label: name, value }: { label: string; value?: string | null }) {
-  if (!value) return null
-  return (
-    <div className="flex flex-col gap-0.5">
-      <span className="text-xs text-muted-foreground">{name}</span>
-      <span className="text-sm">{value}</span>
-    </div>
-  )
-}
-
-function toFormState(app: Application): AttributesFormState {
-  return {
-    company: app.company || "",
-    title: app.title || "",
-    location: app.location || "",
-    salary: app.salary || "",
-    fit: app.fit || "",
-    posting_url: app.posting_url || "",
-    status: app.status,
-  }
-}
-
 export function DetailPage() {
   const { id = "" } = useParams()
   const isNew = id === "new"
@@ -80,13 +66,13 @@ export function DetailPage() {
   const [decision, setDecision] = useState<"approve" | "reject" | null>(null)
   const [note, setNote] = useState("")
   const [recheckBusy, setRecheckBusy] = useState(false)
-  const [archiveBusy, setArchiveBusy] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [fieldError, setFieldError] = useState<string | null>(null)
 
-  const [editing, setEditing] = useState(isNew)
-  const [attrs, setAttrs] = useState<AttributesFormState>(EMPTY_ATTRIBUTES)
-  const [attrsBusy, setAttrsBusy] = useState(false)
-  const [attrsError, setAttrsError] = useState<string | null>(null)
+  const [createAttrs, setCreateAttrs] = useState<AttributesFormState>(EMPTY_ATTRIBUTES)
+  const [createNotes, setCreateNotes] = useState("")
+  const [createBusy, setCreateBusy] = useState(false)
+  const [createError, setCreateError] = useState<string | null>(null)
 
   const [notesDraft, setNotesDraft] = useState("")
   const [notesBusy, setNotesBusy] = useState(false)
@@ -101,7 +87,6 @@ export function DetailPage() {
         api<Page<Question>>(`/v1/applications/${encodeURIComponent(id)}/questions`),
       ])
       setApplication(app)
-      setAttrs(toFormState(app))
       setNotesDraft(app.notes || "")
       setEvents(eventsPage.data || [])
       setArtifacts(artifactsPage.data || [])
@@ -117,6 +102,20 @@ export function DetailPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id])
 
+  async function saveField(patch: Record<string, string>) {
+    if (!application) return
+    setFieldError(null)
+    try {
+      const updated = await api<Application>(`/v1/applications/${encodeURIComponent(application.id)}`, {
+        method: "PATCH",
+        body: { version: application.version, ...patch },
+      })
+      setApplication(updated)
+    } catch (err) {
+      setFieldError(err instanceof ApiError ? err.message : "Failed to save")
+    }
+  }
+
   async function recheckLink() {
     if (!application) return
     setRecheckBusy(true)
@@ -130,16 +129,11 @@ export function DetailPage() {
 
   async function archive() {
     if (!application) return
-    setArchiveBusy(true)
-    try {
-      await api(`/v1/applications/${encodeURIComponent(application.id)}`, {
-        method: "PATCH",
-        body: { version: application.version, status: "withdrawn" },
-      })
-      await load()
-    } finally {
-      setArchiveBusy(false)
-    }
+    await api(`/v1/applications/${encodeURIComponent(application.id)}`, {
+      method: "PATCH",
+      body: { version: application.version, status: "withdrawn" },
+    })
+    await load()
   }
 
   async function confirmDecision() {
@@ -153,62 +147,46 @@ export function DetailPage() {
     await load()
   }
 
-  async function saveAttributes() {
-    setAttrsBusy(true)
-    setAttrsError(null)
-    try {
-      if (isNew) {
-        const created = await api<Application>("/v1/applications", {
-          method: "POST",
-          body: { ...attrs, notes: notesDraft },
-        })
-        navigate(`/app/${encodeURIComponent(created.id)}`, { replace: true })
-        return
-      }
-      if (!application) return
-      await api<Application>(`/v1/applications/${encodeURIComponent(application.id)}`, {
-        method: "PATCH",
-        body: { version: application.version, ...attrs },
-      })
-      setEditing(false)
-      await load()
-    } catch (err) {
-      setAttrsError(err instanceof ApiError ? err.message : "Failed to save")
-    } finally {
-      setAttrsBusy(false)
-    }
-  }
-
-  function cancelEdit() {
-    if (application) setAttrs(toFormState(application))
-    setAttrsError(null)
-    setEditing(false)
-  }
-
   async function saveNotes() {
     if (!application) return
     setNotesBusy(true)
     try {
-      await api<Application>(`/v1/applications/${encodeURIComponent(application.id)}`, {
+      const updated = await api<Application>(`/v1/applications/${encodeURIComponent(application.id)}`, {
         method: "PATCH",
         body: { version: application.version, notes: notesDraft },
       })
-      await load()
+      setApplication(updated)
     } finally {
       setNotesBusy(false)
+    }
+  }
+
+  async function createApplication() {
+    setCreateBusy(true)
+    setCreateError(null)
+    try {
+      const created = await api<Application>("/v1/applications", {
+        method: "POST",
+        body: { ...createAttrs, notes: createNotes },
+      })
+      navigate(`/app/${encodeURIComponent(created.id)}`, { replace: true })
+    } catch (err) {
+      setCreateError(err instanceof ApiError ? err.message : "Failed to save")
+    } finally {
+      setCreateBusy(false)
     }
   }
 
   if (isNew) {
     return (
       <div className="mx-auto flex max-w-3xl flex-col gap-4">
-        <Link to="/" className="text-sm text-muted-foreground hover:text-foreground">
-          ← Pipeline
+        <Link to="/" aria-label="Back to pipeline" className="text-muted-foreground hover:text-foreground">
+          <ArrowLeft className="size-4" />
         </Link>
         <h1 className="text-xl font-semibold">Add application</h1>
         <Card>
           <CardContent className="pt-6">
-            <AttributesForm value={attrs} onChange={setAttrs} showCompany />
+            <AttributesForm value={createAttrs} onChange={setCreateAttrs} showCompany />
           </CardContent>
         </Card>
         <Card>
@@ -217,16 +195,16 @@ export function DetailPage() {
           </CardHeader>
           <CardContent>
             <Textarea
-              className="min-h-40"
+              className="min-h-40 border-transparent bg-transparent px-0 shadow-none focus-visible:border-transparent focus-visible:ring-1 focus-visible:ring-border"
               placeholder="Anything worth remembering about this one…"
-              value={notesDraft}
-              onChange={(e) => setNotesDraft(e.target.value)}
+              value={createNotes}
+              onChange={(e) => setCreateNotes(e.target.value)}
             />
           </CardContent>
         </Card>
-        {attrsError && <p className="text-sm text-destructive">{attrsError}</p>}
+        {createError && <p className="text-sm text-destructive">{createError}</p>}
         <div className="flex gap-2">
-          <Button onClick={saveAttributes} disabled={attrsBusy || !attrs.company.trim()}>
+          <Button onClick={createApplication} disabled={createBusy || !createAttrs.company.trim()}>
             Add application
           </Button>
           <Button variant="outline" onClick={() => navigate("/")}>
@@ -242,92 +220,148 @@ export function DetailPage() {
 
   const posting = safeURL(application.posting_url)
   const notesDirty = notesDraft !== (application.notes || "")
+  const writable = can("write")
 
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-4">
-      <Link to="/" className="text-sm text-muted-foreground hover:text-foreground">
-        ← Pipeline
+      <Link to="/" aria-label="Back to pipeline" className="text-muted-foreground hover:text-foreground">
+        <ArrowLeft className="size-4" />
       </Link>
 
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex items-start gap-3">
           <CompanyAvatar company={application.company} className="mt-1 size-9 text-sm" />
           <div>
-            <h1 className="text-xl font-semibold">{application.title || "Untitled"}</h1>
+            <InlineText
+              value={application.title || ""}
+              placeholder="Untitled"
+              disabled={!writable}
+              className="text-xl font-semibold"
+              inputClassName="h-9 text-xl font-semibold"
+              onSave={(v) => saveField({ title: v })}
+            />
             <p className="text-sm text-muted-foreground">{application.company || "Unknown company"}</p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1">
           <Badge variant="outline">{label(application.status)}</Badge>
           {application.status === "awaiting_review" &&
             (can("approve") ? (
               <>
-                <Button size="sm" onClick={() => setDecision("approve")}>
-                  Approve
-                </Button>
-                <Button size="sm" variant="destructive" onClick={() => setDecision("reject")}>
-                  Reject
-                </Button>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button variant="ghost" size="icon" aria-label="Approve" onClick={() => setDecision("approve")}>
+                      <Check className="size-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Approve</TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      aria-label="Reject"
+                      className="text-destructive hover:text-destructive"
+                      onClick={() => setDecision("reject")}
+                    >
+                      <X className="size-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Reject</TooltipContent>
+                </Tooltip>
               </>
             ) : (
               <span className="text-sm text-muted-foreground">Approve needs the approve scope.</span>
             ))}
-          {can("write") && !editing && (
-            <>
-              <Button size="sm" variant="outline" onClick={() => setEditing(true)}>
-                <Pencil /> Edit
-              </Button>
-              {application.status !== "withdrawn" && (
-                <Button size="sm" variant="outline" onClick={archive} disabled={archiveBusy}>
-                  <Archive /> Archive
+          {writable && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" aria-label="More actions">
+                  <MoreHorizontal className="size-4" />
                 </Button>
-              )}
-              <Button size="sm" variant="outline" onClick={() => setDeleting(true)}>
-                <Trash2 /> Delete
-              </Button>
-            </>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                {application.status !== "withdrawn" && <DropdownMenuItem onClick={archive}>Archive</DropdownMenuItem>}
+                <DropdownMenuItem onClick={() => setDeleting(true)} variant="destructive">
+                  Delete
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           )}
         </div>
       </div>
 
       <Card>
-        <CardContent className="pt-6">
-          {editing ? (
-            <div className="flex flex-col gap-3">
-              <AttributesForm value={attrs} onChange={setAttrs} />
-              {attrsError && <p className="text-sm text-destructive">{attrsError}</p>}
-              <div className="flex gap-2">
-                <Button size="sm" onClick={saveAttributes} disabled={attrsBusy}>
-                  <Check /> Save
-                </Button>
-                <Button size="sm" variant="outline" onClick={cancelEdit}>
-                  <X /> Cancel
-                </Button>
-              </div>
-            </div>
-          ) : (
-            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-              <Field label="Location" value={application.location} />
-              <Field label="Salary" value={application.salary} />
-              <Field label="Fit" value={application.fit} />
-              <Field label="Source" value={application.source} />
-              <Field label="Applied" value={application.applied_date} />
-              <div className="flex flex-col gap-0.5">
-                <span className="text-xs text-muted-foreground">Posting</span>
-                <span className="flex items-center gap-1.5">
-                  {posting ? (
-                    <a
-                      href={posting}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center gap-1 text-sm hover:underline"
-                    >
-                      <ExternalLink className="size-3.5" /> Open posting
+        <CardContent className="grid grid-cols-2 gap-4 pt-6 sm:grid-cols-3">
+          <div className="flex flex-col gap-0.5">
+            <span className="text-xs text-muted-foreground">Location</span>
+            <InlineText
+              value={application.location || ""}
+              disabled={!writable}
+              className="text-sm"
+              inputClassName="h-7 text-sm"
+              onSave={(v) => saveField({ location: v })}
+            />
+          </div>
+          <div className="flex flex-col gap-0.5">
+            <span className="text-xs text-muted-foreground">Salary</span>
+            <InlineText
+              value={application.salary || ""}
+              disabled={!writable}
+              className="text-sm"
+              inputClassName="h-7 text-sm"
+              onSave={(v) => saveField({ salary: v })}
+            />
+          </div>
+          <div className="flex flex-col gap-0.5">
+            <span className="text-xs text-muted-foreground">Fit</span>
+            <InlineSelect
+              value={application.fit || ""}
+              display={application.fit || "—"}
+              options={FIT_OPTIONS.map((f) => [f, f] as [string, string])}
+              disabled={!writable}
+              className="text-sm"
+              onSave={(v) => saveField({ fit: v })}
+            />
+          </div>
+          <Field label="Source" value={application.source} />
+          <Field label="Applied" value={application.applied_date} />
+          <div className="flex flex-col gap-0.5">
+            <span className="text-xs text-muted-foreground">Status</span>
+            <InlineSelect
+              value={application.status}
+              display={label(application.status)}
+              options={STATUS_OPTIONS}
+              disabled={!writable}
+              className="text-sm"
+              onSave={(v) => saveField({ status: v })}
+            />
+          </div>
+          <div className="col-span-2 flex flex-col gap-0.5 sm:col-span-3">
+            <span className="text-xs text-muted-foreground">Posting URL</span>
+            <div className="flex items-center gap-1.5">
+              <InlineText
+                value={application.posting_url || ""}
+                placeholder="No link"
+                disabled={!writable}
+                className="text-sm"
+                inputClassName="h-7 flex-1 text-sm"
+                onSave={(v) => saveField({ posting_url: v })}
+              />
+              {posting && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <a href={posting} target="_blank" rel="noopener noreferrer" aria-label="Open posting">
+                      <ExternalLink className="size-3.5 text-muted-foreground hover:text-foreground" />
                     </a>
-                  ) : (
-                    <span className="text-sm text-muted-foreground">No link</span>
-                  )}
-                  {can("write") && (
+                  </TooltipTrigger>
+                  <TooltipContent>Open posting</TooltipContent>
+                </Tooltip>
+              )}
+              {writable && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
                     <Button
                       variant="ghost"
                       size="icon"
@@ -336,27 +370,31 @@ export function DetailPage() {
                       onClick={recheckLink}
                       disabled={recheckBusy}
                     >
-                      <RefreshCw className="size-3.5" />
+                      <RefreshCw className={`size-3.5 ${recheckBusy ? "animate-spin" : ""}`} />
                     </Button>
-                  )}
-                </span>
-              </div>
-              {application.next_step && (
-                <div className="col-span-2 flex flex-col gap-0.5 sm:col-span-3">
-                  <span className="text-xs text-muted-foreground">Next step</span>
-                  <span className="text-sm">{application.next_step}</span>
-                </div>
-              )}
-              {(application.tags || []).length > 0 && (
-                <div className="col-span-2 flex items-center gap-1.5 sm:col-span-3">
-                  {application.tags!.map((tag) => (
-                    <span key={tag} className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
-                      {tag}
-                    </span>
-                  ))}
-                </div>
+                  </TooltipTrigger>
+                  <TooltipContent>Re-check link</TooltipContent>
+                </Tooltip>
               )}
             </div>
+          </div>
+          {application.next_step && (
+            <div className="col-span-2 flex flex-col gap-0.5 sm:col-span-3">
+              <span className="text-xs text-muted-foreground">Next step</span>
+              <span className="text-sm">{application.next_step}</span>
+            </div>
+          )}
+          {(application.tags || []).length > 0 && (
+            <div className="col-span-2 flex items-center gap-1.5 sm:col-span-3">
+              {application.tags!.map((tag) => (
+                <span key={tag} className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                  {tag}
+                </span>
+              ))}
+            </div>
+          )}
+          {fieldError && (
+            <p className="col-span-2 text-sm text-destructive sm:col-span-3">{fieldError}</p>
           )}
         </CardContent>
       </Card>
@@ -367,13 +405,13 @@ export function DetailPage() {
         </CardHeader>
         <CardContent className="flex flex-col gap-2">
           <Textarea
-            className="min-h-40"
+            className="min-h-40 border-transparent bg-transparent px-0 shadow-none focus-visible:border-transparent focus-visible:ring-1 focus-visible:ring-border"
             placeholder="Anything worth remembering about this one…"
             value={notesDraft}
             onChange={(e) => setNotesDraft(e.target.value)}
-            disabled={!can("write")}
+            disabled={!writable}
           />
-          {notesDirty && can("write") && (
+          {notesDirty && writable && (
             <div className="flex gap-2">
               <Button size="sm" onClick={saveNotes} disabled={notesBusy}>
                 Save notes
@@ -481,6 +519,16 @@ export function DetailPage() {
           navigate("/")
         }}
       />
+    </div>
+  )
+}
+
+function Field({ label: name, value }: { label: string; value?: string | null }) {
+  if (!value) return null
+  return (
+    <div className="flex flex-col gap-0.5">
+      <span className="text-xs text-muted-foreground">{name}</span>
+      <span className="text-sm">{value}</span>
     </div>
   )
 }

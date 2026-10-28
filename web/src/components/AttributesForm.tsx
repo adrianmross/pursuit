@@ -9,8 +9,8 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 
-const STATUS_OPTIONS = FILTERS.concat(MORE).filter(([value]) => value)
-const FIT_OPTIONS = ["strong", "reach", "maybe"]
+export const STATUS_OPTIONS = FILTERS.concat(MORE).filter(([value]) => value)
+export const FIT_OPTIONS = ["strong", "reach", "maybe"]
 
 export type AttributesFormState = {
   company: string
