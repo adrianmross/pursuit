@@ -34,6 +34,19 @@ func TestLinkFixtures(t *testing.T) {
 	mux.HandleFunc("/boards/root/jobs/999999", func(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/boards/root", http.StatusFound)
 	})
+	mux.HandleFunc("/wday/cxs/acme/External/job/San-Francisco-CA/Software-Engineer_R1", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"jobPostingInfo":{"title":"Software Engineer"}}`))
+	})
+	mux.HandleFunc("/wday/cxs/acme/External/job/San-Francisco-CA/Software-Engineer_R2", func(w http.ResponseWriter, r *http.Request) {
+		http.NotFound(w, r)
+	})
+	mux.HandleFunc("/jobs/view/111", func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte("<html><h1>Software Engineer at Acme</h1></html>"))
+	})
+	mux.HandleFunc("/jobs/view/222", func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte("<html>This job is no longer accepting applications</html>"))
+	})
 	srv := httptest.NewServer(mux)
 	defer srv.Close()
 	c := &Client{HTTP: &http.Client{Transport: rewrite(srv.URL)}}
@@ -65,6 +78,22 @@ func TestLinkFixtures(t *testing.T) {
 	redir := c.Check(context.Background(), srv.URL+"/boards/root/jobs/999999")
 	if redir.Status != domain.LinkClosed {
 		t.Fatalf("redirect: %+v", redir)
+	}
+	wdLive := c.Check(context.Background(), "https://acme.wd1.myworkdayjobs.com/en-US/External/job/San-Francisco-CA/Software-Engineer_R1")
+	if wdLive.Status != domain.LinkLive {
+		t.Fatalf("workday live: %+v", wdLive)
+	}
+	wdClosed := c.Check(context.Background(), "https://acme.wd1.myworkdayjobs.com/en-US/External/job/San-Francisco-CA/Software-Engineer_R2")
+	if wdClosed.Status != domain.LinkClosed {
+		t.Fatalf("workday closed: %+v", wdClosed)
+	}
+	liLive := c.Check(context.Background(), "https://www.linkedin.com/jobs/view/111")
+	if liLive.Status != domain.LinkLive {
+		t.Fatalf("linkedin live: %+v", liLive)
+	}
+	liClosed := c.Check(context.Background(), "https://www.linkedin.com/jobs/view/222")
+	if liClosed.Status != domain.LinkClosed {
+		t.Fatalf("linkedin closed: %+v", liClosed)
 	}
 }
 
