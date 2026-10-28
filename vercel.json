@@ -1,4 +1,6 @@
 {
+  "buildCommand": "cd web && npm install && npm run build && rm -rf ../internal/dashboard/dist && cp -r dist ../internal/dashboard/dist && mkdir -p ../public && echo 'served by api/index.go' > ../public/.keep",
+  "outputDirectory": "public",
   "rewrites": [
     { "source": "/(.*)", "destination": "/api/index.go" }
   ],
