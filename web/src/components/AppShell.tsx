@@ -1,8 +1,7 @@
 import { useEffect, useState } from "react"
 import { NavLink, Outlet, useLocation, useNavigate, useSearchParams } from "react-router-dom"
-import { Moon, Sun, Monitor, LogOut, MoreVertical, Search, Settings } from "lucide-react"
+import { LogOut, MoreVertical, Search, Settings, User } from "lucide-react"
 import { useAuth } from "@/lib/auth"
-import { useTheme } from "@/lib/theme"
 import { CommandPalette } from "@/components/CommandPalette"
 import { SettingsSheet } from "@/components/SettingsSheet"
 import { Button } from "@/components/ui/button"
@@ -39,7 +38,7 @@ function GlobalSearch() {
   }
 
   return (
-    <div className="relative mx-auto w-full max-w-md">
+    <div className="relative mx-auto w-full max-w-2xl">
       <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
       <Input
         placeholder="Search"
@@ -53,9 +52,9 @@ function GlobalSearch() {
 
 export function AppShell() {
   const { me, signOut } = useAuth()
-  const { theme, setTheme } = useTheme()
   const [settingsOpen, setSettingsOpen] = useState(false)
-  const identity = me ? `${me.token.name || "token"} · ${(me.token.scopes || []).join(", ")}` : ""
+  const identity = me?.token.name || "token"
+  const scopes = (me?.token.scopes || []).join(", ")
 
   return (
     <div className="flex min-h-svh flex-col">
@@ -74,17 +73,13 @@ export function AppShell() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56">
-              <DropdownMenuLabel className="text-xs text-muted-foreground">{identity}</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => setTheme("light")}>
-                <Sun /> Light {theme === "light" && "✓"}
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setTheme("dark")}>
-                <Moon /> Dark {theme === "dark" && "✓"}
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setTheme("system")}>
-                <Monitor /> System {theme === "system" && "✓"}
-              </DropdownMenuItem>
+              <DropdownMenuLabel className="flex items-center gap-2 text-xs text-muted-foreground">
+                <User className="size-3.5" />
+                <span className="truncate">
+                  {identity}
+                  {scopes && <span className="block text-[10px] opacity-75">{scopes}</span>}
+                </span>
+              </DropdownMenuLabel>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={() => setSettingsOpen(true)}>
                 <Settings /> Settings

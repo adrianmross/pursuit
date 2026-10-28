@@ -473,16 +473,13 @@ export function PipelinePage() {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-semibold">Pipeline</h1>
-          <p className="text-sm text-muted-foreground">
-            {loading && rows.length === 0
-              ? "Loading applications"
-              : q
-                ? `${visibleRows.length} of ${total} application${total === 1 ? "" : "s"} match "${q}"`
-                : `${total} application${total === 1 ? "" : "s"}`}
-          </p>
-        </div>
+        <p className="text-sm text-muted-foreground">
+          {loading && rows.length === 0
+            ? "Loading applications"
+            : q
+              ? `${visibleRows.length} of ${total} application${total === 1 ? "" : "s"} match "${q}"`
+              : `${total} application${total === 1 ? "" : "s"}`}
+        </p>
         <div className="flex gap-2">
           <FilterSortBar status={status} sort={sort} onPatch={patch} />
           {can("write") && (
