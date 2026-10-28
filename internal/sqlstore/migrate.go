@@ -319,4 +319,23 @@ var migrations = []migration{{
 	stmts: []string{
 		`ALTER TABLE applications ADD COLUMN archived_at TEXT NOT NULL DEFAULT ''`,
 	},
+}, {
+	version: "005",
+	stmts: []string{
+		`CREATE TABLE IF NOT EXISTS custom_fields (
+			id TEXT PRIMARY KEY,
+			user_id TEXT NOT NULL REFERENCES users(id),
+			name TEXT NOT NULL,
+			type TEXT NOT NULL,
+			created_at TEXT NOT NULL
+		)`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS custom_fields_user_name_lower ON custom_fields(user_id, lower(name))`,
+		`CREATE TABLE IF NOT EXISTS custom_field_values (
+			application_id TEXT NOT NULL REFERENCES applications(id) ON DELETE CASCADE,
+			field_id TEXT NOT NULL REFERENCES custom_fields(id) ON DELETE CASCADE,
+			value TEXT NOT NULL DEFAULT '',
+			value_number REAL,
+			PRIMARY KEY (application_id, field_id)
+		)`,
+	},
 }}

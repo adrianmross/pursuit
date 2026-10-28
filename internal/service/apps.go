@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"io"
+	"strconv"
 	"strings"
 	"time"
 
@@ -747,6 +748,116 @@ func (s *Service) DeleteTag(ctx context.Context, id string) (domain.Deleted, err
 	return domain.Deleted{ID: id, Deleted: true}, nil
 }
 
+type FieldInput struct {
+	Name string `json:"name"`
+	Type string `json:"type"`
+}
+
+type SetFieldValueInput struct {
+	Value string `json:"value"`
+}
+
+func (s *Service) CreateField(ctx context.Context, in FieldInput) (domain.CustomField, error) {
+	a, err := s.actor(ctx, true)
+	if err != nil {
+		return domain.CustomField{}, err
+	}
+	name, err := domain.RequireText("name", in.Name, 80)
+	if err != nil {
+		return domain.CustomField{}, err
+	}
+	typ, err := domain.ParseFieldType(in.Type)
+	if err != nil {
+		return domain.CustomField{}, err
+	}
+	field := domain.CustomField{ID: s.NewID(), UserID: a.UserID, Name: name, Type: typ, CreatedAt: s.now()}
+	err = s.DB.WithTx(ctx, func(ctx context.Context) error {
+		if err := s.DB.CreateField(ctx, field); err != nil {
+			return err
+		}
+		return s.audit(ctx, a, "field.create", "field", field.ID, "created field "+name, map[string]any{"type": typ})
+	})
+	return field, err
+}
+
+func (s *Service) ListFields(ctx context.Context, q domain.ListQuery) (domain.Page[domain.CustomField], error) {
+	return listPage(s, ctx, false, "field", q, s.DB.ListFields, func(f domain.CustomField) string {
+		if strings.TrimPrefix(q.Sort, "-") == "created_at" {
+			return domain.FormatTime(f.CreatedAt)
+		}
+		return f.Name
+	}, func(f domain.CustomField) string { return f.ID })
+}
+
+func (s *Service) DeleteField(ctx context.Context, id string) (domain.Deleted, error) {
+	a, err := s.actor(ctx, true)
+	if err != nil {
+		return domain.Deleted{}, err
+	}
+	err = s.DB.WithTx(ctx, func(ctx context.Context) error {
+		field, err := s.DB.GetField(ctx, a.UserID, id)
+		if err != nil {
+			return err
+		}
+		if err := s.DB.DeleteField(ctx, a.UserID, id); err != nil {
+			return err
+		}
+		return s.audit(ctx, a, "field.delete", "field", id, "deleted field "+field.Name, nil)
+	})
+	if err != nil {
+		return domain.Deleted{}, err
+	}
+	return domain.Deleted{ID: id, Deleted: true}, nil
+}
+
+// SetFieldValue validates value against the field's type and stores it.
+// An empty value clears it (leaves no row, so FieldValues won't report it).
+func (s *Service) SetFieldValue(ctx context.Context, appID, fieldID string, in SetFieldValueInput) (domain.Application, error) {
+	a, err := s.actor(ctx, true)
+	if err != nil {
+		return domain.Application{}, err
+	}
+	var out domain.Application
+	err = s.DB.WithTx(ctx, func(ctx context.Context) error {
+		if _, err := s.DB.GetApplication(ctx, a.UserID, appID); err != nil {
+			return err
+		}
+		field, err := s.DB.GetField(ctx, a.UserID, fieldID)
+		if err != nil {
+			return err
+		}
+		value := strings.TrimSpace(in.Value)
+		var num *float64
+		switch field.Type {
+		case domain.FieldNumber:
+			if value != "" {
+				n, err := strconv.ParseFloat(value, 64)
+				if err != nil {
+					return domain.Validation("invalid value").WithHint("this field is numeric")
+				}
+				num = &n
+			}
+		case domain.FieldDate:
+			if value != "" {
+				d, err := domain.ParseDate(value)
+				if err != nil {
+					return err
+				}
+				value = d
+			}
+		}
+		if err := s.DB.SetFieldValue(ctx, appID, fieldID, value, num); err != nil {
+			return err
+		}
+		if err := s.audit(ctx, a, "field.set_value", "application", appID, "set "+field.Name, map[string]any{"field": field.Name}); err != nil {
+			return err
+		}
+		out, err = s.DB.GetApplication(ctx, a.UserID, appID)
+		return err
+	})
+	return out, err
+}
+
 func (s *Service) AttachTag(ctx context.Context, appID string, in AttachTagInput) (domain.Application, error) {
 	a, err := s.actor(ctx, true)
 	if err != nil {
@@ -1076,11 +1187,25 @@ func listPage[T any](s *Service, ctx context.Context, write bool, kind string, q
 	if limit < 1 || limit > 200 {
 		return domain.Page[T]{}, domain.Validation("invalid limit").WithHint("limit is an integer from 1 to 200")
 	}
-	_, _, canon, err := sqlstorePrepare(kind, q.Sort, q.Cursor)
-	if err != nil {
-		return domain.Page[T]{}, err
+	// A "field:<name>" sort targets a custom field, not a built-in column —
+	// PrepareSort's column allowlist doesn't (and shouldn't) know about
+	// those, so it's left as-is and the store layer resolves it. Field
+	// sorts don't support cursor pagination (see listApplicationsByField),
+	// so there's no canonical sort key to compute here either.
+	fieldSort := strings.HasPrefix(strings.TrimPrefix(q.Sort, "-"), "field:")
+	var canon string
+	if fieldSort {
+		if q.Cursor != nil && q.Cursor.ID != "" {
+			return domain.Page[T]{}, domain.Validation("field sorts don't support cursor pagination").WithHint("drop the cursor and re-run with a higher limit")
+		}
+	} else {
+		var err error
+		_, _, canon, err = sqlstorePrepare(kind, q.Sort, q.Cursor)
+		if err != nil {
+			return domain.Page[T]{}, err
+		}
+		q.Sort = canon
 	}
-	q.Sort = canon
 	q.Limit = limit + 1
 	items, total, err := load(ctx, a.UserID, q)
 	if err != nil {
@@ -1091,7 +1216,7 @@ func listPage[T any](s *Service, ctx context.Context, write bool, kind string, q
 		items = items[:limit]
 	}
 	next := ""
-	if has && len(items) > 0 {
+	if has && len(items) > 0 && !fieldSort {
 		last := items[len(items)-1]
 		next = domain.EncodeCursor(canon, key(last), id(last))
 	}
