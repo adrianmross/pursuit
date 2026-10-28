@@ -59,8 +59,9 @@ export function AppShell() {
   return (
     <div className="flex min-h-svh flex-col">
       <header className="grid grid-cols-[1fr_auto_1fr] items-center gap-4 border-b px-4 py-2.5">
-        <NavLink to="/" className="font-semibold">
-          Pursuit
+        <NavLink to="/" aria-label="Pursuit">
+          <img src="/brand/pursuit-wordmark.svg" alt="" className="h-5 w-auto dark:hidden" />
+          <img src="/brand/pursuit-wordmark-reverse.svg" alt="" className="hidden h-5 w-auto dark:block" />
         </NavLink>
         <GlobalSearch />
         <div className="flex items-center justify-end gap-2">

@@ -25,11 +25,11 @@ export function SignIn() {
   }
 
   return (
-    <div className="flex min-h-svh items-center justify-center p-4">
+    <div className="flex min-h-svh items-center justify-center bg-brand-forest p-4">
       <div className="flex w-full max-w-md flex-col gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold">Pursuit</h1>
-          <p className="text-sm text-muted-foreground">A job application tracker you drive from the CLI or from here.</p>
+        <div className="flex flex-col items-center gap-3 pb-2 text-center">
+          <img src="/brand/pursuit-wordmark-reverse.svg" alt="Pursuit" className="h-8 w-auto" />
+          <p className="text-sm text-brand-cream/80">A job application tracker you drive from the CLI or from here.</p>
         </div>
         <Card>
           <CardHeader>
