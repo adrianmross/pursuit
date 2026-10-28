@@ -137,6 +137,7 @@ func appListFlags() []Flag {
 		{Name: "tag", Type: "string", Help: "filter by tag"},
 		{Name: "q", Type: "string", Help: "search company, title, notes, location, next step"},
 		{Name: "stale", Type: "bool", Help: "only postings the link checker marked closed"},
+		{Name: "archived", Type: "bool", Help: "list archived applications instead of the default view"},
 		{Name: "limit", Type: "string", Help: "page size, 1-200, default 50"},
 		{Name: "cursor", Type: "string", Help: "next_cursor from the previous page"},
 		{Name: "sort", Type: "string", Help: "field or -field, default -updated_at"},
@@ -215,6 +216,28 @@ func cmdApps() *Command {
 				}
 				return e.send("POST", "/v1/applications/"+url.PathEscape(e.args[0])+"/transition", nil, body, "application/json", true, true)
 			}},
+			{Name: "archive", Summary: "hide an application from the default list without changing its status", Mutating: true, Usage: "pursuit apps archive <id>", Args: []Arg{{Name: "id", Required: true}}, Flags: []Flag{{Name: "version", Type: "string", Help: "object version"}}, Run: func(e *exec) error {
+				ver, err := e.ensureVersion("/v1/applications/" + url.PathEscape(e.args[0]))
+				if err != nil {
+					return err
+				}
+				body, err := e.jsonBody(map[string]any{"version": ver})
+				if err != nil {
+					return err
+				}
+				return e.send("POST", "/v1/applications/"+url.PathEscape(e.args[0])+"/archive", nil, body, "application/json", true, true)
+			}},
+			{Name: "unarchive", Summary: "restore an archived application to the default list", Mutating: true, Usage: "pursuit apps unarchive <id>", Args: []Arg{{Name: "id", Required: true}}, Flags: []Flag{{Name: "version", Type: "string", Help: "object version"}}, Run: func(e *exec) error {
+				ver, err := e.ensureVersion("/v1/applications/" + url.PathEscape(e.args[0]))
+				if err != nil {
+					return err
+				}
+				body, err := e.jsonBody(map[string]any{"version": ver})
+				if err != nil {
+					return err
+				}
+				return e.send("POST", "/v1/applications/"+url.PathEscape(e.args[0])+"/unarchive", nil, body, "application/json", true, true)
+			}},
 			{Name: "tag", Summary: "application tags", Children: []*Command{
 				{Name: "add", Summary: "attach a tag", Mutating: true, Usage: "pursuit apps tag add <id> --name <tag>", Args: []Arg{{Name: "id", Required: true}}, Flags: []Flag{{Name: "name", Type: "string", Help: "tag name"}, {Name: "tag-id", Type: "string", Help: "existing tag id"}}, Run: func(e *exec) error {
 					body, err := e.jsonBody(map[string]string{"name": e.flag("name"), "tag_id": e.flag("tag-id")})
@@ -243,6 +266,9 @@ func runAppList(e *exec) error {
 	}
 	if e.flag("stale") == "true" {
 		q.Set("stale", "true")
+	}
+	if e.flag("archived") == "true" {
+		q.Set("archived", "true")
 	}
 	return e.send("GET", "/v1/applications", q, nil, "", false, true)
 }

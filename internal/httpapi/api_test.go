@@ -952,6 +952,55 @@ func createChecked(t *testing.T, e *env, postingURL, company, title string) stri
 	return id
 }
 
+func TestArchiveAndUnarchive(t *testing.T) {
+	e := newEnv(t)
+	code, app := e.json(t, http.MethodPost, "/v1/applications", e.token, map[string]any{
+		"company": "Example", "title": "Engineer", "status": "to_apply",
+	})
+	if code != 201 {
+		t.Fatal(app)
+	}
+	id := app["id"].(string)
+	ver := int(app["version"].(float64))
+
+	code, list := e.json(t, http.MethodGet, "/v1/applications", e.token, nil)
+	if code != 200 || list["page"].(map[string]any)["total"].(float64) != 1 {
+		t.Fatalf("default list before archive: %d %#v", code, list)
+	}
+
+	code, archived := e.json(t, http.MethodPost, "/v1/applications/"+id+"/archive", e.token, map[string]any{"version": ver})
+	if code != 200 || archived["archived_at"] == nil {
+		t.Fatalf("archive: %d %#v", code, archived)
+	}
+	if archived["status"] != "to_apply" {
+		t.Fatalf("archive should not change status: %#v", archived)
+	}
+
+	code, list = e.json(t, http.MethodGet, "/v1/applications", e.token, nil)
+	if code != 200 || list["page"].(map[string]any)["total"].(float64) != 0 {
+		t.Fatalf("default list should exclude archived: %d %#v", code, list)
+	}
+	code, list = e.json(t, http.MethodGet, "/v1/applications?archived=true", e.token, nil)
+	if code != 200 || list["page"].(map[string]any)["total"].(float64) != 1 {
+		t.Fatalf("archived list should include it: %d %#v", code, list)
+	}
+
+	ver = int(archived["version"].(float64))
+	code, stale := e.json(t, http.MethodPost, "/v1/applications/"+id+"/archive", e.token, map[string]any{"version": ver - 1})
+	if code != 409 {
+		t.Fatalf("stale version should conflict: %d %#v", code, stale)
+	}
+
+	code, unarchived := e.json(t, http.MethodPost, "/v1/applications/"+id+"/unarchive", e.token, map[string]any{"version": ver})
+	if code != 200 || unarchived["archived_at"] != nil {
+		t.Fatalf("unarchive: %d %#v", code, unarchived)
+	}
+	code, list = e.json(t, http.MethodGet, "/v1/applications", e.token, nil)
+	if code != 200 || list["page"].(map[string]any)["total"].(float64) != 1 {
+		t.Fatalf("default list should include it again: %d %#v", code, list)
+	}
+}
+
 type rewriteRT struct{ base string }
 
 func rewriteTransport(base string) http.RoundTripper { return rewriteRT{base} }

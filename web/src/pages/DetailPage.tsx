@@ -129,9 +129,18 @@ export function DetailPage() {
 
   async function archive() {
     if (!application) return
-    await api(`/v1/applications/${encodeURIComponent(application.id)}`, {
-      method: "PATCH",
-      body: { version: application.version, status: "withdrawn" },
+    await api(`/v1/applications/${encodeURIComponent(application.id)}/archive`, {
+      method: "POST",
+      body: { version: application.version },
+    })
+    await load()
+  }
+
+  async function unarchive() {
+    if (!application) return
+    await api(`/v1/applications/${encodeURIComponent(application.id)}/unarchive`, {
+      method: "POST",
+      body: { version: application.version },
     })
     await load()
   }
@@ -250,6 +259,7 @@ export function DetailPage() {
           >
             {label(application.status)}
           </Badge>
+          {application.archived_at && <Badge variant="outline">Archived</Badge>}
           {application.status === "awaiting_review" &&
             (can("approve") ? (
               <>
@@ -287,7 +297,11 @@ export function DetailPage() {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                {application.status !== "withdrawn" && <DropdownMenuItem onClick={archive}>Archive</DropdownMenuItem>}
+                {application.archived_at ? (
+                  <DropdownMenuItem onClick={unarchive}>Unarchive</DropdownMenuItem>
+                ) : (
+                  <DropdownMenuItem onClick={archive}>Archive</DropdownMenuItem>
+                )}
                 <DropdownMenuItem onClick={() => setDeleting(true)} variant="destructive">
                   Delete
                 </DropdownMenuItem>

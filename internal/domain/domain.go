@@ -576,6 +576,7 @@ type Application struct {
 	Tags           []string   `json:"tags"`
 	LinkStatus     string     `json:"link_status,omitempty"`
 	LinkCheckedAt  *time.Time `json:"link_checked_at,omitempty"`
+	ArchivedAt     *time.Time `json:"archived_at,omitempty"`
 	Version        int        `json:"version"`
 	CreatedAt      time.Time  `json:"created_at"`
 	UpdatedAt      time.Time  `json:"updated_at"`
@@ -656,7 +657,10 @@ type ListQuery struct {
 	EntityType    string
 	EntityID      string
 	Stale         bool
-	AfterID       string
+	// Archived, when true, lists only archived applications instead of the
+	// default (non-archived) view.
+	Archived bool
+	AfterID  string
 	AfterTime     string
 	// Link listing. Attention means closed or changed since the previous check.
 	LinkStatus string
@@ -708,7 +712,7 @@ func CheckCursorSort(c Cursor, sort string) error {
 var (
 	CompanyFields = []string{"id", "name", "website", "notes", "version", "created_at", "updated_at"}
 	RoleFields    = []string{"id", "company_id", "company", "title", "location", "salary", "salary_min_cents", "salary_max_cents", "fit", "posting_url", "source", "job_type", "version", "created_at", "updated_at"}
-	AppFields     = []string{"id", "company_id", "company", "role_id", "title", "location", "salary", "salary_min_cents", "salary_max_cents", "fit", "status", "applied_date", "next_step", "notes", "posting_url", "source", "job_type", "resume_version", "resume_file_ref", "contact_email", "external_id", "tags", "link_status", "link_checked_at", "version", "created_at", "updated_at"}
+	AppFields     = []string{"id", "company_id", "company", "role_id", "title", "location", "salary", "salary_min_cents", "salary_max_cents", "fit", "status", "applied_date", "next_step", "notes", "posting_url", "source", "job_type", "resume_version", "resume_file_ref", "contact_email", "external_id", "tags", "link_status", "link_checked_at", "archived_at", "version", "created_at", "updated_at"}
 	EventFields   = []string{"id", "application_id", "kind", "from_status", "to_status", "title", "body", "occurred_at", "created_at", "actor"}
 	TagFields     = []string{"id", "name", "created_at"}
 	TokenFields   = []string{"id", "name", "prefix", "scopes", "created_at", "last_used_at", "revoked_at"}

@@ -3,6 +3,7 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom"
 import commandScore from "command-score"
 import {
   Archive,
+  ArchiveRestore,
   Check,
   ChevronDown,
   ChevronRight,
@@ -329,9 +330,22 @@ function RowActions({
   async function archive() {
     setBusy(true)
     try {
-      await api(`/v1/applications/${encodeURIComponent(row.id)}`, {
-        method: "PATCH",
-        body: { version: row.version, status: "withdrawn" },
+      await api(`/v1/applications/${encodeURIComponent(row.id)}/archive`, {
+        method: "POST",
+        body: { version: row.version },
+      })
+      onChanged()
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function unarchive() {
+    setBusy(true)
+    try {
+      await api(`/v1/applications/${encodeURIComponent(row.id)}/unarchive`, {
+        method: "POST",
+        body: { version: row.version },
       })
       onChanged()
     } finally {
@@ -361,7 +375,11 @@ function RowActions({
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            {row.status !== "withdrawn" && (
+            {row.archived_at ? (
+              <DropdownMenuItem onClick={unarchive}>
+                <ArchiveRestore /> Unarchive
+              </DropdownMenuItem>
+            ) : (
               <DropdownMenuItem onClick={archive}>
                 <Archive /> Archive
               </DropdownMenuItem>
@@ -383,6 +401,7 @@ export function PipelinePage() {
   const status = params.get("status") ?? getDefaultStatus()
   const q = params.get("q") || ""
   const sort = params.get("sort") || getDefaultSort()
+  const archivedView = params.get("archived") === "1"
 
   const [rows, setRows] = useState<Application[]>([])
   const [total, setTotal] = useState(0)
@@ -402,7 +421,8 @@ export function PipelinePage() {
     const qs = new URLSearchParams()
     qs.set("limit", "50")
     if (sort) qs.set("sort", sort)
-    if (status) qs.set("status", status)
+    if (archivedView) qs.set("archived", "true")
+    else if (status) qs.set("status", status)
     if (cursor) qs.set("cursor", cursor)
     try {
       const page = await api<Page<Application>>("/v1/applications?" + qs.toString())
@@ -421,7 +441,7 @@ export function PipelinePage() {
   useEffect(() => {
     void load()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [status, sort])
+  }, [status, sort, archivedView])
 
   function patch(next: Record<string, string>) {
     const merged = new URLSearchParams(params)
@@ -479,7 +499,22 @@ export function PipelinePage() {
     try {
       await Promise.all(
         selectedRows.map((row) =>
-          api(`/v1/applications/${encodeURIComponent(row.id)}`, { method: "PATCH", body: { version: row.version, status: "withdrawn" } }),
+          api(`/v1/applications/${encodeURIComponent(row.id)}/archive`, { method: "POST", body: { version: row.version } }),
+        ),
+      )
+      setSelected(new Set())
+      await load()
+    } finally {
+      setBulkBusy(false)
+    }
+  }
+
+  async function bulkUnarchive() {
+    setBulkBusy(true)
+    try {
+      await Promise.all(
+        selectedRows.map((row) =>
+          api(`/v1/applications/${encodeURIComponent(row.id)}/unarchive`, { method: "POST", body: { version: row.version } }),
         ),
       )
       setSelected(new Set())
@@ -511,8 +546,16 @@ export function PipelinePage() {
               : `${total} application${total === 1 ? "" : "s"}`}
         </p>
         <div className="flex gap-2">
-          <FilterSortBar status={status} sort={sort} onPatch={patch} />
-          {can("write") && (
+          <Button
+            size="sm"
+            variant={archivedView ? "default" : "outline"}
+            onClick={() => patch({ archived: archivedView ? "" : "1" })}
+          >
+            {archivedView ? <ArchiveRestore className="size-3.5" /> : <Archive className="size-3.5" />}
+            {archivedView ? "Archived" : "Archive"}
+          </Button>
+          {!archivedView && <FilterSortBar status={status} sort={sort} onPatch={patch} />}
+          {can("write") && !archivedView && (
             <Button size="sm" onClick={() => navigate("/app/new")}>
               <Plus /> Add
             </Button>
@@ -538,9 +581,15 @@ export function PipelinePage() {
             )}
             {can("write") && (
               <>
-                <Button size="sm" variant="outline" disabled={bulkBusy} onClick={bulkArchive}>
-                  Archive
-                </Button>
+                {archivedView ? (
+                  <Button size="sm" variant="outline" disabled={bulkBusy} onClick={bulkUnarchive}>
+                    Unarchive
+                  </Button>
+                ) : (
+                  <Button size="sm" variant="outline" disabled={bulkBusy} onClick={bulkArchive}>
+                    Archive
+                  </Button>
+                )}
                 <Button size="sm" variant="destructive" disabled={bulkBusy} onClick={bulkDelete}>
                   Delete
                 </Button>
