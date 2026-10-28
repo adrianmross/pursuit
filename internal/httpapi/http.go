@@ -50,9 +50,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /version", s.version)
 	mux.HandleFunc("GET /openapi.json", s.openapi)
 	mux.HandleFunc("GET /llms.txt", s.llms)
-	mux.HandleFunc("GET /{$}", s.dashboard)
-	mux.HandleFunc("GET /dashboard.css", s.dashboard)
-	mux.HandleFunc("GET /dashboard.js", s.dashboard)
+	mux.HandleFunc("GET /", s.dashboard)
 
 	mux.HandleFunc("GET /v1/me", s.me)
 	mux.HandleFunc("POST /v1/tokens", s.createToken)
@@ -194,13 +192,11 @@ func (s *Server) wrap(next http.Handler) http.Handler {
 	})
 }
 
+// isPublic skips auth for anything that isn't a /v1 API call: health/version
+// endpoints and every dashboard asset and client-side route (e.g. /app/:id),
+// which render the SPA shell and authenticate in the browser via the API.
 func isPublic(path string) bool {
-	switch path {
-	case "/healthz", "/readyz", "/version", "/openapi.json", "/llms.txt", "/", "/dashboard.css", "/dashboard.js":
-		return true
-	default:
-		return false
-	}
+	return !strings.HasPrefix(path, "/v1/")
 }
 
 func isCron(path string) bool {
@@ -315,6 +311,10 @@ func (s *Server) llms(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) dashboard(w http.ResponseWriter, r *http.Request) {
+	if strings.HasPrefix(r.URL.Path, "/v1/") {
+		http.NotFound(w, r)
+		return
+	}
 	name := strings.TrimPrefix(r.URL.Path, "/")
 	body, contentType, err := dashboard.Open(name)
 	if err != nil {
@@ -325,7 +325,9 @@ func (s *Server) dashboard(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	if strings.HasPrefix(contentType, "text/html") {
-		w.Header().Set("Content-Security-Policy", "default-src 'self'; style-src 'self'; script-src 'self'; connect-src 'self'; img-src 'self' data:; base-uri 'self'; form-action 'self'")
+		// style-src needs 'unsafe-inline': Radix positions popovers/menus with
+		// inline style attributes (Floating UI), not a stylesheet.
+		w.Header().Set("Content-Security-Policy", "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'; img-src 'self' data:; font-src 'self'; base-uri 'self'; form-action 'self'")
 		w.Header().Set("Referrer-Policy", "no-referrer")
 	}
 	w.WriteHeader(http.StatusOK)

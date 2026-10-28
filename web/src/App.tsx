@@ -3,8 +3,8 @@ import { AuthProvider, useAuth } from "@/lib/auth"
 import { ThemeProvider } from "@/lib/theme"
 import { AppShell } from "@/components/AppShell"
 import { SignIn } from "@/components/SignIn"
+import { TooltipProvider } from "@/components/ui/tooltip"
 import { PipelinePage } from "@/pages/PipelinePage"
-import { QueuePage } from "@/pages/QueuePage"
 import { DetailPage } from "@/pages/DetailPage"
 
 function Gate() {
@@ -16,7 +16,6 @@ function Gate() {
       <Routes>
         <Route element={<AppShell />}>
           <Route index element={<PipelinePage />} />
-          <Route path="queue" element={<QueuePage />} />
           <Route path="app/:id" element={<DetailPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
@@ -29,7 +28,9 @@ function App() {
   return (
     <ThemeProvider>
       <AuthProvider>
-        <Gate />
+        <TooltipProvider delayDuration={300}>
+          <Gate />
+        </TooltipProvider>
       </AuthProvider>
     </ThemeProvider>
   )
