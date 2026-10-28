@@ -7,6 +7,7 @@ import {
   ChevronDown,
   ChevronRight,
   ExternalLink,
+  MoreHorizontal,
   Plus,
   RefreshCw,
   SlidersHorizontal,
@@ -29,6 +30,12 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import {
   Select,
@@ -241,6 +248,56 @@ function IconAction({
   )
 }
 
+function HoldIconAction({
+  label: text,
+  onHold,
+  disabled,
+  holdMs = 600,
+}: {
+  label: string
+  onHold: () => Promise<void> | void
+  disabled?: boolean
+  holdMs?: number
+}) {
+  const [busy, setBusy] = useState(false)
+  const timer = useRef<number | undefined>(undefined)
+
+  function start() {
+    if (disabled || busy) return
+    timer.current = window.setTimeout(async () => {
+      setBusy(true)
+      try {
+        await onHold()
+      } finally {
+        setBusy(false)
+      }
+    }, holdMs)
+  }
+  function cancel() {
+    window.clearTimeout(timer.current)
+  }
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="size-7"
+          aria-label={text + " (hold)"}
+          disabled={disabled || busy}
+          onPointerDown={start}
+          onPointerUp={cancel}
+          onPointerLeave={cancel}
+        >
+          <RefreshCw className={`size-3.5 ${busy ? "animate-spin" : ""}`} />
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent>Hold to {text.toLowerCase()}</TooltipContent>
+    </Tooltip>
+  )
+}
+
 function RowActions({
   row,
   can,
@@ -280,6 +337,8 @@ function RowActions({
     }
   }
 
+  const hasMenu = can("write")
+
   return (
     <span className="flex items-center justify-end gap-0.5">
       {row.status === "awaiting_review" && can("approve") && (
@@ -292,15 +351,24 @@ function RowActions({
           </IconAction>
         </>
       )}
-      {can("write") && row.status !== "withdrawn" && (
-        <IconAction label="Archive" onClick={archive} disabled={busy}>
-          <Archive className="size-3.5" />
-        </IconAction>
-      )}
-      {can("write") && (
-        <IconAction label="Delete" onClick={onDelete} disabled={busy} danger>
-          <Trash2 className="size-3.5" />
-        </IconAction>
+      {hasMenu && (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon" className="size-7" disabled={busy} aria-label="More actions">
+              <MoreHorizontal className="size-3.5" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            {row.status !== "withdrawn" && (
+              <DropdownMenuItem onClick={archive}>
+                <Archive /> Archive
+              </DropdownMenuItem>
+            )}
+            <DropdownMenuItem onClick={onDelete} variant="destructive">
+              <Trash2 /> Delete
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       )}
     </span>
   )
@@ -323,6 +391,7 @@ export function PipelinePage() {
   const [dialogApp, setDialogApp] = useState<Application | null | undefined>(undefined)
   const [deleteTarget, setDeleteTarget] = useState<Application | null>(null)
   const [bulkBusy, setBulkBusy] = useState(false)
+  const [checkingAll, setCheckingAll] = useState(false)
   const loadGen = useRef(0)
 
   async function load(cursor?: string) {
@@ -518,12 +587,18 @@ export function PipelinePage() {
                           size="icon"
                           className="size-5"
                           aria-label="Re-check all posting links"
+                          disabled={checkingAll}
                           onClick={async () => {
-                            await api("/v1/links/check", { method: "POST", body: { owner: "dashboard" } })
-                            await load()
+                            setCheckingAll(true)
+                            try {
+                              await api("/v1/links/check", { method: "POST", body: { owner: "dashboard" } })
+                              await load()
+                            } finally {
+                              setCheckingAll(false)
+                            }
                           }}
                         >
-                          <RefreshCw className="size-3" />
+                          <RefreshCw className={`size-3 ${checkingAll ? "animate-spin" : ""}`} />
                         </Button>
                       </TooltipTrigger>
                       <TooltipContent>Re-check all links</TooltipContent>
@@ -605,15 +680,13 @@ export function PipelinePage() {
                           </Tooltip>
                         )}
                         {can("write") && (
-                          <IconAction
+                          <HoldIconAction
                             label="Re-check link"
-                            onClick={async () => {
+                            onHold={async () => {
                               await api(`/v1/applications/${encodeURIComponent(row.id)}/check-link`, { method: "POST", body: {} })
                               await load()
                             }}
-                          >
-                            <RefreshCw className="size-3.5" />
-                          </IconAction>
+                          />
                         )}
                       </span>
                     </TableCell>
