@@ -250,6 +250,38 @@ function FilterSortBar({
   )
 }
 
+function ScrollJumpButton() {
+  const [atTop, setAtTop] = useState(true)
+  const [atBottom, setAtBottom] = useState(false)
+
+  useEffect(() => {
+    function onScroll() {
+      const scrollY = window.scrollY
+      const max = document.documentElement.scrollHeight - window.innerHeight
+      setAtTop(scrollY < 200)
+      setAtBottom(max - scrollY < 200)
+    }
+    onScroll()
+    window.addEventListener("scroll", onScroll, { passive: true })
+    return () => window.removeEventListener("scroll", onScroll)
+  }, [])
+
+  if (atTop === atBottom) return null
+  return (
+    <Button
+      variant="outline"
+      size="icon"
+      className="fixed bottom-6 right-6 size-10 rounded-full shadow-md"
+      aria-label={atTop ? "Scroll to bottom" : "Scroll to top"}
+      onClick={() =>
+        window.scrollTo({ top: atTop ? document.documentElement.scrollHeight : 0, behavior: "smooth" })
+      }
+    >
+      {atTop ? <ArrowDown className="size-4" /> : <ArrowUp className="size-4" />}
+    </Button>
+  )
+}
+
 function SortHeader({
   text,
   field,
@@ -879,6 +911,8 @@ export function PipelinePage() {
           Load more
         </Button>
       )}
+
+      <ScrollJumpButton />
 
       <ConfirmDialog
         open={deleteTarget != null}
