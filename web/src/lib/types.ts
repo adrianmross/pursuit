@@ -1,5 +1,6 @@
 export type Application = {
   id: string
+  company_id?: string
   company?: string
   title?: string
   status: string

@@ -14,6 +14,7 @@ import (
 	"mime"
 	"mime/multipart"
 	"net/http"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -60,6 +61,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /v1/companies", s.listCompanies)
 	mux.HandleFunc("POST /v1/companies", s.createCompany)
 	mux.HandleFunc("GET /v1/companies/{id}", s.getCompany)
+	mux.HandleFunc("GET /v1/companies/{id}/favicon", s.getCompanyFavicon)
 	mux.HandleFunc("PATCH /v1/companies/{id}", s.updateCompany)
 	mux.HandleFunc("DELETE /v1/companies/{id}", s.deleteCompany)
 
@@ -855,6 +857,64 @@ func (s *Server) getCompany(w http.ResponseWriter, r *http.Request) {
 	s.getOne(w, r, domain.CompanyFields, func(ctx context.Context, id string) (any, error) {
 		return s.Svc.GetCompany(ctx, id)
 	})
+}
+
+var faviconClient = &http.Client{Timeout: 5 * time.Second}
+
+func (s *Server) getCompanyFavicon(w http.ResponseWriter, r *http.Request) {
+	c, err := s.Svc.GetCompany(r.Context(), r.PathValue("id"))
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	host := faviconHost(c.Website)
+	if host == "" {
+		writeErr(w, domain.NotFound("favicon"))
+		return
+	}
+	client := s.Svc.HTTP
+	if client == nil {
+		client = faviconClient
+	}
+	resp, err := client.Get("https://" + host + "/favicon.ico")
+	if err != nil || resp.StatusCode != http.StatusOK {
+		if resp != nil {
+			_ = resp.Body.Close()
+		}
+		writeErr(w, domain.NotFound("favicon"))
+		return
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	if err != nil {
+		writeErr(w, domain.NotFound("favicon"))
+		return
+	}
+	contentType := resp.Header.Get("Content-Type")
+	if contentType == "" {
+		contentType = "image/x-icon"
+	}
+	w.Header().Set("Content-Type", contentType)
+	w.Header().Set("Cache-Control", "public, max-age=86400")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(body)
+}
+
+// faviconHost extracts a bare host from a company website value that may or
+// may not include a scheme.
+func faviconHost(website string) string {
+	website = strings.TrimSpace(website)
+	if website == "" {
+		return ""
+	}
+	if !strings.Contains(website, "://") {
+		website = "https://" + website
+	}
+	u, err := url.Parse(website)
+	if err != nil || u.Host == "" {
+		return ""
+	}
+	return u.Host
 }
 
 func (s *Server) updateCompany(w http.ResponseWriter, r *http.Request) {

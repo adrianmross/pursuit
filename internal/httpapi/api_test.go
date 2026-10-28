@@ -1096,6 +1096,42 @@ func TestArchiveAndUnarchive(t *testing.T) {
 	}
 }
 
+func TestCompanyFavicon(t *testing.T) {
+	e := newEnv(t)
+	gh := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/favicon.ico" {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "image/x-icon")
+		_, _ = w.Write([]byte("icon-bytes"))
+	}))
+	defer gh.Close()
+	e.svc.HTTP = &http.Client{Transport: rewriteTransport(gh.URL)}
+
+	code, company := e.json(t, http.MethodPost, "/v1/companies", e.token, map[string]any{
+		"name": "Acme", "website": "https://acme.example.com",
+	})
+	if code != 201 {
+		t.Fatal(company)
+	}
+	id := company["id"].(string)
+
+	code, body, _ := e.do(t, http.MethodGet, "/v1/companies/"+id+"/favicon", e.token, nil, nil)
+	if code != 200 || string(body) != "icon-bytes" {
+		t.Fatalf("favicon: %d %q", code, body)
+	}
+
+	code, noWebsite := e.json(t, http.MethodPost, "/v1/companies", e.token, map[string]any{"name": "NoSite"})
+	if code != 201 {
+		t.Fatal(noWebsite)
+	}
+	code, _, _ = e.do(t, http.MethodGet, "/v1/companies/"+noWebsite["id"].(string)+"/favicon", e.token, nil, nil)
+	if code != 404 {
+		t.Fatalf("favicon without website should 404: %d", code)
+	}
+}
+
 type rewriteRT struct{ base string }
 
 func rewriteTransport(base string) http.RoundTripper { return rewriteRT{base} }
