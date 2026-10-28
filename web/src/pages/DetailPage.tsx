@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react"
 import { Link, useNavigate, useParams } from "react-router-dom"
-import { ChevronDown, Pencil, RefreshCw, Trash2 } from "lucide-react"
+import { Archive, ChevronDown, ExternalLink, Pencil, RefreshCw, Trash2 } from "lucide-react"
 import { api, ApiError } from "@/lib/api"
 import { useAuth } from "@/lib/auth"
 import { label, type Application, type Artifact, type Event, type Page, type Question } from "@/lib/types"
@@ -69,6 +69,7 @@ export function DetailPage() {
   const [recheckBusy, setRecheckBusy] = useState(false)
   const [editing, setEditing] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [archiveBusy, setArchiveBusy] = useState(false)
 
   async function load() {
     try {
@@ -100,6 +101,20 @@ export function DetailPage() {
       await load()
     } finally {
       setRecheckBusy(false)
+    }
+  }
+
+  async function archive() {
+    if (!application) return
+    setArchiveBusy(true)
+    try {
+      await api(`/v1/applications/${encodeURIComponent(application.id)}`, {
+        method: "PATCH",
+        body: { version: application.version, status: "withdrawn" },
+      })
+      await load()
+    } finally {
+      setArchiveBusy(false)
     }
   }
 
@@ -153,6 +168,11 @@ export function DetailPage() {
               <Button size="sm" variant="outline" onClick={() => setEditing(true)}>
                 <Pencil /> Edit
               </Button>
+              {application.status !== "withdrawn" && (
+                <Button size="sm" variant="outline" onClick={archive} disabled={archiveBusy}>
+                  <Archive /> Archive
+                </Button>
+              )}
               <Button size="sm" variant="outline" onClick={() => setDeleting(true)}>
                 <Trash2 /> Delete
               </Button>
@@ -170,13 +190,32 @@ export function DetailPage() {
           <Field label="Applied" value={application.applied_date} />
           <div className="flex flex-col gap-0.5">
             <span className="text-xs text-muted-foreground">Posting</span>
-            {posting ? (
-              <a href={posting} target="_blank" rel="noopener noreferrer" className="text-sm hover:underline">
-                Open posting
-              </a>
-            ) : (
-              <span className="text-sm text-muted-foreground">No link</span>
-            )}
+            <span className="flex items-center gap-1.5">
+              {posting ? (
+                <a
+                  href={posting}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1 text-sm hover:underline"
+                >
+                  <ExternalLink className="size-3.5" /> Open posting
+                </a>
+              ) : (
+                <span className="text-sm text-muted-foreground">No link</span>
+              )}
+              {can("write") && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="size-6"
+                  aria-label="Re-check link"
+                  onClick={recheckLink}
+                  disabled={recheckBusy}
+                >
+                  <RefreshCw className="size-3.5" />
+                </Button>
+              )}
+            </span>
           </div>
           {application.next_step && (
             <div className="col-span-2 flex flex-col gap-0.5 sm:col-span-3">
@@ -191,13 +230,6 @@ export function DetailPage() {
                   {tag}
                 </span>
               ))}
-            </div>
-          )}
-          {can("write") && (
-            <div className="col-span-2 sm:col-span-3">
-              <Button size="sm" variant="outline" onClick={recheckLink} disabled={recheckBusy}>
-                <RefreshCw /> Re-check link
-              </Button>
             </div>
           )}
         </CardContent>
