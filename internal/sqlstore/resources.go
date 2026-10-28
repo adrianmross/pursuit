@@ -527,6 +527,14 @@ func (s *Store) ListApplications(ctx context.Context, userID string, q domain.Li
 		}
 		w.add("a.status IN ("+ph+")", args...)
 	}
+	if len(q.StatusExclude) > 0 {
+		ph := strings.TrimRight(strings.Repeat("?,", len(q.StatusExclude)), ",")
+		args := make([]any, len(q.StatusExclude))
+		for i, st := range q.StatusExclude {
+			args[i] = st
+		}
+		w.add("a.status NOT IN ("+ph+")", args...)
+	}
 	if q.CompanyID != "" {
 		w.add("r.company_id=?", q.CompanyID)
 	}
@@ -639,6 +647,14 @@ func (s *Store) listApplicationsByField(ctx context.Context, userID string, q do
 			args[i] = st
 		}
 		w.add("a.status IN ("+ph+")", args...)
+	}
+	if len(q.StatusExclude) > 0 {
+		ph := strings.TrimRight(strings.Repeat("?,", len(q.StatusExclude)), ",")
+		args := make([]any, len(q.StatusExclude))
+		for i, st := range q.StatusExclude {
+			args[i] = st
+		}
+		w.add("a.status NOT IN ("+ph+")", args...)
 	}
 	if q.CompanyID != "" {
 		w.add("r.company_id=?", q.CompanyID)

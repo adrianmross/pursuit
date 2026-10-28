@@ -952,6 +952,37 @@ func createChecked(t *testing.T, e *env, postingURL, company, title string) stri
 	return id
 }
 
+func TestStatusExclusion(t *testing.T) {
+	e := newEnv(t)
+	for _, s := range []struct{ company, status string }{
+		{"A Co", "to_apply"}, {"B Co", "applied"}, {"C Co", "rejected"},
+	} {
+		code, app := e.json(t, http.MethodPost, "/v1/applications", e.token, map[string]any{
+			"company": s.company, "title": "Eng", "status": s.status,
+		})
+		if code != 201 {
+			t.Fatal(app)
+		}
+	}
+	code, all := e.json(t, http.MethodGet, "/v1/applications", e.token, nil)
+	if code != 200 || all["page"].(map[string]any)["total"].(float64) != 3 {
+		t.Fatalf("baseline: %d %#v", code, all)
+	}
+	code, excluded := e.json(t, http.MethodGet, "/v1/applications?status_not=rejected", e.token, nil)
+	if code != 200 || excluded["page"].(map[string]any)["total"].(float64) != 2 {
+		t.Fatalf("excluding rejected: %d %#v", code, excluded)
+	}
+	for _, row := range excluded["data"].([]any) {
+		if row.(map[string]any)["status"] == "rejected" {
+			t.Fatalf("rejected should not appear: %#v", excluded)
+		}
+	}
+	code, both := e.json(t, http.MethodGet, "/v1/applications?status_not=rejected&status_not=applied", e.token, nil)
+	if code != 200 || both["page"].(map[string]any)["total"].(float64) != 1 {
+		t.Fatalf("excluding two statuses: %d %#v", code, both)
+	}
+}
+
 func TestCustomFields(t *testing.T) {
 	e := newEnv(t)
 	code, field := e.json(t, http.MethodPost, "/v1/fields", e.token, map[string]any{"name": "SalaryRange", "type": "number"})
