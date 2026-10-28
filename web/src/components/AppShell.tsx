@@ -41,7 +41,7 @@ function GlobalSearch() {
     <div className="relative mx-auto w-full max-w-2xl">
       <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
       <Input
-        placeholder="Search"
+        placeholder="Search — try status:applied, tag:remote, applied:>2026-01-01"
         className="h-10 pl-9 text-base"
         value={value}
         onChange={(event) => onChange(event.target.value)}
