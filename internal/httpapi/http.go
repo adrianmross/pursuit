@@ -100,6 +100,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /version", s.version)
 	mux.HandleFunc("GET /openapi.json", s.openapi)
 	mux.HandleFunc("GET /llms.txt", s.llms)
+	mux.HandleFunc("GET /reference", s.reference)
 	mux.HandleFunc("GET /", s.dashboard)
 
 	mux.HandleFunc("GET /v1/auth/providers", s.authProviders)
@@ -432,6 +433,12 @@ func (s *Server) llms(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.WriteHeader(200)
 	_, _ = w.Write(spec.LLMS)
+}
+
+func (s *Server) reference(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.WriteHeader(200)
+	_, _ = w.Write(spec.Reference)
 }
 
 func (s *Server) dashboard(w http.ResponseWriter, r *http.Request) {

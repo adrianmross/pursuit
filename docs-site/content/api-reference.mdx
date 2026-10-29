@@ -2,12 +2,11 @@
 title: API reference
 ---
 
-import { ApiReferenceViewer } from "../components/api-reference-viewer"
-
 # API reference
 
-Rendered live from the daemon's own `GET /openapi.json`. Point this at a running server with `NEXT_PUBLIC_PURSUIT_SERVER` (defaults to `http://127.0.0.1:8787`).
+The daemon serves its own interactive reference, same-origin, rendered from its own `GET /openapi.json` — no separate build or deploy needed:
 
-Every CLI command in the [CLI reference](/cli) is a thin wrapper over one of these endpoints — `internal/httpapi` is the only REST adapter, and `pursuit schema <command>` prints the same flags this page shows as parameters.
+- **Self-hosted:** `http://<your-server>/reference` (e.g. `http://127.0.0.1:8787/reference` while developing locally).
+- **Hosted:** [api.hire-pursuit.app/reference](https://api.hire-pursuit.app/reference).
 
-<ApiReferenceViewer />
+Every CLI command in the [CLI reference](/cli) is a thin wrapper over one of these endpoints — `internal/httpapi` is the only REST adapter, and `pursuit schema <command>` prints the same flags that page shows as parameters.

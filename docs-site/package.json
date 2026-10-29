@@ -10,7 +10,6 @@
     "changeset:version": "changeset version"
   },
   "dependencies": {
-    "@scalar/api-reference-react": "0.9.37",
     "next": "16.2.4",
     "nextra": "4.3.0",
     "nextra-theme-docs": "4.3.0",

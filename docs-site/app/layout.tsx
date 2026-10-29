@@ -3,7 +3,6 @@ import { Footer, Layout, Navbar } from "nextra-theme-docs"
 import { Banner } from "nextra/components"
 import { getPageMap } from "nextra/page-map"
 import "nextra-theme-docs/style.css"
-import "@scalar/api-reference-react/style.css"
 import "./globals.css"
 
 export const metadata: Metadata = {
@@ -14,7 +13,16 @@ export const metadata: Metadata = {
   description: "API and CLI reference for pursuit, a self-hosted job-application tracker.",
 }
 
-const navbar = <Navbar logo={<b>Hire Pursuit docs</b>} projectLink="https://github.com/adrianmross/pursuit" />
+const navbar = (
+  <Navbar logo={<b>Hire Pursuit docs</b>} projectLink="https://github.com/adrianmross/pursuit">
+    <a href="https://api.hire-pursuit.app/reference" className="x:text-sm x:font-medium">
+      API reference
+    </a>
+    <a href="https://hire-pursuit.app" className="x:text-sm x:font-medium">
+      Dashboard
+    </a>
+  </Navbar>
+)
 
 const banner = (
   <Banner storageKey="pursuit-docs-pre">
