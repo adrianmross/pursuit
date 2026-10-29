@@ -314,4 +314,9 @@ var migrations = []migration{{
 	stmts: []string{
 		`ALTER TABLE posting_checks ADD COLUMN changed BIGINT NOT NULL DEFAULT 0`,
 	},
+}, {
+	version: "004",
+	stmts: []string{
+		`ALTER TABLE applications ADD COLUMN archived_at TEXT NOT NULL DEFAULT ''`,
+	},
 }}

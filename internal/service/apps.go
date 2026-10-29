@@ -580,6 +580,56 @@ func (s *Service) DeleteApplication(ctx context.Context, id string, version int)
 	return domain.Deleted{ID: id, Deleted: true}, nil
 }
 
+// ArchiveApplication hides an application from the default list view
+// without changing its status. Archiving an already-archived application
+// is a no-op that returns it unchanged.
+func (s *Service) ArchiveApplication(ctx context.Context, id string, version int) (domain.Application, error) {
+	return s.setArchived(ctx, id, version, true)
+}
+
+// UnarchiveApplication restores an archived application to the default
+// list view. Unarchiving an application that isn't archived is a no-op.
+func (s *Service) UnarchiveApplication(ctx context.Context, id string, version int) (domain.Application, error) {
+	return s.setArchived(ctx, id, version, false)
+}
+
+func (s *Service) setArchived(ctx context.Context, id string, version int, archived bool) (domain.Application, error) {
+	a, err := s.actor(ctx, true)
+	if err != nil {
+		return domain.Application{}, err
+	}
+	if version < 1 {
+		return domain.Application{}, versionRequired("application")
+	}
+	var out domain.Application
+	err = s.DB.WithTx(ctx, func(ctx context.Context) error {
+		cur, err := s.DB.GetApplication(ctx, a.UserID, id)
+		if err != nil {
+			return err
+		}
+		if cur.Version != version {
+			return domain.VersionConflict("application", cur.Version)
+		}
+		if (cur.ArchivedAt != nil) == archived {
+			out = cur
+			return nil
+		}
+		if err := s.DB.SetApplicationArchived(ctx, a.UserID, id, version, archived, s.now()); err != nil {
+			return err
+		}
+		action := "application.unarchive"
+		if archived {
+			action = "application.archive"
+		}
+		if err := s.audit(ctx, a, action, "application", id, action+" "+cur.Title, nil); err != nil {
+			return err
+		}
+		out, err = s.DB.GetApplication(ctx, a.UserID, id)
+		return err
+	})
+	return out, err
+}
+
 func (s *Service) AddEvent(ctx context.Context, appID string, in EventInput) (domain.Event, error) {
 	a, err := s.actor(ctx, true)
 	if err != nil {

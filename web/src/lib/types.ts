@@ -15,6 +15,7 @@ export type Application = {
   fit?: string
   source?: string
   next_step?: string
+  archived_at?: string
   version?: number
 }
 

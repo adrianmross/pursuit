@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"strings"
+	"time"
 
 	"github.com/pursuit/pursuit/internal/domain"
 )
@@ -413,16 +414,16 @@ func (s *Store) DeleteRole(ctx context.Context, userID, id string, version int) 
 }
 
 func appSelect() string {
-	return `SELECT a.id, a.user_id, a.role_id, a.status, a.applied_date, a.next_step, a.notes, a.resume_version, a.resume_file_ref, a.contact_email, a.external_id, a.version, a.created_at, a.updated_at, r.title, r.location, r.salary_text, r.salary_min_cents, r.salary_max_cents, r.fit, r.posting_url, r.source, r.job_type, r.company_id, c.name, COALESCE(pc.status, ''), pc.checked_at FROM applications a JOIN roles r ON r.id = a.role_id JOIN companies c ON c.id = r.company_id LEFT JOIN posting_checks pc ON pc.role_id = r.id`
+	return `SELECT a.id, a.user_id, a.role_id, a.status, a.applied_date, a.next_step, a.notes, a.resume_version, a.resume_file_ref, a.contact_email, a.external_id, a.archived_at, a.version, a.created_at, a.updated_at, r.title, r.location, r.salary_text, r.salary_min_cents, r.salary_max_cents, r.fit, r.posting_url, r.source, r.job_type, r.company_id, c.name, COALESCE(pc.status, ''), pc.checked_at FROM applications a JOIN roles r ON r.id = a.role_id JOIN companies c ON c.id = r.company_id LEFT JOIN posting_checks pc ON pc.role_id = r.id`
 }
 
 func scanApp(row scanner) (domain.Application, error) {
 	var a domain.Application
 	var applied sql.NullString
 	var min, max sql.NullInt64
-	var created, updated string
+	var created, updated, archived string
 	var checked sql.NullString
-	err := row.Scan(&a.ID, &a.UserID, &a.RoleID, &a.Status, &applied, &a.NextStep, &a.Notes, &a.ResumeVersion, &a.ResumeFileRef, &a.ContactEmail, &a.ExternalID, &a.Version, &created, &updated, &a.Title, &a.Location, &a.Salary, &min, &max, &a.Fit, &a.PostingURL, &a.Source, &a.JobType, &a.CompanyID, &a.Company, &a.LinkStatus, &checked)
+	err := row.Scan(&a.ID, &a.UserID, &a.RoleID, &a.Status, &applied, &a.NextStep, &a.Notes, &a.ResumeVersion, &a.ResumeFileRef, &a.ContactEmail, &a.ExternalID, &archived, &a.Version, &created, &updated, &a.Title, &a.Location, &a.Salary, &min, &max, &a.Fit, &a.PostingURL, &a.Source, &a.JobType, &a.CompanyID, &a.Company, &a.LinkStatus, &checked)
 	if err != nil {
 		return domain.Application{}, err
 	}
@@ -436,6 +437,11 @@ func scanApp(row scanner) (domain.Application, error) {
 	if checked.Valid && checked.String != "" {
 		if t, perr := parseTime(checked.String); perr == nil {
 			a.LinkCheckedAt = &t
+		}
+	}
+	if archived != "" {
+		if t, perr := parseTime(archived); perr == nil {
+			a.ArchivedAt = &t
 		}
 	}
 	if a.CreatedAt, err = parseTime(created); err != nil {
@@ -519,6 +525,11 @@ func (s *Store) ListApplications(ctx context.Context, userID string, q domain.Li
 	}
 	if q.Stale {
 		w.add("pc.status=?", domain.LinkClosed)
+	}
+	if q.Archived {
+		w.add("a.archived_at<>''")
+	} else {
+		w.add("a.archived_at=''")
 	}
 	if q.Q != "" {
 		p := likeContains(q.Q)
@@ -616,6 +627,27 @@ func (s *Store) UpdateApplication(ctx context.Context, a domain.Application) err
 	}
 	return changed(res, func() (int, error) {
 		cur, err := s.GetApplication(ctx, a.UserID, a.ID)
+		if err != nil {
+			return 0, err
+		}
+		return cur.Version, nil
+	}, "application")
+}
+
+// SetApplicationArchived sets or clears archived_at. at is ignored when
+// archived is false.
+func (s *Store) SetApplicationArchived(ctx context.Context, userID, id string, version int, archived bool, at time.Time) error {
+	value := ""
+	if archived {
+		value = formatTime(at)
+	}
+	res, err := s.exec(ctx, `UPDATE applications SET archived_at=?, version=version+1, updated_at=? WHERE id=? AND user_id=? AND version=?`,
+		value, formatTime(at), id, userID, version)
+	if err != nil {
+		return mapWriteErr(err)
+	}
+	return changed(res, func() (int, error) {
+		cur, err := s.GetApplication(ctx, userID, id)
 		if err != nil {
 			return 0, err
 		}

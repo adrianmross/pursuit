@@ -77,6 +77,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("PATCH /v1/applications/{id}", s.updateApp)
 	mux.HandleFunc("DELETE /v1/applications/{id}", s.deleteApp)
 	mux.HandleFunc("POST /v1/applications/{id}/transition", s.transition)
+	mux.HandleFunc("POST /v1/applications/{id}/archive", s.archiveApp)
+	mux.HandleFunc("POST /v1/applications/{id}/unarchive", s.unarchiveApp)
 	mux.HandleFunc("GET /v1/applications/{id}/events", s.listAppEvents)
 	mux.HandleFunc("POST /v1/applications/{id}/events", s.addEvent)
 	mux.HandleFunc("POST /v1/applications/{id}/tags", s.attachTag)
@@ -417,6 +419,13 @@ func listQuery(q map[string][]string) (domain.ListQuery, error) {
 		out.Stale = true
 	default:
 		return out, domain.Validation("invalid stale").WithHint("stale is true or false")
+	}
+	switch strings.ToLower(first(q, "archived")) {
+	case "", "0", "false":
+	case "1", "true":
+		out.Archived = true
+	default:
+		return out, domain.Validation("invalid archived").WithHint("archived is true or false")
 	}
 	return out, nil
 }
@@ -924,7 +933,7 @@ func (s *Server) captureApp(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) listApps(w http.ResponseWriter, r *http.Request) {
-	s.page(w, r, []string{"limit", "cursor", "sort", "q", "status", "company", "company_id", "fit", "source", "tag", "stale", "fields"}, domain.AppFields, func(ctx context.Context, q domain.ListQuery) (any, error) {
+	s.page(w, r, []string{"limit", "cursor", "sort", "q", "status", "company", "company_id", "fit", "source", "tag", "stale", "archived", "fields"}, domain.AppFields, func(ctx context.Context, q domain.ListQuery) (any, error) {
 		return s.Svc.ListApplications(ctx, q)
 	})
 }
@@ -970,6 +979,32 @@ func (s *Server) transition(w http.ResponseWriter, r *http.Request) {
 			return nil, err
 		}
 		return s.Svc.Transition(ctx, id, in)
+	})
+}
+
+type archiveInput struct {
+	Version int `json:"version"`
+}
+
+func (s *Server) archiveApp(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	s.jsonMut(w, r, 200, domain.AppFields, func(ctx context.Context, body []byte) (any, error) {
+		var in archiveInput
+		if err := decode(body, &in); err != nil {
+			return nil, err
+		}
+		return s.Svc.ArchiveApplication(ctx, id, in.Version)
+	})
+}
+
+func (s *Server) unarchiveApp(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	s.jsonMut(w, r, 200, domain.AppFields, func(ctx context.Context, body []byte) (any, error) {
+		var in archiveInput
+		if err := decode(body, &in); err != nil {
+			return nil, err
+		}
+		return s.Svc.UnarchiveApplication(ctx, id, in.Version)
 	})
 }
 
