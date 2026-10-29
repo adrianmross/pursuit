@@ -1,6 +1,7 @@
 import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 import { Link, useNavigate, useSearchParams } from "react-router-dom"
 import commandScore from "command-score"
+import { parseSearch, matchesQualifiers } from "@/lib/search"
 import {
   Archive,
   ArchiveRestore,
@@ -551,14 +552,18 @@ export function PipelinePage() {
   const visibleRows = useMemo(() => {
     let out = rows
     if (q) {
-      out = rows
-        .map((row) => {
-          const haystack = [row.company, row.title, label(row.status), ...(row.tags || [])].filter(Boolean).join(" ")
-          return { row, score: commandScore(haystack, q) }
-        })
-        .filter((entry) => entry.score > 0)
-        .sort((a, b) => b.score - a.score)
-        .map((entry) => entry.row)
+      const { free, qualifiers } = parseSearch(q)
+      const base = qualifiers.length ? rows.filter((row) => matchesQualifiers(row, qualifiers)) : rows
+      out = !free
+        ? base
+        : base
+            .map((row) => {
+              const haystack = [row.company, row.title, label(row.status), ...(row.tags || [])].filter(Boolean).join(" ")
+              return { row, score: commandScore(haystack, free) }
+            })
+            .filter((entry) => entry.score > 0)
+            .sort((a, b) => b.score - a.score)
+            .map((entry) => entry.row)
     }
     if (sort === "category") {
       out = out
