@@ -3,7 +3,7 @@ import { Link, useNavigate, useParams } from "react-router-dom"
 import { ArrowLeft, Check, ChevronDown, ExternalLink, MoreHorizontal, RefreshCw, X } from "lucide-react"
 import { api, ApiError } from "@/lib/api"
 import { useAuth } from "@/lib/auth"
-import { label, type Application, type Artifact, type Event, type Page, type Question } from "@/lib/types"
+import { label, statusTone, type Application, type Artifact, type Event, type Page, type Question } from "@/lib/types"
 import { CompanyAvatar } from "@/components/CompanyAvatar"
 import { AttributesForm, EMPTY_ATTRIBUTES, FIT_OPTIONS, STATUS_OPTIONS, type AttributesFormState } from "@/components/AttributesForm"
 import { ConfirmDialog } from "@/components/ConfirmDialog"
@@ -244,7 +244,12 @@ export function DetailPage() {
           </div>
         </div>
         <div className="flex items-center gap-1">
-          <Badge variant="outline">{label(application.status)}</Badge>
+          <Badge
+            variant="secondary"
+            className={statusTone(application.status) === "win" ? "bg-brand-gold text-[#141615]" : undefined}
+          >
+            {label(application.status)}
+          </Badge>
           {application.status === "awaiting_review" &&
             (can("approve") ? (
               <>

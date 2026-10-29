@@ -78,9 +78,12 @@ function shortWhen(value?: string) {
 }
 
 function StatusBadge({ status }: { status: string }) {
-  const tone = statusTone(status)
-  const variant = tone === "bad" ? "destructive" : tone === "default" ? "secondary" : "outline"
-  return <Badge variant={variant}>{label(status)}</Badge>
+  const win = statusTone(status) === "win"
+  return (
+    <Badge variant="secondary" className={win ? "bg-brand-gold text-[#141615]" : undefined}>
+      {label(status)}
+    </Badge>
+  )
 }
 
 function LinkBadge({ status }: { status?: string }) {

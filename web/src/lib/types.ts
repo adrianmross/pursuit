@@ -114,10 +114,9 @@ export function label(status?: string) {
   return (status && LABELS[status]) || status || "—"
 }
 
-export function statusTone(status?: string): "ok" | "info" | "bad" | "warn" | "default" {
-  if (["offer", "approved", "submitted", "applied"].includes(status || "")) return "ok"
-  if (["awaiting_review", "preparing", "needs_input", "interviewing", "screening"].includes(status || "")) return "info"
-  if (["rejected", "failed", "ghosted"].includes(status || "")) return "bad"
-  if (["withdrawn", "submitting"].includes(status || "")) return "warn"
-  return "default"
+// Pursuit's status chips are told apart by label, not hue — the only color
+// is brand-gold, and only for the one status that's a win. Everything else
+// is a plain neutral chip.
+export function statusTone(status?: string): "win" | "default" {
+  return status === "offer" ? "win" : "default"
 }
