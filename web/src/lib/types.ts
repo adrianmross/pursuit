@@ -97,6 +97,9 @@ export const SORTS: [string, string][] = [
   ["created_at", "Oldest"],
   ["-applied_date", "Applied date"],
   ["applied_date", "Applied date, earliest"],
+  // Category isn't a backend sort column — applied client-side over the
+  // currently loaded page instead of being forwarded as a `sort` param.
+  ["category", "Category"],
 ]
 
 export const LABELS: Record<string, string> = {
@@ -123,9 +126,61 @@ export function label(status?: string) {
   return (status && LABELS[status]) || status || "—"
 }
 
+export const SOURCE_LABELS: Record<string, string> = {
+  greenhouse: "Greenhouse",
+  ashby: "Ashby",
+  lever: "Lever",
+  workday: "Workday",
+  company_site: "Company site",
+  other: "Other",
+}
+
+export function sourceLabel(source?: string) {
+  return (source && SOURCE_LABELS[source]) || ""
+}
+
 // Pursuit's status chips are told apart by label, not hue — the only color
 // is brand-gold, and only for the one status that's a win. Everything else
 // is a plain neutral chip.
 export function statusTone(status?: string): "win" | "default" {
   return status === "offer" ? "win" : "default"
+}
+
+export type StatusCategory = "action" | "waiting" | "closed" | "rejected"
+
+export const CATEGORY_LABELS: Record<StatusCategory, string> = {
+  action: "Needs attention",
+  waiting: "Waiting",
+  closed: "Closed",
+  rejected: "Rejected",
+}
+
+export const CATEGORY_ORDER: StatusCategory[] = ["action", "waiting", "closed", "rejected"]
+
+const STATUS_CATEGORY: Record<string, StatusCategory> = {
+  to_apply: "action",
+  awaiting_review: "action",
+  needs_input: "action",
+  failed: "action",
+  offer: "action",
+  saved: "waiting",
+  preparing: "waiting",
+  approved: "waiting",
+  submitting: "waiting",
+  submitted: "waiting",
+  in_progress: "waiting",
+  screening: "waiting",
+  applied: "waiting",
+  interviewing: "waiting",
+  withdrawn: "closed",
+  ghosted: "closed",
+  rejected: "rejected",
+}
+
+export function statusCategory(status?: string): StatusCategory {
+  return (status && STATUS_CATEGORY[status]) || "waiting"
+}
+
+export function statusesInCategory(category: StatusCategory): string[] {
+  return Object.keys(STATUS_CATEGORY).filter((s) => STATUS_CATEGORY[s] === category)
 }

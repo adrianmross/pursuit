@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react"
 import { useNavigate } from "react-router-dom"
-import { LogOut, Plus } from "lucide-react"
+import { Archive, ListChecks, LogOut, Plus } from "lucide-react"
 import { api } from "@/lib/api"
 import { useAuth } from "@/lib/auth"
-import { label, type Application, type Page } from "@/lib/types"
+import { label, statusesInCategory, type Application, type Page } from "@/lib/types"
 import {
   CommandDialog,
   CommandEmpty,
@@ -42,6 +42,15 @@ export function CommandPalette() {
     setOpen(false)
   }
 
+  async function goThroughPending() {
+    const qs = statusesInCategory("action")
+      .map((st) => "status=" + encodeURIComponent(st))
+      .join("&")
+    const page = await api<Page<Application>>(`/v1/applications?limit=1&sort=updated_at&${qs}`)
+    const next = page.data[0]
+    if (next) navigate(`/app/${encodeURIComponent(next.id)}`)
+  }
+
   return (
     <CommandDialog open={open} onOpenChange={setOpen} title="Fast actions" description="Jump to an application or run a command">
       <CommandInput placeholder="Jump to an application or run a command…" />
@@ -50,6 +59,12 @@ export function CommandPalette() {
         <CommandGroup heading="Actions">
           <CommandItem onSelect={() => go(() => navigate("/app/new"))}>
             <Plus /> Add application
+          </CommandItem>
+          <CommandItem onSelect={() => go(() => navigate("/?archived=1"))}>
+            <Archive /> View archived
+          </CommandItem>
+          <CommandItem onSelect={() => go(() => void goThroughPending())}>
+            <ListChecks /> Go through pending
           </CommandItem>
         </CommandGroup>
         <CommandGroup heading="Applications">

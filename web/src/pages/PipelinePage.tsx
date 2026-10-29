@@ -9,7 +9,6 @@ import {
   Check,
   ChevronDown,
   ChevronRight,
-  ExternalLink,
   Filter,
   MoreHorizontal,
   Plus,
@@ -21,11 +20,26 @@ import {
 import { api, ApiError } from "@/lib/api"
 import { useAuth } from "@/lib/auth"
 import { getDefaultSort, getDefaultStatus } from "@/lib/settings"
-import { FILTERS, MORE, SORTS, label, statusTone, type Application, type CustomField, type Page, type Question } from "@/lib/types"
+import {
+  CATEGORY_LABELS,
+  CATEGORY_ORDER,
+  FILTERS,
+  label,
+  MORE,
+  SORTS,
+  sourceLabel,
+  statusCategory,
+  statusesInCategory,
+  type Application,
+  type CustomField,
+  type Page,
+  type Question,
+  type StatusCategory,
+} from "@/lib/types"
 import { CompanyAvatar } from "@/components/CompanyAvatar"
 import { ConfirmDialog } from "@/components/ConfirmDialog"
 import { PreparedAnswers } from "@/components/PreparedAnswers"
-import { Badge } from "@/components/ui/badge"
+import { StatusBadge } from "@/components/StatusBadge"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
@@ -68,6 +82,7 @@ function StatusSlider({ status, onChange }: { status: string; onChange: (value: 
         step={1}
         value={[index]}
         onValueChange={([next]) => onChange(SLIDER_POSITIONS[next]![0])}
+        className="[&_[data-slot=slider-thumb]]:size-4 [&_[data-slot=slider-thumb]]:border-0 [&_[data-slot=slider-thumb]]:bg-foreground [&_[data-slot=slider-thumb]]:shadow-md [&_[data-slot=slider-track]]:h-1.5"
       />
       <div className="flex justify-between">
         {SLIDER_POSITIONS.map(([value, text], i) => (
@@ -114,15 +129,6 @@ function shortWhen(value?: string) {
   return date.getFullYear() === now.getFullYear() ? text : text + ", " + date.getFullYear()
 }
 
-function StatusBadge({ status }: { status: string }) {
-  const win = statusTone(status) === "win"
-  return (
-    <Badge variant="secondary" className={win ? "bg-brand-gold text-[#141615]" : undefined}>
-      {label(status)}
-    </Badge>
-  )
-}
-
 function LinkBadge({ status }: { status?: string }) {
   const dead = status === "closed"
   const live = status === "live"
@@ -143,18 +149,24 @@ function LinkBadge({ status }: { status?: string }) {
 
 function FilterSortBar({
   status,
+  category,
   sort,
   onPatch,
 }: {
   status: string
+  category: string
   sort: string
   onPatch: (next: Record<string, string>) => void
 }) {
   const [moreOpen, setMoreOpen] = useState(false)
-  const active = status !== ""
+  const active = status !== "" || category !== ""
 
   function toggleStatus(value: string) {
-    onPatch({ status: status === value ? "" : value })
+    onPatch({ status: status === value ? "" : value, category: "" })
+  }
+
+  function toggleCategory(value: StatusCategory) {
+    onPatch({ category: category === value ? "" : value, status: "" })
   }
 
   return (
@@ -183,15 +195,35 @@ function FilterSortBar({
             </Select>
           </div>
           <div className="flex flex-col gap-1.5">
+            <span className="text-xs font-medium text-muted-foreground">Category</span>
+            <div className="flex flex-wrap gap-1.5">
+              {CATEGORY_ORDER.map((cat) => (
+                <Button
+                  key={cat}
+                  size="sm"
+                  variant={category === cat ? "default" : "outline"}
+                  className="h-7 text-xs"
+                  onClick={() => toggleCategory(cat)}
+                >
+                  {CATEGORY_LABELS[cat]}
+                </Button>
+              ))}
+            </div>
+          </div>
+          <div className="flex flex-col gap-1.5">
             <div className="flex items-center justify-between">
               <span className="text-xs font-medium text-muted-foreground">Status</span>
               {active && (
-                <button type="button" className="text-xs text-muted-foreground underline" onClick={() => onPatch({ status: "" })}>
+                <button
+                  type="button"
+                  className="text-xs text-muted-foreground underline"
+                  onClick={() => onPatch({ status: "", category: "" })}
+                >
                   Reset to all
                 </button>
               )}
             </div>
-            <StatusSlider status={status} onChange={(value) => onPatch({ status: value })} />
+            <StatusSlider status={status} onChange={(value) => onPatch({ status: value, category: "" })} />
             <Collapsible open={moreOpen} onOpenChange={setMoreOpen}>
               <CollapsibleTrigger className="mt-1 text-xs text-muted-foreground underline">
                 {moreOpen ? "Fewer statuses" : "More statuses"}
@@ -343,54 +375,13 @@ function IconAction({
   )
 }
 
-function HoldIconAction({
-  label: text,
-  onHold,
-  disabled,
-  holdMs = 600,
-}: {
-  label: string
-  onHold: () => Promise<void> | void
-  disabled?: boolean
-  holdMs?: number
-}) {
-  const [busy, setBusy] = useState(false)
-  const timer = useRef<number | undefined>(undefined)
-
-  function start() {
-    if (disabled || busy) return
-    timer.current = window.setTimeout(async () => {
-      setBusy(true)
-      try {
-        await onHold()
-      } finally {
-        setBusy(false)
-      }
-    }, holdMs)
+function hostnameLabel(url?: string) {
+  if (!url) return ""
+  try {
+    return new URL(url).hostname.replace(/^www\./, "")
+  } catch {
+    return ""
   }
-  function cancel() {
-    window.clearTimeout(timer.current)
-  }
-
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="size-7"
-          aria-label={text + " (hold)"}
-          disabled={disabled || busy}
-          onPointerDown={start}
-          onPointerUp={cancel}
-          onPointerLeave={cancel}
-        >
-          <RefreshCw className={`size-3.5 ${busy ? "animate-spin" : ""}`} />
-        </Button>
-      </TooltipTrigger>
-      <TooltipContent>Hold to {text.toLowerCase()}</TooltipContent>
-    </Tooltip>
-  )
 }
 
 function RowActions({
@@ -491,6 +482,7 @@ export function PipelinePage() {
   const navigate = useNavigate()
   const [params, setParams] = useSearchParams()
   const status = params.get("status") ?? getDefaultStatus()
+  const category = params.get("category") || ""
   const q = params.get("q") || ""
   const sort = params.get("sort") || getDefaultSort()
   const archivedView = params.get("archived") === "1"
@@ -522,8 +514,9 @@ export function PipelinePage() {
     setLoading(true)
     const qs = new URLSearchParams()
     qs.set("limit", "50")
-    if (sort) qs.set("sort", sort)
+    if (sort && sort !== "category") qs.set("sort", sort)
     if (archivedView) qs.set("archived", "true")
+    else if (category) for (const st of statusesInCategory(category as StatusCategory)) qs.append("status", st)
     else if (status) qs.set("status", status)
     for (const st of exclude) qs.append("status_not", st)
     if (cursor) qs.set("cursor", cursor)
@@ -544,7 +537,7 @@ export function PipelinePage() {
   useEffect(() => {
     void load()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [status, sort, archivedView, excludeParam])
+  }, [status, category, sort, archivedView, excludeParam])
 
   function patch(next: Record<string, string>) {
     const merged = new URLSearchParams(params)
@@ -556,16 +549,25 @@ export function PipelinePage() {
   }
 
   const visibleRows = useMemo(() => {
-    if (!q) return rows
-    return rows
-      .map((row) => {
-        const haystack = [row.company, row.title, label(row.status), ...(row.tags || [])].filter(Boolean).join(" ")
-        return { row, score: commandScore(haystack, q) }
-      })
-      .filter((entry) => entry.score > 0)
-      .sort((a, b) => b.score - a.score)
-      .map((entry) => entry.row)
-  }, [rows, q])
+    let out = rows
+    if (q) {
+      out = rows
+        .map((row) => {
+          const haystack = [row.company, row.title, label(row.status), ...(row.tags || [])].filter(Boolean).join(" ")
+          return { row, score: commandScore(haystack, q) }
+        })
+        .filter((entry) => entry.score > 0)
+        .sort((a, b) => b.score - a.score)
+        .map((entry) => entry.row)
+    }
+    if (sort === "category") {
+      out = out
+        .map((row, i) => ({ row, i, rank: CATEGORY_ORDER.indexOf(statusCategory(row.status)) }))
+        .sort((a, b) => a.rank - b.rank || a.i - b.i)
+        .map((entry) => entry.row)
+    }
+    return out
+  }, [rows, q, sort])
 
   function toggleSelected(id: string) {
     setSelected((prev) => {
@@ -649,15 +651,12 @@ export function PipelinePage() {
               : `${total} application${total === 1 ? "" : "s"}`}
         </p>
         <div className="flex gap-2">
-          <Button
-            size="sm"
-            variant={archivedView ? "default" : "outline"}
-            onClick={() => patch({ archived: archivedView ? "" : "1" })}
-          >
-            {archivedView ? <ArchiveRestore className="size-3.5" /> : <Archive className="size-3.5" />}
-            {archivedView ? "Archived" : "Archive"}
-          </Button>
-          {!archivedView && <FilterSortBar status={status} sort={sort} onPatch={patch} />}
+          {archivedView && (
+            <Button size="sm" variant="ghost" onClick={() => patch({ archived: "" })}>
+              <ArchiveRestore className="size-3.5" /> Exit archive view
+            </Button>
+          )}
+          {!archivedView && <FilterSortBar status={status} category={category} sort={sort} onPatch={patch} />}
           {can("write") && !archivedView && (
             <Button size="sm" onClick={() => navigate("/app/new")}>
               <Plus /> Add
@@ -741,7 +740,7 @@ export function PipelinePage() {
               ))}
               <TableHead>
                 <span className="flex items-center gap-1">
-                  Link
+                  Listing
                   {can("write") && (
                     <Tooltip>
                       <TooltipTrigger asChild>
@@ -828,30 +827,17 @@ export function PipelinePage() {
                     <TableCell>
                       <span className="flex items-center gap-1.5">
                         <LinkBadge status={row.link_status} />
-                        {href && (
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <a
-                                href={href}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-muted-foreground hover:text-foreground"
-                                aria-label="Open posting"
-                              >
-                                <ExternalLink className="size-3.5" />
-                              </a>
-                            </TooltipTrigger>
-                            <TooltipContent>Open posting</TooltipContent>
-                          </Tooltip>
-                        )}
-                        {can("write") && (
-                          <HoldIconAction
-                            label="Re-check link"
-                            onHold={async () => {
-                              await api(`/v1/applications/${encodeURIComponent(row.id)}/check-link`, { method: "POST", body: {} })
-                              await load()
-                            }}
-                          />
+                        {href ? (
+                          <a
+                            href={href}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-xs text-muted-foreground hover:text-foreground hover:underline"
+                          >
+                            {sourceLabel(row.source) || hostnameLabel(href)}
+                          </a>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">{sourceLabel(row.source) || "—"}</span>
                         )}
                       </span>
                     </TableCell>

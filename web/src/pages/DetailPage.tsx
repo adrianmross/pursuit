@@ -3,12 +3,13 @@ import { Link, useNavigate, useParams } from "react-router-dom"
 import { ArrowLeft, Check, ChevronDown, ExternalLink, MoreHorizontal, RefreshCw, X } from "lucide-react"
 import { api, ApiError } from "@/lib/api"
 import { useAuth } from "@/lib/auth"
-import { label, statusTone, type Application, type Artifact, type CustomField, type Event, type Page, type Question } from "@/lib/types"
+import { label, sourceLabel, type Application, type Artifact, type CustomField, type Event, type Page, type Question } from "@/lib/types"
 import { CompanyAvatar } from "@/components/CompanyAvatar"
 import { AttributesForm, EMPTY_ATTRIBUTES, FIT_OPTIONS, STATUS_OPTIONS, type AttributesFormState } from "@/components/AttributesForm"
 import { ConfirmDialog } from "@/components/ConfirmDialog"
 import { InlineSelect, InlineText } from "@/components/InlineEdit"
 import { PreparedAnswers } from "@/components/PreparedAnswers"
+import { StatusBadge } from "@/components/StatusBadge"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -31,8 +32,54 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+
+function StatusEditor({
+  value,
+  disabled,
+  onSave,
+}: {
+  value: string
+  disabled?: boolean
+  onSave: (next: string) => void
+}) {
+  const [editing, setEditing] = useState(false)
+
+  if (disabled) return <StatusBadge status={value} />
+
+  if (editing) {
+    return (
+      <Select
+        defaultOpen
+        value={value}
+        onValueChange={(next) => {
+          setEditing(false)
+          if (next !== value) onSave(next)
+        }}
+        onOpenChange={(open) => !open && setEditing(false)}
+      >
+        <SelectTrigger className="h-7 w-auto gap-1 border-none bg-transparent px-0 shadow-none focus-visible:ring-0" aria-label="Status">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {STATUS_OPTIONS.map(([v, text]) => (
+            <SelectItem key={v} value={v}>
+              {text}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    )
+  }
+
+  return (
+    <button type="button" className="rounded-full" onClick={() => setEditing(true)}>
+      <StatusBadge status={value} />
+    </button>
+  )
+}
 
 function safeURL(raw?: string) {
   if (!raw) return ""
@@ -220,7 +267,7 @@ export function DetailPage() {
           </CardHeader>
           <CardContent>
             <Textarea
-              className="min-h-40 border-transparent bg-transparent px-0 shadow-none focus-visible:border-transparent focus-visible:ring-1 focus-visible:ring-border"
+              className="min-h-40 rounded-lg border-transparent bg-transparent px-3 py-3 shadow-none focus-visible:border-transparent focus-visible:ring-1 focus-visible:ring-border"
               placeholder="Anything worth remembering about this one…"
               value={createNotes}
               onChange={(e) => setCreateNotes(e.target.value)}
@@ -269,12 +316,7 @@ export function DetailPage() {
           </div>
         </div>
         <div className="flex items-center gap-1">
-          <Badge
-            variant="secondary"
-            className={statusTone(application.status) === "win" ? "bg-brand-gold text-[#141615]" : undefined}
-          >
-            {label(application.status)}
-          </Badge>
+          <StatusEditor value={application.status} disabled={!writable} onSave={(v) => saveField({ status: v })} />
           {application.archived_at && <Badge variant="outline">Archived</Badge>}
           {application.status === "awaiting_review" &&
             (can("approve") ? (
@@ -360,19 +402,8 @@ export function DetailPage() {
               onSave={(v) => saveField({ fit: v })}
             />
           </div>
-          <Field label="Source" value={application.source} />
+          <Field label="Source" value={sourceLabel(application.source) || application.source} />
           <Field label="Applied" value={application.applied_date} />
-          <div className="flex flex-col gap-0.5">
-            <span className="text-xs text-muted-foreground">Status</span>
-            <InlineSelect
-              value={application.status}
-              display={label(application.status)}
-              options={STATUS_OPTIONS}
-              disabled={!writable}
-              className="text-sm"
-              onSave={(v) => saveField({ status: v })}
-            />
-          </div>
           <div className="col-span-2 flex flex-col gap-0.5 sm:col-span-3">
             <span className="text-xs text-muted-foreground">Posting URL</span>
             <div className="flex items-center gap-1.5">
@@ -452,7 +483,7 @@ export function DetailPage() {
         </CardHeader>
         <CardContent className="flex flex-col gap-2">
           <Textarea
-            className="min-h-40 border-transparent bg-transparent px-0 shadow-none focus-visible:border-transparent focus-visible:ring-1 focus-visible:ring-border"
+            className="min-h-40 rounded-lg border-transparent bg-transparent px-3 py-3 shadow-none focus-visible:border-transparent focus-visible:ring-1 focus-visible:ring-border"
             placeholder="Anything worth remembering about this one…"
             value={notesDraft}
             onChange={(e) => setNotesDraft(e.target.value)}

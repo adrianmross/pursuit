@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react"
+import { cn } from "cn"
 import { Input } from "@/components/ui/input"
 import {
   Select,
@@ -59,7 +60,11 @@ export function InlineText({
   return (
     <button
       type="button"
-      className={`-mx-1 rounded px-1 text-left hover:bg-muted/60 ${className}`}
+      className={cn(
+        "w-full rounded-lg border border-transparent px-2.5 py-1 text-left transition-colors hover:border-input hover:bg-muted/40",
+        className,
+        inputClassName,
+      )}
       onClick={() => setEditing(true)}
     >
       {value || <span className="text-muted-foreground">{placeholder}</span>}
@@ -114,7 +119,10 @@ export function InlineSelect({
   return (
     <button
       type="button"
-      className={`-mx-1 rounded px-1 text-left hover:bg-muted/60 ${className}`}
+      className={cn(
+        "h-7 w-full rounded-lg border border-transparent px-2.5 text-left transition-colors hover:border-input hover:bg-muted/40",
+        className,
+      )}
       onClick={() => setEditing(true)}
     >
       {display}

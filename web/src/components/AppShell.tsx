@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react"
 import { NavLink, Outlet, useLocation, useNavigate, useSearchParams } from "react-router-dom"
-import { LogOut, MoreVertical, Search, Settings, User } from "lucide-react"
+import { Archive, LogOut, MoreVertical, Search, Settings, User } from "lucide-react"
 import { useAuth } from "@/lib/auth"
 import { CommandPalette } from "@/components/CommandPalette"
 import { SettingsSheet } from "@/components/SettingsSheet"
@@ -52,6 +52,7 @@ function GlobalSearch() {
 
 export function AppShell() {
   const { me, signOut } = useAuth()
+  const navigate = useNavigate()
   const [settingsOpen, setSettingsOpen] = useState(false)
   const identity = me?.token.name || "token"
   const scopes = (me?.token.scopes || []).join(", ")
@@ -82,6 +83,9 @@ export function AppShell() {
                 </span>
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => navigate("/?archived=1")}>
+                <Archive /> View archived
+              </DropdownMenuItem>
               <DropdownMenuItem onClick={() => setSettingsOpen(true)}>
                 <Settings /> Settings
               </DropdownMenuItem>
