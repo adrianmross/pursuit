@@ -90,6 +90,12 @@ func (c *Client) Check(ctx context.Context, raw string) Result {
 	if site, id, ok := leverRef(raw); ok {
 		return c.checkLever(ctx, site, id, out)
 	}
+	if host, tenant, site, jobPath, ok := workdayRef(raw); ok {
+		return c.checkWorkday(ctx, host, tenant, site, jobPath, out)
+	}
+	if isLinkedIn(raw) {
+		return c.checkLinkedIn(ctx, raw, out)
+	}
 	return c.checkHTTP(ctx, raw, "", out)
 }
 
@@ -187,6 +193,73 @@ func (c *Client) checkLever(ctx context.Context, site, id string, out Result) Re
 	}
 	out.Detail = "lever api status " + http.StatusText(status)
 	return out
+}
+
+// checkWorkday uses the public CXS endpoint Workday-hosted career sites
+// serve the job detail page from (no auth required). Falls back to the
+// generic HTTP check if the response doesn't look like job JSON, the same
+// way checkGreenhouse does.
+func (c *Client) checkWorkday(ctx context.Context, host, tenant, site, jobPath string, out Result) Result {
+	api := "https://" + host + "/wday/cxs/" + tenant + "/" + site + "/" + jobPath
+	status, final, body, err := c.get(ctx, api)
+	out.HTTPStatus = status
+	if err != nil {
+		out.Detail = "workday cxs api: " + err.Error()
+		return out
+	}
+	if status == http.StatusNotFound || status == http.StatusGone {
+		out.Status = domain.LinkClosed
+		out.Detail = "workday cxs api returned " + http.StatusText(status)
+		return out
+	}
+	if status >= 200 && status < 300 {
+		var payload struct {
+			JobPostingInfo struct {
+				Title string `json:"title"`
+			} `json:"jobPostingInfo"`
+		}
+		_ = json.Unmarshal(body, &payload)
+		if payload.JobPostingInfo.Title == "" {
+			return c.checkHTTP(ctx, "", final, out)
+		}
+		out.Status = domain.LinkLive
+		out.Detail = "workday cxs api lists this job"
+		return out
+	}
+	out.Detail = "workday cxs api status " + http.StatusText(status)
+	return out
+}
+
+var linkedinClosedPhrases = []string{
+	"no longer accepting applications",
+	"this job is no longer available",
+	"this job is no longer accepting applications",
+}
+
+// checkLinkedIn falls back to the generic HTTP check (LinkedIn has no public
+// unauthenticated job-status API) but treats an anonymous-view login wall as
+// LinkUnknown instead of guessing live or closed from a page with no job
+// content, and recognizes LinkedIn's specific closed-posting phrasing.
+func (c *Client) checkLinkedIn(ctx context.Context, raw string, out Result) Result {
+	status, final, body, err := c.get(ctx, raw)
+	out.HTTPStatus = status
+	if err != nil {
+		out.Detail = "linkedin: " + err.Error()
+		return out
+	}
+	text := strings.ToLower(string(body))
+	if strings.Contains(text, "authwall") || strings.Contains(text, "join now to see") {
+		out.Detail = "linkedin requires sign-in to view this posting"
+		return out
+	}
+	for _, phrase := range linkedinClosedPhrases {
+		if strings.Contains(text, phrase) {
+			out.Status = domain.LinkClosed
+			out.Detail = "page says " + phrase
+			return out
+		}
+	}
+	return c.checkHTTP(ctx, "", final, out)
 }
 
 func (c *Client) checkHTTP(ctx context.Context, raw, already string, out Result) Result {
@@ -334,6 +407,37 @@ func leverRef(raw string) (site, id string, ok bool) {
 		return "", "", false
 	}
 	return m[1], m[2], true
+}
+
+var workdayPath = regexp.MustCompile(`(?i)^/(?:[a-z]{2}-[A-Z]{2}/)?([^/]+)/(job/.+)$`)
+
+// workdayRef parses a Workday-hosted career site URL, e.g.
+// https://databricks.wd1.myworkdayjobs.com/en-US/databricks/job/San-Francisco-CA/Software-Engineer_R12345
+// tenant is the first host label; site and jobPath come from the URL path.
+func workdayRef(raw string) (host, tenant, site, jobPath string, ok bool) {
+	u, err := url.Parse(raw)
+	if err != nil || !strings.Contains(strings.ToLower(u.Host), "myworkdayjobs.com") {
+		return "", "", "", "", false
+	}
+	m := workdayPath.FindStringSubmatch(u.Path)
+	if m == nil {
+		return "", "", "", "", false
+	}
+	host = strings.ToLower(u.Host)
+	tenant = strings.SplitN(host, ".", 2)[0]
+	if tenant == "" {
+		return "", "", "", "", false
+	}
+	return host, tenant, m[1], m[2], true
+}
+
+func isLinkedIn(raw string) bool {
+	u, err := url.Parse(raw)
+	if err != nil {
+		return false
+	}
+	host := strings.ToLower(u.Host)
+	return strings.Contains(host, "linkedin.com") && strings.Contains(u.Path, "/jobs/")
 }
 
 func redirectedToBoardRoot(original, final string) bool {
