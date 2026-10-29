@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { CommandBlock } from "@/components/CommandBlock"
 
 function AccountSignIn() {
   const { signIn, error } = useAuth()
@@ -140,10 +141,11 @@ function TokenSignIn() {
     <Card>
       <CardHeader>
         <CardTitle className="text-base">Or paste an API token</CardTitle>
-        <CardDescription>From `pursuit serve`'s bootstrap log, or issued with `pursuit tokens create`.</CardDescription>
+        <CardDescription>From the daemon's bootstrap log, or issued on demand.</CardDescription>
       </CardHeader>
-      <CardContent className="pt-0">
-        {(localError || error) && <p className="mb-3 text-sm text-destructive">{localError || error}</p>}
+      <CardContent className="flex flex-col gap-4 pt-0">
+        <CommandBlock command={"pursuit serve\npursuit tokens create"} />
+        {(localError || error) && <p className="text-sm text-destructive">{localError || error}</p>}
         <form onSubmit={onSubmit} className="flex flex-col gap-4">
           <div className="flex flex-col gap-2">
             <Label htmlFor="token">API token</Label>
@@ -178,7 +180,7 @@ export function SignIn() {
     <div className="flex min-h-svh items-center justify-center bg-brand-forest p-4">
       <div className="flex w-full max-w-md flex-col gap-4">
         <div className="flex flex-col items-center gap-3 pb-2 text-center">
-          <img src="/brand/pursuit-wordmark-reverse.svg" alt="Pursuit" className="h-8 w-auto" />
+          <img src="/brand/hire-pursuit-wordmark-reverse.svg" alt="Hire Pursuit" className="h-8 w-auto" />
           <p className="text-sm text-brand-cream/80">A job application tracker you drive from the CLI or from here.</p>
         </div>
         {authClient && <AccountSignIn />}

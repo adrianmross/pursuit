@@ -31,6 +31,7 @@ import {
   sourceLabel,
   statusCategory,
   statusesInCategory,
+  statusPieces,
   type Application,
   type CustomField,
   type Page,
@@ -40,6 +41,7 @@ import {
 import { CompanyAvatar } from "@/components/CompanyAvatar"
 import { ConfirmDialog } from "@/components/ConfirmDialog"
 import { PreparedAnswers } from "@/components/PreparedAnswers"
+import { ProgressMark } from "@/components/ProgressMark"
 import { StatusBadge } from "@/components/StatusBadge"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -140,7 +142,7 @@ function LinkBadge({ status }: { status?: string }) {
         <span
           role="img"
           aria-label={text}
-          className={`inline-block size-2.5 rounded-full ${dead ? "bg-destructive" : live ? "bg-emerald-500" : "bg-muted-foreground/40"}`}
+          className={`inline-block size-2.5 rounded-full ${dead ? "bg-destructive" : "bg-muted-foreground/40"}`}
         />
       </TooltipTrigger>
       <TooltipContent>{text}</TooltipContent>
@@ -842,6 +844,7 @@ export function PipelinePage() {
                     </TableCell>
                     <TableCell className="font-medium">
                       <span className="flex items-center gap-2">
+                        <ProgressMark pieces={statusPieces(row.status)} size={20} />
                         <CompanyAvatar company={row.company} companyId={row.company_id} />
                         {row.company || "—"}
                       </span>
