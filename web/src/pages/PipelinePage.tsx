@@ -44,10 +44,43 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { Slider } from "@/components/ui/slider"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 
 const PRIMARY_STATUSES = FILTERS.filter(([value]) => value)
+// "All" sits at position 0 on the slider, then each primary status in order.
+const SLIDER_POSITIONS: [string, string][] = [["", "All"], ...PRIMARY_STATUSES]
+
+function StatusSlider({ status, onChange }: { status: string; onChange: (value: string) => void }) {
+  const index = Math.max(
+    0,
+    SLIDER_POSITIONS.findIndex(([value]) => value === status),
+  )
+  return (
+    <div className="flex flex-col gap-3 px-1">
+      <Slider
+        min={0}
+        max={SLIDER_POSITIONS.length - 1}
+        step={1}
+        value={[index]}
+        onValueChange={([next]) => onChange(SLIDER_POSITIONS[next]![0])}
+      />
+      <div className="flex justify-between">
+        {SLIDER_POSITIONS.map(([value, text], i) => (
+          <button
+            key={value || "all"}
+            type="button"
+            onClick={() => onChange(value)}
+            className={`text-[11px] leading-tight ${i === index ? "font-medium text-foreground" : "text-muted-foreground"}`}
+          >
+            {text}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
 
 function safeURL(raw?: string) {
   if (!raw) return ""
@@ -155,19 +188,7 @@ function FilterSortBar({
                 </button>
               )}
             </div>
-            <div className="flex flex-wrap gap-1.5">
-              {PRIMARY_STATUSES.map(([value, text]) => (
-                <Button
-                  key={value}
-                  size="sm"
-                  variant={status === value ? "default" : "outline"}
-                  className="h-7 text-xs"
-                  onClick={() => toggleStatus(value)}
-                >
-                  {text}
-                </Button>
-              ))}
-            </div>
+            <StatusSlider status={status} onChange={(value) => onPatch({ status: value })} />
             <Collapsible open={moreOpen} onOpenChange={setMoreOpen}>
               <CollapsibleTrigger className="mt-1 text-xs text-muted-foreground underline">
                 {moreOpen ? "Fewer statuses" : "More statuses"}
