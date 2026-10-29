@@ -62,6 +62,16 @@ export type Event = {
   body?: string
 }
 
+export type Audit = {
+  id: string
+  actor_name?: string
+  action: string
+  entity_type: string
+  entity_id: string
+  summary: string
+  created_at: string
+}
+
 export const FILTERS: [string, string][] = [
   ["", "All"],
   ["to_apply", "To apply"],
