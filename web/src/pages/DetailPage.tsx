@@ -1,12 +1,13 @@
 import { useEffect, useState } from "react"
 import { Link, useNavigate, useParams } from "react-router-dom"
-import { Archive, ChevronDown, ExternalLink, Pencil, RefreshCw, Trash2 } from "lucide-react"
+import { ArrowLeft, Check, ChevronDown, ExternalLink, MoreHorizontal, RefreshCw, X } from "lucide-react"
 import { api, ApiError } from "@/lib/api"
 import { useAuth } from "@/lib/auth"
 import { label, type Application, type Artifact, type Event, type Page, type Question } from "@/lib/types"
 import { CompanyAvatar } from "@/components/CompanyAvatar"
-import { ApplicationDialog } from "@/components/ApplicationDialog"
+import { AttributesForm, EMPTY_ATTRIBUTES, FIT_OPTIONS, STATUS_OPTIONS, type AttributesFormState } from "@/components/AttributesForm"
 import { ConfirmDialog } from "@/components/ConfirmDialog"
+import { InlineSelect, InlineText } from "@/components/InlineEdit"
 import { PreparedAnswers } from "@/components/PreparedAnswers"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -24,7 +25,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { Textarea } from "@/components/ui/textarea"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 
 function safeURL(raw?: string) {
   if (!raw) return ""
@@ -45,18 +53,9 @@ function fmt(value?: string) {
   return date.toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })
 }
 
-function Field({ label: name, value }: { label: string; value?: string | null }) {
-  if (!value) return null
-  return (
-    <div className="flex flex-col gap-0.5">
-      <span className="text-xs text-muted-foreground">{name}</span>
-      <span className="text-sm">{value}</span>
-    </div>
-  )
-}
-
 export function DetailPage() {
   const { id = "" } = useParams()
+  const isNew = id === "new"
   const navigate = useNavigate()
   const { can } = useAuth()
   const [application, setApplication] = useState<Application | null>(null)
@@ -67,11 +66,19 @@ export function DetailPage() {
   const [decision, setDecision] = useState<"approve" | "reject" | null>(null)
   const [note, setNote] = useState("")
   const [recheckBusy, setRecheckBusy] = useState(false)
-  const [editing, setEditing] = useState(false)
   const [deleting, setDeleting] = useState(false)
-  const [archiveBusy, setArchiveBusy] = useState(false)
+  const [fieldError, setFieldError] = useState<string | null>(null)
+
+  const [createAttrs, setCreateAttrs] = useState<AttributesFormState>(EMPTY_ATTRIBUTES)
+  const [createNotes, setCreateNotes] = useState("")
+  const [createBusy, setCreateBusy] = useState(false)
+  const [createError, setCreateError] = useState<string | null>(null)
+
+  const [notesDraft, setNotesDraft] = useState("")
+  const [notesBusy, setNotesBusy] = useState(false)
 
   async function load() {
+    if (isNew) return
     try {
       const [app, eventsPage, artifactsPage, questionsPage] = await Promise.all([
         api<Application>(`/v1/applications/${encodeURIComponent(id)}`),
@@ -80,6 +87,7 @@ export function DetailPage() {
         api<Page<Question>>(`/v1/applications/${encodeURIComponent(id)}/questions`),
       ])
       setApplication(app)
+      setNotesDraft(app.notes || "")
       setEvents(eventsPage.data || [])
       setArtifacts(artifactsPage.data || [])
       setQuestions(questionsPage.data || [])
@@ -94,10 +102,25 @@ export function DetailPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id])
 
+  async function saveField(patch: Record<string, string>) {
+    if (!application) return
+    setFieldError(null)
+    try {
+      const updated = await api<Application>(`/v1/applications/${encodeURIComponent(application.id)}`, {
+        method: "PATCH",
+        body: { version: application.version, ...patch },
+      })
+      setApplication(updated)
+    } catch (err) {
+      setFieldError(err instanceof ApiError ? err.message : "Failed to save")
+    }
+  }
+
   async function recheckLink() {
+    if (!application) return
     setRecheckBusy(true)
     try {
-      await api(`/v1/applications/${encodeURIComponent(id)}/check-link`, { method: "POST", body: {} })
+      await api(`/v1/applications/${encodeURIComponent(application.id)}/check-link`, { method: "POST", body: {} })
       await load()
     } finally {
       setRecheckBusy(false)
@@ -106,16 +129,11 @@ export function DetailPage() {
 
   async function archive() {
     if (!application) return
-    setArchiveBusy(true)
-    try {
-      await api(`/v1/applications/${encodeURIComponent(application.id)}`, {
-        method: "PATCH",
-        body: { version: application.version, status: "withdrawn" },
-      })
-      await load()
-    } finally {
-      setArchiveBusy(false)
-    }
+    await api(`/v1/applications/${encodeURIComponent(application.id)}`, {
+      method: "PATCH",
+      body: { version: application.version, status: "withdrawn" },
+    })
+    await load()
   }
 
   async function confirmDecision() {
@@ -129,93 +147,236 @@ export function DetailPage() {
     await load()
   }
 
+  async function saveNotes() {
+    if (!application) return
+    setNotesBusy(true)
+    try {
+      const updated = await api<Application>(`/v1/applications/${encodeURIComponent(application.id)}`, {
+        method: "PATCH",
+        body: { version: application.version, notes: notesDraft },
+      })
+      setApplication(updated)
+    } finally {
+      setNotesBusy(false)
+    }
+  }
+
+  async function createApplication() {
+    setCreateBusy(true)
+    setCreateError(null)
+    try {
+      const created = await api<Application>("/v1/applications", {
+        method: "POST",
+        body: { ...createAttrs, notes: createNotes },
+      })
+      navigate(`/app/${encodeURIComponent(created.id)}`, { replace: true })
+    } catch (err) {
+      setCreateError(err instanceof ApiError ? err.message : "Failed to save")
+    } finally {
+      setCreateBusy(false)
+    }
+  }
+
+  if (isNew) {
+    return (
+      <div className="mx-auto flex max-w-3xl flex-col gap-4">
+        <Link to="/" aria-label="Back to pipeline" className="text-muted-foreground hover:text-foreground">
+          <ArrowLeft className="size-4" />
+        </Link>
+        <h1 className="text-xl font-semibold">Add application</h1>
+        <Card>
+          <CardContent className="pt-6">
+            <AttributesForm value={createAttrs} onChange={setCreateAttrs} showCompany />
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Notes</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Textarea
+              className="min-h-40 border-transparent bg-transparent px-0 shadow-none focus-visible:border-transparent focus-visible:ring-1 focus-visible:ring-border"
+              placeholder="Anything worth remembering about this one…"
+              value={createNotes}
+              onChange={(e) => setCreateNotes(e.target.value)}
+            />
+          </CardContent>
+        </Card>
+        {createError && <p className="text-sm text-destructive">{createError}</p>}
+        <div className="flex gap-2">
+          <Button onClick={createApplication} disabled={createBusy || !createAttrs.company.trim()}>
+            Add application
+          </Button>
+          <Button variant="outline" onClick={() => navigate("/")}>
+            Cancel
+          </Button>
+        </div>
+      </div>
+    )
+  }
+
   if (error) return <p className="text-sm text-destructive">{error}</p>
   if (!application) return <p className="text-sm text-muted-foreground">Loading…</p>
 
   const posting = safeURL(application.posting_url)
+  const notesDirty = notesDraft !== (application.notes || "")
+  const writable = can("write")
 
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-4">
-      <Link to="/" className="text-sm text-muted-foreground hover:text-foreground">
-        ← Pipeline
+      <Link to="/" aria-label="Back to pipeline" className="text-muted-foreground hover:text-foreground">
+        <ArrowLeft className="size-4" />
       </Link>
 
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex items-start gap-3">
           <CompanyAvatar company={application.company} className="mt-1 size-9 text-sm" />
           <div>
-            <h1 className="text-xl font-semibold">{application.title || "Untitled"}</h1>
+            <InlineText
+              value={application.title || ""}
+              placeholder="Untitled"
+              disabled={!writable}
+              className="text-xl font-semibold"
+              inputClassName="h-9 text-xl font-semibold"
+              onSave={(v) => saveField({ title: v })}
+            />
             <p className="text-sm text-muted-foreground">{application.company || "Unknown company"}</p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1">
           <Badge variant="outline">{label(application.status)}</Badge>
           {application.status === "awaiting_review" &&
             (can("approve") ? (
               <>
-                <Button size="sm" onClick={() => setDecision("approve")}>
-                  Approve
-                </Button>
-                <Button size="sm" variant="destructive" onClick={() => setDecision("reject")}>
-                  Reject
-                </Button>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button variant="ghost" size="icon" aria-label="Approve" onClick={() => setDecision("approve")}>
+                      <Check className="size-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Approve</TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      aria-label="Reject"
+                      className="text-destructive hover:text-destructive"
+                      onClick={() => setDecision("reject")}
+                    >
+                      <X className="size-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Reject</TooltipContent>
+                </Tooltip>
               </>
             ) : (
               <span className="text-sm text-muted-foreground">Approve needs the approve scope.</span>
             ))}
-          {can("write") && (
-            <>
-              <Button size="sm" variant="outline" onClick={() => setEditing(true)}>
-                <Pencil /> Edit
-              </Button>
-              {application.status !== "withdrawn" && (
-                <Button size="sm" variant="outline" onClick={archive} disabled={archiveBusy}>
-                  <Archive /> Archive
+          {writable && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" aria-label="More actions">
+                  <MoreHorizontal className="size-4" />
                 </Button>
-              )}
-              <Button size="sm" variant="outline" onClick={() => setDeleting(true)}>
-                <Trash2 /> Delete
-              </Button>
-            </>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                {application.status !== "withdrawn" && <DropdownMenuItem onClick={archive}>Archive</DropdownMenuItem>}
+                <DropdownMenuItem onClick={() => setDeleting(true)} variant="destructive">
+                  Delete
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           )}
         </div>
       </div>
 
       <Card>
         <CardContent className="grid grid-cols-2 gap-4 pt-6 sm:grid-cols-3">
-          <Field label="Location" value={application.location} />
-          <Field label="Salary" value={application.salary} />
-          <Field label="Fit" value={application.fit} />
+          <div className="flex flex-col gap-0.5">
+            <span className="text-xs text-muted-foreground">Location</span>
+            <InlineText
+              value={application.location || ""}
+              disabled={!writable}
+              className="text-sm"
+              inputClassName="h-7 text-sm"
+              onSave={(v) => saveField({ location: v })}
+            />
+          </div>
+          <div className="flex flex-col gap-0.5">
+            <span className="text-xs text-muted-foreground">Salary</span>
+            <InlineText
+              value={application.salary || ""}
+              disabled={!writable}
+              className="text-sm"
+              inputClassName="h-7 text-sm"
+              onSave={(v) => saveField({ salary: v })}
+            />
+          </div>
+          <div className="flex flex-col gap-0.5">
+            <span className="text-xs text-muted-foreground">Fit</span>
+            <InlineSelect
+              value={application.fit || ""}
+              display={application.fit || "—"}
+              options={FIT_OPTIONS.map((f) => [f, f] as [string, string])}
+              disabled={!writable}
+              className="text-sm"
+              onSave={(v) => saveField({ fit: v })}
+            />
+          </div>
           <Field label="Source" value={application.source} />
           <Field label="Applied" value={application.applied_date} />
           <div className="flex flex-col gap-0.5">
-            <span className="text-xs text-muted-foreground">Posting</span>
-            <span className="flex items-center gap-1.5">
-              {posting ? (
-                <a
-                  href={posting}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-1 text-sm hover:underline"
-                >
-                  <ExternalLink className="size-3.5" /> Open posting
-                </a>
-              ) : (
-                <span className="text-sm text-muted-foreground">No link</span>
+            <span className="text-xs text-muted-foreground">Status</span>
+            <InlineSelect
+              value={application.status}
+              display={label(application.status)}
+              options={STATUS_OPTIONS}
+              disabled={!writable}
+              className="text-sm"
+              onSave={(v) => saveField({ status: v })}
+            />
+          </div>
+          <div className="col-span-2 flex flex-col gap-0.5 sm:col-span-3">
+            <span className="text-xs text-muted-foreground">Posting URL</span>
+            <div className="flex items-center gap-1.5">
+              <InlineText
+                value={application.posting_url || ""}
+                placeholder="No link"
+                disabled={!writable}
+                className="text-sm"
+                inputClassName="h-7 flex-1 text-sm"
+                onSave={(v) => saveField({ posting_url: v })}
+              />
+              {posting && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <a href={posting} target="_blank" rel="noopener noreferrer" aria-label="Open posting">
+                      <ExternalLink className="size-3.5 text-muted-foreground hover:text-foreground" />
+                    </a>
+                  </TooltipTrigger>
+                  <TooltipContent>Open posting</TooltipContent>
+                </Tooltip>
               )}
-              {can("write") && (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="size-6"
-                  aria-label="Re-check link"
-                  onClick={recheckLink}
-                  disabled={recheckBusy}
-                >
-                  <RefreshCw className="size-3.5" />
-                </Button>
+              {writable && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="size-6"
+                      aria-label="Re-check link"
+                      onClick={recheckLink}
+                      disabled={recheckBusy}
+                    >
+                      <RefreshCw className={`size-3.5 ${recheckBusy ? "animate-spin" : ""}`} />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Re-check link</TooltipContent>
+                </Tooltip>
               )}
-            </span>
+            </div>
           </div>
           {application.next_step && (
             <div className="col-span-2 flex flex-col gap-0.5 sm:col-span-3">
@@ -232,19 +393,36 @@ export function DetailPage() {
               ))}
             </div>
           )}
+          {fieldError && (
+            <p className="col-span-2 text-sm text-destructive sm:col-span-3">{fieldError}</p>
+          )}
         </CardContent>
       </Card>
 
-      {application.notes && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Notes</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm">{application.notes}</p>
-          </CardContent>
-        </Card>
-      )}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Notes</CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-2">
+          <Textarea
+            className="min-h-40 border-transparent bg-transparent px-0 shadow-none focus-visible:border-transparent focus-visible:ring-1 focus-visible:ring-border"
+            placeholder="Anything worth remembering about this one…"
+            value={notesDraft}
+            onChange={(e) => setNotesDraft(e.target.value)}
+            disabled={!writable}
+          />
+          {notesDirty && writable && (
+            <div className="flex gap-2">
+              <Button size="sm" onClick={saveNotes} disabled={notesBusy}>
+                Save notes
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => setNotesDraft(application.notes || "")}>
+                Discard
+              </Button>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {questions.length > 0 && (
         <Card>
@@ -329,7 +507,6 @@ export function DetailPage() {
         </DialogContent>
       </Dialog>
 
-      <ApplicationDialog open={editing} onOpenChange={setEditing} application={application} onSaved={() => load()} />
       <ConfirmDialog
         open={deleting}
         onOpenChange={setDeleting}
@@ -342,6 +519,16 @@ export function DetailPage() {
           navigate("/")
         }}
       />
+    </div>
+  )
+}
+
+function Field({ label: name, value }: { label: string; value?: string | null }) {
+  if (!value) return null
+  return (
+    <div className="flex flex-col gap-0.5">
+      <span className="text-xs text-muted-foreground">{name}</span>
+      <span className="text-sm">{value}</span>
     </div>
   )
 }
