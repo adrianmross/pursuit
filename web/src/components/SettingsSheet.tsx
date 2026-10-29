@@ -1,7 +1,12 @@
 import { useState } from "react"
 import { FILTERS, MORE, SORTS } from "@/lib/types"
 import { getDefaultSort, getDefaultStatus, setDefaultSort, setDefaultStatus } from "@/lib/settings"
+import { useTheme } from "@/lib/theme"
 import { Label } from "@/components/ui/label"
+import {
+  ToggleGroup,
+  ToggleGroupItem,
+} from "@/components/ui/toggle-group"
 import {
   Select,
   SelectContent,
@@ -20,6 +25,7 @@ import {
 const STATUSES = FILTERS.concat(MORE)
 
 export function SettingsSheet({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
+  const { theme, setTheme } = useTheme()
   const [status, setStatus] = useState(getDefaultStatus())
   const [sort, setSort] = useState(getDefaultSort())
 
@@ -28,9 +34,28 @@ export function SettingsSheet({ open, onOpenChange }: { open: boolean; onOpenCha
       <SheetContent>
         <SheetHeader>
           <SheetTitle>Settings</SheetTitle>
-          <SheetDescription>Defaults applied the next time you open the pipeline with no filters set.</SheetDescription>
+          <SheetDescription>Appearance, and the defaults applied when the pipeline opens with no filters set.</SheetDescription>
         </SheetHeader>
         <div className="flex flex-col gap-4 px-4">
+          <div className="flex flex-col gap-2">
+            <Label>Appearance</Label>
+            <ToggleGroup
+              type="single"
+              variant="outline"
+              value={theme}
+              onValueChange={(value) => value && setTheme(value as "light" | "dark" | "system")}
+            >
+              <ToggleGroupItem value="light" className="flex-1">
+                Light
+              </ToggleGroupItem>
+              <ToggleGroupItem value="dark" className="flex-1">
+                Dark
+              </ToggleGroupItem>
+              <ToggleGroupItem value="system" className="flex-1">
+                System
+              </ToggleGroupItem>
+            </ToggleGroup>
+          </div>
           <div className="flex flex-col gap-2">
             <Label>Default status filter</Label>
             <Select
