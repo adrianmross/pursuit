@@ -7,19 +7,108 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { CommandBlock } from "@/components/CommandBlock"
+import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp"
+
+function VerifyStep({
+  email,
+  password,
+  onBack,
+  onVerified,
+}: {
+  email: string
+  password: string
+  onBack: () => void
+  onVerified: () => Promise<void>
+}) {
+  const [otp, setOtp] = useState("")
+  const [verifying, setVerifying] = useState(false)
+  const [resending, setResending] = useState(false)
+  const [localError, setLocalError] = useState<string | null>(null)
+
+  async function sendCode() {
+    if (!authClient) return
+    setLocalError(null)
+    const { error: sendError } = await authClient.emailOtp.sendVerificationOtp({ email, type: "email-verification" })
+    if (sendError) setLocalError(sendError.message || "Could not send the code")
+  }
+
+  useEffect(() => {
+    void sendCode()
+  }, [])
+
+  async function onResend() {
+    setResending(true)
+    await sendCode()
+    setResending(false)
+  }
+
+  async function onSubmit(event: FormEvent) {
+    event.preventDefault()
+    if (!authClient) return
+    setVerifying(true)
+    setLocalError(null)
+    try {
+      const { error: verifyError } = await authClient.emailOtp.verifyEmail({ email, otp })
+      if (verifyError) throw new Error(verifyError.message || "That code didn't work")
+      // Verifying the code doesn't itself start a session -- sign in again
+      // now that the email is confirmed.
+      const result = await authClient.signIn.email({ email, password })
+      if (result.error) throw new Error(result.error.message || "Sign-in failed")
+      await onVerified()
+    } catch (err) {
+      setLocalError(err instanceof Error ? err.message : "That code didn't work")
+    } finally {
+      setVerifying(false)
+    }
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">Enter verification code</CardTitle>
+        <CardDescription>Sent to {email}</CardDescription>
+      </CardHeader>
+      <CardContent className="pt-0">
+        {localError && <p className="mb-3 text-sm text-destructive">{localError}</p>}
+        <form onSubmit={onSubmit} className="flex flex-col items-center gap-4">
+          <InputOTP maxLength={6} value={otp} onChange={setOtp} autoFocus>
+            <InputOTPGroup>
+              {Array.from({ length: 6 }, (_, i) => (
+                <InputOTPSlot key={i} index={i} />
+              ))}
+            </InputOTPGroup>
+          </InputOTP>
+          <div className="flex w-full gap-2">
+            <Button type="button" variant="outline" onClick={onBack} className="flex-1">
+              Back
+            </Button>
+            <Button type="submit" disabled={verifying || otp.length < 6} className="flex-1">
+              {verifying ? "Verifying…" : "Verify"}
+            </Button>
+          </div>
+          <button
+            type="button"
+            className="text-sm text-muted-foreground underline-offset-4 hover:underline disabled:opacity-50"
+            disabled={resending}
+            onClick={onResend}
+          >
+            {resending ? "Sending…" : "Resend code"}
+          </button>
+        </form>
+      </CardContent>
+    </Card>
+  )
+}
 
 function AccountSignIn() {
   const { signIn, error } = useAuth()
+  const [step, setStep] = useState<"credentials" | "verify">("credentials")
   const [mode, setMode] = useState<"sign-in" | "sign-up">("sign-in")
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [name, setName] = useState("")
   const [submitting, setSubmitting] = useState(false)
   const [localError, setLocalError] = useState<string | null>(null)
-  const [needsVerification, setNeedsVerification] = useState(false)
-  const [otpSent, setOtpSent] = useState(false)
-  const [otp, setOtp] = useState("")
-  const [verifying, setVerifying] = useState(false)
 
   async function finishSignIn() {
     if (!authClient) return
@@ -33,7 +122,6 @@ function AccountSignIn() {
     if (!authClient) return
     setSubmitting(true)
     setLocalError(null)
-    setNeedsVerification(false)
     try {
       const result =
         mode === "sign-up"
@@ -42,7 +130,8 @@ function AccountSignIn() {
       if (result.error) {
         const message = result.error.message || "Sign-in failed"
         if (/verif/i.test(message) || result.error.code === "EMAIL_NOT_VERIFIED") {
-          setNeedsVerification(true)
+          setStep("verify")
+          return
         }
         throw new Error(message)
       }
@@ -54,36 +143,15 @@ function AccountSignIn() {
     }
   }
 
-  async function onSendCode() {
-    if (!authClient || !email) return
-    setLocalError(null)
-    try {
-      const { error: sendError } = await authClient.emailOtp.sendVerificationOtp({ email, type: "email-verification" })
-      if (sendError) throw new Error(sendError.message || "Could not send the code")
-      setOtpSent(true)
-    } catch (err) {
-      setLocalError(err instanceof Error ? err.message : "Could not send the code")
-    }
-  }
-
-  async function onVerifyCode(event: FormEvent) {
-    event.preventDefault()
-    if (!authClient) return
-    setVerifying(true)
-    setLocalError(null)
-    try {
-      const { error: verifyError } = await authClient.emailOtp.verifyEmail({ email, otp })
-      if (verifyError) throw new Error(verifyError.message || "That code didn't work")
-      // Verifying the code doesn't itself start a session -- sign in again
-      // now that the email is confirmed.
-      const result = await authClient.signIn.email({ email, password })
-      if (result.error) throw new Error(result.error.message || "Sign-in failed")
-      await finishSignIn()
-    } catch (err) {
-      setLocalError(err instanceof Error ? err.message : "That code didn't work")
-    } finally {
-      setVerifying(false)
-    }
+  if (step === "verify") {
+    return (
+      <VerifyStep
+        email={email}
+        password={password}
+        onBack={() => setStep("credentials")}
+        onVerified={finishSignIn}
+      />
+    )
   }
 
   return (
@@ -93,36 +161,6 @@ function AccountSignIn() {
       </CardHeader>
       <CardContent className="pt-0">
         {(localError || error) && <p className="mb-3 text-sm text-destructive">{localError || error}</p>}
-        {needsVerification && !otpSent && (
-          <div className="mb-3 flex flex-col gap-2 text-sm">
-            <p className="text-muted-foreground">This email needs to be verified first.</p>
-            <Button type="button" size="sm" variant="secondary" onClick={onSendCode}>
-              Send verification code
-            </Button>
-          </div>
-        )}
-        {needsVerification && otpSent && (
-          <form onSubmit={onVerifyCode} className="mb-4 flex flex-col gap-2 border-b pb-4 text-sm">
-            <Label htmlFor="otp">Code sent to {email}</Label>
-            <div className="flex gap-2">
-              <Input
-                id="otp"
-                inputMode="numeric"
-                autoComplete="one-time-code"
-                autoFocus
-                required
-                value={otp}
-                onChange={(event) => setOtp(event.target.value)}
-              />
-              <Button type="submit" size="sm" disabled={verifying}>
-                {verifying ? "Verifying…" : "Verify"}
-              </Button>
-            </div>
-            <button type="button" className="self-start text-muted-foreground underline-offset-4 hover:underline" onClick={onSendCode}>
-              Resend code
-            </button>
-          </form>
-        )}
         <form onSubmit={onSubmit} className="flex flex-col gap-4">
           {mode === "sign-up" && (
             <div className="flex flex-col gap-2">
