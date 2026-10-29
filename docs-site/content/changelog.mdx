@@ -1,0 +1,15 @@
+import { Callout } from "nextra/components"
+
+# Changelog
+
+<Callout type="warning">
+  **pursuit is pre-release.** There is no tagged version yet — everything in this docs site, the CLI and the API can change without notice.
+</Callout>
+
+Changes are tracked with [Changesets](https://github.com/changesets/changesets), run from `docs-site/`: `npm run changeset` records a dated entry describing an API/CLI-surface change, and `npm run changeset:version` rolls accumulated entries into [`CHANGELOG.md`](https://github.com/adrianmross/pursuit/blob/main/docs-site/CHANGELOG.md) the first time this project cuts an actual release.
+
+<Callout type="info">
+  No existing changelog tool of Adrian's was found to reuse (checked `~/Projects/wiz/odin-docs/scripts/odin-release.mjs` and searched for a standalone changelogger CLI). This is a standard Changesets setup as a fallback — swap it for whatever tool should replace it.
+</Callout>
+
+Until the first tagged release, treat this page as empty.

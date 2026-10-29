@@ -1,0 +1,13 @@
+---
+title: API reference
+---
+
+import { ApiReferenceViewer } from "../components/api-reference-viewer"
+
+# API reference
+
+Rendered live from the daemon's own `GET /openapi.json`. Point this at a running server with `NEXT_PUBLIC_PURSUIT_SERVER` (defaults to `http://127.0.0.1:8787`).
+
+Every CLI command in the [CLI reference](/cli) is a thin wrapper over one of these endpoints — `internal/httpapi` is the only REST adapter, and `pursuit schema <command>` prints the same flags this page shows as parameters.
+
+<ApiReferenceViewer />

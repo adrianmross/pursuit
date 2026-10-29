@@ -1,0 +1,172 @@
+import { Callout } from "nextra/components"
+
+# CLI reference
+
+Stdout is compact JSON when it is not a terminal, or with `--json`. `--text` forces a table. Errors are always JSON on stderr.
+
+Every command accepts: `--json --text --fields --dry-run --idempotency-key --server --token`
+
+- `--fields a,b` trims a response to those fields.
+- `--dry-run` runs a mutation without writing anything.
+- `--idempotency-key` replays a successful mutation instead of repeating it.
+- `pursuit schema <command>` prints that one command's flags as JSON; `pursuit schema` lists all of them.
+
+<Callout type="info">
+  This page is generated from `pursuit --help` and its subcommands. Run `pursuit schema` for the machine-readable form, or see the [API reference](/api-reference) for the HTTP equivalent of each command.
+</Callout>
+
+## Exit codes
+
+| Code | Meaning |
+| --- | --- |
+| 0 | ok |
+| 1 | other |
+| 2 | usage |
+| 3 | not found |
+| 4 | conflict |
+| 5 | auth |
+| 6 | validation |
+
+## Applications
+
+### `pursuit list`
+
+List applications. The most common read.
+
+```
+pursuit list [flags]
+
+--status         filter by status (repeatable)
+--status-not     exclude a status (repeatable)
+--company        filter by company name
+--fit            strong, reach, or maybe
+--source         greenhouse, ashby, lever, workday, company_site, other
+--tag            filter by tag
+--q              search company, title, notes, location, next step
+--stale          only postings the link checker marked closed
+--archived       list archived applications instead of the default view
+--limit          page size, 1-200, default 50
+--cursor         next_cursor from the previous page
+--sort           field or -field, default -updated_at
+```
+
+```bash
+pursuit list --stale --fields id,company,title,link_status
+```
+
+### `pursuit apps`
+
+`get`, `create`, `update`, `delete`, `transition`, `archive`, `unarchive`, `tag`, `set-field`. `pursuit apps list` is the same read as `pursuit list`.
+
+```bash
+pursuit apps list --status to_apply --fields id,company,title,status
+pursuit apps transition APP_ID --status interviewing
+pursuit apps archive APP_ID
+```
+
+### `pursuit roles` / `pursuit companies`
+
+Standard `list`, `get`, `create`, `update`, `delete` on roles and companies.
+
+## The apply pipeline
+
+Statuses move `to_apply` → `preparing` → `awaiting_review` → `approved` → `submitting` → `submitted`. A prepare can stop in `needs_input` or `failed`.
+
+### `pursuit apply`
+
+```
+pursuit apply [<id>] --prepare | --async | --batch key=value
+
+--prepare    run the one-step prepare now
+--async      enqueue the work
+--batch      filter key=value (repeatable)
+--worker     worker id for a synchronous prepare
+```
+
+```bash
+pursuit apply APP_ID --prepare
+pursuit apply --batch status=to_apply --async
+```
+
+### `pursuit queue`
+
+`claim`, `heartbeat`, `complete` — the work-stealing loop a worker agent runs.
+
+```bash
+pursuit queue claim --worker agent-1
+pursuit queue heartbeat WORK_ID --worker agent-1
+pursuit queue complete WORK_ID --worker agent-1 --status awaiting_review
+```
+
+### `pursuit approve` / `pursuit reject`
+
+The only commands that can move an application past `awaiting_review`. Both require an `approve`-scoped token.
+
+```
+pursuit approve <id> [<id>...]   --note "..."
+pursuit reject <id> [<id>...]    --note "..."
+```
+
+`approve` marks the application `approved` and enqueues submit work — **it does not submit a form**. `reject` marks an `awaiting_review` application `withdrawn` and does not enqueue anything. A write token can prepare and can finish a submit only after an approval exists.
+
+Company caps (e.g. "3 active per 180 days") apply here: exceeding a cap is a conflict (exit code 4).
+
+## Postings and links
+
+### `pursuit check-links`
+
+```
+pursuit check-links --all | pursuit check-links <application-id>
+```
+
+Re-checks that postings are still live. Prefers Greenhouse, Ashby and Lever APIs, then falls back to HTTP status and closed-posting phrase matching. Records `link_status`; never changes the pipeline `status`.
+
+### `pursuit links`
+
+```
+pursuit links [--all | --status <status> | --changed]
+
+--all        every checked posting, not only closed or changed
+--status     live, closed, or unknown
+--changed    only postings whose status changed since the previous check
+```
+
+```bash
+pursuit links --fields company,title,status,detail
+```
+
+## Events, tags, fields, standing answers
+
+- `pursuit events list|add` — timeline events per application; `pursuit events --follow --timeout 25s` long-polls for the next one.
+- `pursuit tags list|create|delete`
+- `pursuit fields list|create|delete` — custom application fields.
+- `pursuit standing list|set` — reusable answers for form questions (`pursuit standing set --key work_authorization --answer "Yes"`).
+
+## Tokens, audit, webhooks
+
+- `pursuit tokens list|create|revoke` — scopes are `read`, `write` (includes `read`), `approve` (includes `read`, not `write`). New tokens are read-only unless scopes are passed.
+- `pursuit audit list`
+- `pursuit webhooks list|add|delete` — event webhooks.
+
+## Import and export
+
+```bash
+pursuit import csv applications.csv
+pursuit import json postings.json
+pursuit import markdown notes.md
+pursuit import seed
+
+pursuit export simplify
+pursuit export json
+```
+
+Markdown tables and "also live" bullets become `to_apply` and skip a posting URL that already exists. `import seed` loads the example files in `internal/seed/data`. CSV status `Applied` stays `applied`; `Prepared` becomes `awaiting_review`; other statuses match case-insensitively. Importing the same `posting_url` again updates that application. `export simplify` writes the Simplify Job Tracker CSV columns.
+
+## Daemon
+
+```bash
+pursuit serve      # run the daemon
+pursuit health      # liveness
+pursuit ready       # readiness (503 until bootstrap finishes, and during shutdown)
+pursuit version      # CLI version
+```

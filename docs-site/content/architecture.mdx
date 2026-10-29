@@ -1,0 +1,33 @@
+import { Callout } from "nextra/components"
+
+# Architecture
+
+Source: [`docs/transports.md`](https://github.com/adrianmross/pursuit/blob/main/docs/transports.md) in the main repo. Keep that file and this page in sync.
+
+`service.Service` is the use-case layer. It does not know about HTTP. `internal/httpapi` is the REST adapter: it authenticates a bearer token, calls a service method, and writes JSON. The CLI (`internal/cli`) calls that same HTTP API through `internal/apiclient` — it is not a separate implementation of the business logic.
+
+```
+agent / human
+     │
+     ▼
+pursuit CLI (internal/cli) ──HTTP──▶ internal/httpapi ──▶ service.Service ──▶ internal/sqlstore ──▶ SQLite / Postgres
+     ▲                                     ▲
+     │                                     │
+     └── GET /openapi.json ────────────────┘
+```
+
+<Callout type="info">
+  There is no MCP adapter. Agents use the CLI, which calls this HTTP API — see [AGENTS.md](https://github.com/adrianmross/pursuit/blob/main/AGENTS.md) in the repo root.
+</Callout>
+
+## Storage
+
+SQLite is the default store for one local daemon. Postgres is the store for more than one replica, and goes through the same `internal/sqlstore` package. Queue claims use `SELECT ... FOR UPDATE SKIP LOCKED`; the link sweep takes a Postgres advisory lock so only one replica checks postings at a time.
+
+## Future transports
+
+`api/proto/pursuit/v1/pursuit.proto` names a JSON-RPC or gRPC contract that would be another adapter calling the same `service.Service` methods — it is **not compiled or served today**. Nothing in this docs site documents it as live.
+
+## What's not in this build
+
+Workday autofill, clicking Submit, JSON-RPC, gRPC, and an MCP server.
