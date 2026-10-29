@@ -52,6 +52,10 @@ type Server struct {
 	// BetterAuth is nil when no Neon Auth (Better Auth) JWT verifier is
 	// configured. Only consulted in multi-tenant mode.
 	BetterAuth *betterauth.Verifier
+	// BetterAuthOrigin is Better Auth's scheme+host, added to the
+	// dashboard's connect-src so the browser's own client SDK can reach
+	// it directly (sign-up/sign-in, minting a JWT) alongside this origin.
+	BetterAuthOrigin string
 }
 
 func (s *Server) multiTenant() bool {
@@ -436,7 +440,11 @@ func (s *Server) dashboard(w http.ResponseWriter, r *http.Request) {
 	if strings.HasPrefix(contentType, "text/html") {
 		// style-src needs 'unsafe-inline': Radix positions popovers/menus with
 		// inline style attributes (Floating UI), not a stylesheet.
-		w.Header().Set("Content-Security-Policy", "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'; img-src 'self' data:; font-src 'self'; base-uri 'self'; form-action 'self'")
+		connectSrc := "'self'"
+		if s.BetterAuthOrigin != "" {
+			connectSrc += " " + s.BetterAuthOrigin
+		}
+		w.Header().Set("Content-Security-Policy", "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src "+connectSrc+"; img-src 'self' data:; font-src 'self'; base-uri 'self'; form-action 'self'")
 		w.Header().Set("Referrer-Policy", "no-referrer")
 	}
 	w.WriteHeader(http.StatusOK)

@@ -93,10 +93,12 @@ func ensure(ctx context.Context) (*runtime, error) {
 		return nil, fmt.Errorf("oidc configuration failed")
 	}
 	var betterAuthVerifier *betterauth.Verifier
+	var betterAuthOrigin string
 	if baseURL := strings.TrimSpace(os.Getenv("PURSUIT_BETTERAUTH_BASE_URL")); baseURL != "" {
 		betterAuthVerifier = betterauth.New(ctx, baseURL, os.Getenv("PURSUIT_BETTERAUTH_ISSUER"), os.Getenv("PURSUIT_BETTERAUTH_AUDIENCE"))
+		betterAuthOrigin = betterauth.Origin(baseURL)
 	}
-	api := &httpapi.Server{Svc: svc, Log: log, TrustProxyAuth: trust, TenantMode: tenantMode, OIDC: oidcMgr, BetterAuth: betterAuthVerifier}
+	api := &httpapi.Server{Svc: svc, Log: log, TrustProxyAuth: trust, TenantMode: tenantMode, OIDC: oidcMgr, BetterAuth: betterAuthVerifier, BetterAuthOrigin: betterAuthOrigin}
 	api.Ready.Store(true)
 	booted = &runtime{handler: api.Handler()}
 	return booted, nil

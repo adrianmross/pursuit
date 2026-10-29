@@ -20,13 +20,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const load = useCallback(async () => {
     setLoading(true)
+    // api() clears a rejected token before this catch runs, so capture
+    // whether one was actually presented up front: that's what tells a
+    // genuine sign-in failure apart from an anonymous first visit.
+    const hadToken = getToken() !== ""
     try {
       const result = await api<Me>("/v1/me")
       setMe(result)
       setError(null)
     } catch (err) {
       setMe(null)
-      if (err instanceof ApiError && getToken() === "") {
+      if (err instanceof ApiError && !hadToken) {
         setError(null)
       } else {
         setError(err instanceof Error ? err.message : "Sign-in failed")

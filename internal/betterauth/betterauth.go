@@ -26,16 +26,23 @@ type Verifier struct {
 func New(ctx context.Context, baseURL, issuer, audience string) *Verifier {
 	baseURL = strings.TrimRight(baseURL, "/")
 	if issuer == "" {
-		issuer = baseURL
-		if u, err := url.Parse(baseURL); err == nil && u.Scheme != "" && u.Host != "" {
-			issuer = u.Scheme + "://" + u.Host
-		}
+		issuer = Origin(baseURL)
 	}
 	keySet := oidc.NewRemoteKeySet(ctx, baseURL+"/.well-known/jwks.json")
 	// Better Auth's JWT plugin signs with EdDSA (Ed25519), not go-oidc's
 	// RS256-only default.
 	cfg := &oidc.Config{SkipClientIDCheck: audience == "", ClientID: audience, SupportedSigningAlgs: []string{"EdDSA"}}
 	return &Verifier{verifier: oidc.NewVerifier(issuer, keySet, cfg)}
+}
+
+// Origin returns rawURL's bare scheme+host, falling back to rawURL
+// itself if it doesn't parse. Used both as the default JWT issuer and
+// as the CSP connect-src entry the browser's client SDK needs.
+func Origin(rawURL string) string {
+	if u, err := url.Parse(rawURL); err == nil && u.Scheme != "" && u.Host != "" {
+		return u.Scheme + "://" + u.Host
+	}
+	return rawURL
 }
 
 type Identity struct {

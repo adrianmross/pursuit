@@ -80,10 +80,12 @@ func Run(ctx context.Context, cfg config.Config) error {
 		return err
 	}
 	var betterAuthVerifier *betterauth.Verifier
+	var betterAuthOrigin string
 	if cfg.BetterAuthBaseURL != "" {
 		betterAuthVerifier = betterauth.New(ctx, cfg.BetterAuthBaseURL, cfg.BetterAuthIssuer, cfg.BetterAuthAudience)
+		betterAuthOrigin = betterauth.Origin(cfg.BetterAuthBaseURL)
 	}
-	api := &httpapi.Server{Svc: svc, Log: log, CORS: cfg.CORSOrigins, TrustProxyAuth: cfg.TrustProxyAuth, TenantMode: cfg.TenantMode, OIDC: oidcMgr, BetterAuth: betterAuthVerifier}
+	api := &httpapi.Server{Svc: svc, Log: log, CORS: cfg.CORSOrigins, TrustProxyAuth: cfg.TrustProxyAuth, TenantMode: cfg.TenantMode, OIDC: oidcMgr, BetterAuth: betterAuthVerifier, BetterAuthOrigin: betterAuthOrigin}
 	srv := &http.Server{
 		Addr:              cfg.Addr,
 		Handler:           api.Handler(),
