@@ -98,7 +98,8 @@ func ensure(ctx context.Context) (*runtime, error) {
 		betterAuthVerifier = betterauth.New(ctx, baseURL, os.Getenv("PURSUIT_BETTERAUTH_ISSUER"), os.Getenv("PURSUIT_BETTERAUTH_AUDIENCE"))
 		betterAuthOrigin = betterauth.Origin(baseURL)
 	}
-	api := &httpapi.Server{Svc: svc, Log: log, TrustProxyAuth: trust, TenantMode: tenantMode, OIDC: oidcMgr, BetterAuth: betterAuthVerifier, BetterAuthOrigin: betterAuthOrigin}
+	hideTokenLogin := strings.EqualFold(strings.TrimSpace(os.Getenv("PURSUIT_HIDE_TOKEN_LOGIN")), "true")
+	api := &httpapi.Server{Svc: svc, Log: log, TrustProxyAuth: trust, TenantMode: tenantMode, OIDC: oidcMgr, BetterAuth: betterAuthVerifier, BetterAuthOrigin: betterAuthOrigin, HideTokenLogin: hideTokenLogin}
 	api.Ready.Store(true)
 	booted = &runtime{handler: api.Handler()}
 	return booted, nil

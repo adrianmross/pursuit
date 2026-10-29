@@ -85,7 +85,7 @@ func Run(ctx context.Context, cfg config.Config) error {
 		betterAuthVerifier = betterauth.New(ctx, cfg.BetterAuthBaseURL, cfg.BetterAuthIssuer, cfg.BetterAuthAudience)
 		betterAuthOrigin = betterauth.Origin(cfg.BetterAuthBaseURL)
 	}
-	api := &httpapi.Server{Svc: svc, Log: log, CORS: cfg.CORSOrigins, TrustProxyAuth: cfg.TrustProxyAuth, TenantMode: cfg.TenantMode, OIDC: oidcMgr, BetterAuth: betterAuthVerifier, BetterAuthOrigin: betterAuthOrigin}
+	api := &httpapi.Server{Svc: svc, Log: log, CORS: cfg.CORSOrigins, TrustProxyAuth: cfg.TrustProxyAuth, TenantMode: cfg.TenantMode, OIDC: oidcMgr, BetterAuth: betterAuthVerifier, BetterAuthOrigin: betterAuthOrigin, HideTokenLogin: cfg.HideTokenLogin}
 	srv := &http.Server{
 		Addr:              cfg.Addr,
 		Handler:           api.Handler(),

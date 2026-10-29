@@ -1,4 +1,5 @@
-import { useState, type FormEvent } from "react"
+import { useEffect, useState, type FormEvent } from "react"
+import { api } from "@/lib/api"
 import { useAuth } from "@/lib/auth"
 import { authClient } from "@/lib/betterauth"
 import { Button } from "@/components/ui/button"
@@ -14,18 +15,28 @@ function AccountSignIn() {
   const [name, setName] = useState("")
   const [submitting, setSubmitting] = useState(false)
   const [localError, setLocalError] = useState<string | null>(null)
+  const [needsVerification, setNeedsVerification] = useState(false)
+  const [resendState, setResendState] = useState<"idle" | "sending" | "sent">("idle")
 
   async function onSubmit(event: FormEvent) {
     event.preventDefault()
     if (!authClient) return
     setSubmitting(true)
     setLocalError(null)
+    setNeedsVerification(false)
+    setResendState("idle")
     try {
       const result =
         mode === "sign-up"
           ? await authClient.signUp.email({ email, password, name: name.trim() || email })
           : await authClient.signIn.email({ email, password })
-      if (result.error) throw new Error(result.error.message || "Sign-in failed")
+      if (result.error) {
+        const message = result.error.message || "Sign-in failed"
+        if (/verif/i.test(message) || result.error.code === "EMAIL_NOT_VERIFIED") {
+          setNeedsVerification(true)
+        }
+        throw new Error(message)
+      }
       const { data, error: tokenError } = await authClient.token()
       if (tokenError || !data?.token) throw new Error("Could not mint a session token")
       await signIn(data.token)
@@ -36,6 +47,17 @@ function AccountSignIn() {
     }
   }
 
+  async function onResend() {
+    if (!authClient || !email) return
+    setResendState("sending")
+    try {
+      await authClient.sendVerificationEmail({ email, callbackURL: window.location.origin + "/" })
+      setResendState("sent")
+    } catch {
+      setResendState("idle")
+    }
+  }
+
   return (
     <Card>
       <CardHeader>
@@ -43,6 +65,13 @@ function AccountSignIn() {
       </CardHeader>
       <CardContent className="pt-0">
         {(localError || error) && <p className="mb-3 text-sm text-destructive">{localError || error}</p>}
+        {needsVerification && (
+          <div className="mb-3 flex items-center gap-2 text-sm">
+            <Button type="button" size="sm" variant="secondary" disabled={resendState !== "idle"} onClick={onResend}>
+              {resendState === "sent" ? "Verification email sent" : resendState === "sending" ? "Sending…" : "Resend verification email"}
+            </Button>
+          </div>
+        )}
         <form onSubmit={onSubmit} className="flex flex-col gap-4">
           {mode === "sign-up" && (
             <div className="flex flex-col gap-2">
@@ -137,6 +166,14 @@ function TokenSignIn() {
 }
 
 export function SignIn() {
+  const [allowTokenLogin, setAllowTokenLogin] = useState(!authClient)
+
+  useEffect(() => {
+    api<{ allow_token_login: boolean }>("/v1/auth/providers")
+      .then((result) => setAllowTokenLogin(result.allow_token_login))
+      .catch(() => {})
+  }, [])
+
   return (
     <div className="flex min-h-svh items-center justify-center bg-brand-forest p-4">
       <div className="flex w-full max-w-md flex-col gap-4">
@@ -145,7 +182,7 @@ export function SignIn() {
           <p className="text-sm text-brand-cream/80">A job application tracker you drive from the CLI or from here.</p>
         </div>
         {authClient && <AccountSignIn />}
-        <TokenSignIn />
+        {allowTokenLogin && <TokenSignIn />}
       </div>
     </div>
   )

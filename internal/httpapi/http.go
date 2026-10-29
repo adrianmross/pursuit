@@ -56,6 +56,11 @@ type Server struct {
 	// dashboard's connect-src so the browser's own client SDK can reach
 	// it directly (sign-up/sign-in, minting a JWT) alongside this origin.
 	BetterAuthOrigin string
+	// HideTokenLogin removes the "paste an API token" option from the
+	// dashboard's sign-in page (production shouldn't invite visitors to
+	// type a raw secret there); the bearer-token API itself is unaffected
+	// for CLI/automation use either way.
+	HideTokenLogin bool
 }
 
 func (s *Server) multiTenant() bool {
@@ -313,7 +318,7 @@ func (s *Server) authProviders(w http.ResponseWriter, r *http.Request) {
 	if s.multiTenant() {
 		mode = "multi"
 	}
-	writeJSON(w, 200, map[string]any{"tenant_mode": mode, "providers": providers})
+	writeJSON(w, 200, map[string]any{"tenant_mode": mode, "providers": providers, "allow_token_login": !s.HideTokenLogin})
 }
 
 func (s *Server) authStart(w http.ResponseWriter, r *http.Request) {

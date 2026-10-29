@@ -51,6 +51,9 @@ type Config struct {
 	BetterAuthBaseURL  string `json:"-"`
 	BetterAuthIssuer   string `json:"-"`
 	BetterAuthAudience string `json:"-"`
+	// HideTokenLogin removes the "paste an API token" sign-in option
+	// from the dashboard. The bearer-token API itself is unaffected.
+	HideTokenLogin bool `json:"-"`
 }
 
 func Defaults() Config {
@@ -190,6 +193,7 @@ func applyEnv(cfg *Config) {
 	set(&cfg.BetterAuthBaseURL, "PURSUIT_BETTERAUTH_BASE_URL")
 	set(&cfg.BetterAuthIssuer, "PURSUIT_BETTERAUTH_ISSUER")
 	set(&cfg.BetterAuthAudience, "PURSUIT_BETTERAUTH_AUDIENCE")
+	cfg.HideTokenLogin = strings.EqualFold(strings.TrimSpace(os.Getenv("PURSUIT_HIDE_TOKEN_LOGIN")), "true")
 	if v := strings.TrimSpace(os.Getenv("PURSUIT_CORS_ORIGINS")); v != "" {
 		cfg.CORSOrigins = splitComma(v)
 	}
