@@ -8,6 +8,7 @@ package betterauth
 
 import (
 	"context"
+	"net/url"
 	"strings"
 
 	"github.com/coreos/go-oidc/v3/oidc"
@@ -18,15 +19,22 @@ type Verifier struct {
 }
 
 // New builds a Verifier against baseURL's JWKS endpoint. issuer defaults
-// to baseURL; audience, when empty, skips the audience check (Better
-// Auth's JWT plugin audience claim isn't publicly documented).
+// to baseURL's origin (Better Auth's "iss" claim is the bare scheme+host,
+// not the app-specific base path JWKS/sign-in live under); audience,
+// when empty, skips the audience check (Better Auth's JWT plugin
+// audience claim isn't publicly documented).
 func New(ctx context.Context, baseURL, issuer, audience string) *Verifier {
 	baseURL = strings.TrimRight(baseURL, "/")
 	if issuer == "" {
 		issuer = baseURL
+		if u, err := url.Parse(baseURL); err == nil && u.Scheme != "" && u.Host != "" {
+			issuer = u.Scheme + "://" + u.Host
+		}
 	}
 	keySet := oidc.NewRemoteKeySet(ctx, baseURL+"/.well-known/jwks.json")
-	cfg := &oidc.Config{SkipClientIDCheck: audience == "", ClientID: audience}
+	// Better Auth's JWT plugin signs with EdDSA (Ed25519), not go-oidc's
+	// RS256-only default.
+	cfg := &oidc.Config{SkipClientIDCheck: audience == "", ClientID: audience, SupportedSigningAlgs: []string{"EdDSA"}}
 	return &Verifier{verifier: oidc.NewVerifier(issuer, keySet, cfg)}
 }
 
