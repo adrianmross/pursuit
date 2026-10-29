@@ -1,10 +1,11 @@
-import { useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useNavigate } from "react-router-dom"
-import { Download, FileUp, Plus } from "lucide-react"
+import { ArrowRight, Download, FileUp, Plus } from "lucide-react"
 import { api, ApiError } from "@/lib/api"
-import type { ImportResult } from "@/lib/types"
+import type { Application, ImportResult, Page } from "@/lib/types"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { CommandBlock } from "@/components/CommandBlock"
 
 const IMPORTERS: { key: string; path: string; label: string; contentType: string; accept: string }[] = [
   { key: "csv", path: "/v1/import/csv", label: "CSV", contentType: "text/csv", accept: ".csv,text/csv" },
@@ -66,18 +67,55 @@ function ImportCard({ importer }: { importer: (typeof IMPORTERS)[number] }) {
 
 export function HomePage() {
   const navigate = useNavigate()
+  const [hasApplications, setHasApplications] = useState<boolean | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    api<Page<Application>>("/v1/applications?limit=1")
+      .then((page) => {
+        if (!cancelled) setHasApplications(page.page.total > 0)
+      })
+      .catch(() => {
+        if (!cancelled) setHasApplications(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-8 py-8">
       <div className="flex flex-col items-center gap-3 text-center">
-        <h1 className="text-2xl font-semibold">Pursuit</h1>
-        <p className="max-w-md text-muted-foreground">
-          Track job applications, prepare answers, and keep every posting's status in one pipeline.
-        </p>
-        <Button size="lg" onClick={() => navigate("/app/new")}>
-          <Plus className="size-4" /> Start a new application
-        </Button>
+        <h1 className="font-display text-xl font-semibold">For your higher pursuits.</h1>
+        <p className="max-w-md text-muted-foreground">Land the role.</p>
+        <div className="flex w-64 flex-col items-stretch gap-2">
+          {hasApplications && (
+            <Button size="lg" className="w-full" onClick={() => navigate("/pipeline")}>
+              View applications <ArrowRight className="size-4" />
+            </Button>
+          )}
+          <Button
+            size="lg"
+            className="w-full"
+            variant={hasApplications ? "secondary" : "default"}
+            onClick={() => navigate("/app/new")}
+          >
+            <Plus className="size-4" /> Start a new application
+          </Button>
+        </div>
       </div>
+
+      <Card size="sm">
+        <CardHeader>
+          <CardTitle>Prefer the terminal?</CardTitle>
+          <CardDescription>
+            Everything here is also a <code className="font-mono text-foreground">pursuit</code> command.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <CommandBlock command="pursuit list --stale" />
+        </CardContent>
+      </Card>
 
       <Card size="sm">
         <CardHeader>

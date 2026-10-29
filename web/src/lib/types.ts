@@ -162,11 +162,57 @@ export function sourceLabel(source?: string) {
   return (source && SOURCE_LABELS[source]) || ""
 }
 
-// Pursuit's status chips are told apart by label, not hue — the only color
-// is brand-gold, and only for the one status that's a win. Everything else
-// is a plain neutral chip.
-export function statusTone(status?: string): "win" | "default" {
-  return status === "offer" ? "win" : "default"
+// Hire Pursuit's status chips are told apart by lightness and outline, not
+// hue — gold is reserved for the one status that's a win.
+export type StatusTone = "default" | "attention" | "strong" | "danger" | "muted" | "win"
+
+const STATUS_TONE: Record<string, StatusTone> = {
+  to_apply: "default",
+  preparing: "default",
+  needs_input: "attention",
+  failed: "danger",
+  awaiting_review: "attention",
+  approved: "strong",
+  submitting: "default",
+  submitted: "default",
+  in_progress: "default",
+  applied: "default",
+  screening: "default",
+  interviewing: "default",
+  offer: "win",
+  withdrawn: "muted",
+  rejected: "muted",
+  ghosted: "muted",
+  saved: "default",
+}
+
+export function statusTone(status?: string): StatusTone {
+  return (status && STATUS_TONE[status]) || "default"
+}
+
+// Pieces of the progress mark (0-6; 6 is the gold tail) a status has earned.
+const STATUS_PIECES: Record<string, number> = {
+  to_apply: 1,
+  preparing: 1,
+  needs_input: 1,
+  failed: 1,
+  saved: 1,
+  awaiting_review: 2,
+  approved: 3,
+  submitting: 3,
+  submitted: 4,
+  applied: 4,
+  in_progress: 4,
+  screening: 4,
+  interviewing: 5,
+  offer: 6,
+  withdrawn: 0,
+  rejected: 0,
+  ghosted: 0,
+}
+
+export function statusPieces(status?: string): number {
+  return status ? STATUS_PIECES[status] ?? 0 : 0
 }
 
 export type StatusCategory = "action" | "waiting" | "closed" | "rejected"

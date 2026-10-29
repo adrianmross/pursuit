@@ -3,13 +3,24 @@ import { Link, useNavigate, useParams } from "react-router-dom"
 import { ArrowLeft, Check, ChevronDown, ExternalLink, MoreHorizontal, RefreshCw, X } from "lucide-react"
 import { api, ApiError } from "@/lib/api"
 import { useAuth } from "@/lib/auth"
-import { label, sourceLabel, type Application, type Artifact, type CustomField, type Event, type Page, type Question } from "@/lib/types"
+import {
+  label,
+  sourceLabel,
+  statusPieces,
+  type Application,
+  type Artifact,
+  type CustomField,
+  type Event,
+  type Page,
+  type Question,
+} from "@/lib/types"
 import { CompanyAvatar } from "@/components/CompanyAvatar"
 import { AttributesForm, EMPTY_ATTRIBUTES, FIT_OPTIONS, STATUS_OPTIONS, type AttributesFormState } from "@/components/AttributesForm"
 import { ConfirmDialog } from "@/components/ConfirmDialog"
 import { InlineSelect, InlineText } from "@/components/InlineEdit"
 import { PreparedAnswers } from "@/components/PreparedAnswers"
 import { StatusBadge } from "@/components/StatusBadge"
+import { ProgressMark } from "@/components/ProgressMark"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -302,6 +313,7 @@ export function DetailPage() {
 
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex items-start gap-3">
+          <ProgressMark pieces={statusPieces(application.status)} size={40} />
           <CompanyAvatar company={application.company} companyId={application.company_id} className="mt-1 size-9 text-sm" />
           <div>
             <InlineText
@@ -331,13 +343,7 @@ export function DetailPage() {
                 </Tooltip>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      aria-label="Reject"
-                      className="text-destructive hover:text-destructive"
-                      onClick={() => setDecision("reject")}
-                    >
+                    <Button variant="ghost" size="icon" aria-label="Reject" onClick={() => setDecision("reject")}>
                       <X className="size-4" />
                     </Button>
                   </TooltipTrigger>
@@ -578,7 +584,7 @@ export function DetailPage() {
             <Button variant="outline" onClick={() => setDecision(null)}>
               Cancel
             </Button>
-            <Button variant={decision === "reject" ? "destructive" : "default"} onClick={confirmDecision}>
+            <Button variant={decision === "reject" ? "outline" : "default"} onClick={confirmDecision}>
               {decision === "approve" ? "Approve" : "Reject"}
             </Button>
           </DialogFooter>

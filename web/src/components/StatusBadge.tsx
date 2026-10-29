@@ -1,17 +1,19 @@
-import { label, statusCategory, statusTone } from "@/lib/types"
+import { label, statusTone } from "@/lib/types"
 import { Badge } from "@/components/ui/badge"
 
-const CATEGORY_CLASS: Record<string, string> = {
-  action: "bg-amber-500/15 text-amber-700 dark:bg-amber-500/20 dark:text-amber-400",
-  rejected: "bg-rose-500/10 text-rose-600 dark:bg-rose-500/15 dark:text-rose-400",
-  closed: "bg-muted text-muted-foreground",
+// Told apart by lightness and outline, not hue (docs/brand/README.md).
+const TONE_CLASS: Record<string, string> = {
+  default: "bg-muted text-foreground",
+  attention: "bg-card text-foreground ring-1 ring-inset ring-foreground",
+  strong: "bg-primary text-primary-foreground",
+  danger: "bg-card text-destructive",
+  muted: "bg-transparent text-muted-foreground ring-1 ring-inset ring-border",
+  win: "bg-brand-gold text-[#141615]",
 }
 
 export function StatusBadge({ status }: { status: string }) {
-  const className =
-    statusTone(status) === "win" ? "bg-brand-gold text-[#141615]" : CATEGORY_CLASS[statusCategory(status)]
   return (
-    <Badge variant="secondary" className={className}>
+    <Badge variant="secondary" className={TONE_CLASS[statusTone(status)]}>
       {label(status)}
     </Badge>
   )
