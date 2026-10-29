@@ -17,6 +17,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/pursuit/pursuit/internal/betterauth"
 	"github.com/pursuit/pursuit/internal/config"
 	"github.com/pursuit/pursuit/internal/domain"
 	"github.com/pursuit/pursuit/internal/httpapi"
@@ -78,7 +79,11 @@ func Run(ctx context.Context, cfg config.Config) error {
 	if err != nil {
 		return err
 	}
-	api := &httpapi.Server{Svc: svc, Log: log, CORS: cfg.CORSOrigins, TrustProxyAuth: cfg.TrustProxyAuth, TenantMode: cfg.TenantMode, OIDC: oidcMgr}
+	var betterAuthVerifier *betterauth.Verifier
+	if cfg.BetterAuthBaseURL != "" {
+		betterAuthVerifier = betterauth.New(ctx, cfg.BetterAuthBaseURL, cfg.BetterAuthIssuer, cfg.BetterAuthAudience)
+	}
+	api := &httpapi.Server{Svc: svc, Log: log, CORS: cfg.CORSOrigins, TrustProxyAuth: cfg.TrustProxyAuth, TenantMode: cfg.TenantMode, OIDC: oidcMgr, BetterAuth: betterAuthVerifier}
 	srv := &http.Server{
 		Addr:              cfg.Addr,
 		Handler:           api.Handler(),

@@ -16,6 +16,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/pursuit/pursuit/internal/betterauth"
 	"github.com/pursuit/pursuit/internal/domain"
 	"github.com/pursuit/pursuit/internal/links"
 	"github.com/pursuit/pursuit/internal/service"
@@ -893,6 +894,38 @@ func TestLoginIdentityTenantGating(t *testing.T) {
 	}
 	if u2, err := e.svc.DB.FindUserByEmail(ctx, "second@example.com"); err != nil || u2.ID != u.ID {
 		t.Fatalf("second login should reuse the same tenant, got %+v vs %+v (err %v)", u2, u, err)
+	}
+}
+
+func TestResolveTenantUser(t *testing.T) {
+	e := newEnv(t)
+	ctx := context.Background()
+
+	if _, err := e.svc.ResolveTenantUser(ctx, "third@example.com", "Third", false); err == nil {
+		t.Fatal("allowCreate=false should refuse an unknown email")
+	}
+	actor, err := e.svc.ResolveTenantUser(ctx, "third@example.com", "Third", true)
+	if err != nil || actor.UserID == "" {
+		t.Fatalf("first resolve should provision a user: %v %+v", err, actor)
+	}
+	if !actor.Can("approve") {
+		t.Fatalf("resolved actor should have full scopes, got %v", actor.Scopes)
+	}
+	actor2, err := e.svc.ResolveTenantUser(ctx, "third@example.com", "Third", true)
+	if err != nil || actor2.UserID != actor.UserID {
+		t.Fatalf("second resolve should reuse the same tenant: %v %+v vs %+v", err, actor2, actor)
+	}
+}
+
+func TestAuthenticateSkipsBetterAuthOutsideMultiTenant(t *testing.T) {
+	e := newEnv(t)
+	e.api.BetterAuth = betterauth.New(context.Background(), "https://example.invalid", "", "")
+	// TenantMode defaults to "" (single), so a JWT-shaped bearer token
+	// must still fall through to Pursuit's own check and fail cleanly,
+	// never reaching the network for JWKS verification.
+	code, _ := e.json(t, http.MethodGet, "/v1/me", "a.b.c", nil)
+	if code != 401 {
+		t.Fatalf("expected 401 for a JWT-shaped token in single-tenant mode, got %d", code)
 	}
 }
 

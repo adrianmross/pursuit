@@ -46,6 +46,11 @@ type Config struct {
 	OIDCIssuerName   string `json:"-"`
 	OIDCIssuerID     string `json:"-"`
 	OIDCIssuerSecret string `json:"-"`
+	// BetterAuthBaseURL points at a Neon Auth (Better Auth) instance whose
+	// JWTs are accepted as bearer tokens, in multi-tenant mode only.
+	BetterAuthBaseURL  string `json:"-"`
+	BetterAuthIssuer   string `json:"-"`
+	BetterAuthAudience string `json:"-"`
 }
 
 func Defaults() Config {
@@ -182,6 +187,9 @@ func applyEnv(cfg *Config) {
 	set(&cfg.OIDCIssuerName, "PURSUIT_OIDC_ISSUER_NAME")
 	set(&cfg.OIDCIssuerID, "PURSUIT_OIDC_ISSUER_CLIENT_ID")
 	set(&cfg.OIDCIssuerSecret, "PURSUIT_OIDC_ISSUER_CLIENT_SECRET")
+	set(&cfg.BetterAuthBaseURL, "PURSUIT_BETTERAUTH_BASE_URL")
+	set(&cfg.BetterAuthIssuer, "PURSUIT_BETTERAUTH_ISSUER")
+	set(&cfg.BetterAuthAudience, "PURSUIT_BETTERAUTH_AUDIENCE")
 	if v := strings.TrimSpace(os.Getenv("PURSUIT_CORS_ORIGINS")); v != "" {
 		cfg.CORSOrigins = splitComma(v)
 	}

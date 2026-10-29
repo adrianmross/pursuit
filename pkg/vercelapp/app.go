@@ -15,6 +15,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/pursuit/pursuit/internal/betterauth"
 	"github.com/pursuit/pursuit/internal/httpapi"
 	"github.com/pursuit/pursuit/internal/links"
 	"github.com/pursuit/pursuit/internal/oidcauth"
@@ -91,7 +92,11 @@ func ensure(ctx context.Context) (*runtime, error) {
 		slog.Error("oidc", "err", err.Error())
 		return nil, fmt.Errorf("oidc configuration failed")
 	}
-	api := &httpapi.Server{Svc: svc, Log: log, TrustProxyAuth: trust, TenantMode: tenantMode, OIDC: oidcMgr}
+	var betterAuthVerifier *betterauth.Verifier
+	if baseURL := strings.TrimSpace(os.Getenv("PURSUIT_BETTERAUTH_BASE_URL")); baseURL != "" {
+		betterAuthVerifier = betterauth.New(ctx, baseURL, os.Getenv("PURSUIT_BETTERAUTH_ISSUER"), os.Getenv("PURSUIT_BETTERAUTH_AUDIENCE"))
+	}
+	api := &httpapi.Server{Svc: svc, Log: log, TrustProxyAuth: trust, TenantMode: tenantMode, OIDC: oidcMgr, BetterAuth: betterAuthVerifier}
 	api.Ready.Store(true)
 	booted = &runtime{handler: api.Handler()}
 	return booted, nil

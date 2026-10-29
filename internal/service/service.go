@@ -152,6 +152,49 @@ func (s *Service) Bootstrap(ctx context.Context, ownerName, ownerEmail, tokenNam
 	return issued, created, err
 }
 
+// ResolveTenantUser maps a verified Better Auth identity to a Pursuit
+// actor on every request (unlike LoginIdentity, which runs once at
+// login): it reads the existing user without locking on the hot path,
+// and only takes the lock to create one on a first-ever verified email.
+func (s *Service) ResolveTenantUser(ctx context.Context, email, name string, allowCreate bool) (domain.Actor, error) {
+	email = strings.TrimSpace(email)
+	if email == "" {
+		return domain.Actor{}, domain.Unauthorized()
+	}
+	user, err := s.DB.FindUserByEmail(ctx, email)
+	if err != nil && !domain.IsCode(err, "not_found") {
+		return domain.Actor{}, err
+	}
+	if domain.IsCode(err, "not_found") {
+		if !allowCreate {
+			return domain.Actor{}, domain.Unauthorized()
+		}
+		if err := s.DB.WithLock(ctx, func(ctx context.Context) error {
+			if existing, ferr := s.DB.FindUserByEmail(ctx, email); ferr == nil {
+				user = existing
+				return nil
+			} else if !domain.IsCode(ferr, "not_found") {
+				return ferr
+			}
+			if strings.TrimSpace(name) == "" {
+				name = email
+			}
+			user = domain.User{ID: s.NewID(), Name: name, Email: email, CreatedAt: s.now()}
+			if err := s.DB.CreateUser(ctx, user); err != nil {
+				return err
+			}
+			return s.ensureDefaultCaps(ctx, user.ID)
+		}); err != nil {
+			return domain.Actor{}, err
+		}
+	}
+	scopes, err := auth.NormalizeScopes([]string{"read", "write", "approve"})
+	if err != nil {
+		return domain.Actor{}, err
+	}
+	return domain.Actor{UserID: user.ID, Name: "betterauth", Scopes: scopes}, nil
+}
+
 // LoginIdentity exchanges a verified external identity (from an OIDC
 // callback) for a fresh Pursuit API token. allowCreate is false in
 // single-tenant mode, where the email must already belong to the owner;

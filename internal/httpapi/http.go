@@ -23,6 +23,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/pursuit/pursuit/internal/betterauth"
 	"github.com/pursuit/pursuit/internal/dashboard"
 	"github.com/pursuit/pursuit/internal/domain"
 	"github.com/pursuit/pursuit/internal/impex"
@@ -48,10 +49,29 @@ type Server struct {
 	TenantMode string
 	// OIDC is nil when no social/OIDC login provider is configured.
 	OIDC *oidcauth.Manager
+	// BetterAuth is nil when no Neon Auth (Better Auth) JWT verifier is
+	// configured. Only consulted in multi-tenant mode.
+	BetterAuth *betterauth.Verifier
 }
 
 func (s *Server) multiTenant() bool {
 	return strings.EqualFold(strings.TrimSpace(s.TenantMode), "multi")
+}
+
+// authenticate dispatches a bearer token to the right verifier: Pursuit's
+// own tokens are prefixed "pst_"; anything else that looks like a JWT
+// (two dots) is checked against Better Auth, when configured and only
+// in multi-tenant mode. Falls back to Pursuit's own check otherwise, so
+// the usual "invalid token" error still comes from one place.
+func (s *Server) authenticate(ctx context.Context, raw string) (domain.Actor, error) {
+	if s.BetterAuth != nil && s.multiTenant() && !strings.HasPrefix(raw, "pst_") && strings.Count(raw, ".") == 2 {
+		identity, err := s.BetterAuth.Verify(ctx, raw)
+		if err != nil || !identity.EmailVerified {
+			return domain.Actor{}, domain.Unauthorized()
+		}
+		return s.Svc.ResolveTenantUser(ctx, identity.Email, identity.Name, true)
+	}
+	return s.Svc.Authenticate(ctx, raw)
 }
 
 func (s *Server) Handler() http.Handler {
@@ -192,7 +212,7 @@ func (s *Server) wrap(next http.Handler) http.Handler {
 		}
 		if !isPublic(r.URL.Path) {
 			if raw, ok := bearerToken(r.Header.Get("Authorization")); ok {
-				actor, err := s.Svc.Authenticate(ctx, raw)
+				actor, err := s.authenticate(ctx, raw)
 				if err != nil {
 					writeErr(w, err)
 					return
