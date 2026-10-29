@@ -19,7 +19,7 @@ function GlobalSearch() {
   const location = useLocation()
   const navigate = useNavigate()
   const [params] = useSearchParams()
-  const onPipeline = location.pathname === "/"
+  const onPipeline = location.pathname === "/pipeline"
   const [value, setValue] = useState(onPipeline ? params.get("q") || "" : "")
 
   useEffect(() => {
@@ -33,7 +33,7 @@ function GlobalSearch() {
       const merged = new URLSearchParams(onPipeline ? params : undefined)
       if (next) merged.set("q", next)
       else merged.delete("q")
-      navigate({ pathname: "/", search: merged.toString() }, { replace: onPipeline })
+      navigate({ pathname: "/pipeline", search: merged.toString() }, { replace: onPipeline })
     }, 200)
   }
 

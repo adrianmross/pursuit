@@ -6,6 +6,7 @@ import { SignIn } from "@/components/SignIn"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { PipelinePage } from "@/pages/PipelinePage"
 import { DetailPage } from "@/pages/DetailPage"
+import { HomePage } from "@/pages/HomePage"
 
 function Gate() {
   const { me, loading } = useAuth()
@@ -15,7 +16,8 @@ function Gate() {
     <BrowserRouter>
       <Routes>
         <Route element={<AppShell />}>
-          <Route index element={<PipelinePage />} />
+          <Route index element={<HomePage />} />
+          <Route path="pipeline" element={<PipelinePage />} />
           <Route path="app/:id" element={<DetailPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>

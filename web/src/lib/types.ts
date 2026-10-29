@@ -63,6 +63,18 @@ export type Event = {
   body?: string
 }
 
+export type ImportResult = {
+  rows: number
+  companies_created: number
+  companies_existing: number
+  roles_created: number
+  roles_updated: number
+  applications_created: number
+  applications_updated: number
+  skipped: number
+  warnings?: string[]
+}
+
 export type Audit = {
   id: string
   actor_name?: string
