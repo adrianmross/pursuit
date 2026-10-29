@@ -17,7 +17,16 @@ function AccountSignIn() {
   const [submitting, setSubmitting] = useState(false)
   const [localError, setLocalError] = useState<string | null>(null)
   const [needsVerification, setNeedsVerification] = useState(false)
-  const [resendState, setResendState] = useState<"idle" | "sending" | "sent">("idle")
+  const [otpSent, setOtpSent] = useState(false)
+  const [otp, setOtp] = useState("")
+  const [verifying, setVerifying] = useState(false)
+
+  async function finishSignIn() {
+    if (!authClient) return
+    const { data, error: tokenError } = await authClient.token()
+    if (tokenError || !data?.token) throw new Error("Could not mint a session token")
+    await signIn(data.token)
+  }
 
   async function onSubmit(event: FormEvent) {
     event.preventDefault()
@@ -25,7 +34,6 @@ function AccountSignIn() {
     setSubmitting(true)
     setLocalError(null)
     setNeedsVerification(false)
-    setResendState("idle")
     try {
       const result =
         mode === "sign-up"
@@ -38,9 +46,7 @@ function AccountSignIn() {
         }
         throw new Error(message)
       }
-      const { data, error: tokenError } = await authClient.token()
-      if (tokenError || !data?.token) throw new Error("Could not mint a session token")
-      await signIn(data.token)
+      await finishSignIn()
     } catch (err) {
       setLocalError(err instanceof Error ? err.message : "Sign-in failed")
     } finally {
@@ -48,14 +54,35 @@ function AccountSignIn() {
     }
   }
 
-  async function onResend() {
+  async function onSendCode() {
     if (!authClient || !email) return
-    setResendState("sending")
+    setLocalError(null)
     try {
-      await authClient.sendVerificationEmail({ email, callbackURL: window.location.origin + "/" })
-      setResendState("sent")
-    } catch {
-      setResendState("idle")
+      const { error: sendError } = await authClient.emailOtp.sendVerificationOtp({ email, type: "email-verification" })
+      if (sendError) throw new Error(sendError.message || "Could not send the code")
+      setOtpSent(true)
+    } catch (err) {
+      setLocalError(err instanceof Error ? err.message : "Could not send the code")
+    }
+  }
+
+  async function onVerifyCode(event: FormEvent) {
+    event.preventDefault()
+    if (!authClient) return
+    setVerifying(true)
+    setLocalError(null)
+    try {
+      const { error: verifyError } = await authClient.emailOtp.verifyEmail({ email, otp })
+      if (verifyError) throw new Error(verifyError.message || "That code didn't work")
+      // Verifying the code doesn't itself start a session -- sign in again
+      // now that the email is confirmed.
+      const result = await authClient.signIn.email({ email, password })
+      if (result.error) throw new Error(result.error.message || "Sign-in failed")
+      await finishSignIn()
+    } catch (err) {
+      setLocalError(err instanceof Error ? err.message : "That code didn't work")
+    } finally {
+      setVerifying(false)
     }
   }
 
@@ -66,12 +93,35 @@ function AccountSignIn() {
       </CardHeader>
       <CardContent className="pt-0">
         {(localError || error) && <p className="mb-3 text-sm text-destructive">{localError || error}</p>}
-        {needsVerification && (
-          <div className="mb-3 flex items-center gap-2 text-sm">
-            <Button type="button" size="sm" variant="secondary" disabled={resendState !== "idle"} onClick={onResend}>
-              {resendState === "sent" ? "Verification email sent" : resendState === "sending" ? "Sending…" : "Resend verification email"}
+        {needsVerification && !otpSent && (
+          <div className="mb-3 flex flex-col gap-2 text-sm">
+            <p className="text-muted-foreground">This email needs to be verified first.</p>
+            <Button type="button" size="sm" variant="secondary" onClick={onSendCode}>
+              Send verification code
             </Button>
           </div>
+        )}
+        {needsVerification && otpSent && (
+          <form onSubmit={onVerifyCode} className="mb-4 flex flex-col gap-2 border-b pb-4 text-sm">
+            <Label htmlFor="otp">Code sent to {email}</Label>
+            <div className="flex gap-2">
+              <Input
+                id="otp"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                autoFocus
+                required
+                value={otp}
+                onChange={(event) => setOtp(event.target.value)}
+              />
+              <Button type="submit" size="sm" disabled={verifying}>
+                {verifying ? "Verifying…" : "Verify"}
+              </Button>
+            </div>
+            <button type="button" className="self-start text-muted-foreground underline-offset-4 hover:underline" onClick={onSendCode}>
+              Resend code
+            </button>
+          </form>
         )}
         <form onSubmit={onSubmit} className="flex flex-col gap-4">
           {mode === "sign-up" && (
