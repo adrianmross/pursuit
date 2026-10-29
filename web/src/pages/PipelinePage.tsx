@@ -1,13 +1,13 @@
-import { Fragment, useEffect, useMemo, useRef, useState } from "react"
+import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 import { Link, useSearchParams } from "react-router-dom"
 import commandScore from "command-score"
 import {
+  Archive,
   Check,
   ChevronDown,
   ChevronRight,
   ExternalLink,
   MoreHorizontal,
-  Pencil,
   Plus,
   RefreshCw,
   SlidersHorizontal,
@@ -84,41 +84,20 @@ function StatusBadge({ status }: { status: string }) {
   return <Badge variant={variant}>{label(status)}</Badge>
 }
 
-function LinkBadge({ status, onHoldRefresh, disabled }: { status?: string; onHoldRefresh: () => void; disabled?: boolean }) {
+function LinkBadge({ status }: { status?: string }) {
   const dead = status === "closed"
   const live = status === "live"
   const text = dead ? "Dead link" : live ? "Posting is live" : status === "unknown" ? "Link status unknown" : "Link not checked"
-  const holdTimer = useRef<number | undefined>(undefined)
-  const [holding, setHolding] = useState(false)
-
-  function start() {
-    if (disabled) return
-    setHolding(true)
-    holdTimer.current = window.setTimeout(() => {
-      setHolding(false)
-      onHoldRefresh()
-    }, 600)
-  }
-  function cancel() {
-    setHolding(false)
-    window.clearTimeout(holdTimer.current)
-  }
-
   return (
     <Tooltip>
       <TooltipTrigger asChild>
         <span
-          role="button"
-          tabIndex={0}
-          aria-label={text + " — hold to re-check"}
-          onPointerDown={start}
-          onPointerUp={cancel}
-          onPointerLeave={cancel}
-          onKeyDown={(e) => e.key === "Enter" && onHoldRefresh()}
-          className={`inline-block size-2.5 cursor-pointer rounded-full transition-transform ${holding ? "scale-150" : ""} ${dead ? "bg-destructive" : live ? "bg-emerald-500" : "bg-muted-foreground/40"}`}
+          role="img"
+          aria-label={text}
+          className={`inline-block size-2.5 rounded-full ${dead ? "bg-destructive" : live ? "bg-emerald-500" : "bg-muted-foreground/40"}`}
         />
       </TooltipTrigger>
-      <TooltipContent>{text} — hold to re-check</TooltipContent>
+      <TooltipContent>{text}</TooltipContent>
     </Tooltip>
   )
 }
@@ -237,31 +216,100 @@ function ExpandedRow({ row }: { row: Application }) {
   )
 }
 
+function IconAction({
+  label: text,
+  onClick,
+  disabled,
+  danger,
+  children,
+}: {
+  label: string
+  onClick: () => void
+  disabled?: boolean
+  danger?: boolean
+  children: ReactNode
+}) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button
+          variant="ghost"
+          size="icon"
+          className={`size-7 ${danger ? "text-destructive hover:text-destructive" : ""}`}
+          aria-label={text}
+          onClick={onClick}
+          disabled={disabled}
+        >
+          {children}
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent>{text}</TooltipContent>
+    </Tooltip>
+  )
+}
+
+function HoldIconAction({
+  label: text,
+  onHold,
+  disabled,
+  holdMs = 600,
+}: {
+  label: string
+  onHold: () => Promise<void> | void
+  disabled?: boolean
+  holdMs?: number
+}) {
+  const [busy, setBusy] = useState(false)
+  const timer = useRef<number | undefined>(undefined)
+
+  function start() {
+    if (disabled || busy) return
+    timer.current = window.setTimeout(async () => {
+      setBusy(true)
+      try {
+        await onHold()
+      } finally {
+        setBusy(false)
+      }
+    }, holdMs)
+  }
+  function cancel() {
+    window.clearTimeout(timer.current)
+  }
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="size-7"
+          aria-label={text + " (hold)"}
+          disabled={disabled || busy}
+          onPointerDown={start}
+          onPointerUp={cancel}
+          onPointerLeave={cancel}
+        >
+          <RefreshCw className={`size-3.5 ${busy ? "animate-spin" : ""}`} />
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent>Hold to {text.toLowerCase()}</TooltipContent>
+    </Tooltip>
+  )
+}
+
 function RowActions({
   row,
   can,
   onChanged,
-  onEdit,
   onDelete,
 }: {
   row: Application
   can: (scope: string) => boolean
   onChanged: () => void
-  onEdit: () => void
   onDelete: () => void
 }) {
   const [busy, setBusy] = useState(false)
-  const href = safeURL(row.posting_url)
-
-  async function recheckLink() {
-    setBusy(true)
-    try {
-      await api(`/v1/applications/${encodeURIComponent(row.id)}/check-link`, { method: "POST", body: {} })
-      onChanged()
-    } finally {
-      setBusy(false)
-    }
-  }
 
   async function decide(kind: "approve" | "reject") {
     setBusy(true)
@@ -289,51 +337,40 @@ function RowActions({
     }
   }
 
+  const hasMenu = can("write")
+
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon" className="size-7" disabled={busy} aria-label="Actions">
-          <MoreHorizontal />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
-        {href && (
-          <DropdownMenuItem asChild>
-            <a href={href} target="_blank" rel="noopener noreferrer">
-              <ExternalLink /> Open posting
-            </a>
-          </DropdownMenuItem>
-        )}
-        {can("write") && (
-          <>
-            <DropdownMenuItem onClick={onEdit}>
-              <Pencil /> Edit details
+    <span className="flex items-center justify-end gap-0.5">
+      {row.status === "awaiting_review" && can("approve") && (
+        <>
+          <IconAction label="Approve" onClick={() => decide("approve")} disabled={busy}>
+            <Check className="size-3.5" />
+          </IconAction>
+          <IconAction label="Reject" onClick={() => decide("reject")} disabled={busy} danger>
+            <X className="size-3.5" />
+          </IconAction>
+        </>
+      )}
+      {hasMenu && (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon" className="size-7" disabled={busy} aria-label="More actions">
+              <MoreHorizontal className="size-3.5" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            {row.status !== "withdrawn" && (
+              <DropdownMenuItem onClick={archive}>
+                <Archive /> Archive
+              </DropdownMenuItem>
+            )}
+            <DropdownMenuItem onClick={onDelete} variant="destructive">
+              <Trash2 /> Delete
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={recheckLink}>
-              <RefreshCw /> Re-check link
-            </DropdownMenuItem>
-          </>
-        )}
-        {row.status === "awaiting_review" && can("approve") && (
-          <>
-            <DropdownMenuItem onClick={() => decide("approve")}>
-              <Check /> Approve
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => decide("reject")} variant="destructive">
-              <X /> Reject
-            </DropdownMenuItem>
-          </>
-        )}
-        {can("write") && row.status !== "withdrawn" && (
-          <DropdownMenuItem onClick={archive}>Archive</DropdownMenuItem>
-        )}
-        {can("write") && (
-          <DropdownMenuItem onClick={onDelete} variant="destructive">
-            <Trash2 /> Delete
-          </DropdownMenuItem>
-        )}
-      </DropdownMenuContent>
-    </DropdownMenu>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      )}
+    </span>
   )
 }
 
@@ -354,6 +391,7 @@ export function PipelinePage() {
   const [dialogApp, setDialogApp] = useState<Application | null | undefined>(undefined)
   const [deleteTarget, setDeleteTarget] = useState<Application | null>(null)
   const [bulkBusy, setBulkBusy] = useState(false)
+  const [checkingAll, setCheckingAll] = useState(false)
   const loadGen = useRef(0)
 
   async function load(cursor?: string) {
@@ -549,12 +587,18 @@ export function PipelinePage() {
                           size="icon"
                           className="size-5"
                           aria-label="Re-check all posting links"
+                          disabled={checkingAll}
                           onClick={async () => {
-                            await api("/v1/links/check", { method: "POST", body: { owner: "dashboard" } })
-                            await load()
+                            setCheckingAll(true)
+                            try {
+                              await api("/v1/links/check", { method: "POST", body: { owner: "dashboard" } })
+                              await load()
+                            } finally {
+                              setCheckingAll(false)
+                            }
                           }}
                         >
-                          <RefreshCw className="size-3" />
+                          <RefreshCw className={`size-3 ${checkingAll ? "animate-spin" : ""}`} />
                         </Button>
                       </TooltipTrigger>
                       <TooltipContent>Re-check all links</TooltipContent>
@@ -617,19 +661,32 @@ export function PipelinePage() {
                       </span>
                     </TableCell>
                     <TableCell>
-                      <span className="flex items-center gap-2">
-                        <LinkBadge
-                          status={row.link_status}
-                          disabled={!can("write")}
-                          onHoldRefresh={async () => {
-                            await api(`/v1/applications/${encodeURIComponent(row.id)}/check-link`, { method: "POST", body: {} })
-                            await load()
-                          }}
-                        />
+                      <span className="flex items-center gap-1.5">
+                        <LinkBadge status={row.link_status} />
                         {href && (
-                          <a href={href} target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-foreground">
-                            Open
-                          </a>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <a
+                                href={href}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-muted-foreground hover:text-foreground"
+                                aria-label="Open posting"
+                              >
+                                <ExternalLink className="size-3.5" />
+                              </a>
+                            </TooltipTrigger>
+                            <TooltipContent>Open posting</TooltipContent>
+                          </Tooltip>
+                        )}
+                        {can("write") && (
+                          <HoldIconAction
+                            label="Re-check link"
+                            onHold={async () => {
+                              await api(`/v1/applications/${encodeURIComponent(row.id)}/check-link`, { method: "POST", body: {} })
+                              await load()
+                            }}
+                          />
                         )}
                       </span>
                     </TableCell>
@@ -644,7 +701,6 @@ export function PipelinePage() {
                         row={row}
                         can={can}
                         onChanged={() => load()}
-                        onEdit={() => setDialogApp(row)}
                         onDelete={() => setDeleteTarget(row)}
                       />
                     </TableCell>
