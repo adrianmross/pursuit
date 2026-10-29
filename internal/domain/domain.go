@@ -577,6 +577,7 @@ type Application struct {
 	LinkStatus     string     `json:"link_status,omitempty"`
 	LinkCheckedAt  *time.Time `json:"link_checked_at,omitempty"`
 	ArchivedAt     *time.Time `json:"archived_at,omitempty"`
+	CustomFields   map[string]string `json:"custom_fields,omitempty"`
 	Version        int        `json:"version"`
 	CreatedAt      time.Time  `json:"created_at"`
 	UpdatedAt      time.Time  `json:"updated_at"`
@@ -608,6 +609,31 @@ type Tag struct {
 	UserID    string    `json:"-"`
 	Name      string    `json:"name"`
 	CreatedAt time.Time `json:"created_at"`
+}
+
+// CustomField is a user-defined attribute (e.g. "Salary range") applications
+// can carry a value for. Type governs how the value is parsed and sorted.
+type CustomField struct {
+	ID        string    `json:"id"`
+	UserID    string    `json:"-"`
+	Name      string    `json:"name"`
+	Type      string    `json:"type"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+const (
+	FieldText   = "text"
+	FieldNumber = "number"
+	FieldDate   = "date"
+)
+
+func ParseFieldType(s string) (string, error) {
+	switch s {
+	case FieldText, FieldNumber, FieldDate:
+		return s, nil
+	default:
+		return "", Validation("invalid field type").WithHint("type is text, number, or date")
+	}
 }
 
 type Audit struct {
@@ -712,9 +738,10 @@ func CheckCursorSort(c Cursor, sort string) error {
 var (
 	CompanyFields = []string{"id", "name", "website", "notes", "version", "created_at", "updated_at"}
 	RoleFields    = []string{"id", "company_id", "company", "title", "location", "salary", "salary_min_cents", "salary_max_cents", "fit", "posting_url", "source", "job_type", "version", "created_at", "updated_at"}
-	AppFields     = []string{"id", "company_id", "company", "role_id", "title", "location", "salary", "salary_min_cents", "salary_max_cents", "fit", "status", "applied_date", "next_step", "notes", "posting_url", "source", "job_type", "resume_version", "resume_file_ref", "contact_email", "external_id", "tags", "link_status", "link_checked_at", "archived_at", "version", "created_at", "updated_at"}
+	AppFields     = []string{"id", "company_id", "company", "role_id", "title", "location", "salary", "salary_min_cents", "salary_max_cents", "fit", "status", "applied_date", "next_step", "notes", "posting_url", "source", "job_type", "resume_version", "resume_file_ref", "contact_email", "external_id", "tags", "link_status", "link_checked_at", "archived_at", "custom_fields", "version", "created_at", "updated_at"}
 	EventFields   = []string{"id", "application_id", "kind", "from_status", "to_status", "title", "body", "occurred_at", "created_at", "actor"}
 	TagFields     = []string{"id", "name", "created_at"}
+	CustomFieldFields = []string{"id", "name", "type", "created_at"}
 	TokenFields   = []string{"id", "name", "prefix", "scopes", "created_at", "last_used_at", "revoked_at"}
 	AuditFields   = []string{"id", "token_id", "actor_name", "action", "entity_type", "entity_id", "summary", "metadata", "created_at"}
 	LinkFields    = []string{"application_id", "role_id", "company", "title", "posting_url", "status", "detail", "http_status", "changed", "checked_at"}

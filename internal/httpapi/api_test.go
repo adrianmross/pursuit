@@ -952,6 +952,70 @@ func createChecked(t *testing.T, e *env, postingURL, company, title string) stri
 	return id
 }
 
+func TestCustomFields(t *testing.T) {
+	e := newEnv(t)
+	code, field := e.json(t, http.MethodPost, "/v1/fields", e.token, map[string]any{"name": "SalaryRange", "type": "number"})
+	if code != 201 || field["type"] != "number" {
+		t.Fatalf("create field: %d %#v", code, field)
+	}
+	fieldID := field["id"].(string)
+
+	code, bad := e.json(t, http.MethodPost, "/v1/fields", e.token, map[string]any{"name": "Bad", "type": "currency"})
+	if code != 400 {
+		t.Fatalf("invalid type should be rejected: %d %#v", code, bad)
+	}
+
+	code, high := e.json(t, http.MethodPost, "/v1/applications", e.token, map[string]any{"company": "High Co", "title": "Eng", "status": "to_apply"})
+	if code != 201 {
+		t.Fatal(high)
+	}
+	code, low := e.json(t, http.MethodPost, "/v1/applications", e.token, map[string]any{"company": "Low Co", "title": "Eng", "status": "to_apply"})
+	if code != 201 {
+		t.Fatal(low)
+	}
+	highID, lowID := high["id"].(string), low["id"].(string)
+
+	code, setHigh := e.json(t, http.MethodPost, "/v1/applications/"+highID+"/fields/"+fieldID, e.token, map[string]any{"value": "200000"})
+	if code != 200 || setHigh["custom_fields"].(map[string]any)["SalaryRange"] != "200000" {
+		t.Fatalf("set high: %d %#v", code, setHigh)
+	}
+	code, setLow := e.json(t, http.MethodPost, "/v1/applications/"+lowID+"/fields/"+fieldID, e.token, map[string]any{"value": "100000"})
+	if code != 200 {
+		t.Fatalf("set low: %d %#v", code, setLow)
+	}
+	code, badValue := e.json(t, http.MethodPost, "/v1/applications/"+lowID+"/fields/"+fieldID, e.token, map[string]any{"value": "not-a-number"})
+	if code != 400 {
+		t.Fatalf("non-numeric value should be rejected: %d %#v", code, badValue)
+	}
+
+	code, asc := e.json(t, http.MethodGet, "/v1/applications?sort=field:SalaryRange", e.token, nil)
+	if code != 200 {
+		t.Fatalf("sort asc: %d %#v", code, asc)
+	}
+	ascData := asc["data"].([]any)
+	if len(ascData) != 2 || ascData[0].(map[string]any)["id"] != lowID || ascData[1].(map[string]any)["id"] != highID {
+		t.Fatalf("expected low then high ascending: %#v", ascData)
+	}
+
+	code, desc := e.json(t, http.MethodGet, "/v1/applications?sort=-field:SalaryRange", e.token, nil)
+	if code != 200 {
+		t.Fatalf("sort desc: %d %#v", code, desc)
+	}
+	descData := desc["data"].([]any)
+	if len(descData) != 2 || descData[0].(map[string]any)["id"] != highID {
+		t.Fatalf("expected high first descending: %#v", descData)
+	}
+
+	code, deleted := e.json(t, http.MethodDelete, "/v1/fields/"+fieldID, e.token, nil)
+	if code != 200 {
+		t.Fatalf("delete field: %d %#v", code, deleted)
+	}
+	code, after := e.json(t, http.MethodGet, "/v1/applications/"+highID, e.token, nil)
+	if code != 200 || after["custom_fields"] != nil {
+		t.Fatalf("deleting a field should clear its values: %d %#v", code, after)
+	}
+}
+
 func TestArchiveAndUnarchive(t *testing.T) {
 	e := newEnv(t)
 	code, app := e.json(t, http.MethodPost, "/v1/applications", e.token, map[string]any{

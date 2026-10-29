@@ -33,6 +33,7 @@ func rootCommand() *Command {
 			cmdCompanies(),
 			cmdEvents(),
 			cmdTags(),
+			cmdFields(),
 			cmdTokens(),
 			cmdAudit(),
 			cmdImport(),
@@ -249,6 +250,13 @@ func cmdApps() *Command {
 				{Name: "remove", Summary: "detach a tag", Mutating: true, Usage: "pursuit apps tag remove <id> <tag-id>", Args: []Arg{{Name: "id", Required: true}, {Name: "tag-id", Required: true}}, Run: func(e *exec) error {
 					return e.send("DELETE", "/v1/applications/"+url.PathEscape(e.args[0])+"/tags/"+url.PathEscape(e.args[1]), nil, nil, "", true, true)
 				}},
+			}},
+			{Name: "set-field", Summary: "set a custom field's value", Mutating: true, Usage: "pursuit apps set-field <id> <field-id> --value <value>", Args: []Arg{{Name: "id", Required: true}, {Name: "field-id", Required: true}}, Flags: []Flag{{Name: "value", Type: "string", Help: "the value; empty clears it"}}, Run: func(e *exec) error {
+				body, err := e.jsonBody(map[string]string{"value": e.flag("value")})
+				if err != nil {
+					return err
+				}
+				return e.send("POST", "/v1/applications/"+url.PathEscape(e.args[0])+"/fields/"+url.PathEscape(e.args[1]), nil, body, "application/json", true, true)
 			}},
 		},
 	}
@@ -486,6 +494,22 @@ func cmdTags() *Command {
 		}},
 		{Name: "delete", Summary: "delete a tag", Mutating: true, Args: []Arg{{Name: "id", Required: true}}, Run: func(e *exec) error {
 			return e.send("DELETE", "/v1/tags/"+url.PathEscape(e.args[0]), nil, nil, "", true, false)
+		}},
+	}}
+}
+
+func cmdFields() *Command {
+	return &Command{Name: "fields", Summary: "custom application fields", Children: []*Command{
+		{Name: "list", Summary: "list custom fields", Run: func(e *exec) error { return e.send("GET", "/v1/fields", nil, nil, "", false, true) }},
+		{Name: "create", Summary: "create a custom field", Mutating: true, Usage: "pursuit fields create --name <name> --type text|number|date", Flags: []Flag{{Name: "name", Type: "string", Help: "field name"}, {Name: "type", Type: "string", Help: "text, number, or date"}}, Run: func(e *exec) error {
+			body, err := e.jsonBody(map[string]string{"name": e.flag("name"), "type": e.flag("type")})
+			if err != nil {
+				return err
+			}
+			return e.send("POST", "/v1/fields", nil, body, "application/json", true, true)
+		}},
+		{Name: "delete", Summary: "delete a custom field", Mutating: true, Args: []Arg{{Name: "id", Required: true}}, Run: func(e *exec) error {
+			return e.send("DELETE", "/v1/fields/"+url.PathEscape(e.args[0]), nil, nil, "", true, false)
 		}},
 	}}
 }

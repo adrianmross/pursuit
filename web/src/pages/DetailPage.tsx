@@ -3,7 +3,7 @@ import { Link, useNavigate, useParams } from "react-router-dom"
 import { ArrowLeft, Check, ChevronDown, ExternalLink, MoreHorizontal, RefreshCw, X } from "lucide-react"
 import { api, ApiError } from "@/lib/api"
 import { useAuth } from "@/lib/auth"
-import { label, statusTone, type Application, type Artifact, type Event, type Page, type Question } from "@/lib/types"
+import { label, statusTone, type Application, type Artifact, type CustomField, type Event, type Page, type Question } from "@/lib/types"
 import { CompanyAvatar } from "@/components/CompanyAvatar"
 import { AttributesForm, EMPTY_ATTRIBUTES, FIT_OPTIONS, STATUS_OPTIONS, type AttributesFormState } from "@/components/AttributesForm"
 import { ConfirmDialog } from "@/components/ConfirmDialog"
@@ -76,21 +76,24 @@ export function DetailPage() {
 
   const [notesDraft, setNotesDraft] = useState("")
   const [notesBusy, setNotesBusy] = useState(false)
+  const [fields, setFields] = useState<CustomField[]>([])
 
   async function load() {
     if (isNew) return
     try {
-      const [app, eventsPage, artifactsPage, questionsPage] = await Promise.all([
+      const [app, eventsPage, artifactsPage, questionsPage, fieldsPage] = await Promise.all([
         api<Application>(`/v1/applications/${encodeURIComponent(id)}`),
         api<Page<Event>>(`/v1/applications/${encodeURIComponent(id)}/events?limit=100`),
         api<Page<Artifact>>(`/v1/applications/${encodeURIComponent(id)}/artifacts`),
         api<Page<Question>>(`/v1/applications/${encodeURIComponent(id)}/questions`),
+        api<Page<CustomField>>(`/v1/fields?limit=100`),
       ])
       setApplication(app)
       setNotesDraft(app.notes || "")
       setEvents(eventsPage.data || [])
       setArtifacts(artifactsPage.data || [])
       setQuestions(questionsPage.data || [])
+      setFields(fieldsPage.data || [])
       setError(null)
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Failed to load application")
@@ -110,6 +113,19 @@ export function DetailPage() {
         method: "PATCH",
         body: { version: application.version, ...patch },
       })
+      setApplication(updated)
+    } catch (err) {
+      setFieldError(err instanceof ApiError ? err.message : "Failed to save")
+    }
+  }
+
+  async function saveCustomFieldValue(fieldID: string, value: string) {
+    if (!application) return
+    try {
+      const updated = await api<Application>(
+        `/v1/applications/${encodeURIComponent(application.id)}/fields/${encodeURIComponent(fieldID)}`,
+        { method: "POST", body: { value } },
+      )
       setApplication(updated)
     } catch (err) {
       setFieldError(err instanceof ApiError ? err.message : "Failed to save")
@@ -412,6 +428,18 @@ export function DetailPage() {
               ))}
             </div>
           )}
+          {fields.map((f) => (
+            <div key={f.id} className="flex flex-col gap-0.5">
+              <span className="text-xs text-muted-foreground">{f.name}</span>
+              <InlineText
+                value={application.custom_fields?.[f.name] || ""}
+                disabled={!writable}
+                className="text-sm"
+                inputClassName="h-7 text-sm"
+                onSave={(v) => saveCustomFieldValue(f.id, v)}
+              />
+            </div>
+          ))}
           {fieldError && (
             <p className="col-span-2 text-sm text-destructive sm:col-span-3">{fieldError}</p>
           )}

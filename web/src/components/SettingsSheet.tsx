@@ -2,6 +2,7 @@ import { useState } from "react"
 import { FILTERS, MORE, SORTS } from "@/lib/types"
 import { getDefaultSort, getDefaultStatus, setDefaultSort, setDefaultStatus } from "@/lib/settings"
 import { useTheme } from "@/lib/theme"
+import { CustomFieldsManager } from "@/components/CustomFieldsManager"
 import { Label } from "@/components/ui/label"
 import {
   ToggleGroup,
@@ -100,6 +101,7 @@ export function SettingsSheet({ open, onOpenChange }: { open: boolean; onOpenCha
               </SelectContent>
             </Select>
           </div>
+          <CustomFieldsManager active={open} />
         </div>
       </SheetContent>
     </Sheet>

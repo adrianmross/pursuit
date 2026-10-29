@@ -16,7 +16,15 @@ export type Application = {
   source?: string
   next_step?: string
   archived_at?: string
+  custom_fields?: Record<string, string>
   version?: number
+}
+
+export type CustomField = {
+  id: string
+  name: string
+  type: "text" | "number" | "date"
+  created_at?: string
 }
 
 export type Page<T> = {

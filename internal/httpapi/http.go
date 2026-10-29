@@ -83,6 +83,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /v1/applications/{id}/events", s.addEvent)
 	mux.HandleFunc("POST /v1/applications/{id}/tags", s.attachTag)
 	mux.HandleFunc("DELETE /v1/applications/{id}/tags/{tagID}", s.detachTag)
+	mux.HandleFunc("POST /v1/applications/{id}/fields/{fieldID}", s.setFieldValue)
 	mux.HandleFunc("POST /v1/applications/{id}/prepare", s.prepare)
 	mux.HandleFunc("POST /v1/applications/{id}/enqueue", s.enqueue)
 	mux.HandleFunc("GET /v1/applications/{id}/artifacts", s.listArtifacts)
@@ -113,6 +114,9 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /v1/tags", s.listTags)
 	mux.HandleFunc("POST /v1/tags", s.createTag)
 	mux.HandleFunc("DELETE /v1/tags/{id}", s.deleteTag)
+	mux.HandleFunc("GET /v1/fields", s.listFields)
+	mux.HandleFunc("POST /v1/fields", s.createField)
+	mux.HandleFunc("DELETE /v1/fields/{id}", s.deleteField)
 	mux.HandleFunc("GET /v1/audit", s.listAudit)
 
 	mux.HandleFunc("POST /v1/import/csv", s.importCSV)
@@ -1073,6 +1077,44 @@ func (s *Server) deleteTag(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	s.mutate(w, r, 200, nil, nil, func(ctx context.Context) (any, error) {
 		return s.Svc.DeleteTag(ctx, id)
+	})
+}
+
+func (s *Server) listFields(w http.ResponseWriter, r *http.Request) {
+	s.page(w, r, []string{"limit", "cursor", "sort", "q", "fields"}, domain.CustomFieldFields, func(ctx context.Context, q domain.ListQuery) (any, error) {
+		return s.Svc.ListFields(ctx, q)
+	})
+}
+
+func (s *Server) createField(w http.ResponseWriter, r *http.Request) {
+	s.jsonMut(w, r, 201, domain.CustomFieldFields, func(ctx context.Context, body []byte) (any, error) {
+		var in service.FieldInput
+		if err := decode(body, &in); err != nil {
+			return nil, err
+		}
+		return s.Svc.CreateField(ctx, in)
+	})
+}
+
+func (s *Server) deleteField(w http.ResponseWriter, r *http.Request) {
+	if _, err := query(r, "dry_run"); err != nil {
+		writeErr(w, err)
+		return
+	}
+	id := r.PathValue("id")
+	s.mutate(w, r, 200, nil, nil, func(ctx context.Context) (any, error) {
+		return s.Svc.DeleteField(ctx, id)
+	})
+}
+
+func (s *Server) setFieldValue(w http.ResponseWriter, r *http.Request) {
+	id, fieldID := r.PathValue("id"), r.PathValue("fieldID")
+	s.jsonMut(w, r, 200, domain.AppFields, func(ctx context.Context, body []byte) (any, error) {
+		var in service.SetFieldValueInput
+		if err := decode(body, &in); err != nil {
+			return nil, err
+		}
+		return s.Svc.SetFieldValue(ctx, id, fieldID, in)
 	})
 }
 

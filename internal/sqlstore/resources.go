@@ -472,6 +472,13 @@ func (s *Store) GetApplication(ctx context.Context, userID, id string) (domain.A
 	if tags := names[a.ID]; tags != nil {
 		a.Tags = tags
 	}
+	fields, err := s.FieldValues(ctx, []string{a.ID})
+	if err != nil {
+		return domain.Application{}, err
+	}
+	if v := fields[a.ID]; len(v) > 0 {
+		a.CustomFields = v
+	}
 	return a, nil
 }
 
@@ -493,7 +500,19 @@ func (s *Store) GetApplicationByExternalID(ctx context.Context, userID, external
 	return a, nil
 }
 
+// fieldSortName returns the field name and descending flag for a
+// "field:<name>" or "-field:<name>" sort, or ok=false for any other sort.
+func fieldSortName(sort string) (name string, desc bool, ok bool) {
+	desc = strings.HasPrefix(sort, "-")
+	rest := strings.TrimPrefix(sort, "-")
+	name, ok = strings.CutPrefix(rest, "field:")
+	return name, desc, ok
+}
+
 func (s *Store) ListApplications(ctx context.Context, userID string, q domain.ListQuery) ([]domain.Application, int, error) {
+	if name, desc, ok := fieldSortName(q.Sort); ok {
+		return s.listApplicationsByField(ctx, userID, q, name, desc)
+	}
 	expr, desc, _, err := PrepareSort("application", q.Sort, q.Cursor)
 	if err != nil {
 		return nil, 0, err
@@ -573,8 +592,129 @@ func (s *Store) ListApplications(ctx context.Context, userID string, q domain.Li
 			out[i].Tags = tags
 		}
 	}
+	fields, err := s.FieldValues(ctx, ids)
+	if err != nil {
+		return nil, 0, err
+	}
+	for i := range out {
+		if v := fields[out[i].ID]; len(v) > 0 {
+			out[i].CustomFields = v
+		}
+	}
 	var total int
 	if err := s.queryRow(ctx, countSQL, countArgs...).Scan(&total); err != nil {
+		return nil, 0, err
+	}
+	if out == nil {
+		out = []domain.Application{}
+	}
+	return out, total, nil
+}
+
+// listApplicationsByField sorts by a custom field's value instead of a
+// built-in column. It shares the same filters as ListApplications but,
+// unlike it, has no cursor/keyset pagination — a field-sorted list is a
+// single page (LIMIT only), since keyset pagination over an arbitrary
+// joined column isn't worth the complexity here.
+func (s *Store) listApplicationsByField(ctx context.Context, userID string, q domain.ListQuery, fieldName string, desc bool) ([]domain.Application, int, error) {
+	field, err := s.GetFieldByName(ctx, userID, fieldName)
+	if err != nil {
+		return nil, 0, err
+	}
+	orderCol := "v.value"
+	if field.Type == domain.FieldNumber {
+		orderCol = "v.value_number"
+	}
+	dir := "ASC"
+	if desc {
+		dir = "DESC"
+	}
+
+	w := where{}
+	w.add("a.user_id=?", userID)
+	if len(q.Status) > 0 {
+		ph := strings.TrimRight(strings.Repeat("?,", len(q.Status)), ",")
+		args := make([]any, len(q.Status))
+		for i, st := range q.Status {
+			args[i] = st
+		}
+		w.add("a.status IN ("+ph+")", args...)
+	}
+	if q.CompanyID != "" {
+		w.add("r.company_id=?", q.CompanyID)
+	}
+	if q.Company != "" {
+		w.add("lower(c.name)=lower(?)", q.Company)
+	}
+	if q.Fit != "" {
+		w.add("r.fit=?", q.Fit)
+	}
+	if q.Source != "" {
+		w.add("r.source=?", q.Source)
+	}
+	if q.Tag != "" {
+		w.add(`EXISTS (SELECT 1 FROM application_tags at JOIN tags t ON t.id = at.tag_id WHERE at.application_id = a.id AND lower(t.name)=lower(?))`, q.Tag)
+	}
+	if q.Stale {
+		w.add("pc.status=?", domain.LinkClosed)
+	}
+	if q.Archived {
+		w.add("a.archived_at<>''")
+	} else {
+		w.add("a.archived_at=''")
+	}
+	if q.Q != "" {
+		p := likeContains(q.Q)
+		w.add(`(lower(c.name) LIKE ? ESCAPE '\' OR lower(r.title) LIKE ? ESCAPE '\' OR lower(a.notes) LIKE ? ESCAPE '\' OR lower(r.location) LIKE ? ESCAPE '\' OR lower(a.next_step) LIKE ? ESCAPE '\')`, p, p, p, p, p)
+	}
+
+	joined := `applications a JOIN roles r ON r.id = a.role_id JOIN companies c ON c.id = r.company_id LEFT JOIN posting_checks pc ON pc.role_id = r.id LEFT JOIN custom_field_values v ON v.application_id = a.id AND v.field_id = ?`
+	joinArgs := append([]any{field.ID}, w.args...)
+	countSQL := `SELECT COUNT(*) FROM ` + joined + ` ` + w.sql()
+	limit := q.Limit
+	if limit <= 0 {
+		limit = 51
+	}
+	selectSQL := `SELECT a.id, a.user_id, a.role_id, a.status, a.applied_date, a.next_step, a.notes, a.resume_version, a.resume_file_ref, a.contact_email, a.external_id, a.archived_at, a.version, a.created_at, a.updated_at, r.title, r.location, r.salary_text, r.salary_min_cents, r.salary_max_cents, r.fit, r.posting_url, r.source, r.job_type, r.company_id, c.name, COALESCE(pc.status, ''), pc.checked_at FROM ` +
+		joined + ` ` + w.sql() + ` ORDER BY ` + orderCol + ` IS NULL, ` + orderCol + ` ` + dir + `, a.id LIMIT ?`
+	rows, err := s.query(ctx, selectSQL, append(joinArgs, limit)...)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+	var out []domain.Application
+	for rows.Next() {
+		a, err := scanApp(rows)
+		if err != nil {
+			return nil, 0, err
+		}
+		out = append(out, a)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, 0, err
+	}
+	ids := make([]string, len(out))
+	for i := range out {
+		ids[i] = out[i].ID
+	}
+	names, err := s.TagNames(ctx, ids)
+	if err != nil {
+		return nil, 0, err
+	}
+	fields, err := s.FieldValues(ctx, ids)
+	if err != nil {
+		return nil, 0, err
+	}
+	for i := range out {
+		if tags := names[out[i].ID]; tags != nil {
+			out[i].Tags = tags
+		}
+		if v := fields[out[i].ID]; len(v) > 0 {
+			out[i].CustomFields = v
+		}
+	}
+	var total int
+	if err := s.queryRow(ctx, countSQL, joinArgs...).Scan(&total); err != nil {
 		return nil, 0, err
 	}
 	if out == nil {
@@ -843,6 +983,138 @@ func (s *Store) DetachTag(ctx context.Context, appID, tagID string) error {
 		return domain.NotFound("application tag")
 	}
 	return nil
+}
+
+func (s *Store) CreateField(ctx context.Context, f domain.CustomField) error {
+	_, err := s.exec(ctx, `INSERT INTO custom_fields (id, user_id, name, type, created_at) VALUES (?, ?, ?, ?, ?)`,
+		f.ID, f.UserID, f.Name, f.Type, formatTime(f.CreatedAt))
+	return mapWriteErr(err)
+}
+
+func scanField(row scanner) (domain.CustomField, error) {
+	var f domain.CustomField
+	var created string
+	err := row.Scan(&f.ID, &f.UserID, &f.Name, &f.Type, &created)
+	if err != nil {
+		return domain.CustomField{}, err
+	}
+	f.CreatedAt, err = parseTime(created)
+	return f, err
+}
+
+func (s *Store) GetField(ctx context.Context, userID, id string) (domain.CustomField, error) {
+	f, err := scanField(s.queryRow(ctx, `SELECT id, user_id, name, type, created_at FROM custom_fields WHERE user_id=? AND id=?`, userID, id))
+	if err == sql.ErrNoRows {
+		return domain.CustomField{}, domain.NotFound("field")
+	}
+	return f, err
+}
+
+func (s *Store) GetFieldByName(ctx context.Context, userID, name string) (domain.CustomField, error) {
+	f, err := scanField(s.queryRow(ctx, `SELECT id, user_id, name, type, created_at FROM custom_fields WHERE user_id=? AND lower(name)=lower(?)`, userID, name))
+	if err == sql.ErrNoRows {
+		return domain.CustomField{}, domain.NotFound("field")
+	}
+	return f, err
+}
+
+func (s *Store) ListFields(ctx context.Context, userID string, q domain.ListQuery) ([]domain.CustomField, int, error) {
+	expr, desc, _, err := PrepareSort("field", q.Sort, q.Cursor)
+	if err != nil {
+		return nil, 0, err
+	}
+	w := where{}
+	w.add("user_id=?", userID)
+	countArgs := []any{userID}
+	if q.Q != "" {
+		p := likeContains(q.Q)
+		w.add(`lower(name) LIKE ? ESCAPE '\'`, p)
+		countArgs = append(countArgs, p)
+	}
+	countWhere := w.sql()
+	if q.Cursor != nil && q.Cursor.ID != "" {
+		w.add(cursorSQL(expr, "id", desc), q.Cursor.K, q.Cursor.K, q.Cursor.ID)
+	}
+	limit := q.Limit
+	if limit <= 0 {
+		limit = 51
+	}
+	rows, err := s.query(ctx, `SELECT id, user_id, name, type, created_at FROM custom_fields `+w.sql()+` `+orderSQL(expr, "id", desc)+` LIMIT ?`, append(w.args, limit)...)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+	var out []domain.CustomField
+	for rows.Next() {
+		f, err := scanField(rows)
+		if err != nil {
+			return nil, 0, err
+		}
+		out = append(out, f)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, 0, err
+	}
+	var total int
+	if err := s.queryRow(ctx, `SELECT COUNT(*) FROM custom_fields `+countWhere, countArgs...).Scan(&total); err != nil {
+		return nil, 0, err
+	}
+	if out == nil {
+		out = []domain.CustomField{}
+	}
+	return out, total, nil
+}
+
+func (s *Store) DeleteField(ctx context.Context, userID, id string) error {
+	res, err := s.exec(ctx, `DELETE FROM custom_fields WHERE user_id=? AND id=?`, userID, id)
+	if err != nil {
+		return mapWriteErr(err)
+	}
+	n, _ := res.RowsAffected()
+	if n == 0 {
+		return domain.NotFound("field")
+	}
+	return nil
+}
+
+// SetFieldValue upserts a field's value for an application. valueNumber is
+// used only for numeric-typed fields, to make sorting on them cheap; pass
+// nil for text and date fields.
+func (s *Store) SetFieldValue(ctx context.Context, appID, fieldID, value string, valueNumber *float64) error {
+	_, err := s.exec(ctx, `INSERT INTO custom_field_values (application_id, field_id, value, value_number) VALUES (?, ?, ?, ?)
+		ON CONFLICT (application_id, field_id) DO UPDATE SET value=excluded.value, value_number=excluded.value_number`,
+		appID, fieldID, value, valueNumber)
+	return mapWriteErr(err)
+}
+
+// FieldValues batches a name->value map per application, the same pattern
+// TagNames uses for tags.
+func (s *Store) FieldValues(ctx context.Context, appIDs []string) (map[string]map[string]string, error) {
+	out := map[string]map[string]string{}
+	if len(appIDs) == 0 {
+		return out, nil
+	}
+	ph := strings.TrimRight(strings.Repeat("?,", len(appIDs)), ",")
+	args := make([]any, len(appIDs))
+	for i, id := range appIDs {
+		args[i] = id
+	}
+	rows, err := s.query(ctx, `SELECT v.application_id, f.name, v.value FROM custom_field_values v JOIN custom_fields f ON f.id = v.field_id WHERE v.application_id IN (`+ph+`)`, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var appID, name, value string
+		if err := rows.Scan(&appID, &name, &value); err != nil {
+			return nil, err
+		}
+		if out[appID] == nil {
+			out[appID] = map[string]string{}
+		}
+		out[appID][name] = value
+	}
+	return out, rows.Err()
 }
 
 func (s *Store) TagNames(ctx context.Context, appIDs []string) (map[string][]string, error) {

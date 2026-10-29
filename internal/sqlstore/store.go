@@ -403,6 +403,8 @@ func sortSpec(kind string) (map[string]string, string, error) {
 		return map[string]string{"created_at": "created_at"}, "-created_at", nil
 	case "tag":
 		return map[string]string{"name": "name", "created_at": "created_at"}, "name", nil
+	case "field":
+		return map[string]string{"name": "name", "created_at": "created_at"}, "name", nil
 	case "token":
 		return map[string]string{"created_at": "created_at", "name": "name"}, "-created_at", nil
 	default:
