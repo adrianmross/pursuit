@@ -672,6 +672,10 @@ type ListQuery struct {
 	Cursor        *Cursor
 	Q             string
 	Status        []string
+	// StatusExclude removes these statuses from the result, applied after
+	// Status (inclusion). The per-column header filter uses this; the
+	// Filter & sort popover's status slider/chips use Status.
+	StatusExclude []string
 	Company       string
 	CompanyID     string
 	Fit           string

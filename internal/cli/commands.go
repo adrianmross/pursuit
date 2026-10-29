@@ -132,6 +132,7 @@ func cmdServe() *Command {
 func appListFlags() []Flag {
 	return []Flag{
 		{Name: "status", Type: "string", Help: "filter by status", Repeatable: true},
+		{Name: "status-not", Type: "string", Help: "exclude a status", Repeatable: true},
 		{Name: "company", Type: "string", Help: "filter by company name"},
 		{Name: "fit", Type: "string", Help: "strong, reach, or maybe"},
 		{Name: "source", Type: "string", Help: "greenhouse, ashby, lever, workday, company_site, other"},
@@ -266,6 +267,9 @@ func runAppList(e *exec) error {
 	q := url.Values{}
 	for _, st := range e.flags["status"] {
 		q.Add("status", st)
+	}
+	for _, st := range e.flags["status-not"] {
+		q.Add("status_not", st)
 	}
 	for _, k := range []string{"company", "fit", "source", "tag", "q", "limit", "cursor", "sort"} {
 		if v := e.flag(k); v != "" {

@@ -4,10 +4,13 @@ import commandScore from "command-score"
 import {
   Archive,
   ArchiveRestore,
+  ArrowDown,
+  ArrowUp,
   Check,
   ChevronDown,
   ChevronRight,
   ExternalLink,
+  Filter,
   MoreHorizontal,
   Plus,
   RefreshCw,
@@ -18,7 +21,7 @@ import {
 import { api, ApiError } from "@/lib/api"
 import { useAuth } from "@/lib/auth"
 import { getDefaultSort, getDefaultStatus } from "@/lib/settings"
-import { FILTERS, MORE, SORTS, label, statusTone, type Application, type Page, type Question } from "@/lib/types"
+import { FILTERS, MORE, SORTS, label, statusTone, type Application, type CustomField, type Page, type Question } from "@/lib/types"
 import { CompanyAvatar } from "@/components/CompanyAvatar"
 import { ConfirmDialog } from "@/components/ConfirmDialog"
 import { PreparedAnswers } from "@/components/PreparedAnswers"
@@ -214,7 +217,75 @@ function FilterSortBar({
   )
 }
 
-function ExpandedRow({ row }: { row: Application }) {
+function SortHeader({
+  text,
+  field,
+  sort,
+  onSort,
+  defaultDesc,
+}: {
+  text: string
+  field: string
+  sort: string
+  onSort: (next: string) => void
+  defaultDesc?: boolean
+}) {
+  const isAsc = sort === field
+  const isDesc = sort === "-" + field
+  function click() {
+    if (isAsc) onSort("-" + field)
+    else if (isDesc) onSort(field)
+    else onSort(defaultDesc ? "-" + field : field)
+  }
+  return (
+    <button type="button" className="flex items-center gap-1 hover:text-foreground" onClick={click}>
+      {text}
+      {isAsc && <ArrowUp className="size-3" />}
+      {isDesc && <ArrowDown className="size-3" />}
+    </button>
+  )
+}
+
+function StatusExcludeFilter({ exclude, onChange }: { exclude: string[]; onChange: (next: string[]) => void }) {
+  const active = exclude.length > 0
+  function toggle(value: string) {
+    onChange(exclude.includes(value) ? exclude.filter((v) => v !== value) : [...exclude, value])
+  }
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button variant="ghost" size="icon" className="relative size-5" aria-label="Exclude statuses">
+          <Filter className="size-3" />
+          {active && <span className="absolute -right-0.5 -top-0.5 size-1.5 rounded-full bg-primary" />}
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-56">
+        <div className="flex flex-col gap-1.5">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-medium text-muted-foreground">Exclude statuses</span>
+            {active && (
+              <button type="button" className="text-xs text-muted-foreground underline" onClick={() => onChange([])}>
+                Clear
+              </button>
+            )}
+          </div>
+          <div className="flex max-h-48 flex-col gap-1 overflow-y-auto">
+            {FILTERS.concat(MORE)
+              .filter(([value]) => value)
+              .map(([value, text]) => (
+                <label key={value} className="flex items-center gap-2 text-sm">
+                  <Checkbox checked={exclude.includes(value)} onCheckedChange={() => toggle(value)} />
+                  {text}
+                </label>
+              ))}
+          </div>
+        </div>
+      </PopoverContent>
+    </Popover>
+  )
+}
+
+function ExpandedRow({ row, columnCount }: { row: Application; columnCount: number }) {
   const [questions, setQuestions] = useState<Question[] | null>(null)
 
   useEffect(() => {
@@ -225,7 +296,7 @@ function ExpandedRow({ row }: { row: Application }) {
 
   return (
     <TableRow className="bg-muted/30">
-      <TableCell colSpan={8} className="py-3">
+      <TableCell colSpan={columnCount} className="py-3">
         <div className="flex flex-col gap-2">
           <span className="text-xs font-medium text-muted-foreground">Prepared answers</span>
           {questions == null ? (
@@ -423,6 +494,8 @@ export function PipelinePage() {
   const q = params.get("q") || ""
   const sort = params.get("sort") || getDefaultSort()
   const archivedView = params.get("archived") === "1"
+  const excludeParam = params.get("exclude") || ""
+  const exclude = excludeParam.split(",").filter(Boolean)
 
   const [rows, setRows] = useState<Application[]>([])
   const [total, setTotal] = useState(0)
@@ -434,7 +507,15 @@ export function PipelinePage() {
   const [deleteTarget, setDeleteTarget] = useState<Application | null>(null)
   const [bulkBusy, setBulkBusy] = useState(false)
   const [checkingAll, setCheckingAll] = useState(false)
+  const [fields, setFields] = useState<CustomField[]>([])
   const loadGen = useRef(0)
+  const columnCount = 8 + fields.length
+
+  useEffect(() => {
+    api<Page<CustomField>>("/v1/fields?limit=100")
+      .then((page) => setFields(page.data || []))
+      .catch(() => setFields([]))
+  }, [])
 
   async function load(cursor?: string) {
     const gen = ++loadGen.current
@@ -444,6 +525,7 @@ export function PipelinePage() {
     if (sort) qs.set("sort", sort)
     if (archivedView) qs.set("archived", "true")
     else if (status) qs.set("status", status)
+    for (const st of exclude) qs.append("status_not", st)
     if (cursor) qs.set("cursor", cursor)
     try {
       const page = await api<Page<Application>>("/v1/applications?" + qs.toString())
@@ -462,7 +544,7 @@ export function PipelinePage() {
   useEffect(() => {
     void load()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [status, sort, archivedView])
+  }, [status, sort, archivedView, excludeParam])
 
   function patch(next: Record<string, string>) {
     const merged = new URLSearchParams(params)
@@ -635,9 +717,28 @@ export function PipelinePage() {
                 />
               </TableHead>
               <TableHead className="w-6" />
-              <TableHead>Company</TableHead>
-              <TableHead>Role</TableHead>
-              <TableHead>Status</TableHead>
+              <TableHead>
+                <SortHeader text="Company" field="company" sort={sort} onSort={(next) => patch({ sort: next })} />
+              </TableHead>
+              <TableHead>
+                <SortHeader text="Role" field="title" sort={sort} onSort={(next) => patch({ sort: next })} />
+              </TableHead>
+              <TableHead>
+                <span className="flex items-center gap-1">
+                  Status
+                  <StatusExcludeFilter exclude={exclude} onChange={(next) => patch({ exclude: next.join(",") })} />
+                </span>
+              </TableHead>
+              {fields.map((f) => (
+                <TableHead key={f.id}>
+                  <SortHeader
+                    text={f.name}
+                    field={`field:${f.name}`}
+                    sort={sort}
+                    onSort={(next) => patch({ sort: next })}
+                  />
+                </TableHead>
+              ))}
               <TableHead>
                 <span className="flex items-center gap-1">
                   Link
@@ -668,14 +769,16 @@ export function PipelinePage() {
                   )}
                 </span>
               </TableHead>
-              <TableHead>Date</TableHead>
+              <TableHead>
+                <SortHeader text="Date" field="applied_date" sort={sort} onSort={(next) => patch({ sort: next })} defaultDesc />
+              </TableHead>
               <TableHead className="w-10" />
             </TableRow>
           </TableHeader>
           <TableBody>
             {visibleRows.length === 0 && !loading && (
               <TableRow>
-                <TableCell colSpan={8} className="text-center text-muted-foreground">
+                <TableCell colSpan={columnCount} className="text-center text-muted-foreground">
                   No applications match.
                 </TableCell>
               </TableRow>
@@ -752,6 +855,11 @@ export function PipelinePage() {
                         )}
                       </span>
                     </TableCell>
+                    {fields.map((f) => (
+                      <TableCell key={f.id} className="text-muted-foreground">
+                        {row.custom_fields?.[f.name] || "—"}
+                      </TableCell>
+                    ))}
                     <TableCell
                       className="text-muted-foreground"
                       title={row.applied_date ? "Applied " + row.applied_date : when ? "Updated " + when : ""}
@@ -767,7 +875,7 @@ export function PipelinePage() {
                       />
                     </TableCell>
                   </TableRow>
-                  {isExpanded && <ExpandedRow row={row} />}
+                  {isExpanded && <ExpandedRow row={row} columnCount={columnCount} />}
                 </Fragment>
               )
             })}

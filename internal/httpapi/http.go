@@ -417,6 +417,19 @@ func listQuery(q map[string][]string) (domain.ListQuery, error) {
 			out.Status = append(out.Status, st)
 		}
 	}
+	for _, raw := range q["status_not"] {
+		for _, part := range strings.Split(raw, ",") {
+			part = strings.TrimSpace(part)
+			if part == "" {
+				continue
+			}
+			st, err := domain.ParseStatus(part)
+			if err != nil {
+				return out, err
+			}
+			out.StatusExclude = append(out.StatusExclude, st)
+		}
+	}
 	switch strings.ToLower(first(q, "stale")) {
 	case "", "0", "false":
 	case "1", "true":
@@ -937,7 +950,7 @@ func (s *Server) captureApp(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) listApps(w http.ResponseWriter, r *http.Request) {
-	s.page(w, r, []string{"limit", "cursor", "sort", "q", "status", "company", "company_id", "fit", "source", "tag", "stale", "archived", "fields"}, domain.AppFields, func(ctx context.Context, q domain.ListQuery) (any, error) {
+	s.page(w, r, []string{"limit", "cursor", "sort", "q", "status", "status_not", "company", "company_id", "fit", "source", "tag", "stale", "archived", "fields"}, domain.AppFields, func(ctx context.Context, q domain.ListQuery) (any, error) {
 		return s.Svc.ListApplications(ctx, q)
 	})
 }
