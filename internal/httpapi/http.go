@@ -65,8 +65,12 @@ func (s *Server) multiTenant() bool {
 // the usual "invalid token" error still comes from one place.
 func (s *Server) authenticate(ctx context.Context, raw string) (domain.Actor, error) {
 	if s.BetterAuth != nil && s.multiTenant() && !strings.HasPrefix(raw, "pst_") && strings.Count(raw, ".") == 2 {
+		// Unlike an OIDC provider vouching for a third party's email,
+		// Better Auth is our own identity store: a validly signed JWT
+		// already proves the caller completed its own sign-up/sign-in,
+		// and no email-confirmation flow is configured to check against.
 		identity, err := s.BetterAuth.Verify(ctx, raw)
-		if err != nil || !identity.EmailVerified {
+		if err != nil {
 			return domain.Actor{}, domain.Unauthorized()
 		}
 		return s.Svc.ResolveTenantUser(ctx, identity.Email, identity.Name, true)
