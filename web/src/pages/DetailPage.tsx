@@ -302,7 +302,7 @@ export function DetailPage() {
 
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex items-start gap-3">
-          <CompanyAvatar company={application.company} className="mt-1 size-9 text-sm" />
+          <CompanyAvatar company={application.company} companyId={application.company_id} className="mt-1 size-9 text-sm" />
           <div>
             <InlineText
               value={application.title || ""}

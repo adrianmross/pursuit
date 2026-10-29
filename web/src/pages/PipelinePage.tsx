@@ -842,7 +842,7 @@ export function PipelinePage() {
                     </TableCell>
                     <TableCell className="font-medium">
                       <span className="flex items-center gap-2">
-                        <CompanyAvatar company={row.company} />
+                        <CompanyAvatar company={row.company} companyId={row.company_id} />
                         {row.company || "—"}
                       </span>
                     </TableCell>
