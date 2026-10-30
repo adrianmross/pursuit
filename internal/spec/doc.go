@@ -118,6 +118,7 @@ func build() []byte {
 	add("/v1/documents/{id}", "delete", "delete a document", true, nil)
 	add("/v1/standing", "get", "list standing answers. limit, cursor; no limit returns all", false, nil)
 	add("/v1/standing", "post", "set a standing answer. profile values also load from PURSUIT_PROFILE", true, nil)
+	add("/v1/standing/{key}", "delete", "delete a standing answer. a PURSUIT_PROFILE value for the same key still applies", true, nil)
 	add("/v1/caps", "get", "per-company application caps", false, nil)
 	add("/v1/links/check", "post", "sweep postings. one replica holds the advisory lock", true, nil)
 	add("/v1/cron/links", "get", "daily link sweep for Vercel Cron. requires Authorization Bearer CRON_SECRET, not a Pursuit token", false, nil)

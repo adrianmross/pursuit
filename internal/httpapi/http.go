@@ -190,6 +190,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("DELETE /v1/documents/{id}", s.deleteDocument)
 	mux.HandleFunc("GET /v1/standing", s.listStanding)
 	mux.HandleFunc("POST /v1/standing", s.setStanding)
+	mux.HandleFunc("DELETE /v1/standing/{key}", s.deleteStanding)
 	mux.HandleFunc("GET /v1/caps", s.caps)
 	mux.HandleFunc("POST /v1/links/check", s.checkAll)
 	mux.HandleFunc("GET /v1/cron/links", s.cronLinks)
@@ -2050,6 +2051,17 @@ func (s *Server) setStanding(w http.ResponseWriter, r *http.Request) {
 			return nil, err
 		}
 		return s.Svc.SetStanding(ctx, in.Key, in.Answer)
+	})
+}
+
+func (s *Server) deleteStanding(w http.ResponseWriter, r *http.Request) {
+	if _, err := query(r, "dry_run"); err != nil {
+		writeErr(w, err)
+		return
+	}
+	key := r.PathValue("key")
+	s.mutate(w, r, 200, nil, []byte(key), func(ctx context.Context) (any, error) {
+		return s.Svc.DeleteStanding(ctx, key)
 	})
 }
 

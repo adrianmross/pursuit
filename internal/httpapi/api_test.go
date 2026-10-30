@@ -1329,3 +1329,16 @@ func TestUpdateMe(t *testing.T) {
 		t.Fatalf("me %#v", me)
 	}
 }
+
+func TestDeleteStanding(t *testing.T) {
+	e := newEnv(t)
+	if code, _ := e.json(t, http.MethodPost, "/v1/standing", e.token, map[string]any{"key": "Why us?", "answer": "x"}); code != 200 {
+		t.Fatal(code)
+	}
+	if code, out := e.json(t, http.MethodDelete, "/v1/standing/why_us", e.token, nil); code != 200 {
+		t.Fatalf("delete %d %#v", code, out)
+	}
+	if code, _ := e.json(t, http.MethodDelete, "/v1/standing/why_us", e.token, nil); code != 404 {
+		t.Fatalf("second delete %d", code)
+	}
+}

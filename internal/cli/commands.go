@@ -943,6 +943,9 @@ func cmdStanding() *Command {
 			}
 			return e.send("POST", "/v1/standing", nil, b, "application/json", true, false)
 		}},
+		{Name: "delete", Summary: "delete one standing answer", Mutating: true, Usage: "pursuit standing delete <key>", Args: []Arg{{Name: "key", Required: true}}, Run: func(e *exec) error {
+			return e.send("DELETE", "/v1/standing/"+url.PathEscape(e.args[0]), nil, nil, "", true, false)
+		}},
 	}}
 }
 

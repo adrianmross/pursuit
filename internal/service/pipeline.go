@@ -917,6 +917,26 @@ func (s *Service) SetStanding(ctx context.Context, key, answer string) (sqlstore
 	return row, nil
 }
 
+// DeleteStanding removes one answer. A PURSUIT_PROFILE value for the same
+// key still applies afterwards; that file belongs to the operator.
+func (s *Service) DeleteStanding(ctx context.Context, key string) (domain.Deleted, error) {
+	a, err := s.actor(ctx, true)
+	if err != nil {
+		return domain.Deleted{}, err
+	}
+	key = impex.NormalizeKey(key)
+	err = s.DB.WithTx(ctx, func(ctx context.Context) error {
+		if err := s.DB.DeleteStanding(ctx, a.UserID, key); err != nil {
+			return err
+		}
+		return s.audit(ctx, a, "standing.delete", "standing", key, "deleted standing answer", nil)
+	})
+	if err != nil {
+		return domain.Deleted{}, err
+	}
+	return domain.Deleted{ID: key, Deleted: true}, nil
+}
+
 func (s *Service) ListStanding(ctx context.Context) ([]sqlstore.StandingAnswer, error) {
 	a, err := s.actor(ctx, false)
 	if err != nil {
