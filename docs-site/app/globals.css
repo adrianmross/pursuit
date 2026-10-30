@@ -103,3 +103,31 @@ html.dark .wl-btn-primary:hover { background: #fff; }
 .wl-steps > div { display: grid; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); gap: 1rem; }
 .wl-steps p { margin: 0; padding: 1.25rem; border-left: 2px solid var(--brand-gold); background: rgba(127,127,127,.07); border-radius: 0 10px 10px 0; font-size: .92rem; line-height: 1.55; }
 .wl-steps b { display: block; margin-bottom: .3rem; font-family: "Outfit Variable", system-ui, sans-serif; font-size: 1.05rem; }
+
+/* Site footer, shared with the dashboard and /reference: one row from 768px
+   (brand · credit · links), stacked and centred below. Nextra's <Footer> is
+   left-aligned and padded on its own; take over the layout inside it. */
+.hp-footer { flex-direction: column; align-items: center; gap: 1rem; padding-top: 2rem; padding-bottom: 2rem; font-size: .875rem; color: var(--ink-muted); }
+.hp-footer a { color: inherit; text-decoration: none; }
+.hp-footer a:hover { text-decoration: underline; text-underline-offset: 3px; }
+.hp-footer-brand { display: flex; align-items: center; gap: .5rem; color: #141615; }
+html.dark .hp-footer-brand { color: #f1f1ee; }
+.hp-footer-brand img { height: 20px; width: auto; }
+.hp-footer-nav { display: flex; gap: 1.25rem; }
+.hp-footer-credit { order: 1; display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: .25rem .375rem; margin: 0; font-size: .75rem; text-align: center; }
+.hp-footer-credit > span:first-child { display: inline-flex; align-items: center; gap: .375rem; }
+.hp-footer-credit > a { flex-basis: 100%; }
+.hp-footer-dot { display: none; }
+.hp-heart { width: 14px; height: 14px; fill: #ef4444; stroke: #ef4444; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+@media (prefers-reduced-motion: no-preference) { .hp-heart { animation: hp-heartbeat 1.4s ease-in-out infinite; } }
+@keyframes hp-heartbeat { 0%, 40%, 100% { transform: scale(1); } 10%, 30% { transform: scale(1.25); } 20% { transform: scale(1.05); } }
+@media (min-width: 640px) {
+  .hp-footer-credit > a { flex-basis: auto; }
+  .hp-footer-dot { display: inline; }
+}
+@media (min-width: 768px) {
+  .hp-footer { display: grid; grid-template-columns: 1fr auto 1fr; gap: 1.5rem; }
+  .hp-footer-brand { justify-self: start; }
+  .hp-footer-credit { order: 0; }
+  .hp-footer-nav { justify-self: end; }
+}
