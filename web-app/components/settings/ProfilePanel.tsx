@@ -8,23 +8,32 @@ import { useAuth } from "@/lib/auth"
 import type { Document, Page, StandingAnswer } from "@/lib/types"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
+import { CommandBlock } from "@/components/CommandBlock"
+import { Field, FieldDescription, FieldGroup, FieldLabel, FieldLegend, FieldSet } from "@/components/ui/field"
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 // The keys prepare matches by alias (service.matchStanding). Any other key
 // only fills a form question whose normalized wording equals it.
-const COMMON: [key: string, label: string, long?: boolean][] = [
-  ["email", "Email"],
-  ["phone", "Phone"],
-  ["linkedin", "LinkedIn URL"],
-  ["github", "GitHub URL"],
-  ["website", "Website"],
-  ["pronouns", "Pronouns"],
-  ["work_authorization", "Are you authorized to work in the country of the role?"],
-  ["visa_sponsorship", "Will you now or in the future require sponsorship?"],
-  ["cover_letter", "Default cover letter", true],
-]
+type Kind = "email" | "url" | "yesno" | "long"
+const GROUPS: Record<string, [key: string, label: string, kind?: Kind][]> = {
+  Contact: [
+    ["email", "Email", "email"],
+    ["phone", "Phone"],
+    ["pronouns", "Pronouns"],
+  ],
+  Links: [
+    ["linkedin", "LinkedIn", "url"],
+    ["github", "GitHub", "url"],
+    ["website", "Website", "url"],
+  ],
+  Eligibility: [
+    ["work_authorization", "Are you authorized to work in the country of the role?", "yesno"],
+    ["visa_sponsorship", "Will you now or in the future require visa sponsorship?", "yesno"],
+  ],
+  "Cover letter": [["cover_letter", "Default cover letter", "long"]],
+}
 
 const KINDS: Record<string, string> = { base_resume: "Base résumé", cover_letter: "Cover letter", other: "Other" }
 
@@ -132,16 +141,49 @@ function Documents() {
   )
 }
 
+const AGENT_PROMPT = `Fill in my Pursuit profile from my résumé.
+
+1. Run \`pursuit standing list\` to see what is already saved. Don't overwrite an answer without asking me.
+2. Get my résumé: \`pursuit documents list\`, then \`pursuit documents get <id>\` for the newest base_resume (the body is base64).
+3. Save what the résumé states with \`pursuit standing set --key <key> --value <answer>\` for these keys:
+   email, phone, linkedin, github, website, pronouns
+4. Ask me, don't infer, for: work_authorization (Yes/No), visa_sponsorship (Yes/No), and anything about salary or start date.
+5. Draft a short default cover letter (4-6 sentences, no buzzwords) from my most recent role, show it to me, and save it as cover_letter once I approve.
+6. Finish with \`pursuit list --status needs_input --fields id,company,title\` and ask me the unanswered questions on those applications, saving each answer with the question's wording as the key.`
+
+type Draft = Record<string, string>
+
+function DeleteAnswer({ k, onDelete }: { k: string; onDelete: (k: string) => void }) {
+  return (
+    <Button type="button" size="icon-sm" variant="ghost" aria-label={`Delete saved answer for ${k}`} onClick={() => onDelete(k)}>
+      <Trash2 />
+    </Button>
+  )
+}
+
 function Answers() {
   const { rows, load } = useStanding()
-  const [draft, setDraft] = useState<Record<string, string>>({})
+  const [draft, setDraft] = useState<Draft>({})
   const [custom, setCustom] = useState({ key: "", answer: "" })
   const [msg, setMsg] = useState({ ok: true, text: "" })
   if (!rows) return null
 
-  const saved = Object.fromEntries(rows.map((r) => [r.key, r.answer]))
+  const saved: Draft = Object.fromEntries(rows.map((r) => [r.key, r.answer]))
   const value = (k: string) => draft[k] ?? saved[k] ?? ""
-  const others = rows.filter((r) => !COMMON.some(([k]) => k === r.key))
+  const set = (k: string) => (v: string) => setDraft({ ...draft, [k]: v })
+  const known = new Set(Object.values(GROUPS).flat().map(([k]) => k))
+  const others = rows.filter((r) => !known.has(r.key))
+
+  async function remove(key: string) {
+    try {
+      await api("/v1/standing/" + encodeURIComponent(key), { method: "DELETE" })
+      setDraft(Object.fromEntries(Object.entries(draft).filter(([k]) => k !== key)))
+      await load()
+      setMsg({ ok: true, text: "Deleted." })
+    } catch (err) {
+      setMsg({ ok: false, text: err instanceof Error ? err.message : "Could not delete" })
+    }
+  }
 
   async function save(event: FormEvent) {
     event.preventDefault()
@@ -158,32 +200,62 @@ function Answers() {
     }
   }
 
-  const field = (key: string, label: string, long?: boolean) => (
-    <div key={key} className="flex flex-col gap-1.5">
-      <Label htmlFor={"standing-" + key}>{label}</Label>
-      {long ? (
-        <Textarea id={"standing-" + key} rows={5} value={value(key)} onChange={(e) => setDraft({ ...draft, [key]: e.target.value })} />
+  const text = (k: string, label: string, kind?: Kind) => (
+    <Field key={k}>
+      <FieldLabel htmlFor={"standing-" + k}>{label}</FieldLabel>
+      {kind === "yesno" ? (
+        <div className="flex items-center gap-2">
+          <RadioGroup value={value(k)} onValueChange={set(k)} className="flex w-auto gap-4" aria-label={label}>
+            {["Yes", "No"].map((opt) => (
+              <Field key={opt} orientation="horizontal" className="w-auto">
+                <RadioGroupItem id={`standing-${k}-${opt}`} value={opt} />
+                <FieldLabel htmlFor={`standing-${k}-${opt}`} className="font-normal">
+                  {opt}
+                </FieldLabel>
+              </Field>
+            ))}
+          </RadioGroup>
+          {k in saved && <DeleteAnswer k={k} onDelete={remove} />}
+        </div>
       ) : (
-        <Input id={"standing-" + key} value={value(key)} onChange={(e) => setDraft({ ...draft, [key]: e.target.value })} />
+        <div className="flex items-start gap-2">
+          {kind === "long" ? (
+            <Textarea id={"standing-" + k} rows={6} value={value(k)} onChange={(e) => set(k)(e.target.value)} />
+          ) : (
+            <Input id={"standing-" + k} type={kind === "url" ? "url" : kind === "email" ? "email" : "text"} value={value(k)} onChange={(e) => set(k)(e.target.value)} />
+          )}
+          {k in saved && <DeleteAnswer k={k} onDelete={remove} />}
+        </div>
       )}
-    </div>
+    </Field>
   )
 
   return (
-    <form onSubmit={save} className="flex flex-col gap-3">
+    <form onSubmit={save} className="flex flex-col gap-6">
       <div>
         <h3 className="text-sm font-medium">Standing answers</h3>
         <p className="text-sm text-muted-foreground">
-          Prepare fills application forms from these. Questions it can&apos;t answer land here once you answer them on an
-          application.
+          Prepare fills application forms from these. Answers you give to unanswered questions on an application show
+          up under Other answers.
         </p>
       </div>
-      {COMMON.map(([k, label, long]) => field(k, label, long))}
-      {others.map((r) => field(r.key, r.key.replaceAll("_", " ")))}
-      <div className="grid grid-cols-[1fr_2fr] gap-2">
-        <Input aria-label="New question" placeholder="Another question" value={custom.key} onChange={(e) => setCustom({ ...custom, key: e.target.value })} />
-        <Input aria-label="Answer" placeholder="Answer" value={custom.answer} onChange={(e) => setCustom({ ...custom, answer: e.target.value })} />
-      </div>
+      {Object.entries(GROUPS).map(([legend, fields]) => (
+        <FieldSet key={legend}>
+          <FieldLegend>{legend}</FieldLegend>
+          <FieldGroup className={fields.length > 2 ? "grid gap-4 sm:grid-cols-2" : undefined}>{fields.map(([k, label, kind]) => text(k, label, kind))}</FieldGroup>
+        </FieldSet>
+      ))}
+      <FieldSet>
+        <FieldLegend>Other answers</FieldLegend>
+        <FieldDescription>Each one fills a form question with the same wording, such as &quot;Why do you want to work here?&quot;</FieldDescription>
+        <FieldGroup>
+          {others.map((r) => text(r.key, r.key.replaceAll("_", " "), r.answer.length > 120 ? "long" : undefined))}
+          <Field orientation="horizontal">
+            <Input aria-label="New question" placeholder="Question" value={custom.key} onChange={(e) => setCustom({ ...custom, key: e.target.value })} />
+            <Input aria-label="Answer" placeholder="Answer" value={custom.answer} onChange={(e) => setCustom({ ...custom, answer: e.target.value })} />
+          </Field>
+        </FieldGroup>
+      </FieldSet>
       {msg.text && <p className={"text-sm " + (msg.ok ? "text-emerald-600 dark:text-emerald-400" : "text-destructive")}>{msg.text}</p>}
       <Button type="submit" className="self-start">
         Save answers
@@ -192,10 +264,23 @@ function Answers() {
   )
 }
 
+function AgentPrompt() {
+  return (
+    <section className="flex flex-col gap-2">
+      <h3 className="text-sm font-medium">Fill this in with an agent</h3>
+      <p className="text-sm text-muted-foreground">
+        Upload your résumé above, then paste this into an agent that has the <code>pursuit</code> CLI and a write token.
+      </p>
+      <CommandBlock command={AGENT_PROMPT} wrap />
+    </section>
+  )
+}
+
 export function ProfilePanel() {
   return (
     <div className="flex flex-col gap-8">
       <Documents />
+      <AgentPrompt />
       <Answers />
     </div>
   )
