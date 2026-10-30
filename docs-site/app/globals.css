@@ -118,8 +118,9 @@ html.dark .hp-footer-brand { color: #f1f1ee; }
 .hp-footer-credit > span:first-child { display: inline-flex; align-items: center; gap: .375rem; }
 .hp-footer-credit > a { flex-basis: 100%; }
 .hp-footer-dot { display: none; }
-.hp-heart { width: 14px; height: 14px; fill: #ef4444; stroke: #ef4444; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
-@media (prefers-reduced-motion: no-preference) { .hp-heart { animation: hp-heartbeat 1.4s ease-in-out infinite; } }
+.hp-heart { width: 14px; height: 14px; fill: currentColor; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; transition: fill .15s, stroke .15s; }
+.hp-heart:hover { fill: #ef4444; stroke: #ef4444; }
+@media (prefers-reduced-motion: no-preference) { .hp-heart:hover { animation: hp-heartbeat 1.4s ease-in-out infinite; } }
 @keyframes hp-heartbeat { 0%, 40%, 100% { transform: scale(1); } 10%, 30% { transform: scale(1.25); } 20% { transform: scale(1.05); } }
 @media (min-width: 640px) {
   .hp-footer-credit > a { flex-basis: auto; }

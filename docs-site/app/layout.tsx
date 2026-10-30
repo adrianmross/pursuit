@@ -38,11 +38,11 @@ const navbar = (
 // Same footer as the dashboard (web-app/components/SiteFooter.tsx); keep in step.
 const footer = (
   <Footer className="hp-footer">
-    <span className="hp-footer-brand">
+    <a href="/" className="hp-footer-brand">
       <img className="brand-logo-light" src="/docs/brand/hire-pursuit-mark.svg" alt="" />
       <img className="brand-logo-dark" src="/docs/brand/hire-pursuit-mark-reverse.svg" alt="" />
       Hire Pursuit
-    </span>
+    </a>
     <p className="hp-footer-credit">
       <span>
         Built with
