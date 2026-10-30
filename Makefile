@@ -4,6 +4,8 @@ web:
 	cd web && npm install && npm run build
 	rm -rf internal/dashboard/dist
 	cp -r web/dist internal/dashboard/dist
+	cd docs-site && npm install && npm run build
+	cp -r docs-site/out internal/dashboard/dist/docs
 
 test: web
 	go test ./...

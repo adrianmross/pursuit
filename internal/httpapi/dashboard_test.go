@@ -48,3 +48,21 @@ func TestDashboardAssets(t *testing.T) {
 		t.Fatalf("unknown v1 path without a token %d", code)
 	}
 }
+
+func TestDocsServedAndToggle(t *testing.T) {
+	e := newEnv(t)
+	code, body, header := e.do(t, http.MethodGet, "/docs/cli", "", nil, nil)
+	if code != 200 || !strings.Contains(header.Get("Content-Type"), "text/html") || strings.Contains(string(body), `id="root"`) {
+		t.Fatalf("docs page %d %s", code, body)
+	}
+	if !strings.Contains(header.Get("Content-Security-Policy"), "'unsafe-inline'") {
+		t.Fatalf("docs csp %q", header.Get("Content-Security-Policy"))
+	}
+	if code, _, _ = e.do(t, http.MethodGet, "/docs/nope", "", nil, nil); code != 404 {
+		t.Fatalf("unknown docs page %d", code)
+	}
+	e.api.NoDocs = true
+	if code, _, _ = e.do(t, http.MethodGet, "/docs/cli", "", nil, nil); code != 404 {
+		t.Fatalf("docs with NoDocs %d", code)
+	}
+}

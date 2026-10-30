@@ -7,6 +7,7 @@ import (
 	"io/fs"
 	"mime"
 	"path"
+	"strings"
 )
 
 //go:embed dist
@@ -36,6 +37,15 @@ func Open(name string) ([]byte, string, error) {
 	body, err := fs.ReadFile(dist, clean)
 	if err != nil {
 		if path.Ext(clean) != "" {
+			return nil, "", err
+		}
+		// The static docs export (/docs/*) is plain files: /docs/cli is cli.html.
+		for _, alt := range []string{clean + ".html", clean + "/index.html"} {
+			if b, e := fs.ReadFile(dist, alt); e == nil {
+				return b, contentType(alt), nil
+			}
+		}
+		if clean == "docs" || strings.HasPrefix(clean, "docs/") {
 			return nil, "", err
 		}
 		clean = "index.html"

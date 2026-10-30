@@ -121,6 +121,7 @@ Turn on Deployment Protection and choose Vercel Authentication so the deployment
 | `DATABASE_URL` | yes, unless `POSTGRES_URL` is set | Neon connection string. Read first. `postgres://` or `postgresql://`. Use `sslmode=require` for Neon. A SQLite URL is rejected. |
 | `POSTGRES_URL` | fallback | Used only when `DATABASE_URL` is empty. The Marketplace usually sets both. |
 | `PURSUIT_TRUST_PROXY_AUTH` | yes, for the private dashboard | `vercel`. A request with no Pursuit token is the single owner and has `read`, `write`, and `approve`. A request that sends `Authorization: Bearer` is still that token, so the CLI and agents keep using scoped tokens. Any other value is ignored. |
+| `PURSUIT_NO_DOCS` | no | `true` stops serving the embedded docs at `/docs` (the same variable works for `pursuit serve`). |
 | `CRON_SECRET` | yes, for the daily link check | A long random secret. Vercel Cron sends `GET /v1/cron/links` with `Authorization: Bearer <CRON_SECRET>`. There is no background checker on Vercel. A missing or wrong secret is 401, including when proxy auth is on. |
 
 Optional: `PURSUIT_BOOTSTRAP_TOKEN` chooses the owner token created on the first cold start. `PURSUIT_OWNER_NAME`, `PURSUIT_OWNER_EMAIL`, and `PURSUIT_BOOTSTRAP_NAME` override the owner defaults. If you leave the bootstrap token unset, the generated secret is written once to the function log.

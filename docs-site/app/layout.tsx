@@ -5,11 +5,6 @@ import { getPageMap } from "nextra/page-map"
 import "nextra-theme-docs/style.css"
 import "./globals.css"
 
-// Dashboard and API live on the origin that serves /docs, so these are
-// root-relative. Set NEXT_PUBLIC_SITE_URL (e.g. https://hire-pursuit.app)
-// only if the docs are deployed on a different origin.
-const site = process.env.NEXT_PUBLIC_SITE_URL ?? ""
-
 export const metadata: Metadata = {
   title: {
     default: "Hire Pursuit docs",
@@ -20,10 +15,10 @@ export const metadata: Metadata = {
 
 const navbar = (
   <Navbar logo={<b>Hire Pursuit docs</b>} projectLink="https://github.com/adrianmross/pursuit">
-    <a href={`${site}/reference`} className="x:text-sm x:font-medium">
+    <a href="/reference" className="x:text-sm x:font-medium">
       API reference
     </a>
-    <a href={`${site}/`} className="x:text-sm x:font-medium">
+    <a href="/" className="x:text-sm x:font-medium">
       Dashboard
     </a>
   </Navbar>

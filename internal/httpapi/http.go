@@ -61,6 +61,8 @@ type Server struct {
 	// type a raw secret there); the bearer-token API itself is unaffected
 	// for CLI/automation use either way.
 	HideTokenLogin bool
+	// NoDocs 404s the embedded docs under /docs.
+	NoDocs bool
 }
 
 func (s *Server) multiTenant() bool {
@@ -447,6 +449,10 @@ func (s *Server) dashboard(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	name := strings.TrimPrefix(r.URL.Path, "/")
+	if s.NoDocs && (name == "docs" || strings.HasPrefix(name, "docs/")) {
+		http.NotFound(w, r)
+		return
+	}
 	body, contentType, err := dashboard.Open(name)
 	if err != nil {
 		http.NotFound(w, r)
@@ -462,7 +468,12 @@ func (s *Server) dashboard(w http.ResponseWriter, r *http.Request) {
 		if s.BetterAuthOrigin != "" {
 			connectSrc += " " + s.BetterAuthOrigin
 		}
-		w.Header().Set("Content-Security-Policy", "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src "+connectSrc+"; img-src 'self' data:; font-src 'self'; base-uri 'self'; form-action 'self'")
+		scriptSrc := "'self'"
+		if strings.HasPrefix(name, "docs") {
+			// The static Next export hydrates through inline scripts.
+			scriptSrc += " 'unsafe-inline'"
+		}
+		w.Header().Set("Content-Security-Policy", "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src "+scriptSrc+"; connect-src "+connectSrc+"; img-src 'self' data:; font-src 'self'; base-uri 'self'; form-action 'self'")
 		w.Header().Set("Referrer-Policy", "no-referrer")
 	}
 	w.WriteHeader(http.StatusOK)
