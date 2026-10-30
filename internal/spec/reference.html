@@ -16,10 +16,33 @@
     <nav class="pursuit-xref">
       <strong>pursuit</strong>
       <a href="/">Dashboard</a>
-      <a href="/docs">Docs</a>
+      <a href="/docs/">Docs</a>
     </nav>
     <div id="app"></div>
-    <script id="api-reference" data-url="/openapi.json" data-configuration='{"theme":"none","hideClientButton":false}'></script>
     <script src="https://cdn.jsdelivr.net/npm/@scalar/api-reference"></script>
+    <script>
+      // The dashboard keeps its API token in localStorage, so a page load can't
+      // carry it as a header; the gate is therefore client-side. Anyone without
+      // a working session is sent to sign in and back. The same token is handed
+      // to Scalar so "Try it" calls this origin as the signed-in user.
+      (async function () {
+        var token = "";
+        try { token = localStorage.getItem("pursuit.token") || ""; } catch (e) {}
+        var headers = token ? { Authorization: "Bearer " + token } : {};
+        var ok = false;
+        try { ok = (await fetch("/v1/me", { headers: headers })).ok; } catch (e) {}
+        if (!ok) { location.replace("/login?next=" + encodeURIComponent("/reference")); return; }
+        Scalar.createApiReference("#app", {
+          url: "/openapi.json",
+          theme: "none",
+          showDeveloperTools: "never",
+          servers: [{ url: location.origin }],
+          authentication: {
+            preferredSecurityScheme: "bearerAuth",
+            securitySchemes: { bearerAuth: { token: token } },
+          },
+        });
+      })();
+    </script>
   </body>
 </html>
