@@ -3,28 +3,21 @@
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Archive, ListChecks, LogOut, Plus } from "lucide-react"
+import { SECTION_LINKS } from "@/components/SettingsDialog"
 import { api } from "@/lib/api-client"
 import { useAuth } from "@/lib/auth"
+import { useShortcuts } from "@/lib/keybindings"
 import { label, statusesInCategory, type Application, type Page } from "@/lib/types"
 import { applicationHref } from "@/lib/links"
 import { CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
 
-export function CommandPalette() {
+export function CommandPalette({ onOpenSettings }: { onOpenSettings: (section: string) => void }) {
   const router = useRouter()
   const { signOut } = useAuth()
   const [open, setOpen] = useState(false)
   const [apps, setApps] = useState<Application[]>([])
 
-  useEffect(() => {
-    function onKey(event: KeyboardEvent) {
-      if (event.key === "k" && (event.metaKey || event.ctrlKey)) {
-        event.preventDefault()
-        setOpen((prev) => !prev)
-      }
-    }
-    window.addEventListener("keydown", onKey)
-    return () => window.removeEventListener("keydown", onKey)
-  }, [])
+  useShortcuts({ palette: () => setOpen((prev) => !prev) })
 
   useEffect(() => {
     if (!open) return
@@ -74,6 +67,17 @@ export function CommandPalette() {
                 {app.title || "Untitled"}
                 <span className="text-muted-foreground"> — {app.company || "Unknown company"}</span>
               </span>
+            </CommandItem>
+          ))}
+        </CommandGroup>
+        <CommandGroup heading="Settings">
+          {SECTION_LINKS.map((link) => (
+            <CommandItem
+              key={link.id}
+              value={`settings ${link.label} ${link.keywords}`}
+              onSelect={() => go(() => onOpenSettings(link.id))}
+            >
+              {link.icon} Settings: {link.label}
             </CommandItem>
           ))}
         </CommandGroup>
