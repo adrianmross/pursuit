@@ -16,7 +16,7 @@ export function SignInGate({
   const router = useRouter()
 
   useEffect(() => {
-    if (me) router.replace("/")
+    if (me) router.replace("/start")
   }, [me, router])
 
   if (me) return null

@@ -25,7 +25,7 @@ function GlobalSearch() {
   const pathname = usePathname()
   const router = useRouter()
   const params = useSearchParams()
-  const onPipeline = pathname === "/pipeline"
+  const onPipeline = pathname === "/applications"
   const [value, setValue] = useState(onPipeline ? params.get("q") || "" : "")
 
   useEffect(() => {
@@ -42,7 +42,7 @@ function GlobalSearch() {
       const merged = new URLSearchParams(onPipeline ? params.toString() : undefined)
       if (next) merged.set("q", next)
       else merged.delete("q")
-      router.push(`/pipeline?${merged.toString()}`)
+      router.push(`/applications?${merged.toString()}`)
     }, 200)
   }
 
@@ -85,9 +85,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     // Search whatever is in front: the open settings dialog, else the app.
     search: () => (document.querySelector("[data-settings-dialog]") ? focus("audit", "settings") : focus("global")),
     find: () => focus("audit"),
-    home: () => router.push("/"),
-    pipeline: () => router.push("/pipeline"),
-    archived: () => router.push("/?archived=1"),
+    home: () => router.push("/start"),
+    pipeline: () => router.push("/applications"),
+    archived: () => router.push("/applications?archived=1"),
     new: () => router.push("/app/new"),
   })
   const identity = me?.token.name || "token"
@@ -96,7 +96,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex min-h-svh flex-col">
       <header className="grid grid-cols-[1fr_auto_1fr] items-center gap-4 border-b px-4 py-2.5">
-        <Link href="/" aria-label="Hire Pursuit">
+        <Link href="/start" aria-label="Hire Pursuit">
           {/* eslint-disable-next-line @next/next/no-img-element -- drawn SVG wordmark, not a photo next/image needs to optimize */}
           <img src="/brand/hire-pursuit-wordmark.svg" alt="" className="h-5 w-auto dark:hidden" />
           {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -123,7 +123,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 </span>
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => router.push("/?archived=1")}>
+              <DropdownMenuItem onClick={() => router.push("/applications?archived=1")}>
                 <Archive /> View archived
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => openSettings()}>

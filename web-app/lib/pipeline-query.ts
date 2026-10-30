@@ -9,7 +9,7 @@ export type PipelineFilters = {
   cursor?: string
 }
 
-// Shared between the server-side initial fetch (app/(app)/pipeline/page.tsx)
+// Shared between the server-side initial fetch (app/(app)/applications/page.tsx)
 // and the client-side refetch on filter/sort change (PipelineView) — same
 // query for the same filters, so hydration matches what the server sent.
 export function buildApplicationsQuery(filters: PipelineFilters): URLSearchParams {

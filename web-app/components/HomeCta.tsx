@@ -9,7 +9,7 @@ export function HomeCta({ hasApplications }: { hasApplications: boolean }) {
     <div className="flex w-64 flex-col items-stretch gap-2">
       {hasApplications && (
         <Button size="lg" className="w-full" asChild>
-          <Link href="/pipeline">
+          <Link href="/applications">
             View applications <ArrowRight className="size-4" />
           </Link>
         </Button>

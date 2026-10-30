@@ -7,6 +7,7 @@ import { TOKEN_COOKIE } from "@/lib/pursuit-api"
 export default function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
   const isPublic =
+    pathname === "/" ||
     pathname === "/sign-in" ||
     pathname.startsWith("/api/auth/") ||
     pathname.startsWith("/_next/") ||
