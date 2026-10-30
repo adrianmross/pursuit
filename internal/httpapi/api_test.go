@@ -1221,3 +1221,39 @@ func roundTrip(fn func(*http.Request) (*http.Response, error)) http.RoundTripper
 }
 
 func (f fnRT) RoundTrip(r *http.Request) (*http.Response, error) { return f.fn(r) }
+
+func TestSmallListsPage(t *testing.T) {
+	e := newEnv(t)
+	for _, k := range []string{"a", "b", "c"} {
+		if code, doc := e.json(t, http.MethodPost, "/v1/standing", e.token, map[string]any{"key": k, "answer": k}); code != 200 {
+			t.Fatalf("standing %d %#v", code, doc)
+		}
+	}
+	code, doc := e.json(t, http.MethodGet, "/v1/standing", e.token, nil)
+	if code != 200 || len(doc["data"].([]any)) != 3 || doc["page"].(map[string]any)["has_more"] != false {
+		t.Fatalf("no limit returns all %d %#v", code, doc)
+	}
+	var seen int
+	path := "/v1/standing?limit=2"
+	for pages := 0; ; pages++ {
+		code, doc = e.json(t, http.MethodGet, path, e.token, nil)
+		if code != 200 || pages > 2 {
+			t.Fatalf("page %d %#v", code, doc)
+		}
+		seen += len(doc["data"].([]any))
+		page := doc["page"].(map[string]any)
+		if page["has_more"] != true {
+			break
+		}
+		path = "/v1/standing?limit=2&cursor=" + page["next_cursor"].(string)
+	}
+	if seen != 3 {
+		t.Fatalf("paged %d items", seen)
+	}
+	if code, _ = e.json(t, http.MethodGet, "/v1/standing?fields=key", e.token, nil); code != 400 {
+		t.Fatalf("fields on standing %d", code)
+	}
+	if code, _ = e.json(t, http.MethodGet, "/v1/standing?limit=500", e.token, nil); code != 400 {
+		t.Fatalf("limit 500 %d", code)
+	}
+}

@@ -548,7 +548,7 @@ func cmdInterviews() *Command {
 	}
 	return &Command{Name: "interviews", Summary: "rounds within any of an application's stages", Children: []*Command{
 		{Name: "list", Summary: "list an application's interviews", Usage: "pursuit interviews list <application-id>", Args: []Arg{{Name: "application-id", Required: true}}, Run: func(e *exec) error {
-			return e.send("GET", "/v1/applications/"+url.PathEscape(e.args[0])+"/interviews", nil, nil, "", false, false)
+			return e.send("GET", "/v1/applications/"+url.PathEscape(e.args[0])+"/interviews", nil, nil, "", false, true)
 		}},
 		{Name: "add", Summary: "add an interview round", Mutating: true, Usage: "pursuit interviews add <application-id> --kind \"System design\" --when 2026-11-05 --prep-file prep.md", Args: []Arg{{Name: "application-id", Required: true}}, Flags: append(append([]Flag{}, fields...), Flag{Name: "done", Type: "bool", Help: "already happened"}), Run: func(e *exec) error {
 			payload := map[string]any{}
