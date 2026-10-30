@@ -1,0 +1,322 @@
+import { useMemo, useState, type ReactNode } from "react"
+import { Database, Info, KeyRound, Palette, Rows3, Search, SlidersHorizontal, User } from "lucide-react"
+import { FILTERS, MORE, SORTS } from "@/lib/types"
+import { getDefaultSort, getDefaultStatus, setDefaultSort, setDefaultStatus } from "@/lib/settings"
+import { useTheme } from "@/lib/theme"
+import { api } from "@/lib/api"
+import { cn } from "@/lib/utils"
+import { CustomFieldsManager } from "@/components/CustomFieldsManager"
+import { AboutPanel } from "@/components/settings/AboutPanel"
+import { AccountPanel } from "@/components/settings/AccountPanel"
+import { TokensPanel } from "@/components/settings/TokensPanel"
+import { Button } from "@/components/ui/button"
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+
+const STATUSES = FILTERS.concat(MORE)
+type Theme = "light" | "dark" | "system"
+
+// Miniature app window: sidebar bar, header bar, two rows. Colors are fixed
+// per theme so the preview shows that theme regardless of the current one.
+const PALETTES = {
+  light: { bg: "#ffffff", bar: "#e4e4e7", fg: "#18181b", accent: "#3b82f6" },
+  dark: { bg: "#18181b", bar: "#3f3f46", fg: "#fafafa", accent: "#60a5fa" },
+}
+
+function Mini({ p, x, w }: { p: (typeof PALETTES)["light"]; x: number; w: number }) {
+  return (
+    <svg x={x} width={w} height={60} viewBox="0 0 60 60" preserveAspectRatio="none">
+      <rect width="60" height="60" fill={p.bg} />
+      <rect x="0" y="0" width="14" height="60" fill={p.bar} />
+      <rect x="18" y="6" width="26" height="5" rx="2" fill={p.fg} opacity=".8" />
+      <rect x="18" y="18" width="38" height="6" rx="2" fill={p.bar} />
+      <rect x="18" y="28" width="38" height="6" rx="2" fill={p.bar} />
+      <rect x="18" y="38" width="22" height="6" rx="2" fill={p.accent} />
+    </svg>
+  )
+}
+
+function ThemeCard({ value, current, onPick }: { value: Theme; current: Theme; onPick: (t: Theme) => void }) {
+  return (
+    <button
+      type="button"
+      onClick={() => onPick(value)}
+      aria-pressed={current === value}
+      className={cn(
+        "flex flex-1 flex-col gap-1.5 rounded-lg border p-1.5 text-left text-xs capitalize outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        current === value ? "border-primary ring-2 ring-primary/30" : "hover:bg-muted",
+      )}
+    >
+      <svg viewBox="0 0 60 60" className="aspect-[3/2] w-full overflow-hidden rounded-md border" preserveAspectRatio="xMidYMid slice">
+        {value === "system" ? (
+          <>
+            <Mini p={PALETTES.light} x={0} w={30} />
+            <svg x={30} width={30} height={60} viewBox="30 0 30 60">
+              <svg width={60} height={60} viewBox="0 0 60 60">
+                <Mini p={PALETTES.dark} x={0} w={60} />
+              </svg>
+            </svg>
+          </>
+        ) : (
+          <Mini p={PALETTES[value]} x={0} w={60} />
+        )}
+      </svg>
+      <span className="px-0.5 font-medium">{value}</span>
+    </button>
+  )
+}
+
+function Row({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) {
+  return (
+    <div className="flex flex-col gap-2">
+      <Label>{label}</Label>
+      {children}
+      {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
+    </div>
+  )
+}
+
+function Appearance() {
+  const { theme, setTheme } = useTheme()
+  return (
+    <Row label="Theme" hint="System follows your operating system and switches automatically.">
+      <div className="flex gap-3">
+        {(["light", "dark", "system"] as const).map((t) => (
+          <ThemeCard key={t} value={t} current={theme} onPick={setTheme} />
+        ))}
+      </div>
+    </Row>
+  )
+}
+
+function TableDefaults() {
+  const [status, setStatus] = useState(getDefaultStatus())
+  const [sort, setSort] = useState(getDefaultSort())
+  return (
+    <div className="flex flex-col gap-4">
+      <Row label="Default status filter" hint="Applied when you open the pipeline with no filter in the URL.">
+        <Select
+          value={status || "__all"}
+          onValueChange={(value) => {
+            const next = value === "__all" ? "" : value
+            setStatus(next)
+            setDefaultStatus(next)
+          }}
+        >
+          <SelectTrigger>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="__all">All</SelectItem>
+            {STATUSES.filter(([value]) => value).map(([value, text]) => (
+              <SelectItem key={value} value={value}>
+                {text}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </Row>
+      <Row label="Default sort">
+        <Select
+          value={sort}
+          onValueChange={(value) => {
+            setSort(value)
+            setDefaultSort(value)
+          }}
+        >
+          <SelectTrigger>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {SORTS.map(([value, text]) => (
+              <SelectItem key={value} value={value}>
+                {text}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </Row>
+    </div>
+  )
+}
+
+function DataPanel() {
+  const [busy, setBusy] = useState(false)
+  async function exportJSON() {
+    setBusy(true)
+    try {
+      const data = await api<unknown>("/v1/export/json")
+      const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: "application/json" }))
+      const a = document.createElement("a")
+      a.href = url
+      a.download = `pursuit-${new Date().toISOString().slice(0, 10)}.json`
+      a.click()
+      URL.revokeObjectURL(url)
+    } finally {
+      setBusy(false)
+    }
+  }
+  return (
+    <Row label="Export" hint="Everything in your pipeline as one JSON file, re-importable with pursuit import.">
+      <Button variant="outline" onClick={exportJSON} disabled={busy} className="self-start">
+        {busy ? "Exporting…" : "Download JSON"}
+      </Button>
+    </Row>
+  )
+}
+
+type Section = { id: string; label: string; icon: ReactNode; render: () => ReactNode }
+
+// `items` feed the settings search: each is a setting label plus synonyms.
+const SECTIONS: (Section & { items: [string, string][] })[] = [
+  { id: "appearance", label: "Appearance", icon: <Palette />, render: () => <Appearance />, items: [["Theme", "light dark system mode color"]] },
+  {
+    id: "table",
+    label: "Table",
+    icon: <Rows3 />,
+    render: () => <TableDefaults />,
+    items: [
+      ["Default status filter", "pipeline stage"],
+      ["Default sort", "order newest"],
+    ],
+  },
+  {
+    id: "fields",
+    label: "Custom fields",
+    icon: <SlidersHorizontal />,
+    render: () => <CustomFieldsManager active />,
+    items: [["Custom fields", "columns attributes properties"]],
+  },
+  {
+    id: "tokens",
+    label: "API tokens",
+    icon: <KeyRound />,
+    render: () => <TokensPanel />,
+    items: [
+      ["Generate token", "api key cli agent extension"],
+      ["Revoke token", "delete"],
+    ],
+  },
+  {
+    id: "account",
+    label: "Account",
+    icon: <User />,
+    render: () => <AccountPanel />,
+    items: [
+      ["Password", "change security"],
+      ["Display name", "profile email"],
+      ["Sign out", "logout session"],
+    ],
+  },
+  { id: "data", label: "Data", icon: <Database />, render: () => <DataPanel />, items: [["Export", "download backup json"]] },
+  {
+    id: "about",
+    label: "About",
+    icon: <Info />,
+    render: () => <AboutPanel />,
+    items: [["Version", "build server release docs api reference"]],
+  },
+]
+
+export function SettingsDialog({
+  open,
+  onOpenChange,
+  initial = "appearance",
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  initial?: string
+}) {
+  const [active, setActive] = useState(initial)
+  const [query, setQuery] = useState("")
+
+  const hits = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    if (!q) return []
+    return SECTIONS.flatMap((s) =>
+      s.items
+        .filter(([label, words]) => (s.label + " " + label + " " + words).toLowerCase().includes(q))
+        .map(([label]) => ({ section: s, label })),
+    )
+  }, [query])
+
+  const current = SECTIONS.find((s) => s.id === active) || SECTIONS[0]
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        if (!next) setQuery("")
+        onOpenChange(next)
+      }}
+    >
+      <DialogContent className="h-[min(40rem,85svh)] gap-0 overflow-hidden p-0 sm:max-w-3xl" showCloseButton>
+        <DialogTitle className="sr-only">Settings</DialogTitle>
+        <DialogDescription className="sr-only">Appearance, table defaults, API tokens, account, and about.</DialogDescription>
+        <div className="grid h-full min-h-0 grid-cols-1 sm:grid-cols-[13rem_1fr]">
+          <nav className="flex flex-col gap-2 border-b bg-muted/40 p-3 sm:border-r sm:border-b-0">
+            <div className="relative">
+              <Search className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                aria-label="Search settings"
+                placeholder="Search settings"
+                className="h-8 pl-8"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+              />
+            </div>
+            <div className="flex gap-1 overflow-x-auto sm:flex-col">
+              {SECTIONS.map((s) => (
+                <button
+                  key={s.id}
+                  type="button"
+                  onClick={() => {
+                    setActive(s.id)
+                    setQuery("")
+                  }}
+                  aria-current={!query && s.id === current.id}
+                  className={cn(
+                    "flex shrink-0 items-center gap-2 rounded-md px-2.5 py-1.5 text-sm [&_svg]:size-4",
+                    !query && s.id === current.id ? "bg-background font-medium shadow-sm ring-1 ring-foreground/10" : "text-muted-foreground hover:bg-muted",
+                  )}
+                >
+                  {s.icon}
+                  {s.label}
+                </button>
+              ))}
+            </div>
+          </nav>
+          <section className="min-h-0 overflow-y-auto p-5 pr-12">
+            {query ? (
+              <div className="flex flex-col gap-1">
+                <h2 className="mb-2 text-base font-medium">Results for “{query}”</h2>
+                {hits.length === 0 && <p className="text-sm text-muted-foreground">No matching settings.</p>}
+                {hits.map(({ section, label }) => (
+                  <button
+                    key={section.id + label}
+                    type="button"
+                    className="flex items-center justify-between rounded-md px-2 py-2 text-left text-sm hover:bg-muted"
+                    onClick={() => {
+                      setActive(section.id)
+                      setQuery("")
+                    }}
+                  >
+                    {label}
+                    <span className="text-xs text-muted-foreground">{section.label}</span>
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <>
+                <h2 className="mb-4 text-base font-medium">{current.label}</h2>
+                {current.render()}
+              </>
+            )}
+          </section>
+        </div>
+      </DialogContent>
+    </Dialog>
+  )
+}

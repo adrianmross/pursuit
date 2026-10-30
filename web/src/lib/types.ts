@@ -306,3 +306,13 @@ export function statusCategory(status?: string): StatusCategory {
 export function statusesInCategory(category: StatusCategory): string[] {
   return Object.keys(STATUS_CATEGORY).filter((s) => STATUS_CATEGORY[s] === category)
 }
+
+export type Token = {
+  id: string
+  name: string
+  prefix: string
+  scopes: string[]
+  created_at: string
+  last_used_at: string | null
+  revoked_at: string | null
+}
