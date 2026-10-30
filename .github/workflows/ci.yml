@@ -12,6 +12,16 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      # internal/dashboard embeds web/dist (//go:embed dist) — build it first,
+      # same as vercel.json's buildCommand, or go vet/test fail to even compile.
+      - run: npm install
+        working-directory: web
+      - run: npm run build
+        working-directory: web
+      - run: rm -rf internal/dashboard/dist && cp -r web/dist internal/dashboard/dist
       - run: go vet ./...
       - run: go test ./...
 
