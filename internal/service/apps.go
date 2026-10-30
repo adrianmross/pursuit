@@ -368,11 +368,11 @@ func (s *Service) UpdateApplication(ctx context.Context, id string, p Applicatio
 			if err != nil {
 				return err
 			}
-			if st != cur.Status {
+			if st != cur.Shown() {
 				if err := s.guardTransition(ctx, a, cur.ID, cur.Company, cur.Status, st); err != nil {
 					return err
 				}
-				from = cur.Status
+				from = cur.Shown()
 				next.Status = st
 				changed = true
 			}
@@ -522,7 +522,8 @@ func (s *Service) Transition(ctx context.Context, id string, in TransitionInput)
 		if cur.Version != in.Version {
 			return domain.VersionConflict("application", cur.Version)
 		}
-		if cur.Status == status {
+		// Requesting the stage an outcome sits on clears the outcome.
+		if cur.Shown() == status {
 			return domain.Validation("status is unchanged").WithHint("choose a different status, or update next_step with apps update")
 		}
 		if err := s.guardTransition(ctx, a, cur.ID, cur.Company, cur.Status, status); err != nil {
@@ -543,12 +544,12 @@ func (s *Service) Transition(ctx context.Context, id string, in TransitionInput)
 		}
 		if err := s.recordEvent(ctx, domain.Event{
 			ID: s.NewID(), UserID: a.UserID, ApplicationID: id, Kind: domain.EventStatusChange,
-			FromStatus: cur.Status, ToStatus: status, Title: "Status changed", Body: note,
+			FromStatus: cur.Shown(), ToStatus: status, Title: "Status changed", Body: note,
 			OccurredAt: occurred, CreatedAt: s.now(), Actor: domain.ActorRef{TokenID: a.TokenID, Name: a.Name},
 		}); err != nil {
 			return err
 		}
-		if err := s.audit(ctx, a, "application.transition", "application", id, cur.Status+" -> "+status, map[string]any{"from": cur.Status, "to": status}); err != nil {
+		if err := s.audit(ctx, a, "application.transition", "application", id, cur.Shown()+" -> "+status, map[string]any{"from": cur.Shown(), "to": status}); err != nil {
 			return err
 		}
 		out, err = s.DB.GetApplication(ctx, a.UserID, id)
@@ -1088,8 +1089,8 @@ func (s *Service) updateImported(ctx context.Context, a domain.Actor, cur domain
 	}
 	next := cur
 	from := ""
-	if status != cur.Status {
-		from = cur.Status
+	if status != cur.Shown() {
+		from = cur.Shown()
 		next.Status = status
 	}
 	if date == "" {

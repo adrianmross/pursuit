@@ -64,6 +64,28 @@ pursuit apps transition APP_ID --status interviewing
 pursuit apps archive APP_ID
 ```
 
+### Stages and outcomes
+
+A status is either a **stage** or an **outcome**. Stages fill the progress mark from the bottom of the ring up to the tail: `to_apply` (0), `awaiting_review` (1, Prepared), `applied` (2), `screening` (3), `interviewing` (4), `final` (5), `offer` (6, the gold tail). Outcomes sit on top of the current stage and never clear it: `needs_input` and `waiting` hold it (amber); `failed`, `rejected`, `withdrawn` and `ghosted` end it (red). Transition to an outcome to set it, or to the stage the application is on to clear it.
+
+```bash
+pursuit apps transition APP_ID --status rejected      # stays at interviewing, outcome rejected
+pursuit apps transition APP_ID --status interviewing  # clears the outcome
+pursuit list --status rejected                        # filters match the outcome
+```
+
+### `pursuit interviews`
+
+Rounds within any stage — prepared, applied, screening, interviewing, final or offer — and several stages can have them at once. Each round is a sub-arc of its stage's segment on the mark and fills when you mark it done. `--stage` defaults to the application's current stage.
+
+```bash
+pursuit interviews add APP_ID --kind "System design" --when 2026-11-05 --prep-file prep.md
+pursuit interviews list APP_ID
+pursuit interviews set INTERVIEW_ID --notes "Went well"
+pursuit interviews done INTERVIEW_ID
+pursuit interviews delete INTERVIEW_ID
+```
+
 ### `pursuit roles` / `pursuit companies`
 
 Standard `list`, `get`, `create`, `update`, `delete` on roles and companies.

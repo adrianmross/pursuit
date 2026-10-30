@@ -34,6 +34,7 @@ func rootCommand() *Command {
 			cmdEvents(),
 			cmdTags(),
 			cmdFields(),
+			cmdInterviews(),
 			cmdTokens(),
 			cmdAudit(),
 			cmdImport(),
@@ -516,6 +517,87 @@ func cmdFields() *Command {
 			return e.send("DELETE", "/v1/fields/"+url.PathEscape(e.args[0]), nil, nil, "", true, false)
 		}},
 	}}
+}
+
+func cmdInterviews() *Command {
+	fields := []Flag{
+		{Name: "stage", Type: "string", Help: "prepared, applied, screening, interviewing, final, or offer (default: the application's current stage)"},
+		{Name: "kind", Type: "string", Help: "the round, e.g. Recruiter call or System design"},
+		{Name: "interviewer", Type: "string", Help: "who you meet"},
+		{Name: "when", Type: "string", Help: "RFC3339 or YYYY-MM-DD"},
+		{Name: "prep", Type: "string", Help: "what to prepare"},
+		{Name: "prep-file", Type: "string", Help: "read prep from a file"},
+		{Name: "notes", Type: "string", Help: "what happened"},
+	}
+	// put copies a flag into the payload only when it was passed, so set
+	// leaves everything else alone.
+	put := func(e *exec, payload map[string]any) error {
+		for key, flag := range map[string]string{"stage": "stage", "kind": "kind", "interviewer": "interviewer", "scheduled_at": "when", "prep": "prep", "notes": "notes"} {
+			if _, ok := e.flags[flag]; ok {
+				payload[key] = e.flag(flag)
+			}
+		}
+		if path := e.flag("prep-file"); path != "" {
+			b, err := os.ReadFile(path)
+			if err != nil {
+				return &exitError{code: 2, message: err.Error(), hint: "check --prep-file"}
+			}
+			payload["prep"] = string(b)
+		}
+		return nil
+	}
+	return &Command{Name: "interviews", Summary: "rounds within any of an application's stages", Children: []*Command{
+		{Name: "list", Summary: "list an application's interviews", Usage: "pursuit interviews list <application-id>", Args: []Arg{{Name: "application-id", Required: true}}, Run: func(e *exec) error {
+			return e.send("GET", "/v1/applications/"+url.PathEscape(e.args[0])+"/interviews", nil, nil, "", false, false)
+		}},
+		{Name: "add", Summary: "add an interview round", Mutating: true, Usage: "pursuit interviews add <application-id> --kind \"System design\" --when 2026-11-05 --prep-file prep.md", Args: []Arg{{Name: "application-id", Required: true}}, Flags: append(append([]Flag{}, fields...), Flag{Name: "done", Type: "bool", Help: "already happened"}), Run: func(e *exec) error {
+			payload := map[string]any{}
+			if err := put(e, payload); err != nil {
+				return err
+			}
+			if e.flag("done") == "true" {
+				payload["done"] = true
+			}
+			body, err := e.jsonBody(payload)
+			if err != nil {
+				return err
+			}
+			return e.send("POST", "/v1/applications/"+url.PathEscape(e.args[0])+"/interviews", nil, body, "application/json", true, true)
+		}},
+		{Name: "set", Summary: "change an interview round", Mutating: true, Usage: "pursuit interviews set <id> [--prep ...] [--notes ...] [--done|--undone]", Args: []Arg{{Name: "id", Required: true}}, Flags: append(append([]Flag{}, fields...), Flag{Name: "done", Type: "bool", Help: "mark done"}, Flag{Name: "undone", Type: "bool", Help: "mark not done"}, Flag{Name: "version", Type: "string", Help: "object version"}), Run: func(e *exec) error {
+			return patchInterview(e, put)
+		}},
+		{Name: "done", Summary: "mark an interview done", Mutating: true, Usage: "pursuit interviews done <id> [--notes ...]", Args: []Arg{{Name: "id", Required: true}}, Flags: []Flag{{Name: "notes", Type: "string", Help: "what happened"}, {Name: "version", Type: "string", Help: "object version"}}, Run: func(e *exec) error {
+			e.flags["done"] = []string{"true"}
+			return patchInterview(e, put)
+		}},
+		{Name: "delete", Summary: "delete an interview round", Mutating: true, Args: []Arg{{Name: "id", Required: true}}, Flags: []Flag{{Name: "version", Type: "string", Help: "object version"}}, Run: func(e *exec) error {
+			return e.delete("/v1/interviews/" + url.PathEscape(e.args[0]))
+		}},
+	}}
+}
+
+func patchInterview(e *exec, put func(*exec, map[string]any) error) error {
+	path := "/v1/interviews/" + url.PathEscape(e.args[0])
+	ver, err := e.ensureVersion(path)
+	if err != nil {
+		return err
+	}
+	payload := map[string]any{"version": ver}
+	if err := put(e, payload); err != nil {
+		return err
+	}
+	if e.flag("done") == "true" {
+		payload["done"] = true
+	}
+	if e.flag("undone") == "true" {
+		payload["done"] = false
+	}
+	body, err := e.jsonBody(payload)
+	if err != nil {
+		return err
+	}
+	return e.send("PATCH", path, nil, body, "application/json", true, true)
 }
 
 func cmdTokens() *Command {

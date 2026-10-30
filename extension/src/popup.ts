@@ -4,6 +4,7 @@ type Job = { company: string; title: string; location: string; salary: string; u
 type App = {
   id: string;
   status: string;
+  outcome?: string;
   version: number;
   title: string;
   company: string;
@@ -16,10 +17,14 @@ const STATUSES = [
   "awaiting_review",
   "needs_input",
   "applied",
+  "screening",
   "interviewing",
+  "final",
   "offer",
+  "waiting",
   "rejected",
   "withdrawn",
+  "ghosted",
 ];
 
 const $ = (id: string) => document.getElementById(id) as HTMLElement;
@@ -137,7 +142,7 @@ async function refresh() {
   const select = $("status") as HTMLSelectElement;
   if (app) {
     $("status-line").textContent = "Tracked";
-    fillStatus(select, app.status);
+    fillStatus(select, app.outcome || app.status);
     select.disabled = false;
     ($("save-job") as HTMLButtonElement).disabled = true;
     ($("save-job") as HTMLButtonElement).textContent = "Saved";

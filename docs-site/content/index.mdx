@@ -1,27 +1,7 @@
-# pursuit
+---
+title: Welcome
+---
 
-Self-hosted job-application tracker for one person, driven from the command line. Agents prepare applications; a human token with the `approve` scope is what allows a submit. The product is **Hire Pursuit** — the repository, binary and every CLI command stay `pursuit`.
+import { Welcome } from "../components/welcome"
 
-- **CLI-first.** The CLI is the agent interface. There is no MCP server — agents call the CLI, which calls the HTTP API.
-- **One pipeline.** Applications move `to_apply` → `preparing` → `awaiting_review` → `approved` → `submitting` → `submitted`, with `needs_input` and `failed` as stops along the way.
-- **Approval is a human act.** `pursuit approve` requires an `approve`-scoped token and only enqueues a submit — it never clicks Submit itself.
-
-## Where to go next
-
-- [Getting started](/getting-started) — build the binary, start the daemon, get a token.
-- [CLI reference](/cli) — every `pursuit` command.
-- [API reference](/api-reference) — the daemon's own live OpenAPI reference, interactive.
-- [Architecture](/architecture) — how the CLI, HTTP API and storage layers fit together.
-- <a href="/">Dashboard</a> — the web UI, same server.
-
-## Auth model
-
-Bearer token, `Authorization: Bearer $PURSUIT_TOKEN`. Three scopes:
-
-| Scope | Grants |
-| --- | --- |
-| `read` | List and get. |
-| `write` | Includes `read`. Prepare applications, mutate records. |
-| `approve` | Includes `read`, not `write`. The only scope that can move work into `submitting`. |
-
-A write token can prepare an application all the way to `awaiting_review`; it cannot push it further without an approval from an `approve`-scoped token.
+<Welcome />

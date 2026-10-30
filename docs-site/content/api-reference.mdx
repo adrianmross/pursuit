@@ -9,4 +9,6 @@ The daemon serves its own interactive reference, same-origin, rendered from its 
 - **Self-hosted:** `http://<your-server>/reference` (e.g. `http://127.0.0.1:8787/reference` while developing locally).
 - **Hosted:** <a href="/reference">/reference</a> on the same host as these docs.
 
+The reference is for signed-in users: opening it without a session sends you to sign in and back. Once in, the server is this same origin and your token is already filled in, so **Test Request** runs as you.
+
 Every CLI command in the [CLI reference](/cli) is a thin wrapper over one of these endpoints — `internal/httpapi` is the only REST adapter, and `pursuit schema <command>` prints the same flags that page shows as parameters.
