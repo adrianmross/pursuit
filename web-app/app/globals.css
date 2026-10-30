@@ -135,6 +135,19 @@
   --sidebar-ring: #F1F1EE;
 }
 
+/* Landing carousel: the active scene's progress underline. */
+@keyframes grow {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+
+/* Site footer: the heart beats twice, then rests. */
+@keyframes heartbeat {
+  0%, 40%, 100% { transform: scale(1); }
+  10%, 30% { transform: scale(1.25); }
+  20% { transform: scale(1.05); }
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;

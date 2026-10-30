@@ -9,6 +9,7 @@ import { isMac, useShortcuts } from "@/lib/keybindings"
 import { Kbd } from "@/components/ui/kbd"
 import { CommandPalette } from "@/components/CommandPalette"
 import { SettingsDialog } from "@/components/SettingsDialog"
+import { SiteFooter } from "@/components/SiteFooter"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -137,6 +138,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </div>
       </header>
       <main className="flex-1 p-4">{children}</main>
+      <SiteFooter />
       <SettingsDialog key={settingsKey} initial={settingsSection} open={settingsOpen} onOpenChange={setSettingsOpen} />
     </div>
   )
