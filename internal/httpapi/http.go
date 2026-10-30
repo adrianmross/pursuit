@@ -18,6 +18,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -63,6 +64,19 @@ type Server struct {
 	HideTokenLogin bool
 	// NoDocs 404s the embedded docs under /docs.
 	NoDocs bool
+	// DemoMode lets an unauthenticated caller in as a fresh, isolated,
+	// rate-limited throwaway tenant instead of requiring a token — a
+	// zero-signup tutorial for preview deployments. Never set this on a
+	// production/real-data deployment: see demo.go.
+	DemoMode bool
+
+	demoLimiterOnce sync.Once
+	demoLimiterVal  *demoLimiter
+}
+
+func (s *Server) demoLimiterFor() *demoLimiter {
+	s.demoLimiterOnce.Do(func() { s.demoLimiterVal = newDemoLimiter() })
+	return s.demoLimiterVal
 }
 
 func (s *Server) multiTenant() bool {
@@ -108,6 +122,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /v1/auth/providers", s.authProviders)
 	mux.HandleFunc("GET /v1/auth/{provider}/start", s.authStart)
 	mux.HandleFunc("GET /v1/auth/{provider}/callback", s.authCallback)
+	mux.HandleFunc("POST /v1/demo", s.startDemo)
 
 	mux.HandleFunc("GET /v1/me", s.me)
 	mux.HandleFunc("POST /v1/tokens", s.createToken)
@@ -265,7 +280,7 @@ func (s *Server) wrap(next http.Handler) http.Handler {
 // endpoints and every dashboard asset and client-side route (e.g. /app/:id),
 // which render the SPA shell and authenticate in the browser via the API.
 func isPublic(path string) bool {
-	return !strings.HasPrefix(path, "/v1/") || strings.HasPrefix(path, "/v1/auth/")
+	return !strings.HasPrefix(path, "/v1/") || strings.HasPrefix(path, "/v1/auth/") || path == "/v1/demo"
 }
 
 func isCron(path string) bool {
@@ -326,7 +341,7 @@ func (s *Server) authProviders(w http.ResponseWriter, r *http.Request) {
 	if s.multiTenant() {
 		mode = "multi"
 	}
-	writeJSON(w, 200, map[string]any{"tenant_mode": mode, "providers": providers, "allow_token_login": !s.HideTokenLogin})
+	writeJSON(w, 200, map[string]any{"tenant_mode": mode, "providers": providers, "allow_token_login": !s.HideTokenLogin, "demo_available": s.DemoMode})
 }
 
 func (s *Server) authStart(w http.ResponseWriter, r *http.Request) {
@@ -473,11 +488,11 @@ func (s *Server) dashboard(w http.ResponseWriter, r *http.Request) {
 		if s.BetterAuthOrigin != "" {
 			connectSrc += " " + s.BetterAuthOrigin
 		}
-		scriptSrc := "'self'"
-		if strings.HasPrefix(name, "docs") {
-			// The static Next export hydrates through inline scripts.
-			scriptSrc += " 'unsafe-inline'"
-		}
+		// Both the dashboard and docs are now static Next.js exports, which
+		// hydrate through inline scripts — a static file server can't hand
+		// out a per-request nonce to allow just those, so 'unsafe-inline'
+		// it is for this embed.
+		scriptSrc := "'self' 'unsafe-inline'"
 		w.Header().Set("Content-Security-Policy", "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src "+scriptSrc+"; connect-src "+connectSrc+"; img-src 'self' data:; font-src 'self'; base-uri 'self'; form-action 'self'")
 		w.Header().Set("Referrer-Policy", "no-referrer")
 	}
@@ -1005,6 +1020,13 @@ func (s *Server) getCompany(w http.ResponseWriter, r *http.Request) {
 var faviconClient = &http.Client{Timeout: 5 * time.Second}
 
 func (s *Server) getCompanyFavicon(w http.ResponseWriter, r *http.Request) {
+	if a, ok := domain.ActorFrom(r.Context()); ok && a.Demo {
+		// A demo actor fully controls Company.Website — letting this
+		// fetch run would let an anonymous visitor make the server hit
+		// an arbitrary host (SSRF).
+		writeErr(w, domain.NotFound("favicon"))
+		return
+	}
 	c, err := s.Svc.GetCompany(r.Context(), r.PathValue("id"))
 	if err != nil {
 		writeErr(w, err)

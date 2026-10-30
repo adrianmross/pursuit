@@ -15,16 +15,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      # internal/dashboard embeds web/dist (//go:embed dist) — build it first,
-      # same as vercel.json's buildCommand, or go vet/test fail to even compile.
-      - run: npm install
-        working-directory: web
-      - run: npm run build
-        working-directory: web
-      - run: rm -rf internal/dashboard/dist && cp -r web/dist internal/dashboard/dist
-      - run: npm install && npm run build
-        working-directory: docs-site
-      - run: cp -r docs-site/out internal/dashboard/dist/docs
+      # internal/dashboard embeds web-app's static export (//go:embed dist)
+      # — build it first, same script as vercel.json's buildCommand, or go
+      # vet/test fail to even compile.
+      - run: sh scripts/vercel-build.sh
       - run: go vet ./...
       - run: go test ./...
 

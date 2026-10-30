@@ -80,7 +80,7 @@ func (s *Service) Authenticate(ctx context.Context, secret string) (domain.Actor
 	}
 	now := s.now()
 	_ = s.DB.TouchToken(ctx, tok.ID, domain.FormatTime(now), domain.FormatTime(now.Add(-time.Minute)))
-	return domain.Actor{UserID: tok.UserID, TokenID: tok.ID, Name: tok.Name, Scopes: tok.Scopes}, nil
+	return domain.Actor{UserID: tok.UserID, TokenID: tok.ID, Name: tok.Name, Scopes: tok.Scopes, Demo: tok.Name == demoTokenName}, nil
 }
 
 // Bootstrap creates the owner and the first token when the database is empty.
@@ -150,6 +150,48 @@ func (s *Service) Bootstrap(ctx context.Context, ownerName, ownerEmail, tokenNam
 		return nil
 	})
 	return issued, created, err
+}
+
+// demoTokenName marks a token as belonging to a throwaway tutorial tenant.
+// Authenticate reads it back to set Actor.Demo on every later request, not
+// just the one that minted the session — a plain token name, not a new
+// schema column, since it's an informational flag rather than a security
+// boundary (sqlstore already isolates all data by UserID regardless).
+const demoTokenName = "demo"
+
+// CreateDemoSession provisions a throwaway tenant for the "try it without
+// an account" tutorial: a synthetic, unroutable user plus a token scoped
+// like the owner's, pre-loaded with the example seed data so it isn't
+// empty. The caller hands the returned secret back to the browser exactly
+// like any other token (localStorage, same sign-in flow) — demo mode is
+// just a token minted without proving who you are first, not a separate
+// auth path. Nothing here is persisted beyond that token: discarding it
+// (or minting a new one — e.g. "replay tutorial") abandons this tenant.
+func (s *Service) CreateDemoSession(ctx context.Context) (secret string, actor domain.Actor, err error) {
+	user := domain.User{ID: s.NewID(), Name: "Demo visitor", Email: "demo-" + s.NewID() + "@pursuit.invalid", CreatedAt: s.now()}
+	if err := s.DB.CreateUser(ctx, user); err != nil {
+		return "", domain.Actor{}, err
+	}
+	if err := s.ensureDefaultCaps(ctx, user.ID); err != nil {
+		return "", domain.Actor{}, err
+	}
+	secret, prefix, hash, err := auth.Generate()
+	if err != nil {
+		return "", domain.Actor{}, err
+	}
+	scopes, err := auth.NormalizeScopes([]string{"read", "write", "approve"})
+	if err != nil {
+		return "", domain.Actor{}, err
+	}
+	tok := domain.Token{ID: s.NewID(), UserID: user.ID, Name: demoTokenName, Hash: hash, Prefix: prefix, Scopes: scopes, CreatedAt: s.now()}
+	if err := s.DB.CreateToken(ctx, tok); err != nil {
+		return "", domain.Actor{}, err
+	}
+	actor = domain.Actor{UserID: user.ID, TokenID: tok.ID, Name: tok.Name, Scopes: scopes, Demo: true}
+	if _, err := s.ImportSeed(domain.WithActor(ctx, actor)); err != nil {
+		return "", domain.Actor{}, err
+	}
+	return secret, actor, nil
 }
 
 // ResolveTenantUser maps a verified Better Auth identity to a Pursuit
