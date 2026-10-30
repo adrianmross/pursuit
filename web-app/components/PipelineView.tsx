@@ -12,7 +12,8 @@ import {
   ArrowUp,
   Check,
   ChevronDown,
-  ChevronRight,
+  ExternalLink,
+  ListChecks,
   Filter,
   MoreHorizontal,
   Plus,
@@ -23,6 +24,8 @@ import {
 } from "lucide-react"
 import { api, ApiError } from "@/lib/api-client"
 import { useAuth } from "@/lib/auth"
+import { useShortcuts } from "@/lib/keybindings"
+import { Kbd } from "@/components/ui/kbd"
 import { getDefaultSort, getDefaultStatus } from "@/lib/settings"
 import { buildApplicationsQuery } from "@/lib/pipeline-query"
 import { applicationHref } from "@/lib/links"
@@ -40,18 +43,26 @@ import {
   type Application,
   type CustomField,
   type Page,
-  type Question,
   type StatusCategory,
 } from "@/lib/types"
 import { CompanyAvatar } from "@/components/CompanyAvatar"
 import { ConfirmDialog } from "@/components/ConfirmDialog"
-import { PreparedAnswers } from "@/components/PreparedAnswers"
 import { ProgressMark } from "@/components/ProgressMark"
 import { StatusBadge } from "@/components/StatusBadge"
+import { STATUS_OPTIONS } from "@/components/AttributesForm"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Slider } from "@/components/ui/slider"
@@ -347,32 +358,6 @@ function StatusExcludeFilter({ exclude, onChange }: { exclude: string[]; onChang
   )
 }
 
-function ExpandedRow({ row, columnCount }: { row: Application; columnCount: number }) {
-  const [questions, setQuestions] = useState<Question[] | null>(null)
-
-  useEffect(() => {
-    api<Page<Question>>(`/v1/applications/${encodeURIComponent(row.id)}/questions`)
-      .then((page) => setQuestions(page.data || []))
-      .catch(() => setQuestions([]))
-  }, [row.id])
-
-  return (
-    <TableRow className="bg-muted/30">
-      <TableCell colSpan={columnCount} className="py-3">
-        <div className="flex flex-col gap-2">
-          <span className="text-xs font-medium text-muted-foreground">Prepared answers</span>
-          {questions == null ? (
-            <p className="text-sm text-muted-foreground">Loading…</p>
-          ) : (
-            <PreparedAnswers questions={questions} />
-          )}
-          {row.notes && <p className="text-sm">{row.notes}</p>}
-        </div>
-      </TableCell>
-    </TableRow>
-  )
-}
-
 function IconAction({
   label: text,
   onClick,
@@ -414,16 +399,26 @@ function hostnameLabel(url?: string) {
   }
 }
 
+const STAGES = FILTERS.map(([v]) => v).filter(Boolean)
+
 function RowActions({
   row,
   can,
   onChanged,
   onDelete,
+  onArchive,
+  onChangeStatus,
+  menuOpen,
+  onMenuOpenChange,
 }: {
   row: Application
   can: (scope: string) => boolean
   onChanged: () => void
   onDelete: () => void
+  onArchive: () => void
+  onChangeStatus: () => void
+  menuOpen: boolean
+  onMenuOpenChange: (open: boolean) => void
 }) {
   const [busy, setBusy] = useState(false)
 
@@ -434,16 +429,6 @@ function RowActions({
         method: "POST",
         body: { ids: [row.id], note: "" },
       })
-      onChanged()
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  async function archive() {
-    setBusy(true)
-    try {
-      await api(`/v1/applications/${encodeURIComponent(row.id)}/archive`, { method: "POST", body: { version: row.version } })
       onChanged()
     } finally {
       setBusy(false)
@@ -461,9 +446,10 @@ function RowActions({
   }
 
   const hasMenu = can("write")
+  const href = safeURL(row.posting_url)
 
   return (
-    <span className="flex items-center justify-end gap-0.5">
+    <span className="flex w-[5.5rem] items-center justify-end gap-0.5">
       {shown(row) === "awaiting_review" && can("approve") && (
         <>
           <IconAction label="Approve" onClick={() => decide("approve")} disabled={busy}>
@@ -475,24 +461,66 @@ function RowActions({
         </>
       )}
       {hasMenu && (
-        <DropdownMenu>
+        <DropdownMenu open={menuOpen} onOpenChange={onMenuOpenChange}>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="icon" className="size-7" disabled={busy} aria-label="More actions">
               <MoreHorizontal className="size-3.5" />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
+          <DropdownMenuContent
+            align="end"
+            className="min-w-48"
+            // Keep focus off the trigger so Space still opens quick actions.
+            onCloseAutoFocus={(e) => e.preventDefault()}
+            // Letter keys act on the row: y approve, r reject, s status, a archive, d delete.
+            onKeyDown={(e) => {
+              if (e.ctrlKey || e.metaKey || e.altKey) return
+              const k = e.key.toLowerCase()
+              const review = shown(row) === "awaiting_review" && can("approve")
+              if (k === "s") onChangeStatus()
+              else if (href && k === "o") window.open(href, "_blank", "noopener,noreferrer")
+              else if (review && k === "y") void decide("approve")
+              else if (review && k === "r") void decide("reject")
+              else if (k === "a") {
+                if (row.archived_at) void unarchive()
+                else onArchive()
+              }
+              else if (k === "d" || k === "delete" || k === "backspace") onDelete()
+              else return
+              e.preventDefault()
+              onMenuOpenChange(false)
+            }}
+          >
+            {shown(row) === "awaiting_review" && can("approve") && (
+              <>
+                <DropdownMenuItem onClick={() => decide("approve")}>
+                  <Check /> Approve <Kbd className="ml-auto">Y</Kbd>
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => decide("reject")}>
+                  <X /> Reject <Kbd className="ml-auto">R</Kbd>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+              </>
+            )}
+            <DropdownMenuItem onClick={onChangeStatus}>
+              <ListChecks /> Change status <Kbd className="ml-auto">S</Kbd>
+            </DropdownMenuItem>
+            {href && (
+              <DropdownMenuItem onClick={() => window.open(href, "_blank", "noopener,noreferrer")}>
+                <ExternalLink /> Open posting <Kbd className="ml-auto">O</Kbd>
+              </DropdownMenuItem>
+            )}
             {row.archived_at ? (
               <DropdownMenuItem onClick={unarchive}>
-                <ArchiveRestore /> Unarchive
+                <ArchiveRestore /> Unarchive <Kbd className="ml-auto">A</Kbd>
               </DropdownMenuItem>
             ) : (
-              <DropdownMenuItem onClick={archive}>
-                <Archive /> Archive
+              <DropdownMenuItem onClick={onArchive}>
+                <Archive /> Archive <Kbd className="ml-auto">A</Kbd>
               </DropdownMenuItem>
             )}
             <DropdownMenuItem onClick={onDelete} variant="destructive">
-              <Trash2 /> Delete
+              <Trash2 /> Delete <Kbd className="ml-auto">D</Kbd>
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -519,14 +547,19 @@ export function PipelineView({ initial }: { initial: PipelineInitial | null }) {
   const [nextCursor, setNextCursor] = useState(initial?.nextCursor ?? "")
   const [loading, setLoading] = useState(initial == null)
   const [error, setError] = useState<string | null>(null)
-  const [expanded, setExpanded] = useState<string | null>(null)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [deleteTarget, setDeleteTarget] = useState<Application | null>(null)
+  const [archiveTarget, setArchiveTarget] = useState<Application | null>(null)
+  const [cursor, setCursor] = useState<string | null>(null)
+  const [menuFor, setMenuFor] = useState<string | null>(null)
+  const [statusFor, setStatusFor] = useState<string | null>(null)
+  const [bulkMenu, setBulkMenu] = useState(false)
+  const [bulkConfirm, setBulkConfirm] = useState<"archive" | "delete" | null>(null)
   const [bulkBusy, setBulkBusy] = useState(false)
   const [checkingAll, setCheckingAll] = useState(false)
   const [fields, setFields] = useState<CustomField[]>(initial?.fields ?? [])
   const loadGen = useRef(0)
-  const columnCount = 8 + fields.length
+  const columnCount = 7 + fields.length
 
   // The server already fetched the first page (and fields) for this exact
   // URL — skip the redundant client refetch on mount, but still refetch
@@ -619,6 +652,62 @@ export function PipelineView({ initial }: { initial: PipelineInitial | null }) {
   }
 
   const selectedRows = visibleRows.filter((r) => selected.has(r.id))
+  // The highlighted row, dropped if a filter or search removed it.
+  const cursorId = visibleRows.find((r) => r.id === cursor)?.id ?? null
+
+  useEffect(() => {
+    document.querySelector('[data-cursor="true"]')?.scrollIntoView({ block: "nearest" })
+  }, [cursorId])
+
+  // Keyboard handlers stand down while a row menu is open: it owns the keys.
+  const idle = () => menuFor == null && statusFor == null && !bulkMenu
+  const onControl = () => document.activeElement?.matches("button, a, [role='checkbox']") ?? false
+  const move = (d: number) => {
+    if (!visibleRows.length || !idle()) return false
+    const i = visibleRows.findIndex((r) => r.id === cursorId)
+    setCursor(visibleRows[Math.min(visibleRows.length - 1, Math.max(0, i < 0 ? 0 : i + d))].id)
+  }
+  async function changeStatus(row: Application, next: string) {
+    if (next === shown(row)) return
+    setError(null)
+    try {
+      const updated = await api<Application>(`/v1/applications/${encodeURIComponent(row.id)}`, {
+        method: "PATCH",
+        body: { version: row.version, status: next },
+      })
+      setRows((prev) => prev.map((r) => (r.id === row.id ? { ...r, ...updated } : r)))
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Failed to change the status")
+    }
+  }
+  // [ and ] walk the pipeline stages for the highlighted row.
+  const step = (d: number) => {
+    const row = visibleRows.find((r) => r.id === cursorId)
+    if (!row || !idle() || !can("write")) return false
+    const i = STAGES.indexOf(shown(row))
+    if (i < 0 || !STAGES[i + d]) return false
+    void changeStatus(row, STAGES[i + d])
+  }
+  useShortcuts({
+    rowStatusNext: () => step(1),
+    rowStatusPrev: () => step(-1),
+    rowNext: () => move(1),
+    rowPrev: () => move(-1),
+    rowOpen: () => (cursorId && idle() && !onControl() ? router.push(applicationHref(cursorId)) : false),
+    rowSelect: () => (cursorId && idle() && !onControl() ? toggleSelected(cursorId) : false),
+    // With rows selected the menu acts on all of them, else on the highlighted row.
+    rowMenu: () => {
+      if (!idle() || onControl() || !can("write")) return false
+      if (selected.size > 0) setBulkMenu(true)
+      else if (cursorId) setMenuFor(cursorId)
+      else return false
+    },
+    rowClear: () => {
+      if (!idle() || (!cursorId && selected.size === 0)) return false
+      setCursor(null)
+      setSelected(new Set())
+    },
+  })
   const canBulkApprove = can("approve") && selectedRows.length > 0 && selectedRows.every((r) => shown(r) === "awaiting_review")
 
   async function bulkDecide(kind: "approve" | "reject") {
@@ -630,6 +719,24 @@ export function PipelineView({ initial }: { initial: PipelineInitial | null }) {
       })
       setSelected(new Set())
       await load()
+    } finally {
+      setBulkBusy(false)
+    }
+  }
+
+  async function bulkStatus(next: string) {
+    setBulkBusy(true)
+    try {
+      await Promise.all(
+        selectedRows
+          .filter((row) => shown(row) !== next)
+          .map((row) =>
+            api(`/v1/applications/${encodeURIComponent(row.id)}`, { method: "PATCH", body: { version: row.version, status: next } }),
+          ),
+      )
+      await load()
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Failed to change the status")
     } finally {
       setBulkBusy(false)
     }
@@ -680,12 +787,90 @@ export function PipelineView({ initial }: { initial: PipelineInitial | null }) {
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm text-muted-foreground">
-          {loading && rows.length === 0
+          {selected.size > 0
+            ? `${selected.size} of ${visibleRows.length} selected`
+            : loading && rows.length === 0
             ? "Loading applications"
             : q
               ? `${visibleRows.length} of ${total} application${total === 1 ? "" : "s"} match "${q}"`
               : `${total} application${total === 1 ? "" : "s"}`}
         </p>
+        {selected.size > 0 ? (
+          // Same row as the count, so selecting never pushes the table down.
+          <div className="flex gap-2">
+            <DropdownMenu open={bulkMenu} onOpenChange={setBulkMenu}>
+              <DropdownMenuTrigger asChild>
+                <Button size="sm" variant="outline" disabled={bulkBusy}>
+                  Actions <ChevronDown className="size-3.5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent
+                align="end"
+                className="min-w-56"
+                onCloseAutoFocus={(e) => e.preventDefault()}
+                // y approve, r reject, a archive, d delete, c clear.
+                onKeyDown={(e) => {
+                  if (e.ctrlKey || e.metaKey || e.altKey) return
+                  const k = e.key.toLowerCase()
+                  if (canBulkApprove && k === "y") void bulkDecide("approve")
+                  else if (canBulkApprove && k === "r") void bulkDecide("reject")
+                  else if (k === "a") {
+                    if (archivedView) void bulkUnarchive()
+                    else setBulkConfirm("archive")
+                  }
+                  else if (k === "d" || k === "delete" || k === "backspace") setBulkConfirm("delete")
+                  else if (k === "c") setSelected(new Set())
+                  else return
+                  e.preventDefault()
+                  setBulkMenu(false)
+                }}
+              >
+                {canBulkApprove && (
+                  <>
+                    <DropdownMenuItem onClick={() => bulkDecide("approve")}>
+                      <Check /> Approve {selected.size} <Kbd className="ml-auto">Y</Kbd>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => bulkDecide("reject")}>
+                      <X /> Reject {selected.size} <Kbd className="ml-auto">R</Kbd>
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                  </>
+                )}
+                <DropdownMenuSub>
+                  <DropdownMenuSubTrigger>
+                    <ListChecks /> Change status
+                  </DropdownMenuSubTrigger>
+                  <DropdownMenuSubContent className="max-h-80">
+                    {STATUS_OPTIONS.map(([v, text]) => (
+                      <DropdownMenuItem key={v} onSelect={() => void bulkStatus(v)}>
+                        {text}
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuSubContent>
+                </DropdownMenuSub>
+                {archivedView ? (
+                  <DropdownMenuItem onClick={bulkUnarchive}>
+                    <ArchiveRestore /> Unarchive <Kbd className="ml-auto">A</Kbd>
+                  </DropdownMenuItem>
+                ) : (
+                  <DropdownMenuItem onClick={() => setBulkConfirm("archive")}>
+                    <Archive /> Archive <Kbd className="ml-auto">A</Kbd>
+                  </DropdownMenuItem>
+                )}
+                <DropdownMenuItem onClick={() => setBulkConfirm("delete")} variant="destructive">
+                  <Trash2 /> Delete <Kbd className="ml-auto">D</Kbd>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => setSelected(new Set())}>
+                  <X /> Clear selection <Kbd className="ml-auto">C</Kbd>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <Button size="sm" variant="ghost" onClick={() => setSelected(new Set())}>
+              Clear
+            </Button>
+          </div>
+        ) : (
         <div className="flex gap-2">
           {archivedView && (
             <Button size="sm" variant="ghost" onClick={() => patch({ archived: "" })}>
@@ -701,77 +886,42 @@ export function PipelineView({ initial }: { initial: PipelineInitial | null }) {
             </Button>
           )}
         </div>
+        )}
       </div>
 
       {error && <p className="text-sm text-destructive">{error}</p>}
 
-      {selected.size > 0 && (
-        <div className="flex items-center gap-2 rounded-md border bg-muted/40 px-3 py-2">
-          <span className="text-sm">{selected.size} selected</span>
-          <div className="ml-auto flex gap-2">
-            {canBulkApprove && (
-              <>
-                <Button size="sm" variant="outline" disabled={bulkBusy} onClick={() => bulkDecide("approve")}>
-                  Approve
-                </Button>
-                <Button size="sm" variant="outline" disabled={bulkBusy} onClick={() => bulkDecide("reject")}>
-                  Reject
-                </Button>
-              </>
-            )}
-            {can("write") && (
-              <>
-                {archivedView ? (
-                  <Button size="sm" variant="outline" disabled={bulkBusy} onClick={bulkUnarchive}>
-                    Unarchive
-                  </Button>
-                ) : (
-                  <Button size="sm" variant="outline" disabled={bulkBusy} onClick={bulkArchive}>
-                    Archive
-                  </Button>
-                )}
-                <Button size="sm" variant="destructive" disabled={bulkBusy} onClick={bulkDelete}>
-                  Delete
-                </Button>
-              </>
-            )}
-            <Button size="sm" variant="ghost" onClick={() => setSelected(new Set())}>
-              Clear
-            </Button>
-          </div>
-        </div>
-      )}
 
       <div className="rounded-md border">
-        <Table>
+        {/* Fixed column widths: a longer status, a tag, or the approve/reject icons never shift the other columns. */}
+        <Table className="min-w-[56rem] table-fixed">
           <TableHeader>
             <TableRow>
-              <TableHead className="w-8">
+              <TableHead className="w-10">
                 <Checkbox
                   checked={visibleRows.length > 0 && selected.size === visibleRows.length}
                   onCheckedChange={toggleSelectAll}
                   aria-label="Select all"
                 />
               </TableHead>
-              <TableHead className="w-6" />
-              <TableHead>
+              <TableHead className="w-[22%]">
                 <SortHeader text="Company" field="company" sort={sort} onSort={(next) => patch({ sort: next })} />
               </TableHead>
-              <TableHead>
+              <TableHead className="w-[22%]">
                 <SortHeader text="Role" field="title" sort={sort} onSort={(next) => patch({ sort: next })} />
               </TableHead>
-              <TableHead>
+              <TableHead className="w-72">
                 <span className="flex items-center gap-1">
                   Status
                   <StatusExcludeFilter exclude={exclude} onChange={(next) => patch({ exclude: next.join(",") })} />
                 </span>
               </TableHead>
               {fields.map((f) => (
-                <TableHead key={f.id}>
+                <TableHead key={f.id} className="w-36">
                   <SortHeader text={f.name} field={`field:${f.name}`} sort={sort} onSort={(next) => patch({ sort: next })} />
                 </TableHead>
               ))}
-              <TableHead>
+              <TableHead className="w-44">
                 <span className="flex items-center gap-1">
                   Listing
                   {can("write") && (
@@ -801,10 +951,10 @@ export function PipelineView({ initial }: { initial: PipelineInitial | null }) {
                   )}
                 </span>
               </TableHead>
-              <TableHead>
+              <TableHead className="w-24">
                 <SortHeader text="Date" field="applied_date" sort={sort} onSort={(next) => patch({ sort: next })} defaultDesc />
               </TableHead>
-              <TableHead className="w-10" />
+              <TableHead className="w-[5.5rem]" />
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -818,39 +968,53 @@ export function PipelineView({ initial }: { initial: PipelineInitial | null }) {
             {visibleRows.map((row) => {
               const href = safeURL(row.posting_url)
               const when = row.applied_date || row.updated_at
-              const isExpanded = expanded === row.id
               return (
                 <Fragment key={row.id}>
-                  <TableRow>
+                  <TableRow
+                    data-cursor={row.id === cursorId}
+                    onClick={() => setCursor(row.id)}
+                    className="data-[cursor=true]:bg-muted data-[cursor=true]:shadow-[inset_2px_0_0_var(--primary)]"
+                  >
                     <TableCell>
                       <Checkbox checked={selected.has(row.id)} onCheckedChange={() => toggleSelected(row.id)} aria-label="Select row" />
                     </TableCell>
-                    <TableCell>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="size-6"
-                        aria-label={isExpanded ? "Collapse" : "Show prepared answers"}
-                        onClick={() => setExpanded(isExpanded ? null : row.id)}
-                      >
-                        {isExpanded ? <ChevronDown className="size-3.5" /> : <ChevronRight className="size-3.5" />}
-                      </Button>
-                    </TableCell>
-                    <TableCell className="font-medium">
+                    <TableCell className="overflow-hidden font-medium">
                       <span className="flex items-center gap-2">
                         <ProgressMark {...markOf(row)} size={20} />
                         <CompanyAvatar company={row.company} companyId={row.company_id} />
                         {row.company || "—"}
                       </span>
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="overflow-hidden text-ellipsis">
                       <Link href={applicationHref(row.id)} className="hover:underline">
                         {row.title || "Untitled"}
                       </Link>
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="overflow-hidden">
                       <span className="flex items-center gap-1.5">
-                        <StatusBadge status={shown(row)} />
+                        {can("write") ? (
+                          <DropdownMenu open={statusFor === row.id} onOpenChange={(open) => setStatusFor(open ? row.id : null)}>
+                            <DropdownMenuTrigger asChild>
+                              <button type="button" className="rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring" aria-label="Change status">
+                                <StatusBadge status={shown(row)} />
+                              </button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent
+                              align="start"
+                              className="max-h-80"
+                              onCloseAutoFocus={(e) => e.preventDefault()}
+                            >
+                              {STATUS_OPTIONS.map(([v, text]) => (
+                                <DropdownMenuItem key={v} onSelect={() => void changeStatus(row, v)}>
+                                  {text}
+                                  {v === shown(row) && <Check className="ml-auto size-3.5" />}
+                                </DropdownMenuItem>
+                              ))}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        ) : (
+                          <StatusBadge status={shown(row)} />
+                        )}
                         {(row.tags || []).map((tag) => (
                           <span key={tag} className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
                             {tag}
@@ -858,7 +1022,7 @@ export function PipelineView({ initial }: { initial: PipelineInitial | null }) {
                         ))}
                       </span>
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="overflow-hidden">
                       <span className="flex items-center gap-1.5">
                         <LinkBadge status={row.link_status} />
                         {href ? (
@@ -887,10 +1051,18 @@ export function PipelineView({ initial }: { initial: PipelineInitial | null }) {
                       {shortWhen(when)}
                     </TableCell>
                     <TableCell>
-                      <RowActions row={row} can={can} onChanged={() => load()} onDelete={() => setDeleteTarget(row)} />
+                      <RowActions
+                        row={row}
+                        can={can}
+                        onChanged={() => load()}
+                        onDelete={() => setDeleteTarget(row)}
+                        onArchive={() => setArchiveTarget(row)}
+                        onChangeStatus={() => setStatusFor(row.id)}
+                        menuOpen={menuFor === row.id}
+                        onMenuOpenChange={(open) => setMenuFor(open ? row.id : null)}
+                      />
                     </TableCell>
                   </TableRow>
-                  {isExpanded && <ExpandedRow row={row} columnCount={columnCount} />}
                 </Fragment>
               )
             })}
@@ -905,6 +1077,43 @@ export function PipelineView({ initial }: { initial: PipelineInitial | null }) {
       )}
 
       <ScrollJumpButton />
+
+      <ConfirmDialog
+        open={bulkConfirm != null}
+        onOpenChange={(open) => !open && setBulkConfirm(null)}
+        title={bulkConfirm === "delete" ? `Delete ${selected.size} applications` : `Archive ${selected.size} applications`}
+        description={
+          bulkConfirm === "delete"
+            ? "This permanently deletes the selected applications. This can't be undone."
+            : "The selected applications move out of the pipeline. You can restore them from the archive."
+        }
+        confirmLabel={bulkConfirm === "delete" ? "Delete" : "Archive"}
+        danger={bulkConfirm === "delete"}
+        busy={bulkBusy}
+        onConfirm={async () => {
+          const kind = bulkConfirm
+          setBulkConfirm(null)
+          if (kind === "delete") await bulkDelete()
+          else if (kind === "archive") await bulkArchive()
+        }}
+      />
+
+      <ConfirmDialog
+        open={archiveTarget != null}
+        onOpenChange={(open) => !open && setArchiveTarget(null)}
+        title="Archive application"
+        description={`${archiveTarget?.title || "This application"} at ${archiveTarget?.company || "this company"} moves out of the pipeline. You can restore it from the archive.`}
+        confirmLabel="Archive"
+        onConfirm={async () => {
+          if (!archiveTarget) return
+          await api(`/v1/applications/${encodeURIComponent(archiveTarget.id)}/archive`, {
+            method: "POST",
+            body: { version: archiveTarget.version },
+          })
+          setArchiveTarget(null)
+          await load()
+        }}
+      />
 
       <ConfirmDialog
         open={deleteTarget != null}

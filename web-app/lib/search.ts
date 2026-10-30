@@ -1,3 +1,5 @@
+import { getPref } from "@/lib/settings"
+
 export type SearchQualifier = { key: string; op: "=" | ">" | ">=" | "<" | "<="; value: string }
 
 export type ParsedSearch = { free: string; qualifiers: SearchQualifier[] }
@@ -5,6 +7,8 @@ export type ParsedSearch = { free: string; qualifiers: SearchQualifier[] }
 const OPS = [">=", "<=", ">", "<"] as const
 
 export function parseSearch(input: string): ParsedSearch {
+  // With the syntax turned off in Settings, everything is plain text.
+  if (getPref("searchSyntax") === "off") return { free: input.trim(), qualifiers: [] }
   const qualifiers: SearchQualifier[] = []
   const free: string[] = []
   for (const token of input.trim().split(/\s+/).filter(Boolean)) {
@@ -24,7 +28,9 @@ export function parseSearch(input: string): ParsedSearch {
       }
     }
     if (!value) {
-      free.push(token)
+      // A known key with nothing after it is still being typed: ignore it
+      // rather than searching for the literal text "status:".
+      if (!QUALIFIER_KEYS.some(([k]) => k === key.toLowerCase())) free.push(token)
       continue
     }
     qualifiers.push({ key: key.toLowerCase(), op, value })
@@ -58,4 +64,48 @@ export function matchesQualifiers(
         return true
     }
   })
+}
+
+export const QUALIFIER_KEYS: [string, string][] = [
+  ["status", "Stage or outcome, like applied"],
+  ["tag", "Applications with a tag"],
+  ["company", "Company name contains"],
+  ["title", "Role title contains"],
+  ["applied", "Applied date, like >2026-01-01"],
+]
+
+export type Token = { text: string; kind: "space" | "free" | "key" | "op" | "value" | "unknown" }
+
+// Splits input the way parseSearch reads it, for syntax highlighting. Unknown
+// keys still filter nothing, so they are marked rather than hidden.
+export function tokenize(input: string): Token[] {
+  const syntax = getPref("searchSyntax") !== "off"
+  const out: Token[] = []
+  for (const part of input.split(/(\s+)/)) {
+    if (!part) continue
+    if (/^\s+$/.test(part)) {
+      out.push({ text: part, kind: "space" })
+      continue
+    }
+    const m = syntax ? part.match(/^([a-zA-Z_]+):(.*)$/) : null
+    if (!m || !m[2]) {
+      out.push({ text: part, kind: "free" })
+      continue
+    }
+    const known = QUALIFIER_KEYS.some(([k]) => k === m[1].toLowerCase())
+    out.push({ text: m[1] + ":", kind: known ? "key" : "unknown" })
+    const op = OPS.find((o) => m[2].startsWith(o))
+    if (op) out.push({ text: op, kind: "op" })
+    out.push({ text: m[2].slice(op?.length || 0), kind: known ? "value" : "unknown" })
+  }
+  return out
+}
+
+// The whitespace-delimited word around the caret.
+export function tokenAt(input: string, caret: number) {
+  let start = caret
+  while (start > 0 && !/\s/.test(input[start - 1])) start--
+  let end = caret
+  while (end < input.length && !/\s/.test(input[end])) end++
+  return { start, end, text: input.slice(start, end) }
 }

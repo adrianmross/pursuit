@@ -821,6 +821,9 @@ type ListQuery struct {
 	ApplicationID string
 	Actor         string
 	Action        string
+	// Since and Until bound audit entries by created_at (inclusive, UTC).
+	Since string
+	Until string
 	EntityType    string
 	EntityID      string
 	Stale         bool
