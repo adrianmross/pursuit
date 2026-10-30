@@ -35,7 +35,7 @@ The brand says "job search" through its words, not through pictures: no briefcas
 
 **Forest is for the brand, not the UI.** `brand-forest` and `brand-cream` are for the app icon, marketing and the sign-in panel.
 
-**Progress is pieces.** Each application carries a progress mark: to_apply 1, Prepared 2, Approved 3, Submitted 4, Interviewing 5, Offer 6 (the gold tail). Status chips are told apart by lightness and outline, not hue: waiting-on-you statuses are outlined, Approved is ink, Failed uses `danger` text, Withdrawn is a muted outline, Offer is the only gold chip. `danger` is for errors and destructive actions, never for a rejection.
+**Progress is pieces.** Each application carries a progress mark that fills from the bottom of the ring, counter-clockwise, up to the tail: Apply 0, Prepared 1, Applied 2, Screening 3, Interviewing 4, Final 5, Offer 6 (the gold tail). Rounds split any segment into sub-arcs that fill as each one is done. An outcome never clears the stage: it recolours the current segment. Waiting and Needs input are amber; Failed, Rejected, Withdrawn and Ghosted are red. Offer is the only gold chip. Outside the mark, status chips are told apart by lightness and outline, not hue.
 
 **Type.** Outfit for headings (`display`, `title`, `heading`), whose round bowls match the mark; Inter for interface text (`body`, `small`, `label`); JetBrains Mono for commands, IDs and scores (`code`).
 

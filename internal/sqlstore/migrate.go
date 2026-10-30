@@ -338,4 +338,34 @@ var migrations = []migration{{
 			PRIMARY KEY (application_id, field_id)
 		)`,
 	},
+}, {
+	version: "006",
+	stmts: []string{
+		`ALTER TABLE applications ADD COLUMN outcome TEXT NOT NULL DEFAULT ''`,
+		// Outcomes used to overwrite the stage. Move them to outcome and
+		// restore the stage from the last status change that led into them,
+		// falling back to applied (or to_apply without an applied date).
+		`UPDATE applications SET outcome=status, status=COALESCE(
+			(SELECT e.from_status FROM events e WHERE e.application_id=applications.id AND e.to_status=applications.status
+				AND e.from_status NOT IN ('', 'rejected', 'withdrawn', 'ghosted', 'failed', 'needs_input', 'waiting')
+				ORDER BY e.occurred_at DESC, e.id DESC LIMIT 1),
+			CASE WHEN applied_date IS NOT NULL AND applied_date <> '' THEN 'applied' ELSE 'to_apply' END)
+			WHERE status IN ('rejected', 'withdrawn', 'ghosted', 'failed', 'needs_input')`,
+		`CREATE TABLE IF NOT EXISTS interviews (
+			id TEXT PRIMARY KEY,
+			user_id TEXT NOT NULL,
+			application_id TEXT NOT NULL REFERENCES applications(id) ON DELETE CASCADE,
+			stage TEXT NOT NULL,
+			kind TEXT NOT NULL DEFAULT '',
+			interviewer TEXT NOT NULL DEFAULT '',
+			scheduled_at TEXT NOT NULL DEFAULT '',
+			done_at TEXT NOT NULL DEFAULT '',
+			prep TEXT NOT NULL DEFAULT '',
+			notes TEXT NOT NULL DEFAULT '',
+			version BIGINT NOT NULL DEFAULT 1,
+			created_at TEXT NOT NULL,
+			updated_at TEXT NOT NULL
+		)`,
+		`CREATE INDEX IF NOT EXISTS interviews_app_idx ON interviews(application_id, created_at, id)`,
+	},
 }}

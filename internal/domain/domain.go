@@ -52,8 +52,10 @@ func ParseDate(s string) (string, error) {
 }
 
 // Status pipeline. Apply work moves to_apply → preparing → awaiting_review →
-// approved → submitting → submitted, and can stop in needs_input or failed.
-// Historical tracker values (applied, screening, …) stay valid.
+// approved → submitting → submitted. A status is a stage (StageOf maps it onto
+// the progress mark's seven steps). waiting, needs_input, failed, rejected,
+// withdrawn and ghosted are outcomes: they are accepted wherever a status is,
+// but are stored beside the stage instead of replacing it.
 const (
 	StatusSaved          = "saved"
 	StatusToApply        = "to_apply"
@@ -68,6 +70,8 @@ const (
 	StatusApplied        = "applied"
 	StatusScreening      = "screening"
 	StatusInterviewing   = "interviewing"
+	StatusFinal          = "final"
+	StatusWaiting        = "waiting"
 	StatusOffer          = "offer"
 	StatusRejected       = "rejected"
 	StatusWithdrawn      = "withdrawn"
@@ -77,8 +81,49 @@ const (
 var Statuses = []string{
 	StatusSaved, StatusToApply, StatusPreparing, StatusAwaitingReview, StatusApproved,
 	StatusSubmitting, StatusSubmitted, StatusNeedsInput, StatusFailed, StatusInProgress,
-	StatusApplied, StatusScreening, StatusInterviewing, StatusOffer, StatusRejected,
-	StatusWithdrawn, StatusGhosted,
+	StatusApplied, StatusScreening, StatusInterviewing, StatusFinal, StatusOffer, StatusWaiting,
+	StatusRejected, StatusWithdrawn, StatusGhosted,
+}
+
+// IsOutcome reports statuses that overlay a stage instead of replacing it.
+func IsOutcome(status string) bool {
+	switch status {
+	case StatusWaiting, StatusNeedsInput, StatusFailed, StatusRejected, StatusWithdrawn, StatusGhosted:
+		return true
+	default:
+		return false
+	}
+}
+
+// IsStop reports outcomes that end the pursuit (shown red).
+func IsStop(outcome string) bool {
+	switch outcome {
+	case StatusFailed, StatusRejected, StatusWithdrawn, StatusGhosted:
+		return true
+	default:
+		return false
+	}
+}
+
+// StageOf maps a status onto the progress mark: 0 apply, 1 prepared,
+// 2 applied, 3 screening, 4 interviewing, 5 final, 6 offer.
+func StageOf(status string) int {
+	switch status {
+	case StatusAwaitingReview, StatusApproved, StatusSubmitting:
+		return 1
+	case StatusSubmitted, StatusApplied, StatusInProgress:
+		return 2
+	case StatusScreening:
+		return 3
+	case StatusInterviewing:
+		return 4
+	case StatusFinal:
+		return 5
+	case StatusOffer:
+		return 6
+	default:
+		return 0
+	}
 }
 
 func ParseStatus(s string) (string, error) {
@@ -113,6 +158,10 @@ func ParseStatus(s string) (string, error) {
 		return StatusScreening, nil
 	case "interviewing":
 		return StatusInterviewing, nil
+	case "final":
+		return StatusFinal, nil
+	case "waiting":
+		return StatusWaiting, nil
 	case "offer":
 		return StatusOffer, nil
 	case "rejected":
@@ -139,11 +188,11 @@ func StatusLabel(s string) string {
 	case StatusSaved:
 		return "Saved"
 	case StatusToApply:
-		return "To apply"
+		return "Apply"
 	case StatusPreparing:
 		return "Preparing"
 	case StatusAwaitingReview:
-		return "Awaiting review"
+		return "Prepared"
 	case StatusApproved:
 		return "Approved"
 	case StatusSubmitting:
@@ -162,6 +211,10 @@ func StatusLabel(s string) string {
 		return "Screening"
 	case StatusInterviewing:
 		return "Interviewing"
+	case StatusFinal:
+		return "Final"
+	case StatusWaiting:
+		return "Waiting"
 	case StatusOffer:
 		return "Offer"
 	case StatusRejected:
@@ -185,7 +238,7 @@ func SimplifyStatus(status string) string {
 		return "Applied"
 	case StatusScreening:
 		return "Screening"
-	case StatusInterviewing:
+	case StatusInterviewing, StatusFinal:
 		return "Interviewing"
 	case StatusOffer:
 		return "Offer"
@@ -203,7 +256,7 @@ func SimplifyStatus(status string) string {
 // CountsAsSubmitted reports statuses that consume a "submitted" company cap slot.
 func CountsAsSubmitted(status string) bool {
 	switch status {
-	case StatusApplied, StatusSubmitted, StatusSubmitting, StatusScreening, StatusInterviewing, StatusOffer:
+	case StatusApplied, StatusSubmitted, StatusSubmitting, StatusScreening, StatusInterviewing, StatusFinal, StatusOffer:
 		return true
 	default:
 		return false
@@ -551,36 +604,115 @@ type Role struct {
 }
 
 type Application struct {
-	ID             string     `json:"id"`
-	UserID         string     `json:"-"`
-	CompanyID      string     `json:"company_id"`
-	Company        string     `json:"company"`
-	RoleID         string     `json:"role_id"`
-	Title          string     `json:"title"`
-	Location       string     `json:"location"`
-	Salary         string     `json:"salary"`
-	SalaryMinCents *int64     `json:"salary_min_cents,omitempty"`
-	SalaryMaxCents *int64     `json:"salary_max_cents,omitempty"`
-	Fit            string     `json:"fit"`
-	Status         string     `json:"status"`
-	AppliedDate    *string    `json:"applied_date"`
-	NextStep       string     `json:"next_step"`
-	Notes          string     `json:"notes"`
-	PostingURL     string     `json:"posting_url"`
-	Source         string     `json:"source"`
-	JobType        string     `json:"job_type"`
-	ResumeVersion  string     `json:"resume_version"`
-	ResumeFileRef  string     `json:"resume_file_ref"`
-	ContactEmail   string     `json:"contact_email"`
-	ExternalID     string     `json:"external_id,omitempty"`
-	Tags           []string   `json:"tags"`
-	LinkStatus     string     `json:"link_status,omitempty"`
-	LinkCheckedAt  *time.Time `json:"link_checked_at,omitempty"`
-	ArchivedAt     *time.Time `json:"archived_at,omitempty"`
-	CustomFields   map[string]string `json:"custom_fields,omitempty"`
-	Version        int        `json:"version"`
-	CreatedAt      time.Time  `json:"created_at"`
-	UpdatedAt      time.Time  `json:"updated_at"`
+	ID             string                 `json:"id"`
+	UserID         string                 `json:"-"`
+	CompanyID      string                 `json:"company_id"`
+	Company        string                 `json:"company"`
+	RoleID         string                 `json:"role_id"`
+	Title          string                 `json:"title"`
+	Location       string                 `json:"location"`
+	Salary         string                 `json:"salary"`
+	SalaryMinCents *int64                 `json:"salary_min_cents,omitempty"`
+	SalaryMaxCents *int64                 `json:"salary_max_cents,omitempty"`
+	Fit            string                 `json:"fit"`
+	Status         string                 `json:"status"`
+	Outcome        string                 `json:"outcome"`
+	Stage          int                    `json:"stage"`
+	Interviews     map[int]InterviewCount `json:"interviews"`
+	AppliedDate    *string                `json:"applied_date"`
+	NextStep       string                 `json:"next_step"`
+	Notes          string                 `json:"notes"`
+	PostingURL     string                 `json:"posting_url"`
+	Source         string                 `json:"source"`
+	JobType        string                 `json:"job_type"`
+	ResumeVersion  string                 `json:"resume_version"`
+	ResumeFileRef  string                 `json:"resume_file_ref"`
+	ContactEmail   string                 `json:"contact_email"`
+	ExternalID     string                 `json:"external_id,omitempty"`
+	Tags           []string               `json:"tags"`
+	LinkStatus     string                 `json:"link_status,omitempty"`
+	LinkCheckedAt  *time.Time             `json:"link_checked_at,omitempty"`
+	ArchivedAt     *time.Time             `json:"archived_at,omitempty"`
+	CustomFields   map[string]string      `json:"custom_fields,omitempty"`
+	Version        int                    `json:"version"`
+	CreatedAt      time.Time              `json:"created_at"`
+	UpdatedAt      time.Time              `json:"updated_at"`
+}
+
+// Shown is the status the application displays: its outcome when one is set,
+// otherwise its stage. Transitions compare against it.
+func (a Application) Shown() string {
+	if a.Outcome != "" {
+		return a.Outcome
+	}
+	return a.Status
+}
+
+// EffectiveStatus is Shown without the waiting overlay. Exports and the
+// status filters use it, since waiting never replaces a stage.
+func (a Application) EffectiveStatus() string {
+	if a.Outcome == StatusWaiting {
+		return a.Status
+	}
+	return a.Shown()
+}
+
+// InterviewCount is how many rounds a stage has and how many are done. The
+// application carries one per stage (keyed by StageOf), and each drives the
+// partial fill of that stage's segment on the progress mark.
+type InterviewCount struct {
+	Done  int `json:"done"`
+	Total int `json:"total"`
+}
+
+// Interview is one round within a stage. Prep holds what to rehearse and
+// Notes what happened.
+type Interview struct {
+	ID            string     `json:"id"`
+	UserID        string     `json:"-"`
+	ApplicationID string     `json:"application_id"`
+	Stage         string     `json:"stage"`
+	Kind          string     `json:"kind"`
+	Interviewer   string     `json:"interviewer"`
+	ScheduledAt   *time.Time `json:"scheduled_at,omitempty"`
+	DoneAt        *time.Time `json:"done_at,omitempty"`
+	Prep          string     `json:"prep"`
+	Notes         string     `json:"notes"`
+	Version       int        `json:"version"`
+	CreatedAt     time.Time  `json:"created_at"`
+	UpdatedAt     time.Time  `json:"updated_at"`
+}
+
+// StageKey is the status name a stage's rounds are stored under (1-6).
+func StageKey(stage int) string {
+	switch stage {
+	case 1:
+		return StatusAwaitingReview
+	case 2:
+		return StatusApplied
+	case 3:
+		return StatusScreening
+	case 4:
+		return StatusInterviewing
+	case 5:
+		return StatusFinal
+	case 6:
+		return StatusOffer
+	default:
+		return ""
+	}
+}
+
+// ParseInterviewStage accepts any stage with a segment on the mark: prepared,
+// applied, screening, interviewing, final or offer. It returns the stored key.
+func ParseInterviewStage(s string) (string, error) {
+	st, err := ParseStatus(s)
+	if err == nil && !IsOutcome(st) {
+		if key := StageKey(StageOf(st)); key != "" {
+			return key, nil
+		}
+	}
+	return "", Validation("invalid interview stage %q", s).WithHint("stage is prepared, applied, screening, interviewing, final, or offer")
 }
 
 func (a Application) AppliedDateValue() string {
@@ -667,11 +799,11 @@ type Deleted struct {
 }
 
 type ListQuery struct {
-	Limit         int
-	Sort          string
-	Cursor        *Cursor
-	Q             string
-	Status        []string
+	Limit  int
+	Sort   string
+	Cursor *Cursor
+	Q      string
+	Status []string
 	// StatusExclude removes these statuses from the result, applied after
 	// Status (inclusion). The per-column header filter uses this; the
 	// Filter & sort popover's status slider/chips use Status.
@@ -689,9 +821,9 @@ type ListQuery struct {
 	Stale         bool
 	// Archived, when true, lists only archived applications instead of the
 	// default (non-archived) view.
-	Archived bool
-	AfterID  string
-	AfterTime     string
+	Archived  bool
+	AfterID   string
+	AfterTime string
 	// Link listing. Attention means closed or changed since the previous check.
 	LinkStatus string
 	Changed    *bool
@@ -740,15 +872,16 @@ func CheckCursorSort(c Cursor, sort string) error {
 }
 
 var (
-	CompanyFields = []string{"id", "name", "website", "notes", "version", "created_at", "updated_at"}
-	RoleFields    = []string{"id", "company_id", "company", "title", "location", "salary", "salary_min_cents", "salary_max_cents", "fit", "posting_url", "source", "job_type", "version", "created_at", "updated_at"}
-	AppFields     = []string{"id", "company_id", "company", "role_id", "title", "location", "salary", "salary_min_cents", "salary_max_cents", "fit", "status", "applied_date", "next_step", "notes", "posting_url", "source", "job_type", "resume_version", "resume_file_ref", "contact_email", "external_id", "tags", "link_status", "link_checked_at", "archived_at", "custom_fields", "version", "created_at", "updated_at"}
-	EventFields   = []string{"id", "application_id", "kind", "from_status", "to_status", "title", "body", "occurred_at", "created_at", "actor"}
-	TagFields     = []string{"id", "name", "created_at"}
+	CompanyFields     = []string{"id", "name", "website", "notes", "version", "created_at", "updated_at"}
+	RoleFields        = []string{"id", "company_id", "company", "title", "location", "salary", "salary_min_cents", "salary_max_cents", "fit", "posting_url", "source", "job_type", "version", "created_at", "updated_at"}
+	AppFields         = []string{"id", "company_id", "company", "role_id", "title", "location", "salary", "salary_min_cents", "salary_max_cents", "fit", "status", "outcome", "stage", "interviews", "applied_date", "next_step", "notes", "posting_url", "source", "job_type", "resume_version", "resume_file_ref", "contact_email", "external_id", "tags", "link_status", "link_checked_at", "archived_at", "custom_fields", "version", "created_at", "updated_at"}
+	EventFields       = []string{"id", "application_id", "kind", "from_status", "to_status", "title", "body", "occurred_at", "created_at", "actor"}
+	InterviewFields   = []string{"id", "application_id", "stage", "kind", "interviewer", "scheduled_at", "done_at", "prep", "notes", "version", "created_at", "updated_at"}
+	TagFields         = []string{"id", "name", "created_at"}
 	CustomFieldFields = []string{"id", "name", "type", "created_at"}
-	TokenFields   = []string{"id", "name", "prefix", "scopes", "created_at", "last_used_at", "revoked_at"}
-	AuditFields   = []string{"id", "token_id", "actor_name", "action", "entity_type", "entity_id", "summary", "metadata", "created_at"}
-	LinkFields    = []string{"application_id", "role_id", "company", "title", "posting_url", "status", "detail", "http_status", "changed", "checked_at"}
+	TokenFields       = []string{"id", "name", "prefix", "scopes", "created_at", "last_used_at", "revoked_at"}
+	AuditFields       = []string{"id", "token_id", "actor_name", "action", "entity_type", "entity_id", "summary", "metadata", "created_at"}
+	LinkFields        = []string{"application_id", "role_id", "company", "title", "posting_url", "status", "detail", "http_status", "changed", "checked_at"}
 )
 
 // LinkHealth is one posting the link checker has already classified.

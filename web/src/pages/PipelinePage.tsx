@@ -31,7 +31,8 @@ import {
   sourceLabel,
   statusCategory,
   statusesInCategory,
-  statusPieces,
+  markOf,
+  shown,
   type Application,
   type CustomField,
   type Page,
@@ -475,7 +476,7 @@ function RowActions({
 
   return (
     <span className="flex items-center justify-end gap-0.5">
-      {row.status === "awaiting_review" && can("approve") && (
+      {shown(row) === "awaiting_review" && can("approve") && (
         <>
           <IconAction label="Approve" onClick={() => decide("approve")} disabled={busy}>
             <Check className="size-3.5" />
@@ -592,7 +593,7 @@ export function PipelinePage() {
         ? base
         : base
             .map((row) => {
-              const haystack = [row.company, row.title, label(row.status), ...(row.tags || [])].filter(Boolean).join(" ")
+              const haystack = [row.company, row.title, label(shown(row)), ...(row.tags || [])].filter(Boolean).join(" ")
               return { row, score: commandScore(haystack, free) }
             })
             .filter((entry) => entry.score > 0)
@@ -601,7 +602,7 @@ export function PipelinePage() {
     }
     if (sort === "category") {
       out = out
-        .map((row, i) => ({ row, i, rank: CATEGORY_ORDER.indexOf(statusCategory(row.status)) }))
+        .map((row, i) => ({ row, i, rank: CATEGORY_ORDER.indexOf(statusCategory(shown(row))) }))
         .sort((a, b) => a.rank - b.rank || a.i - b.i)
         .map((entry) => entry.row)
     }
@@ -622,7 +623,7 @@ export function PipelinePage() {
   }
 
   const selectedRows = visibleRows.filter((r) => selected.has(r.id))
-  const canBulkApprove = can("approve") && selectedRows.length > 0 && selectedRows.every((r) => r.status === "awaiting_review")
+  const canBulkApprove = can("approve") && selectedRows.length > 0 && selectedRows.every((r) => shown(r) === "awaiting_review")
 
   async function bulkDecide(kind: "approve" | "reject") {
     setBulkBusy(true)
@@ -844,7 +845,7 @@ export function PipelinePage() {
                     </TableCell>
                     <TableCell className="font-medium">
                       <span className="flex items-center gap-2">
-                        <ProgressMark pieces={statusPieces(row.status)} size={20} />
+                        <ProgressMark {...markOf(row)} size={20} />
                         <CompanyAvatar company={row.company} companyId={row.company_id} />
                         {row.company || "—"}
                       </span>
@@ -856,7 +857,7 @@ export function PipelinePage() {
                     </TableCell>
                     <TableCell>
                       <span className="flex items-center gap-1.5">
-                        <StatusBadge status={row.status} />
+                        <StatusBadge status={shown(row)} />
                         {(row.tags || []).map((tag) => (
                           <span key={tag} className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
                             {tag}

@@ -6,7 +6,8 @@ import { useAuth } from "@/lib/auth"
 import {
   label,
   sourceLabel,
-  statusPieces,
+  markOf,
+  shown,
   type Application,
   type Artifact,
   type CustomField,
@@ -18,6 +19,7 @@ import { CompanyAvatar } from "@/components/CompanyAvatar"
 import { AttributesForm, EMPTY_ATTRIBUTES, FIT_OPTIONS, STATUS_OPTIONS, type AttributesFormState } from "@/components/AttributesForm"
 import { ConfirmDialog } from "@/components/ConfirmDialog"
 import { InlineSelect, InlineText } from "@/components/InlineEdit"
+import { InterviewsCard } from "@/components/InterviewsCard"
 import { PreparedAnswers } from "@/components/PreparedAnswers"
 import { StatusBadge } from "@/components/StatusBadge"
 import { ProgressMark } from "@/components/ProgressMark"
@@ -313,7 +315,7 @@ export function DetailPage() {
 
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex items-start gap-3">
-          <ProgressMark pieces={statusPieces(application.status)} size={40} />
+          <ProgressMark {...markOf(application)} size={40} />
           <CompanyAvatar company={application.company} companyId={application.company_id} className="mt-1 size-9 text-sm" />
           <div>
             <InlineText
@@ -328,9 +330,9 @@ export function DetailPage() {
           </div>
         </div>
         <div className="flex items-center gap-1">
-          <StatusEditor value={application.status} disabled={!writable} onSave={(v) => saveField({ status: v })} />
+          <StatusEditor value={shown(application)} disabled={!writable} onSave={(v) => saveField({ status: v })} />
           {application.archived_at && <Badge variant="outline">Archived</Badge>}
-          {application.status === "awaiting_review" &&
+          {shown(application) === "awaiting_review" &&
             (can("approve") ? (
               <>
                 <Tooltip>
@@ -482,6 +484,13 @@ export function DetailPage() {
           )}
         </CardContent>
       </Card>
+
+      <InterviewsCard
+        appId={application.id}
+        current={application.stage ?? 0}
+        writable={writable}
+        onChange={() => void load()}
+      />
 
       <Card>
         <CardHeader>
