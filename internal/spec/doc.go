@@ -3,6 +3,8 @@ package spec
 import (
 	_ "embed"
 	"encoding/json"
+
+	"github.com/pursuit/pursuit/internal/version"
 )
 
 //go:embed llms.txt
@@ -134,7 +136,7 @@ func build() []byte {
 		"openapi": "3.0.3",
 		"info": map[string]any{
 			"title":       "Pursuit",
-			"version":     "0.1.0",
+			"version":     version.Version,
 			"description": "Job-application tracker. Agents should prefer the pursuit CLI. Fetch this document when you need the HTTP shape; use `pursuit schema <command>` for one CLI command.",
 		},
 		"servers":  []any{map[string]any{"url": "/"}},

@@ -3,13 +3,11 @@ import { Callout } from "nextra/components"
 # Changelog
 
 <Callout type="warning">
-  **pursuit is pre-release.** There is no tagged version yet — everything in this docs site, the CLI and the API can change without notice.
+  **pursuit is pre-release (`0.x`).** The CLI, API and docs can change between any two versions.
 </Callout>
 
-Changes are tracked with [Changesets](https://github.com/changesets/changesets), run from `docs-site/`: `npm run changeset` records a dated entry describing an API/CLI-surface change, and `npm run changeset:version` rolls accumulated entries into [`CHANGELOG.md`](https://github.com/adrianmross/pursuit/blob/main/docs-site/CHANGELOG.md) the first time this project cuts an actual release.
+One version covers the CLI, server, HTTP API, dashboard, docs and browser extension. `pursuit version` and `GET /version` report it, and `/openapi.json` carries it in `info.version`.
 
-<Callout type="info">
-  No existing changelog tool of Adrian's was found to reuse (checked `~/Projects/wiz/odin-docs/scripts/odin-release.mjs` and searched for a standalone changelogger CLI). This is a standard Changesets setup as a fallback — swap it for whatever tool should replace it.
-</Callout>
+Release notes live in [`CHANGELOG.md`](https://github.com/adrianmross/pursuit/blob/main/CHANGELOG.md) and on [GitHub Releases](https://github.com/adrianmross/pursuit/releases), which also carry the binaries and the extension zip.
 
-Until the first tagged release, treat this page as empty.
+Each user-visible change carries a [changelogger](https://github.com/adrianmross/changelogger) fragment; Release Please turns merged changes into a release PR. See [CONTRIBUTING.md](https://github.com/adrianmross/pursuit/blob/main/CONTRIBUTING.md#releases).

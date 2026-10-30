@@ -1,0 +1,52 @@
+name: release
+
+# Builds a tag into a GitHub release: CLI/server binaries via GoReleaser plus
+# the browser extension zip. Dispatched by release-plan.yml; a hand-pushed tag
+# works too.
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Tag to release (e.g. v0.1.0)
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    env:
+      TAG: ${{ inputs.tag || github.ref_name }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+          fetch-depth: 0
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      # The binary go:embeds the dashboard and docs build.
+      - run: sh scripts/vercel-build.sh
+      - run: go test ./...
+      - working-directory: extension
+        run: |
+          npm install
+          npm run build
+          (cd dist && zip -qr "$RUNNER_TEMP/pursuit-extension_${TAG#v}.zip" .)
+      # This tag's CHANGELOG.md section becomes the release notes.
+      - run: awk '/^## /{if (n++) exit} n' CHANGELOG.md > "$RUNNER_TEMP/notes.md"
+      - uses: goreleaser/goreleaser-action@v6
+        with:
+          version: "~> v2"
+          # skip=validate: the web builds above leave npm lockfile churn behind.
+          args: release --clean --skip=validate --release-notes ${{ runner.temp }}/notes.md
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GORELEASER_CURRENT_TAG: ${{ env.TAG }}

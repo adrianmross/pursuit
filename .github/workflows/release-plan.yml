@@ -1,0 +1,113 @@
+name: release-plan
+
+# Release Please opens the release PR (version bumps + CHANGELOG.md) from
+# conventional commits; changelogger fragments are consumed on that PR.
+#
+# Everything runs on GITHUB_TOKEN. GitHub does not start workflows from refs
+# that token creates, so this pushes the tag itself and dispatches release.yml
+# directly instead of relying on a `push: tags` trigger.
+
+on:
+  workflow_run:
+    workflows: [ci]
+    types: [completed]
+  workflow_dispatch:
+
+permissions:
+  actions: write
+  contents: write
+  issues: write # release-please creates its autorelease labels
+  pull-requests: write
+
+concurrency: release-plan
+
+jobs:
+  release-plan:
+    runs-on: ubuntu-latest
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.event == 'push' &&
+       github.event.workflow_run.head_branch == 'main' &&
+       github.event.workflow_run.conclusion == 'success')
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.ref }}
+          fetch-depth: 0
+
+      - id: release-please
+        uses: googleapis/release-please-action@v4
+        with:
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+          skip-github-release: true
+
+      - id: release-pr
+        if: steps.release-please.outputs.prs_created == 'true'
+        uses: adrianmross/changelogger@v0.10.0
+        with:
+          command: release-info
+        env:
+          CHANGELOGGER_RELEASE_PRS: ${{ steps.release-please.outputs.prs }}
+
+      - if: steps.release-pr.outputs.head_ref != ''
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.release-pr.outputs.head_ref }}
+          path: release-pr
+
+      - if: steps.release-pr.outputs.head_ref != ''
+        uses: adrianmross/changelogger@v0.10.0
+        with:
+          command: consume
+          working-directory: release-pr
+
+      - if: steps.release-pr.outputs.head_ref != ''
+        working-directory: release-pr
+        env:
+          HEAD_REF: ${{ steps.release-pr.outputs.head_ref }}
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- .changelogs; then
+            echo "No fragments to consume."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A -- .changelogs
+          git commit -m "chore(release): consume changelog fragments"
+          git push origin "HEAD:${HEAD_REF}"
+
+      # The manifest only moves when a release PR merges, so an untagged
+      # manifest version is the release signal. Works for squash and merge
+      # commits alike, and a re-run is a no-op once the tag exists.
+      - id: tag
+        run: |
+          set -euo pipefail
+          version="$(jq -r '."."' .release-please-manifest.json)"
+          tag="v${version}"
+          if [ "$version" = "0.0.0" ] || git ls-remote --exit-code --tags origin "refs/tags/${tag}" >/dev/null; then
+            echo "Nothing to tag (${tag})."
+            exit 0
+          fi
+          git tag -a "$tag" -m "pursuit ${tag}"
+          git push origin "$tag"
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+
+      - if: steps.tag.outputs.tag != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: gh workflow run release.yml --repo "$GITHUB_REPOSITORY" --ref main -f tag="$TAG"
+
+      # Release Please refuses to open the next PR while a merged one still
+      # carries `autorelease: pending`. It clears that itself only when it
+      # creates the GitHub release, which skip-github-release turns off.
+      # Ungated, so a re-run after a half-finished release still heals it.
+      - env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          for n in $(gh pr list --repo "$GITHUB_REPOSITORY" --state merged --label 'autorelease: pending' --json number --jq '.[].number'); do
+            gh pr edit "$n" --repo "$GITHUB_REPOSITORY" --remove-label 'autorelease: pending'
+          done
