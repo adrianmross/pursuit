@@ -1,0 +1,3 @@
+.api-reference-frame {
+  height: calc(100dvh - var(--nextra-navbar-height, 4rem) - var(--nextra-banner-height, 0px));
+}

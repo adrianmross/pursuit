@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react"
 import { useNavigate } from "react-router-dom"
-import { ArrowRight, Download, FileUp, Plus } from "lucide-react"
+import { ArrowRight, BookOpen, Download, FileUp, Plus } from "lucide-react"
 import { api, ApiError } from "@/lib/api"
 import type { Application, ImportResult, Page } from "@/lib/types"
 import { Button } from "@/components/ui/button"
@@ -112,8 +112,13 @@ export function HomePage() {
             Everything here is also a <code className="font-mono text-foreground">pursuit</code> command.
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="flex flex-col gap-3">
           <CommandBlock command="pursuit list --stale" />
+          <Button variant="outline" size="sm" asChild className="self-start">
+            <a href="/docs" target="_blank" rel="noopener noreferrer">
+              <BookOpen className="size-3.5" /> Read the docs
+            </a>
+          </Button>
         </CardContent>
       </Card>
 

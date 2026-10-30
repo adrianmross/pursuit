@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>pursuit API reference</title>
+    <style>
+      body { margin: 0; font-family: system-ui, sans-serif; }
+      .pursuit-xref { display: flex; gap: 1rem; align-items: center; padding: 0.5rem 1rem; background: #141615; color: #f1f1ee; font-size: 0.8rem; }
+      .pursuit-xref a { color: inherit; text-decoration: none; opacity: 0.8; }
+      .pursuit-xref a:hover { opacity: 1; text-decoration: underline; }
+      .pursuit-xref strong { font-weight: 600; opacity: 1; }
+    </style>
+  </head>
+  <body>
+    <nav class="pursuit-xref">
+      <strong>pursuit</strong>
+      <a href="/">Dashboard</a>
+      <a href="/docs">Docs</a>
+    </nav>
+    <div id="app"></div>
+    <script id="api-reference" data-url="/openapi.json" data-configuration='{"theme":"none","hideClientButton":false}'></script>
+    <script src="https://cdn.jsdelivr.net/npm/@scalar/api-reference"></script>
+  </body>
+</html>

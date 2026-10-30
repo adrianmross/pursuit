@@ -61,6 +61,8 @@ type Server struct {
 	// type a raw secret there); the bearer-token API itself is unaffected
 	// for CLI/automation use either way.
 	HideTokenLogin bool
+	// NoDocs 404s the embedded docs under /docs.
+	NoDocs bool
 }
 
 func (s *Server) multiTenant() bool {
@@ -100,6 +102,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /version", s.version)
 	mux.HandleFunc("GET /openapi.json", s.openapi)
 	mux.HandleFunc("GET /llms.txt", s.llms)
+	mux.HandleFunc("GET /reference", s.reference)
 	mux.HandleFunc("GET /", s.dashboard)
 
 	mux.HandleFunc("GET /v1/auth/providers", s.authProviders)
@@ -434,12 +437,22 @@ func (s *Server) llms(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write(spec.LLMS)
 }
 
+func (s *Server) reference(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.WriteHeader(200)
+	_, _ = w.Write(spec.Reference)
+}
+
 func (s *Server) dashboard(w http.ResponseWriter, r *http.Request) {
 	if strings.HasPrefix(r.URL.Path, "/v1/") {
 		http.NotFound(w, r)
 		return
 	}
 	name := strings.TrimPrefix(r.URL.Path, "/")
+	if s.NoDocs && (name == "docs" || strings.HasPrefix(name, "docs/")) {
+		http.NotFound(w, r)
+		return
+	}
 	body, contentType, err := dashboard.Open(name)
 	if err != nil {
 		http.NotFound(w, r)
@@ -455,7 +468,12 @@ func (s *Server) dashboard(w http.ResponseWriter, r *http.Request) {
 		if s.BetterAuthOrigin != "" {
 			connectSrc += " " + s.BetterAuthOrigin
 		}
-		w.Header().Set("Content-Security-Policy", "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src "+connectSrc+"; img-src 'self' data:; font-src 'self'; base-uri 'self'; form-action 'self'")
+		scriptSrc := "'self'"
+		if strings.HasPrefix(name, "docs") {
+			// The static Next export hydrates through inline scripts.
+			scriptSrc += " 'unsafe-inline'"
+		}
+		w.Header().Set("Content-Security-Policy", "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src "+scriptSrc+"; connect-src "+connectSrc+"; img-src 'self' data:; font-src 'self'; base-uri 'self'; form-action 'self'")
 		w.Header().Set("Referrer-Policy", "no-referrer")
 	}
 	w.WriteHeader(http.StatusOK)

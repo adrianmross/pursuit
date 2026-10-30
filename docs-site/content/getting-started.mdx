@@ -1,0 +1,55 @@
+# Getting started
+
+Requires Go 1.22.
+
+```bash
+go build -o bin/pursuit ./cmd/pursuit
+./bin/pursuit serve
+```
+
+With no database URL the daemon creates `~/.local/share/pursuit/pursuit.db` and listens on `:8787`. The first start logs a bootstrap token once — save it, it is not written to disk.
+
+```bash
+export PURSUIT_TOKEN=pst_...
+export PURSUIT_SERVER=http://127.0.0.1:8787
+
+./bin/pursuit import seed
+./bin/pursuit list --status to_apply --fields id,company,title,status
+```
+
+## Applicant profile
+
+Answers and the résumé file stay outside the repo:
+
+```bash
+export PURSUIT_PROFILE=$HOME/.config/pursuit/profile.json
+export PURSUIT_RESUME_FILE=$HOME/.config/pursuit/resume.pdf
+export PURSUIT_CONTACT_EMAIL=you@example.com
+```
+
+`profile.json` is `{"answers": {"email": "...", "work_authorization": "..."}}`. Keys match form questions after lowercasing and turning other characters into underscores (`why_us`, `cover_letter`).
+
+## Postgres, for more than one replica
+
+```bash
+export PURSUIT_DATABASE_URL='postgres://pursuit:pursuit@127.0.0.1:5432/pursuit?sslmode=disable'
+./bin/pursuit serve
+```
+
+Use `sslmode=require` for Neon. Queue claims use `SELECT ... FOR UPDATE SKIP LOCKED`; the link sweep takes a Postgres advisory lock so only one replica checks postings. `docker compose up --build` starts Postgres and two replicas on ports 8787 and 8788.
+
+## The dashboard
+
+`pursuit serve` embeds a small web dashboard at the same address as the API. Open it and paste a token once — the browser keeps it in `localStorage` and sends it as `Authorization: Bearer`. A read token can browse; Approve and Reject need `approve`; re-checking a posting needs `write`.
+
+## Browser extension
+
+`extension/` is a Manifest V3 extension that saves the posting you have open and fills Greenhouse, Ashby and Lever application forms. It does not crawl, and it never clicks Submit.
+
+```bash
+cd extension
+npm install
+npm run build
+```
+
+Pair it from the popup with the server URL and a token that has `write` and not `approve` (mint one with `pursuit tokens create`).

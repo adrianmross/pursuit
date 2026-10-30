@@ -8,6 +8,13 @@ import (
 //go:embed llms.txt
 var LLMS []byte
 
+// Reference is the standalone Scalar API-reference page served at
+// /reference. It renders the same-origin /openapi.json, so it works
+// identically self-hosted or behind api.<domain> in hosted mode.
+//
+//go:embed reference.html
+var Reference []byte
+
 // Document is the OpenAPI description served at /openapi.json.
 func Document() []byte {
 	if len(cached) == 0 {
@@ -125,7 +132,7 @@ func build() []byte {
 			"version":     "0.1.0",
 			"description": "Job-application tracker. Agents should prefer the pursuit CLI. Fetch this document when you need the HTTP shape; use `pursuit schema <command>` for one CLI command.",
 		},
-		"servers":  []any{map[string]any{"url": "http://127.0.0.1:8787"}},
+		"servers":  []any{map[string]any{"url": "/"}},
 		"security": []any{map[string]any{"bearerAuth": []any{}}},
 		"paths":    paths,
 		"components": map[string]any{

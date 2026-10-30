@@ -1,0 +1,12 @@
+---
+title: API reference
+---
+
+# API reference
+
+The daemon serves its own interactive reference, same-origin, rendered from its own `GET /openapi.json` — no separate build or deploy needed:
+
+- **Self-hosted:** `http://<your-server>/reference` (e.g. `http://127.0.0.1:8787/reference` while developing locally).
+- **Hosted:** <a href="/reference">/reference</a> on the same host as these docs.
+
+Every CLI command in the [CLI reference](/cli) is a thin wrapper over one of these endpoints — `internal/httpapi` is the only REST adapter, and `pursuit schema <command>` prints the same flags that page shows as parameters.
