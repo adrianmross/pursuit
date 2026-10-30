@@ -11,6 +11,7 @@ import (
 )
 
 // all: includes underscore-prefixed paths such as the docs export's _next/.
+//
 //go:embed all:dist
 var files embed.FS
 
@@ -23,6 +24,7 @@ var extraTypes = map[string]string{
 	".svg":   "image/svg+xml",
 	".woff2": "font/woff2",
 	".json":  "application/json; charset=utf-8",
+	".wasm":  "application/wasm",
 }
 
 // Open returns an embedded asset. Any path without its own file falls back
