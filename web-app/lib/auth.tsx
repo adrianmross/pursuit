@@ -1,7 +1,7 @@
 "use client"
 
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react"
-import { api, ApiError, EXPORT_MODE, getToken, setToken } from "@/lib/api-client"
+import { api, ApiError, EXPORT_MODE, setToken } from "@/lib/api-client"
 import type { Me } from "@/lib/types"
 
 type AuthState = {
@@ -29,15 +29,21 @@ const AuthContext = createContext<AuthState | null>(null)
 // `can()` silently goes back to false after any reload (the exact bug
 // that made row actions vanish post-reload: see AppGate, which relies on
 // this same state instead of doing its own disconnected check).
+//
+// The check always fires in export mode, even with no stored token: a
+// demo-mode deployment (see internal/httpapi/demo.go) authenticates an
+// anonymous visitor from an httpOnly cookie, which this same-origin fetch
+// sends automatically. On a non-demo self-hosted deployment that call
+// just 401s, same as today — one harmless extra request.
 export function AuthProvider({ initialMe, children }: { initialMe: Me | null; children: ReactNode }) {
   const [me, setMe] = useState<Me | null>(initialMe)
   const [loading, setLoading] = useState(EXPORT_MODE && initialMe == null)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    if (!EXPORT_MODE || me != null || !getToken()) {
-      // Nothing to check (hosted, already resolved, or no stored token) —
-      // settles the one-time mount-time loading state, not a render loop.
+    if (!EXPORT_MODE || me != null) {
+      // Nothing to check (hosted, or already resolved) — settles the
+      // one-time mount-time loading state, not a render loop.
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setLoading(false)
       return

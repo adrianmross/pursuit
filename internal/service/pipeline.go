@@ -926,6 +926,11 @@ func (s *Service) CheckApplicationLink(ctx context.Context, applicationID string
 	if err != nil {
 		return LinkCheckView{}, err
 	}
+	if a.Demo {
+		// ponytail: a flat deny, not a real SSRF filter — a demo actor
+		// can't make the server fetch an attacker-chosen URL at all.
+		return LinkCheckView{}, domain.Forbidden("write")
+	}
 	app, err := s.DB.GetApplication(ctx, a.UserID, applicationID)
 	if err != nil {
 		return LinkCheckView{}, err

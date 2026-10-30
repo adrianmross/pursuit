@@ -18,6 +18,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -63,6 +64,19 @@ type Server struct {
 	HideTokenLogin bool
 	// NoDocs 404s the embedded docs under /docs.
 	NoDocs bool
+	// DemoMode lets an unauthenticated caller in as a fresh, isolated,
+	// rate-limited throwaway tenant instead of requiring a token — a
+	// zero-signup tutorial for preview deployments. Never set this on a
+	// production/real-data deployment: see demo.go.
+	DemoMode bool
+
+	demoLimiterOnce sync.Once
+	demoLimiterVal  *demoLimiter
+}
+
+func (s *Server) demoLimiterFor() *demoLimiter {
+	s.demoLimiterOnce.Do(func() { s.demoLimiterVal = newDemoLimiter() })
+	return s.demoLimiterVal
 }
 
 func (s *Server) multiTenant() bool {
@@ -235,6 +249,13 @@ func (s *Server) wrap(next http.Handler) http.Handler {
 		if !isPublic(r.URL.Path) {
 			if raw, ok := bearerToken(r.Header.Get("Authorization")); ok {
 				actor, err := s.authenticate(ctx, raw)
+				if err != nil {
+					writeErr(w, err)
+					return
+				}
+				ctx = domain.WithActor(ctx, actor)
+			} else if s.DemoMode {
+				actor, err := s.demoActor(w, r)
 				if err != nil {
 					writeErr(w, err)
 					return
@@ -1000,6 +1021,13 @@ func (s *Server) getCompany(w http.ResponseWriter, r *http.Request) {
 var faviconClient = &http.Client{Timeout: 5 * time.Second}
 
 func (s *Server) getCompanyFavicon(w http.ResponseWriter, r *http.Request) {
+	if a, ok := domain.ActorFrom(r.Context()); ok && a.Demo {
+		// A demo actor fully controls Company.Website — letting this
+		// fetch run would let an anonymous visitor make the server hit
+		// an arbitrary host (SSRF).
+		writeErr(w, domain.NotFound("favicon"))
+		return
+	}
 	c, err := s.Svc.GetCompany(r.Context(), r.PathValue("id"))
 	if err != nil {
 		writeErr(w, err)

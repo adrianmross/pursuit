@@ -464,6 +464,11 @@ type Actor struct {
 	TokenID string
 	Name    string
 	Scopes  []string
+	// Demo is true for an anonymous preview visitor's throwaway tenant
+	// (see Service.CreateDemoSession). It withholds scopes that would let
+	// an anonymous caller drive outbound HTTP from the server (link
+	// checks, favicon fetches) — an SSRF vector a verified sign-up doesn't have.
+	Demo bool
 }
 
 func (a Actor) Can(scope string) bool {
@@ -838,6 +843,10 @@ func Unauthorized() *Error {
 
 func Forbidden(scope string) *Error {
 	return &Error{Code: "forbidden", Message: "token is missing the " + scope + " scope", Hint: "create a token with --scope " + scope, Status: 403}
+}
+
+func RateLimited(hint string) *Error {
+	return &Error{Code: "rate_limited", Message: "too many requests", Hint: hint, Status: 429}
 }
 
 func CapExceeded(company string, used, max, windowDays int) *Error {

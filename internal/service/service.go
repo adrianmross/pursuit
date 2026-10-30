@@ -152,6 +152,38 @@ func (s *Service) Bootstrap(ctx context.Context, ownerName, ownerEmail, tokenNam
 	return issued, created, err
 }
 
+// CreateDemoSession provisions a throwaway tenant for an anonymous preview
+// visitor: a synthetic, unroutable user plus a token scoped like the owner's,
+// pre-loaded with the example seed data so the tutorial isn't empty. The
+// caller (httpapi) is responsible for storing the returned secret in a
+// cookie — nothing here persists it client-side.
+func (s *Service) CreateDemoSession(ctx context.Context) (secret string, actor domain.Actor, err error) {
+	user := domain.User{ID: s.NewID(), Name: "Demo visitor", Email: "demo-" + s.NewID() + "@pursuit.invalid", CreatedAt: s.now()}
+	if err := s.DB.CreateUser(ctx, user); err != nil {
+		return "", domain.Actor{}, err
+	}
+	if err := s.ensureDefaultCaps(ctx, user.ID); err != nil {
+		return "", domain.Actor{}, err
+	}
+	secret, prefix, hash, err := auth.Generate()
+	if err != nil {
+		return "", domain.Actor{}, err
+	}
+	scopes, err := auth.NormalizeScopes([]string{"read", "write", "approve"})
+	if err != nil {
+		return "", domain.Actor{}, err
+	}
+	tok := domain.Token{ID: s.NewID(), UserID: user.ID, Name: "demo", Hash: hash, Prefix: prefix, Scopes: scopes, CreatedAt: s.now()}
+	if err := s.DB.CreateToken(ctx, tok); err != nil {
+		return "", domain.Actor{}, err
+	}
+	actor = domain.Actor{UserID: user.ID, TokenID: tok.ID, Name: tok.Name, Scopes: scopes, Demo: true}
+	if _, err := s.ImportSeed(domain.WithActor(ctx, actor)); err != nil {
+		return "", domain.Actor{}, err
+	}
+	return secret, actor, nil
+}
+
 // ResolveTenantUser maps a verified Better Auth identity to a Pursuit
 // actor on every request (unlike LoginIdentity, which runs once at
 // login): it reads the existing user without locking on the hot path,
