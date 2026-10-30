@@ -4,9 +4,10 @@ import { Callout } from "nextra/components"
 
 Stdout is compact JSON when it is not a terminal, or with `--json`. `--text` forces a table. Errors are always JSON on stderr.
 
-Every command accepts: `--json --text --fields --dry-run --idempotency-key --server --token`
+Every command accepts: `--json --text --fields --all-pages --dry-run --idempotency-key --server --token`
 
 - `--fields a,b` trims a response to those fields.
+- `--all-pages` follows `next_cursor` on a list and prints every item as one page.
 - `--dry-run` runs a mutation without writing anything.
 - `--idempotency-key` replays a successful mutation instead of repeating it.
 - `pursuit schema <command>` prints that one command's flags as JSON; `pursuit schema` lists all of them.
@@ -163,6 +164,19 @@ pursuit links --fields company,title,status,detail
 - `pursuit tags list|create|delete`
 - `pursuit fields list|create|delete` — custom application fields.
 - `pursuit standing list|set` — reusable answers for form questions (`pursuit standing set --key work_authorization --answer "Yes"`).
+
+## Batch
+
+`pursuit batch <file|->` posts one JSON body to `POST /v1/batch` and runs up to 100 requests in order as the caller:
+
+```json
+{"requests": [
+  {"method": "PATCH", "path": "/v1/applications/APP?version=3", "body": {"fit": "strong"}, "idempotency_key": "fit-APP"},
+  {"method": "POST", "path": "/v1/applications/APP/tags", "body": {"name": "priority"}}
+], "stop_on_error": false}
+```
+
+The response is `{"results": [{"status", "body"}], "failed": n}`. Each item goes through its normal route, so scopes, validation, and idempotency keys apply per item, and `--dry-run` applies to all of them. Items are not atomic. The command exits with the code of the first failed item.
 
 ## Tokens, audit, webhooks
 

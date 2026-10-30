@@ -1257,3 +1257,54 @@ func TestSmallListsPage(t *testing.T) {
 		t.Fatalf("limit 500 %d", code)
 	}
 }
+
+func TestBatchRunsEachItemAsTheCaller(t *testing.T) {
+	e := newEnv(t)
+	code, issued := e.json(t, http.MethodPost, "/v1/tokens", e.token, map[string]any{"name": "agent", "scopes": []string{"read", "write"}})
+	if code != 201 {
+		t.Fatal(issued)
+	}
+	agent := issued["secret"].(string)
+	batch := map[string]any{"requests": []map[string]any{
+		{"method": "POST", "path": "/v1/companies", "body": map[string]any{"name": "Batch A"}, "idempotency_key": "batch-a"},
+		{"method": "POST", "path": "/v1/companies", "body": map[string]any{"name": "Batch B"}},
+		{"method": "POST", "path": "/v1/approvals", "body": map[string]any{"ids": []string{"x"}}},
+		{"method": "POST", "path": "/v1/batch", "body": map[string]any{"requests": []any{}}},
+		{"method": "GET", "path": "/v1/companies?q=Batch&fields=name"},
+	}}
+	code, doc := e.json(t, http.MethodPost, "/v1/batch", agent, batch)
+	if code != 200 {
+		t.Fatalf("batch %d %#v", code, doc)
+	}
+	results := doc["results"].([]any)
+	for i, want := range []float64{201, 201, 403, 400, 200} {
+		if got := results[i].(map[string]any)["status"].(float64); got != want {
+			t.Fatalf("item %d status %v want %v: %#v", i, got, want, results[i])
+		}
+	}
+	if doc["failed"].(float64) != 2 {
+		t.Fatalf("failed %#v", doc["failed"])
+	}
+	if list := results[4].(map[string]any)["body"].(map[string]any)["data"].([]any); len(list) != 2 {
+		t.Fatalf("companies %#v", list)
+	}
+
+	// Replaying the keyed item does not create a second company.
+	code, doc = e.json(t, http.MethodPost, "/v1/batch", agent, map[string]any{"requests": []map[string]any{
+		{"method": "POST", "path": "/v1/companies", "body": map[string]any{"name": "Batch A"}, "idempotency_key": "batch-a"},
+	}})
+	if code != 200 || doc["results"].([]any)[0].(map[string]any)["status"].(float64) != 201 {
+		t.Fatalf("replay %d %#v", code, doc)
+	}
+	if code, doc = e.json(t, http.MethodGet, "/v1/companies?q=Batch", agent, nil); len(doc["data"].([]any)) != 2 {
+		t.Fatalf("after replay %d %#v", code, doc)
+	}
+
+	if code, doc = e.json(t, http.MethodPost, "/v1/batch", agent, map[string]any{"requests": []any{}}); code != 400 {
+		t.Fatalf("empty batch %d %#v", code, doc)
+	}
+	raw, _ := json.Marshal(batch)
+	if code, _, _ := e.do(t, http.MethodPost, "/v1/batch", agent, raw, map[string]string{"Idempotency-Key": "whole"}); code != 400 {
+		t.Fatalf("outer idempotency key %d", code)
+	}
+}
