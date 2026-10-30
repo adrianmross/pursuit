@@ -19,7 +19,11 @@ pursuit links
 pursuit events --follow
 pursuit check-links --all
 pursuit schema apps update
+pursuit --all-pages apps list --status to_apply
+pursuit batch requests.json
 ```
+
+Bulk: `POST /v1/batch` (`pursuit batch <file|->`) runs up to 100 requests, each through its normal route and scope check, and returns per-item `{status, body}`. List endpoints page with `limit` (1-200) and `cursor`; `--all-pages` on any CLI list follows `next_cursor` for you.
 
 OpenAPI: GET /openapi.json. One command's flags: `pursuit schema <command>`.
 SQLite is the default database. Postgres is for more than one replica.
