@@ -430,6 +430,10 @@ func TestQueueLeaseApproveAndCaps(t *testing.T) {
 	if code != 200 {
 		t.Fatal(code)
 	}
+	code, doc := e.json(t, http.MethodPost, "/v1/documents", e.token, map[string]any{"kind": "base_resume", "filename": "resume.txt", "content_type": "text/plain", "body": "Base resume"})
+	if code != 201 {
+		t.Fatalf("document %d %#v", code, doc)
+	}
 	code, prepared = e.json(t, http.MethodPost, "/v1/applications/"+id+"/prepare", e.token, nil)
 	if code != 200 || prepared["application"].(map[string]any)["status"] != domain.StatusAwaitingReview {
 		t.Fatalf("second prepare %#v", prepared)
@@ -442,7 +446,7 @@ func TestQueueLeaseApproveAndCaps(t *testing.T) {
 	for _, item := range arts["data"].([]any) {
 		kinds[item.(map[string]any)["kind"].(string)] = true
 	}
-	if !kinds["form_snapshot"] || !kinds["answers_json"] {
+	if !kinds["form_snapshot"] || !kinds["answers_json"] || !kinds["resume_pdf"] {
 		t.Fatalf("artifacts %#v", arts)
 	}
 
@@ -816,7 +820,7 @@ func TestTrustProxyAuthAndCron(t *testing.T) {
 		t.Fatalf("proxy me %d %#v", code, me)
 	}
 	tok, _ := me["token"].(map[string]any)
-	if tok["name"] != "vercel" {
+	if tok["name"] != "Adrian" {
 		t.Fatalf("proxy token %#v", tok)
 	}
 	scopes := map[string]bool{}
@@ -1306,5 +1310,22 @@ func TestBatchRunsEachItemAsTheCaller(t *testing.T) {
 	raw, _ := json.Marshal(batch)
 	if code, _, _ := e.do(t, http.MethodPost, "/v1/batch", agent, raw, map[string]string{"Idempotency-Key": "whole"}); code != 400 {
 		t.Fatalf("outer idempotency key %d", code)
+	}
+}
+
+func TestUpdateMe(t *testing.T) {
+	e := newEnv(t)
+	png := "data:image/png;base64,iVBORw0KGgo="
+	code, user := e.json(t, http.MethodPatch, "/v1/me", e.token, map[string]any{"name": "Ada", "avatar": png})
+	if code != 200 || user["name"] != "Ada" || user["avatar"] != png {
+		t.Fatalf("patch me %d %#v", code, user)
+	}
+	code, _ = e.json(t, http.MethodPatch, "/v1/me", e.token, map[string]any{"avatar": "data:image/svg+xml;base64,PHN2Zz4="})
+	if code < 400 || code >= 500 {
+		t.Fatalf("svg avatar accepted %d", code)
+	}
+	code, me := e.json(t, http.MethodGet, "/v1/me", e.token, nil)
+	if code != 200 || me["user"].(map[string]any)["name"] != "Ada" {
+		t.Fatalf("me %#v", me)
 	}
 }

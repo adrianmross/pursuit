@@ -630,7 +630,25 @@ func (s *Service) standingMap(ctx context.Context, userID string) (map[string]st
 	return out, nil
 }
 
+// attachResume copies the newest base_resume document onto the application,
+// falling back to PURSUIT_RESUME_FILE. Serverless deployments have no disk,
+// so the document is the only route there.
 func (s *Service) attachResume(ctx context.Context, userID, appID, now string) error {
+	doc, err := s.DB.LatestDocument(ctx, userID, "base_resume")
+	if err == nil {
+		body := doc.Body
+		if isText(doc.ContentType) {
+			// resume_pdf artifacts are always base64, whatever the source.
+			body = base64.StdEncoding.EncodeToString([]byte(body))
+		}
+		return s.DB.CreateArtifact(ctx, sqlstore.Artifact{
+			ID: s.NewID(), UserID: userID, ApplicationID: appID, Kind: "resume_pdf",
+			Filename: doc.Filename, ContentType: doc.ContentType, Body: body, CreatedAt: now,
+		})
+	}
+	if !domain.IsCode(err, "not_found") {
+		return err
+	}
 	path := strings.TrimSpace(s.ResumeFile)
 	if path == "" {
 		return nil

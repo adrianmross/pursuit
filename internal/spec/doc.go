@@ -65,6 +65,7 @@ func build() []byte {
 		add(p, "get", s, false, map[string]any{"security": []any{}})
 	}
 	add("/v1/me", "get", "current user and token", false, nil)
+	add("/v1/me", "patch", "set display name or avatar (png, jpeg, or webp data URL under 256KB; empty clears it)", true, nil)
 	add("/v1/tokens", "get", "list tokens", false, nil)
 	add("/v1/tokens", "post", "create a token; secret is returned once", true, nil)
 	add("/v1/tokens/{id}", "delete", "revoke a token", true, nil)
@@ -111,6 +112,10 @@ func build() []byte {
 	add("/v1/queue/{id}/complete", "post", "finish leased work and set the resulting status", true, nil)
 	add("/v1/artifacts/{id}", "get", "fetch an artifact body", false, nil)
 	add("/v1/profile", "get", "applicant profile: standing answers as a map, for the browser extension", false, nil)
+	add("/v1/documents", "get", "list user documents: base_resume, cover_letter, other. limit, cursor; no limit returns all", false, nil)
+	add("/v1/documents", "post", "upload a document as multipart (kind, file) or JSON text. prepare attaches the newest base_resume", true, nil)
+	add("/v1/documents/{id}", "get", "document with body; binary bodies are base64", false, nil)
+	add("/v1/documents/{id}", "delete", "delete a document", true, nil)
 	add("/v1/standing", "get", "list standing answers. limit, cursor; no limit returns all", false, nil)
 	add("/v1/standing", "post", "set a standing answer. profile values also load from PURSUIT_PROFILE", true, nil)
 	add("/v1/caps", "get", "per-company application caps", false, nil)
