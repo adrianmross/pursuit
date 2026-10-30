@@ -206,3 +206,59 @@ func TestImportCSVDirectDatabase(t *testing.T) {
 func osWrite(path string, b []byte) error {
 	return os.WriteFile(path, b, 0o644)
 }
+
+func TestBatchAndAllPages(t *testing.T) {
+	dir := t.TempDir()
+	db, err := sqlstore.Open(context.Background(), "sqlite://"+filepath.Join(dir, "cli.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { db.Close() })
+	svc := service.New(db)
+	secret := "pst_cli_batch"
+	if _, _, err := svc.Bootstrap(context.Background(), "Adrian", "adrian@localhost", "owner", secret); err != nil {
+		t.Fatal(err)
+	}
+	api := &httpapi.Server{Svc: svc, Log: slog.New(slog.NewTextHandler(io.Discard, nil))}
+	api.Ready.Store(true)
+	srv := httptest.NewServer(api.Handler())
+	t.Cleanup(srv.Close)
+	cfg := filepath.Join(dir, "empty.json")
+	if err := osWrite(cfg, []byte("{}\n")); err != nil {
+		t.Fatal(err)
+	}
+	base := []string{"--server", srv.URL, "--token", secret, "--config", cfg, "--json"}
+
+	var reqs []map[string]any
+	for _, name := range []string{"P1", "P2", "P3"} {
+		reqs = append(reqs, map[string]any{"method": "POST", "path": "/v1/companies", "body": map[string]any{"name": name}})
+	}
+	file := filepath.Join(dir, "batch.json")
+	b, _ := json.Marshal(map[string]any{"requests": reqs})
+	if err := osWrite(file, b); err != nil {
+		t.Fatal(err)
+	}
+	var stdout, stderr bytes.Buffer
+	if code := Run(append(base, "batch", file), &stdout, &stderr); code != 0 {
+		t.Fatalf("batch %d %s", code, stderr.String())
+	}
+
+	stdout.Reset()
+	if code := Run(append(base, "--all-pages", "companies", "list", "--limit", "1"), &stdout, &stderr); code != 0 {
+		t.Fatalf("all pages %d %s", code, stderr.String())
+	}
+	var page struct {
+		Data []map[string]any `json:"data"`
+	}
+	if err := json.Unmarshal(stdout.Bytes(), &page); err != nil || len(page.Data) != 3 {
+		t.Fatalf("all pages %v %s", err, stdout.String())
+	}
+
+	b, _ = json.Marshal(map[string]any{"requests": []map[string]any{{"method": "GET", "path": "/v1/applications/missing"}}})
+	if err := osWrite(file, b); err != nil {
+		t.Fatal(err)
+	}
+	if code := Run(append(base, "batch", file), &stdout, &stderr); code != 3 {
+		t.Fatalf("failed item exited %d", code)
+	}
+}

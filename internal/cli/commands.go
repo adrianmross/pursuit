@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bytes"
+	"encoding/json"
 	"context"
 	"io"
 	"net/url"
@@ -49,6 +50,7 @@ func rootCommand() *Command {
 			cmdCheckLinks(),
 			cmdLinks(),
 			cmdWebhooks(),
+			cmdBatch(),
 		},
 	}
 }
@@ -991,4 +993,47 @@ func cmdWebhooks() *Command {
 			return e.send("DELETE", "/v1/webhooks/"+url.PathEscape(e.args[0]), nil, nil, "", true, false)
 		}},
 	}}
+}
+
+func cmdBatch() *Command {
+	return &Command{
+		Name: "batch", Summary: "run up to 100 API requests in one call", Mutating: true,
+		Usage: "pursuit batch <file|->",
+		Example: `echo '{"requests":[{"method":"PATCH","path":"/v1/applications/APP?version=3","body":{"fit":"strong"}}]}' | pursuit batch -`,
+		Args: []Arg{{Name: "file", Required: true, Help: "JSON {requests:[{method,path,body,idempotency_key}],stop_on_error}, path or - for stdin"}},
+		Run: func(e *exec) error {
+			var b []byte
+			var err error
+			if e.args[0] == "-" {
+				b, err = io.ReadAll(os.Stdin)
+			} else {
+				b, err = os.ReadFile(e.args[0])
+			}
+			if err != nil {
+				return &exitError{code: 2, message: err.Error(), hint: "pass a readable JSON file or -"}
+			}
+			resp, err := e.client.Do(nil, "POST", "/v1/batch", nil, b, "application/json", apiclient.Options{DryRun: e.g.DryRun, IdempotencyKey: e.g.Idem})
+			if err != nil {
+				return &exitError{code: 1, message: strings.TrimPrefix(err.Error(), "unavailable: "), hint: "check that pursuit serve is running and PURSUIT_SERVER is correct"}
+			}
+			if resp.Status >= 400 {
+				return &exitError{code: exitStatus(resp.Status), raw: resp.Body}
+			}
+			if err := e.print(resp.Body, resp.ContentType); err != nil {
+				return err
+			}
+			var out struct {
+				Results []struct {
+					Status int `json:"status"`
+				} `json:"results"`
+			}
+			_ = json.Unmarshal(resp.Body, &out)
+			for _, r := range out.Results {
+				if r.Status >= 400 {
+					return &exitError{code: exitStatus(r.Status), message: "one or more batch items failed", hint: "check each result status"}
+				}
+			}
+			return nil
+		},
+	}
 }

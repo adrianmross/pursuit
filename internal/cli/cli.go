@@ -50,6 +50,7 @@ type globals struct {
 	Text    bool
 	Help    bool
 	DryRun  bool
+	AllPages bool
 	Server  string
 	Token   string
 	Config  string
@@ -270,6 +271,13 @@ func splitGlobals(args []string) ([]string, globals, error) {
 			}
 			i += n
 			g.DryRun = on
+		case "--all-pages":
+			on, n, err := takeBool(val, has, args, i)
+			if err != nil {
+				return nil, g, err
+			}
+			i += n
+			g.AllPages = on
 		case "--server", "--token", "--config", "--idempotency-key", "--fields":
 			v, n, err := takeVal(name, val, has, args, i)
 			if err != nil {
@@ -492,7 +500,7 @@ func helpText(cmd *Command, path string) string {
 			fmt.Fprintf(&b, "  --%-14s %s (%s%s)\n", f.Name, f.Help, f.Type, extra)
 		}
 	}
-	b.WriteString("\nGlobal: --json --text --fields --dry-run --idempotency-key --server --token\n")
+	b.WriteString("\nGlobal: --json --text --fields --all-pages --dry-run --idempotency-key --server --token\n")
 	if cmd.Example != "" {
 		fmt.Fprintf(&b, "\nExample:\n  %s\n", cmd.Example)
 	}
@@ -584,6 +592,9 @@ func (e *exec) send(method, path string, q url.Values, body []byte, contentType 
 		opt.DryRun = e.g.DryRun
 		opt.IdempotencyKey = e.g.Idem
 	}
+	if method == "GET" && e.g.AllPages {
+		return e.sendAllPages(path, q)
+	}
 	resp, err := e.client.Do(nil, method, path, q, body, contentType, opt)
 	if err != nil {
 		return &exitError{code: 1, message: strings.TrimPrefix(err.Error(), "unavailable: "), hint: "check that pursuit serve is running and PURSUIT_SERVER is correct"}
@@ -592,6 +603,46 @@ func (e *exec) send(method, path string, q url.Values, body []byte, contentType 
 		return &exitError{code: exitStatus(resp.Status), raw: resp.Body}
 	}
 	return e.print(resp.Body, resp.ContentType)
+}
+
+// sendAllPages follows next_cursor and prints one page holding every item.
+func (e *exec) sendAllPages(path string, q url.Values) error {
+	if q == nil {
+		q = url.Values{}
+	}
+	if q.Get("limit") == "" {
+		q.Set("limit", "200")
+	}
+	var all []json.RawMessage
+	for {
+		resp, err := e.client.Do(nil, "GET", path, q, nil, "", apiclient.Options{})
+		if err != nil {
+			return &exitError{code: 1, message: strings.TrimPrefix(err.Error(), "unavailable: "), hint: "check that pursuit serve is running and PURSUIT_SERVER is correct"}
+		}
+		if resp.Status >= 400 {
+			return &exitError{code: exitStatus(resp.Status), raw: resp.Body}
+		}
+		var pg struct {
+			Data []json.RawMessage `json:"data"`
+			Page *struct {
+				HasMore    bool   `json:"has_more"`
+				NextCursor string `json:"next_cursor"`
+			} `json:"page"`
+		}
+		if err := json.Unmarshal(resp.Body, &pg); err != nil || pg.Page == nil {
+			return e.print(resp.Body, resp.ContentType)
+		}
+		all = append(all, pg.Data...)
+		if !pg.Page.HasMore || pg.Page.NextCursor == "" {
+			break
+		}
+		q.Set("cursor", pg.Page.NextCursor)
+	}
+	if all == nil {
+		all = []json.RawMessage{}
+	}
+	b, _ := json.Marshal(map[string]any{"data": all, "page": map[string]any{"has_more": false, "next_cursor": "", "total": len(all)}})
+	return e.print(b, "application/json")
 }
 
 func exitStatus(code int) int {
