@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { Check, MoreHorizontal, X } from "lucide-react"
-import { statusPieces, type Application } from "@/lib/types"
+import { markOf, shown, type Application } from "@/lib/types"
 import { STATUS_OPTIONS } from "@/components/AttributesForm"
 import { CompanyAvatar } from "@/components/CompanyAvatar"
 import { ConfirmDialog } from "@/components/ConfirmDialog"
@@ -88,7 +88,7 @@ export function DetailHeader({
     <>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex items-start gap-3">
-          <ProgressMark pieces={statusPieces(application.status)} size={40} />
+          <ProgressMark {...markOf(application)} size={40} />
           <CompanyAvatar company={application.company} companyId={application.company_id} className="mt-1 size-9 text-sm" />
           <div>
             <InlineText
@@ -103,9 +103,9 @@ export function DetailHeader({
           </div>
         </div>
         <div className="flex items-center gap-1">
-          <StatusEditor value={application.status} disabled={!writable} onSave={(v) => onSaveField({ status: v })} />
+          <StatusEditor value={shown(application)} disabled={!writable} onSave={(v) => onSaveField({ status: v })} />
           {application.archived_at && <Badge variant="outline">Archived</Badge>}
-          {application.status === "awaiting_review" &&
+          {shown(application) === "awaiting_review" &&
             (canApprove ? (
               <>
                 <Tooltip>

@@ -10,6 +10,7 @@ import type { Application, Artifact, CustomField, Event, Page, Question } from "
 import { DetailHeader } from "@/components/detail/DetailHeader"
 import { DetailAttributes } from "@/components/detail/DetailAttributes"
 import { DetailNotes } from "@/components/detail/DetailNotes"
+import { InterviewsCard } from "@/components/detail/InterviewsCard"
 import { EventsHistoryCard } from "@/components/detail/EventsHistoryCard"
 import { ArtifactsCard } from "@/components/detail/ArtifactsCard"
 import { QuestionsCard } from "@/components/detail/QuestionsCard"
@@ -199,6 +200,7 @@ export function DetailShell({ id, initial, children }: { id: string; initial: De
             onRecheckLink={onRecheckLink}
             fieldError={fieldError}
           />
+          <InterviewsCard appId={application.id} current={application.stage ?? 0} writable={writable} onChange={reload} />
           <DetailNotes notes={application.notes || ""} writable={writable} onSave={onSaveNotes} />
         </>
       )}

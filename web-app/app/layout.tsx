@@ -9,7 +9,10 @@ export const metadata: Metadata = {
     template: "%s — Hire Pursuit",
   },
   description: "A self-hosted job-application tracker.",
-  icons: { icon: "/favicon.svg" },
+  icons: {
+    icon: [{ url: "/favicon.ico", sizes: "48x48" }, { url: "/favicon.svg", type: "image/svg+xml" }],
+    apple: "/apple-touch-icon.png",
+  },
 }
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
