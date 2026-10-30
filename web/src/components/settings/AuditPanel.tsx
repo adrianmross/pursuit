@@ -34,6 +34,11 @@ export function AuditPanel() {
         placeholder="Search actor, action, entity, or summary"
         value={filter}
         onChange={(e) => setFilter(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key !== "Escape") return
+          if (filter) setFilter("")
+          else e.currentTarget.blur()
+        }}
       />
       <div className="rounded-md border">
         <Table>

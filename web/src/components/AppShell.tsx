@@ -48,6 +48,7 @@ function GlobalSearch() {
         className="h-10 pl-9 text-base"
         value={value}
         onChange={(event) => onChange(event.target.value)}
+        onKeyDown={(event) => event.key === "Escape" && event.currentTarget.blur()}
       />
     </div>
   )

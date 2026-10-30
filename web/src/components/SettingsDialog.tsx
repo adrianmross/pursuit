@@ -371,6 +371,14 @@ export function SettingsDialog({
     setQuery("")
   }
   function onSearchKey(e: KeyboardEvent<HTMLInputElement>) {
+    if (e.key === "Escape") {
+      // Clear first, then leave the field. The dialog's own Esc is held back below.
+      if (query) {
+        setQuery("")
+        setSel(0)
+      } else e.currentTarget.blur()
+      return
+    }
     if (!hits.length) return
     const down = e.key === "ArrowDown" || (e.ctrlKey && e.key === "n")
     const up = e.key === "ArrowUp" || (e.ctrlKey && e.key === "p")
@@ -398,7 +406,12 @@ export function SettingsDialog({
         onOpenChange(next)
       }}
     >
-      <DialogContent data-settings-dialog className="h-[90svh] w-[95vw] gap-0 overflow-hidden p-0 sm:max-w-6xl" showCloseButton>
+      <DialogContent
+        data-settings-dialog
+        onEscapeKeyDown={(e) => {
+          if ((e.target as HTMLElement).closest("[data-search]")) e.preventDefault()
+        }}
+        className="h-[90svh] w-[95vw] gap-0 overflow-hidden p-0 sm:max-w-6xl" showCloseButton>
         <DialogTitle className="sr-only">Settings</DialogTitle>
         <DialogDescription className="sr-only">Appearance, table defaults, API tokens, account, and about.</DialogDescription>
         <div className="grid h-full min-h-0 grid-cols-1 sm:grid-cols-[14rem_1fr]">
