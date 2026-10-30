@@ -45,6 +45,46 @@ function ProfileForm() {
   )
 }
 
+function EmailForm() {
+  const [email, setEmail] = useState("")
+  const [msg, setMsg] = useState({ ok: true, text: "" })
+
+  async function save(event: FormEvent) {
+    event.preventDefault()
+    const { error } = await authClient!.changeEmail({ newEmail: email })
+    if (error) return setMsg({ ok: false, text: error.message || "Could not change the email" })
+    setEmail("")
+    setMsg({ ok: true, text: "Check your inbox to confirm the change." })
+  }
+
+  return (
+    <form onSubmit={save} className="flex flex-col gap-3">
+      <h3 className="text-sm font-medium">Change email</h3>
+      <Input type="email" aria-label="New email" placeholder="new@example.com" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+      <Msg {...msg} />
+      <Button type="submit" disabled={!email} className="self-start">
+        Change email
+      </Button>
+    </form>
+  )
+}
+
+function OtherSessions() {
+  const [msg, setMsg] = useState({ ok: true, text: "" })
+  async function revoke() {
+    const { error } = await authClient!.revokeOtherSessions()
+    setMsg(error ? { ok: false, text: error.message || "Could not sign out other sessions" } : { ok: true, text: "Other sessions were signed out." })
+  }
+  return (
+    <div className="flex flex-col gap-2">
+      <Button variant="outline" onClick={revoke} className="self-start">
+        Sign out other sessions
+      </Button>
+      <Msg {...msg} />
+    </div>
+  )
+}
+
 function PasswordForm() {
   const [current, setCurrent] = useState("")
   const [next, setNext] = useState("")
@@ -89,6 +129,7 @@ export function AccountPanel() {
       {authClient ? (
         <>
           <ProfileForm />
+          <EmailForm />
           <PasswordForm />
         </>
       ) : (
@@ -103,6 +144,7 @@ export function AccountPanel() {
           Signed in as {me?.token.name || "token"}
           {me?.token.scopes?.length ? ` (${me.token.scopes.join(", ")})` : ""}.
         </p>
+        {authClient && <OtherSessions />}
         <Button variant="outline" onClick={signOut} className="self-start">
           Sign out
         </Button>

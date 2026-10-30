@@ -1,7 +1,7 @@
 import { useMemo, useState, type ReactNode } from "react"
 import { Database, Info, KeyRound, Palette, Rows3, Search, SlidersHorizontal, User } from "lucide-react"
 import { FILTERS, MORE, SORTS } from "@/lib/types"
-import { getDefaultSort, getDefaultStatus, setDefaultSort, setDefaultStatus } from "@/lib/settings"
+import { getDefaultSort, getDefaultStatus, getDensity, setDefaultSort, setDefaultStatus, setDensity, type Density } from "@/lib/settings"
 import { useTheme } from "@/lib/theme"
 import { api } from "@/lib/api"
 import { cn } from "@/lib/utils"
@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 const STATUSES = FILTERS.concat(MORE)
@@ -94,8 +95,28 @@ function Appearance() {
 function TableDefaults() {
   const [status, setStatus] = useState(getDefaultStatus())
   const [sort, setSort] = useState(getDefaultSort())
+  const [density, setDensityState] = useState(getDensity())
   return (
     <div className="flex flex-col gap-4">
+      <Row label="Row density" hint="Compact fits more rows on screen.">
+        <ToggleGroup
+          type="single"
+          variant="outline"
+          value={density}
+          onValueChange={(v) => {
+            if (!v) return
+            setDensityState(v as Density)
+            setDensity(v as Density)
+          }}
+        >
+          <ToggleGroupItem value="comfortable" className="flex-1">
+            Comfortable
+          </ToggleGroupItem>
+          <ToggleGroupItem value="compact" className="flex-1">
+            Compact
+          </ToggleGroupItem>
+        </ToggleGroup>
+      </Row>
       <Row label="Default status filter" hint="Applied when you open the pipeline with no filter in the URL.">
         <Select
           value={status || "__all"}
@@ -180,6 +201,7 @@ const SECTIONS: (Section & { items: [string, string][] })[] = [
     items: [
       ["Default status filter", "pipeline stage"],
       ["Default sort", "order newest"],
+      ["Row density", "compact comfortable spacing rows"],
     ],
   },
   {
@@ -206,6 +228,8 @@ const SECTIONS: (Section & { items: [string, string][] })[] = [
     render: () => <AccountPanel />,
     items: [
       ["Password", "change security"],
+      ["Email", "change address"],
+      ["Sign out other sessions", "revoke devices security"],
       ["Display name", "profile email"],
       ["Sign out", "logout session"],
     ],

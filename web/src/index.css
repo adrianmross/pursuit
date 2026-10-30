@@ -149,3 +149,11 @@
     @apply font-display;
     }
 }
+
+/* Settings → Table → Density */
+[data-density="compact"] [data-slot="table-cell"] {
+  padding-block: 0.125rem;
+}
+[data-density="compact"] [data-slot="table-head"] {
+  height: 2rem;
+}

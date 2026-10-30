@@ -17,3 +17,20 @@ export function getDefaultSort() {
 export function setDefaultSort(value: string) {
   localStorage.setItem(DEFAULT_SORT_KEY, value)
 }
+
+const DENSITY_KEY = "pursuit.density"
+export type Density = "comfortable" | "compact"
+
+export function getDensity(): Density {
+  return localStorage.getItem(DENSITY_KEY) === "compact" ? "compact" : "comfortable"
+}
+
+export function setDensity(value: Density) {
+  localStorage.setItem(DENSITY_KEY, value)
+  applyDensity()
+}
+
+// Read by the table rules in index.css.
+export function applyDensity() {
+  document.documentElement.dataset.density = getDensity()
+}
