@@ -1,5 +1,5 @@
 import { Download, BookOpen } from "lucide-react"
-import { EXPORT_MODE, pursuitApi } from "@/lib/pursuit-api"
+import { EXPORT_MODE, pursuitApiAuthed } from "@/lib/pursuit-api"
 import type { Application, Page } from "@/lib/types"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -14,7 +14,7 @@ export default async function Home() {
   // server at request time, so HomeCtaClient fetches it after mount.
   let cta = <HomeCtaClient />
   if (!EXPORT_MODE) {
-    const page = await pursuitApi<Page<Application>>("/v1/applications?limit=1")
+    const page = await pursuitApiAuthed<Page<Application>>("/v1/applications?limit=1")
     cta = <HomeCta hasApplications={page.page.total > 0} />
   }
 

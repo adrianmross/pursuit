@@ -77,4 +77,16 @@ export async function api<T>(path: string, options: ApiOptions = {}): Promise<T>
   return data as T
 }
 
+// For calls that can't go through api<T>() (binary responses, e.g. a
+// favicon image) — same proxy-vs-direct branching, caller does its own fetch.
+export function apiUrl(path: string): string {
+  return EXPORT_MODE ? PURSUIT_API_URL + path : "/api/proxy" + path
+}
+
+export function apiHeaders(): Record<string, string> {
+  if (!EXPORT_MODE) return {}
+  const token = getToken()
+  return token ? { Authorization: "Bearer " + token } : {}
+}
+
 export { EXPORT_MODE }

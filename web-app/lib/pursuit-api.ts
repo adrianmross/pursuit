@@ -1,4 +1,5 @@
 import { cookies } from "next/headers"
+import { redirect } from "next/navigation"
 
 const TOKEN_COOKIE = "pursuit_token"
 const API_BASE = process.env.PURSUIT_API_URL || "http://127.0.0.1:8787"
@@ -67,6 +68,19 @@ export async function getMe() {
     return await pursuitApi<import("./types").Me>("/v1/me")
   } catch {
     return null
+  }
+}
+
+// Protected pages' server-side data fetches use this instead of pursuitApi
+// directly: proxy.ts only checks that the cookie exists, not that its token
+// is still valid, so a revoked/expired/stale token reaches the page and
+// pursuitApi() throws — unhandled, that's a 500, not a sign-in prompt.
+export async function pursuitApiAuthed<T>(path: string, options: ApiOptions = {}): Promise<T> {
+  try {
+    return await pursuitApi<T>(path, options)
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 401) redirect("/sign-in")
+    throw err
   }
 }
 
