@@ -10,7 +10,8 @@ import (
 	"strings"
 )
 
-//go:embed dist
+// all: includes underscore-prefixed paths such as the docs export's _next/.
+//go:embed all:dist
 var files embed.FS
 
 var dist, distErr = fs.Sub(files, "dist")
