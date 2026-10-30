@@ -6,6 +6,7 @@ import { Archive, ListChecks, LogOut, Plus } from "lucide-react"
 import { api } from "@/lib/api-client"
 import { useAuth } from "@/lib/auth"
 import { label, statusesInCategory, type Application, type Page } from "@/lib/types"
+import { applicationHref } from "@/lib/links"
 import { CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
 
 export function CommandPalette() {
@@ -43,7 +44,7 @@ export function CommandPalette() {
       .join("&")
     const page = await api<Page<Application>>(`/v1/applications?limit=1&sort=updated_at&${qs}`)
     const next = page.data[0]
-    if (next) router.push(`/app/${encodeURIComponent(next.id)}`)
+    if (next) router.push(applicationHref(next.id))
   }
 
   return (
@@ -67,7 +68,7 @@ export function CommandPalette() {
             <CommandItem
               key={app.id}
               value={`${app.company || ""} ${app.title || ""} ${label(app.status)}`}
-              onSelect={() => go(() => router.push(`/app/${encodeURIComponent(app.id)}`))}
+              onSelect={() => go(() => router.push(applicationHref(app.id)))}
             >
               <span>
                 {app.title || "Untitled"}

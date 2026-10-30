@@ -25,6 +25,7 @@ import { api, ApiError } from "@/lib/api-client"
 import { useAuth } from "@/lib/auth"
 import { getDefaultSort, getDefaultStatus } from "@/lib/settings"
 import { buildApplicationsQuery } from "@/lib/pipeline-query"
+import { applicationHref } from "@/lib/links"
 import {
   CATEGORY_LABELS,
   CATEGORY_ORDER,
@@ -842,7 +843,7 @@ export function PipelineView({ initial }: { initial: PipelineInitial | null }) {
                       </span>
                     </TableCell>
                     <TableCell>
-                      <Link href={`/app/${encodeURIComponent(row.id)}`} className="hover:underline">
+                      <Link href={applicationHref(row.id)} className="hover:underline">
                         {row.title || "Untitled"}
                       </Link>
                     </TableCell>

@@ -1,22 +1,28 @@
 #!/usr/bin/env node
-// `output: "export"` can't contain dynamic Route Handlers (api/auth/*,
-// api/proxy/*) — they only exist for the hosted/cookie-BFF build and have
-// no meaning for self-hosted (the client talks to the Go API directly, see
-// lib/api-client.ts). Move them aside for this build, then restore them
-// unconditionally, even on failure.
+// `output: "export"` can't contain: dynamic Route Handlers (api/auth/*,
+// api/proxy/* — the cookie-BFF only exists for the hosted build, see
+// lib/api-client.ts) or a dynamic page segment with no generateStaticParams
+// (app/(app)/app/[id] — application ids are unbounded, can't be enumerated
+// at build time; export mode uses the static /app/view?id=... route
+// instead, see lib/links.ts). Move them all aside for this build, then
+// restore them unconditionally, even on failure.
 import { existsSync, renameSync, rmSync } from "node:fs"
 import { spawnSync } from "node:child_process"
 import { join } from "node:path"
 
 const root = join(import.meta.dirname, "..")
-const appApi = join(root, "app", "api")
-const parked = join(root, ".app-api.export-build-tmp")
+const PARK = [
+  { real: join(root, "app", "api"), tmp: join(root, ".app-api.export-build-tmp") },
+  { real: join(root, "app", "(app)", "app", "[id]"), tmp: join(root, ".app-id.export-build-tmp") },
+]
 
-if (existsSync(parked)) renameSync(parked, appApi) // leftover from an interrupted run
-renameSync(appApi, parked)
-// A previous `next dev`/`next build` leaves route-manifest types for
-// app/api/* in .next — stale once those routes are parked, and next build
-// then fails type-checking against files that no longer exist.
+for (const { real, tmp } of PARK) {
+  if (existsSync(tmp)) renameSync(tmp, real) // leftover from an interrupted run
+  renameSync(real, tmp)
+}
+// A previous `next dev`/`next build` leaves route-manifest types for the
+// parked routes in .next — stale once they're moved, and next build then
+// fails type-checking against files that no longer exist.
 rmSync(join(root, ".next"), { recursive: true, force: true })
 
 let status = 1
@@ -27,7 +33,7 @@ try {
   })
   status = result.status ?? 1
 } finally {
-  renameSync(parked, appApi)
+  for (const { real, tmp } of PARK) renameSync(tmp, real)
 }
 
 process.exit(status)
