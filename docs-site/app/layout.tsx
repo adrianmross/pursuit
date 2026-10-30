@@ -35,7 +35,7 @@ const navbar = (
   </Navbar>
 )
 
-// Same footer as the dashboard (web/src/components/SiteFooter.tsx); keep in step.
+// Same footer as the dashboard (web-app/components/SiteFooter.tsx); keep in step.
 const footer = (
   <Footer className="hp-footer">
     <span className="hp-footer-brand">
