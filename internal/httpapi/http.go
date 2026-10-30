@@ -478,7 +478,7 @@ func (s *Server) dashboard(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	body, contentType, err := dashboard.Open(name)
+	body, contentType, status, err := dashboard.Open(name)
 	if err != nil {
 		http.NotFound(w, r)
 		return
@@ -501,7 +501,7 @@ func (s *Server) dashboard(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Security-Policy", "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src "+scriptSrc+"; connect-src "+connectSrc+"; img-src 'self' data:; font-src 'self'; base-uri 'self'; form-action 'self'")
 		w.Header().Set("Referrer-Policy", "no-referrer")
 	}
-	w.WriteHeader(http.StatusOK)
+	w.WriteHeader(status)
 	_, _ = w.Write(body)
 }
 
