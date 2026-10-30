@@ -14,6 +14,7 @@ import (
 	"mime"
 	"mime/multipart"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"os"
 	"strconv"
@@ -72,6 +73,8 @@ type Server struct {
 
 	demoLimiterOnce sync.Once
 	demoLimiterVal  *demoLimiter
+
+	mux *http.ServeMux
 }
 
 func (s *Server) demoLimiterFor() *demoLimiter {
@@ -203,7 +206,9 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /v1/import/seed", s.importSeed)
 	mux.HandleFunc("GET /v1/export/simplify", s.exportSimplify)
 	mux.HandleFunc("GET /v1/export/json", s.exportJSON)
+	mux.HandleFunc("POST /v1/batch", s.batch)
 
+	s.mux = mux
 	return s.wrap(mux)
 }
 
@@ -1744,6 +1749,92 @@ func (s *Server) applyBatch(w http.ResponseWriter, r *http.Request) {
 		}
 		return s.Svc.ApplyBatch(ctx, q, mode)
 	})
+}
+
+const maxBatch = 100
+
+// batch runs each sub-request through the same routes as a direct call, as
+// the same actor, so scopes, validation, idempotency, and dry-run all apply
+// per item. Items run in order and are not atomic.
+// ponytail: sequential and non-atomic; wrap in one tx if partial batches bite.
+func (s *Server) batch(w http.ResponseWriter, r *http.Request) {
+	body, ok := s.read(w, r)
+	if !ok {
+		return
+	}
+	var in struct {
+		Requests []struct {
+			Method         string          `json:"method"`
+			Path           string          `json:"path"`
+			Body           json.RawMessage `json:"body"`
+			IdempotencyKey string          `json:"idempotency_key"`
+		} `json:"requests"`
+		StopOnError bool `json:"stop_on_error"`
+	}
+	if err := decode(body, &in); err != nil {
+		writeErr(w, err)
+		return
+	}
+	if strings.TrimSpace(r.Header.Get("Idempotency-Key")) != "" {
+		writeErr(w, domain.Validation("batch does not take an Idempotency-Key header").WithHint("put idempotency_key on each item"))
+		return
+	}
+	if len(in.Requests) == 0 || len(in.Requests) > maxBatch {
+		writeErr(w, domain.Validation("requests must hold 1 to %d items", maxBatch).WithHint("split larger batches"))
+		return
+	}
+	type result struct {
+		Status int             `json:"status"`
+		Body   json.RawMessage `json:"body,omitempty"`
+	}
+	results := make([]result, 0, len(in.Requests))
+	failed := 0
+	for _, item := range in.Requests {
+		method := strings.ToUpper(strings.TrimSpace(item.Method))
+		if method == "" {
+			method = http.MethodGet
+		}
+		u, err := url.Parse(item.Path)
+		if err != nil || !strings.HasPrefix(u.Path, "/v1/") || u.Path == "/v1/batch" || isPublic(u.Path) || isCron(u.Path) || u.Host != "" {
+			b, _ := marshal(map[string]any{"error": domain.Validation("invalid batch path %q", item.Path).WithHint("paths are /v1/... API routes other than /v1/batch")})
+			results = append(results, result{Status: 400, Body: b})
+			failed++
+			if in.StopOnError {
+				break
+			}
+			continue
+		}
+		var rdr io.Reader = http.NoBody
+		if len(item.Body) > 0 && string(item.Body) != "null" {
+			rdr = bytes.NewReader(item.Body)
+		}
+		sub, err := http.NewRequestWithContext(r.Context(), method, u.RequestURI(), rdr)
+		if err != nil {
+			writeErr(w, domain.Validation("%s", err.Error()))
+			return
+		}
+		sub.Header.Set("Content-Type", "application/json")
+		if dryRun(r) {
+			sub.Header.Set("X-Dry-Run", "true")
+		}
+		if item.IdempotencyKey != "" {
+			sub.Header.Set("Idempotency-Key", item.IdempotencyKey)
+		}
+		rec := httptest.NewRecorder()
+		s.mux.ServeHTTP(rec, sub)
+		out := bytes.TrimSpace(rec.Body.Bytes())
+		if len(out) > 0 && !json.Valid(out) {
+			out, _ = marshal(string(out))
+		}
+		results = append(results, result{Status: rec.Code, Body: out})
+		if rec.Code >= 400 {
+			failed++
+			if in.StopOnError {
+				break
+			}
+		}
+	}
+	writeJSON(w, 200, map[string]any{"results": results, "failed": failed})
 }
 
 func (s *Server) claim(w http.ResponseWriter, r *http.Request) {

@@ -105,6 +105,7 @@ func build() []byte {
 	add("/v1/approvals/reject", "post", "decline a prepared application. requires the approve scope. the application keeps its awaiting_review stage with outcome withdrawn and nothing is submitted", true, nil)
 	add("/v1/links", "get", "list checked postings. attention=true returns closed or changed. status is live, closed, or unknown", false, nil)
 	add("/v1/apply", "post", "batch prepare or async enqueue", true, nil)
+	add("/v1/batch", "post", "run up to 100 API requests in order as the caller. body {requests:[{method,path,body,idempotency_key}],stop_on_error}. returns {results:[{status,body}],failed}. scopes apply per item, X-Dry-Run applies to every item, items are not atomic, and stop_on_error ends results at the first failure. Idempotency-Key goes on each item, not the batch", true, nil)
 	add("/v1/queue/claim", "post", "lease the next work item. replicas use FOR UPDATE SKIP LOCKED on Postgres", true, nil)
 	add("/v1/queue/{id}/heartbeat", "post", "extend a lease", true, nil)
 	add("/v1/queue/{id}/complete", "post", "finish leased work and set the resulting status", true, nil)
