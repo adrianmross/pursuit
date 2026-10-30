@@ -1,11 +1,12 @@
-import { useMemo, useState, type ReactNode } from "react"
-import { Database, Info, KeyRound, Palette, Rows3, Search, SlidersHorizontal, User } from "lucide-react"
+import { useMemo, useState, type KeyboardEvent, type ReactNode } from "react"
+import { Database, History, Info, KeyRound, Palette, Rows3, Search, SlidersHorizontal, User } from "lucide-react"
 import { FILTERS, MORE, SORTS } from "@/lib/types"
 import { getDefaultSort, getDefaultStatus, getDensity, setDefaultSort, setDefaultStatus, setDensity, type Density } from "@/lib/settings"
 import { useTheme } from "@/lib/theme"
 import { api } from "@/lib/api"
 import { cn } from "@/lib/utils"
 import { CustomFieldsManager } from "@/components/CustomFieldsManager"
+import { AuditPanel } from "@/components/settings/AuditPanel"
 import { AboutPanel } from "@/components/settings/AboutPanel"
 import { AccountPanel } from "@/components/settings/AccountPanel"
 import { TokensPanel } from "@/components/settings/TokensPanel"
@@ -234,6 +235,13 @@ const SECTIONS: (Section & { items: [string, string][] })[] = [
       ["Sign out", "logout session"],
     ],
   },
+  {
+    id: "audit",
+    label: "Audit log",
+    icon: <History />,
+    render: () => <AuditPanel />,
+    items: [["Audit log", "activity history changes who did what"]],
+  },
   { id: "data", label: "Data", icon: <Database />, render: () => <DataPanel />, items: [["Export", "download backup json"]] },
   {
     id: "about",
@@ -266,6 +274,24 @@ export function SettingsDialog({
     )
   }, [query])
 
+  const [sel, setSel] = useState(0)
+  const pick = (id: string) => {
+    setActive(id)
+    setQuery("")
+  }
+  function onSearchKey(e: KeyboardEvent<HTMLInputElement>) {
+    if (!hits.length) return
+    const down = e.key === "ArrowDown" || (e.ctrlKey && e.key === "n")
+    const up = e.key === "ArrowUp" || (e.ctrlKey && e.key === "p")
+    if (down || up) {
+      e.preventDefault()
+      setSel((i) => (i + (down ? 1 : hits.length - 1)) % hits.length)
+    } else if (e.key === "Enter") {
+      e.preventDefault()
+      pick(hits[Math.min(sel, hits.length - 1)].section.id)
+    }
+  }
+
   const current = SECTIONS.find((s) => s.id === active) || SECTIONS[0]
 
   return (
@@ -276,10 +302,10 @@ export function SettingsDialog({
         onOpenChange(next)
       }}
     >
-      <DialogContent className="h-[min(40rem,85svh)] gap-0 overflow-hidden p-0 sm:max-w-3xl" showCloseButton>
+      <DialogContent className="h-[90svh] w-[95vw] gap-0 overflow-hidden p-0 sm:max-w-6xl" showCloseButton>
         <DialogTitle className="sr-only">Settings</DialogTitle>
         <DialogDescription className="sr-only">Appearance, table defaults, API tokens, account, and about.</DialogDescription>
-        <div className="grid h-full min-h-0 grid-cols-1 sm:grid-cols-[13rem_1fr]">
+        <div className="grid h-full min-h-0 grid-cols-1 sm:grid-cols-[14rem_1fr]">
           <nav className="flex flex-col gap-2 border-b bg-muted/40 p-3 sm:border-r sm:border-b-0">
             <div className="relative">
               <Search className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
@@ -288,7 +314,11 @@ export function SettingsDialog({
                 placeholder="Search settings"
                 className="h-8 pl-8"
                 value={query}
-                onChange={(e) => setQuery(e.target.value)}
+                onChange={(e) => {
+                  setQuery(e.target.value)
+                  setSel(0)
+                }}
+                onKeyDown={onSearchKey}
               />
             </div>
             <div className="flex gap-1 overflow-x-auto sm:flex-col">
@@ -315,17 +345,22 @@ export function SettingsDialog({
           <section className="min-h-0 overflow-y-auto p-5 pr-12">
             {query ? (
               <div className="flex flex-col gap-1">
-                <h2 className="mb-2 text-base font-medium">Results for “{query}”</h2>
+                <h2 className="mb-2 text-base font-medium">Results for “{query}” <span className="text-xs font-normal text-muted-foreground">↑↓ or Ctrl-N/P to move, Enter to open</span></h2>
                 {hits.length === 0 && <p className="text-sm text-muted-foreground">No matching settings.</p>}
-                {hits.map(({ section, label }) => (
+                {hits.map(({ section, label }, i) => (
                   <button
                     key={section.id + label}
                     type="button"
-                    className="flex items-center justify-between rounded-md px-2 py-2 text-left text-sm hover:bg-muted"
-                    onClick={() => {
-                      setActive(section.id)
-                      setQuery("")
+                    aria-selected={i === sel}
+                    ref={(el) => {
+                      if (i === sel) el?.scrollIntoView({ block: "nearest" })
                     }}
+                    className={cn(
+                      "flex items-center justify-between rounded-md px-2 py-2 text-left text-sm hover:bg-muted",
+                      i === sel && "bg-muted ring-1 ring-foreground/10",
+                    )}
+                    onMouseEnter={() => setSel(i)}
+                    onClick={() => pick(section.id)}
                   >
                     {label}
                     <span className="text-xs text-muted-foreground">{section.label}</span>

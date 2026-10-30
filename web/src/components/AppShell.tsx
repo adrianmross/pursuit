@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react"
 import { NavLink, Outlet, useLocation, useNavigate, useSearchParams } from "react-router-dom"
-import { Archive, History, LogOut, MoreVertical, Search, Settings, User } from "lucide-react"
+import { Archive, LogOut, MoreVertical, Search, Settings, User } from "lucide-react"
 import { useAuth } from "@/lib/auth"
 import { CommandPalette } from "@/components/CommandPalette"
 import { SettingsDialog } from "@/components/SettingsDialog"
@@ -85,9 +85,6 @@ export function AppShell() {
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={() => navigate("/?archived=1")}>
                 <Archive /> View archived
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => navigate("/audit")}>
-                <History /> Audit log
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => setSettingsOpen(true)}>
                 <Settings /> Settings

@@ -9,7 +9,6 @@ import { TooltipProvider } from "@/components/ui/tooltip"
 import { PipelinePage } from "@/pages/PipelinePage"
 import { DetailPage } from "@/pages/DetailPage"
 import { HomePage } from "@/pages/HomePage"
-import { AuditPage } from "@/pages/AuditPage"
 
 // Where to go after signing in. Same-origin paths only: "//evil.com" and
 // "https://..." would turn ?next= into an open redirect.
@@ -46,7 +45,6 @@ function Gate() {
           <Route element={<AppShell />}>
             <Route index element={<HomePage />} />
             <Route path="pipeline" element={<PipelinePage />} />
-            <Route path="audit" element={<AuditPage />} />
             <Route path="app/:id" element={<DetailPage />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>

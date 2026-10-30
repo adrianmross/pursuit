@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 
-export function AuditPage() {
+export function AuditPanel() {
   const [entries, setEntries] = useState<Audit[] | null>(null)
   const [cursor, setCursor] = useState<string | null>(null)
   const [filter, setFilter] = useState("")
@@ -27,11 +27,13 @@ export function AuditPage() {
   }, [entries, filter])
 
   return (
-    <div className="mx-auto flex w-full max-w-6xl flex-col gap-4">
-      <div className="flex items-center justify-between gap-4">
-        <h1 className="text-lg font-medium">Audit log</h1>
-        <Input className="max-w-xs" placeholder="Filter loaded activity" value={filter} onChange={(e) => setFilter(e.target.value)} />
-      </div>
+    <div className="flex flex-col gap-4">
+      <Input
+        aria-label="Search audit log"
+        placeholder="Search actor, action, entity, or summary"
+        value={filter}
+        onChange={(e) => setFilter(e.target.value)}
+      />
       <div className="rounded-md border">
         <Table>
           <TableHeader>
@@ -66,6 +68,7 @@ export function AuditPage() {
           </TableBody>
         </Table>
       </div>
+      {filter && cursor && <p className="text-center text-xs text-muted-foreground">Searching loaded entries only. Load more to widen it.</p>}
       {cursor && (
         <Button variant="outline" className="self-center" onClick={() => load(cursor)}>
           Load more
