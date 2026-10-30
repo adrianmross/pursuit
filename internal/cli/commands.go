@@ -2,11 +2,17 @@ package cli
 
 import (
 	"bytes"
+	"cmp"
 	"encoding/json"
 	"context"
+	"fmt"
 	"io"
+	"mime"
+	"mime/multipart"
+	"net/textproto"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -46,6 +52,7 @@ func rootCommand() *Command {
 			cmdQueue(),
 			cmdArtifacts(),
 			cmdStanding(),
+			cmdDocuments(),
 			cmdCaps(),
 			cmdCheckLinks(),
 			cmdLinks(),
@@ -888,6 +895,35 @@ func cmdArtifacts() *Command {
 		}},
 		{Name: "get", Summary: "fetch one artifact", Args: []Arg{{Name: "artifact-id", Required: true}}, Run: func(e *exec) error {
 			return e.send("GET", "/v1/artifacts/"+url.PathEscape(e.args[0]), nil, nil, "", false, false)
+		}},
+	}}
+}
+
+func cmdDocuments() *Command {
+	return &Command{Name: "documents", Summary: "your files: base résumé, cover-letter template, other", Children: []*Command{
+		{Name: "list", Summary: "list documents", Run: func(e *exec) error { return e.send("GET", "/v1/documents", nil, nil, "", false, false) }},
+		{Name: "add", Summary: "upload a document; prepare attaches the newest base_resume", Mutating: true, Usage: "pursuit documents add --kind base_resume --file resume.pdf", Flags: []Flag{{Name: "kind", Type: "string", Help: "base_resume, cover_letter, or other"}, {Name: "file", Type: "string", Help: "file path"}}, Run: func(e *exec) error {
+			b, err := os.ReadFile(e.flag("file"))
+			if err != nil {
+				return &exitError{code: 2, message: err.Error(), hint: "pass --file"}
+			}
+			// Multipart, not JSON: a PDF is not valid UTF-8 and would not survive a JSON string.
+			var buf bytes.Buffer
+			mw := multipart.NewWriter(&buf)
+			_ = mw.WriteField("kind", e.flag("kind"))
+			h := textproto.MIMEHeader{}
+			h.Set("Content-Disposition", fmt.Sprintf(`form-data; name="file"; filename=%q`, filepath.Base(e.flag("file"))))
+			h.Set("Content-Type", cmp.Or(mime.TypeByExtension(filepath.Ext(e.flag("file"))), "application/octet-stream"))
+			part, _ := mw.CreatePart(h)
+			_, _ = part.Write(b)
+			_ = mw.Close()
+			return e.send("POST", "/v1/documents", nil, buf.Bytes(), mw.FormDataContentType(), true, false)
+		}},
+		{Name: "get", Summary: "fetch one document; binary bodies are base64", Args: []Arg{{Name: "document-id", Required: true}}, Run: func(e *exec) error {
+			return e.send("GET", "/v1/documents/"+url.PathEscape(e.args[0]), nil, nil, "", false, false)
+		}},
+		{Name: "delete", Summary: "delete a document", Mutating: true, Args: []Arg{{Name: "document-id", Required: true}}, Run: func(e *exec) error {
+			return e.send("DELETE", "/v1/documents/"+url.PathEscape(e.args[0]), nil, nil, "", true, false)
 		}},
 	}}
 }
