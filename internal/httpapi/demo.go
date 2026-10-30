@@ -10,15 +10,13 @@ import (
 	"github.com/pursuit/pursuit/internal/domain"
 )
 
-const demoCookieName = "pursuit_demo"
-
 // demoLimiter caps how many new demo tenants a single client IP can mint
 // per window — minting is the only expensive/abusable part of demo mode
 // (it writes a user, a token, and the seed data).
 //
 // ponytail: an in-memory map, so the limit is per function instance, not
-// global — fine for a preview deployment; move to a shared store (Redis,
-// a DB row) if demo mode ever runs where that matters.
+// global — fine for how small-scale this is; move to a shared store
+// (Redis, a DB row) if that ever matters.
 type demoLimiter struct {
 	mu     sync.Mutex
 	window time.Duration
@@ -60,35 +58,27 @@ func clientIP(r *http.Request) string {
 	return host
 }
 
-// demoActor authenticates an anonymous preview visitor from their session
-// cookie, minting a fresh throwaway tenant (rate-limited per IP) when the
-// cookie is missing or no longer valid. Nothing here is persisted beyond
-// that cookie: a new tab with no cookie is a brand-new, empty tenant.
-func (s *Server) demoActor(w http.ResponseWriter, r *http.Request) (domain.Actor, error) {
-	ctx := r.Context()
-	if c, err := r.Cookie(demoCookieName); err == nil && c.Value != "" {
-		if actor, err := s.Svc.Authenticate(ctx, c.Value); err == nil {
-			actor.Demo = true
-			return actor, nil
-		}
+// startDemo is the "try it without an account" entry point: the sign-in
+// page offers it to a signed-out visitor, and Settings offers it to
+// anyone, at any time, to replay the tutorial in a brand-new sandbox
+// (minting again just abandons the old one — nothing to clean up client
+// side). It hands back a token exactly like any other sign-in; nothing
+// about later requests is special-cased beyond the Actor.Demo flag
+// (see Service.Authenticate), which withholds a couple of
+// outbound-HTTP-triggering scopes.
+func (s *Server) startDemo(w http.ResponseWriter, r *http.Request) {
+	if !s.DemoMode {
+		writeErr(w, domain.NotFound("demo"))
+		return
 	}
 	if !s.demoLimiterFor().allow(clientIP(r)) {
-		return domain.Actor{}, domain.RateLimited("too many demo sessions from this address; wait a minute and reload")
+		writeErr(w, domain.RateLimited("too many demo sessions from this address; wait a minute and try again"))
+		return
 	}
-	secret, actor, err := s.Svc.CreateDemoSession(ctx)
+	secret, actor, err := s.Svc.CreateDemoSession(r.Context())
 	if err != nil {
-		return domain.Actor{}, err
+		writeErr(w, err)
+		return
 	}
-	http.SetCookie(w, &http.Cookie{
-		Name:     demoCookieName,
-		Value:    secret,
-		Path:     "/",
-		HttpOnly: true,
-		Secure:   true,
-		SameSite: http.SameSiteLaxMode,
-		// No MaxAge/Expires: a session cookie, gone when the browser
-		// decides the session is over. Matches "no persistence beyond
-		// the tab/session" — this is a demo, not an account.
-	})
-	return actor, nil
+	writeJSON(w, http.StatusCreated, map[string]any{"token": secret, "user_id": actor.UserID})
 }

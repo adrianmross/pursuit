@@ -5,7 +5,9 @@ import { useTheme } from "next-themes"
 import { FILTERS, MORE, SORTS, type Audit, type Page } from "@/lib/types"
 import { getDefaultSort, getDefaultStatus, setDefaultSort, setDefaultStatus } from "@/lib/settings"
 import { api } from "@/lib/api-client"
+import { useAuth } from "@/lib/auth"
 import { CustomFieldsManager } from "@/components/CustomFieldsManager"
+import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -38,6 +40,49 @@ function AuditSection({ active }: { active: boolean }) {
           </div>
         ))}
       </div>
+    </div>
+  )
+}
+
+function DemoSection({ active }: { active: boolean }) {
+  const { startDemo, isDemo } = useAuth()
+  const [available, setAvailable] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!active) return
+    api<{ demo_available: boolean }>("/v1/auth/providers")
+      .then((result) => setAvailable(result.demo_available))
+      .catch(() => {})
+  }, [active])
+
+  if (!available) return null
+
+  async function onClick() {
+    setSubmitting(true)
+    setError(null)
+    try {
+      await startDemo()
+    } catch {
+      setError("Could not start the demo.")
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-2">
+      <h3 className="text-sm font-medium">Tutorial</h3>
+      {error && <p className="text-sm text-destructive">{error}</p>}
+      <Button type="button" variant="outline" disabled={submitting} onClick={onClick}>
+        {submitting ? "Starting…" : isDemo ? "Replay tutorial" : "Try the tutorial"}
+      </Button>
+      <p className="text-xs text-muted-foreground">
+        {isDemo
+          ? "Starts a brand-new sandbox, abandoning whatever you've changed in this one."
+          : "Switches you into a throwaway sandbox pre-loaded with example data — sign back in to return to your account."}
+      </p>
     </div>
   )
 }
@@ -122,6 +167,7 @@ export function SettingsSheet({ open, onOpenChange }: { open: boolean; onOpenCha
             </div>
             <CustomFieldsManager active={open} />
           </div>
+          <DemoSection active={open} />
           <AuditSection active={open} />
         </div>
       </SheetContent>

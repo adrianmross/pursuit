@@ -261,14 +261,54 @@ function TokenSignIn() {
   )
 }
 
-export function SignInForm({ allowTokenLogin: initialAllowTokenLogin }: { allowTokenLogin: boolean }) {
+function TryDemo() {
+  const { startDemo, error } = useAuth()
+  const [submitting, setSubmitting] = useState(false)
+  const [localError, setLocalError] = useState<string | null>(null)
+
+  async function onClick() {
+    setSubmitting(true)
+    setLocalError(null)
+    try {
+      await startDemo()
+    } catch {
+      setLocalError("Could not start the demo.")
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-2 text-center">
+      {(localError || error) && <p className="text-sm text-destructive">{localError || error}</p>}
+      <Button type="button" variant="outline" disabled={submitting} onClick={onClick}>
+        {submitting ? "Starting…" : "Try it without an account"}
+      </Button>
+      <p className="text-xs text-muted-foreground">
+        A throwaway sandbox pre-loaded with example data — nothing you do there touches a real account.
+      </p>
+    </div>
+  )
+}
+
+export function SignInForm({
+  allowTokenLogin: initialAllowTokenLogin,
+  demoAvailable: initialDemoAvailable,
+}: {
+  allowTokenLogin: boolean
+  demoAvailable: boolean
+}) {
   const [allowTokenLogin, setAllowTokenLogin] = useState(initialAllowTokenLogin)
+  const [demoAvailable, setDemoAvailable] = useState(initialDemoAvailable)
 
   // Export mode has no server to compute this ahead of time — check client-side.
   useEffect(() => {
     if (!EXPORT_MODE) return
-    api<{ allow_token_login: boolean }>("/v1/auth/providers")
-      .then((result) => setAllowTokenLogin(result.allow_token_login))
+    api<{ allow_token_login: boolean; demo_available: boolean }>("/v1/auth/providers")
+      .then((result) => {
+        setAllowTokenLogin(result.allow_token_login)
+        setDemoAvailable(result.demo_available)
+      })
       .catch(() => {})
   }, [])
 
@@ -279,6 +319,7 @@ export function SignInForm({ allowTokenLogin: initialAllowTokenLogin }: { allowT
           <img src="/brand/hire-pursuit-wordmark-reverse.svg" alt="Hire Pursuit" className="h-8 w-auto" />
           <p className="text-sm text-brand-cream/80">A job application tracker you drive from the CLI or from here.</p>
         </div>
+        {demoAvailable && <TryDemo />}
         {authClient && <AccountSignIn />}
         {allowTokenLogin && <TokenSignIn />}
       </div>

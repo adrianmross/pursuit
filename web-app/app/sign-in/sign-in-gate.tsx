@@ -5,7 +5,13 @@ import { useRouter } from "next/navigation"
 import { useAuth } from "@/lib/auth"
 import { SignInForm } from "@/components/SignInForm"
 
-export function SignInGate({ allowTokenLogin }: { allowTokenLogin: boolean }) {
+export function SignInGate({
+  allowTokenLogin,
+  demoAvailable,
+}: {
+  allowTokenLogin: boolean
+  demoAvailable: boolean
+}) {
   const { me } = useAuth()
   const router = useRouter()
 
@@ -14,5 +20,5 @@ export function SignInGate({ allowTokenLogin }: { allowTokenLogin: boolean }) {
   }, [me, router])
 
   if (me) return null
-  return <SignInForm allowTokenLogin={allowTokenLogin} />
+  return <SignInForm allowTokenLogin={allowTokenLogin} demoAvailable={demoAvailable} />
 }

@@ -12,8 +12,17 @@ type AuthState = {
   loading: boolean
   error: string | null
   signIn: (token: string) => Promise<void>
+  // "Try it without an account" (signed out) and "replay tutorial"
+  // (Settings, any time, signed in or not): mints a fresh throwaway
+  // sandbox tenant and signs into it, same as a normal sign-in. 404s if
+  // the deployment doesn't have demo mode on (see isDemoAvailable below).
+  startDemo: () => Promise<void>
   signOut: () => Promise<void>
   can: (scope: string) => boolean
+  // True once signed into a demo sandbox (POST /v1/demo names its token
+  // "demo" — see Service.CreateDemoSession). Settings uses this to label
+  // its action "Replay tutorial" instead of "Try the tutorial".
+  isDemo: boolean
 }
 
 const AuthContext = createContext<AuthState | null>(null)
@@ -30,11 +39,10 @@ const AuthContext = createContext<AuthState | null>(null)
 // that made row actions vanish post-reload: see AppGate, which relies on
 // this same state instead of doing its own disconnected check).
 //
-// The check always fires in export mode, even with no stored token: a
-// demo-mode deployment (see internal/httpapi/demo.go) authenticates an
-// anonymous visitor from an httpOnly cookie, which this same-origin fetch
-// sends automatically. On a non-demo self-hosted deployment that call
-// just 401s, same as today — one harmless extra request.
+// The check always fires in export mode, even with no stored token — it
+// just 401s harmlessly when there's genuinely nothing stored. Demo mode
+// doesn't change this: a demo session is a normal token from
+// POST /v1/demo (see startDemo below), stored exactly like a real one.
 export function AuthProvider({ initialMe, children }: { initialMe: Me | null; children: ReactNode }) {
   const [me, setMe] = useState<Me | null>(initialMe)
   const [loading, setLoading] = useState(EXPORT_MODE && initialMe == null)
@@ -89,6 +97,26 @@ export function AuthProvider({ initialMe, children }: { initialMe: Me | null; ch
     }
   }, [])
 
+  const startDemo = useCallback(async () => {
+    setError(null)
+    try {
+      if (EXPORT_MODE) {
+        const { token } = await api<{ token: string }>("/v1/demo", { method: "POST" })
+        setToken(token)
+        const result = await api<Me>("/v1/me")
+        setMe(result)
+      } else {
+        const response = await fetch("/api/auth/demo", { method: "POST" })
+        const data = await response.json()
+        if (!response.ok) throw new Error(data?.error?.message || "Could not start the demo.")
+        setMe(data as Me)
+      }
+    } catch (err) {
+      setError(err instanceof ApiError || err instanceof Error ? err.message : "Could not start the demo.")
+      throw err
+    }
+  }, [])
+
   const signOut = useCallback(async () => {
     if (EXPORT_MODE) {
       setToken("")
@@ -113,7 +141,13 @@ export function AuthProvider({ initialMe, children }: { initialMe: Me | null; ch
     [me],
   )
 
-  return <AuthContext.Provider value={{ me, loading, error, signIn, signOut, can }}>{children}</AuthContext.Provider>
+  const isDemo = me?.token.name === "demo"
+
+  return (
+    <AuthContext.Provider value={{ me, loading, error, signIn, startDemo, signOut, can, isDemo }}>
+      {children}
+    </AuthContext.Provider>
+  )
 }
 
 export function useAuth() {

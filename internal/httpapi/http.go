@@ -122,6 +122,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /v1/auth/providers", s.authProviders)
 	mux.HandleFunc("GET /v1/auth/{provider}/start", s.authStart)
 	mux.HandleFunc("GET /v1/auth/{provider}/callback", s.authCallback)
+	mux.HandleFunc("POST /v1/demo", s.startDemo)
 
 	mux.HandleFunc("GET /v1/me", s.me)
 	mux.HandleFunc("POST /v1/tokens", s.createToken)
@@ -254,13 +255,6 @@ func (s *Server) wrap(next http.Handler) http.Handler {
 					return
 				}
 				ctx = domain.WithActor(ctx, actor)
-			} else if s.DemoMode {
-				actor, err := s.demoActor(w, r)
-				if err != nil {
-					writeErr(w, err)
-					return
-				}
-				ctx = domain.WithActor(ctx, actor)
 			} else if s.trustVercel() {
 				actor, err := s.proxyOwner(ctx)
 				if err != nil {
@@ -281,7 +275,7 @@ func (s *Server) wrap(next http.Handler) http.Handler {
 // endpoints and every dashboard asset and client-side route (e.g. /app/:id),
 // which render the SPA shell and authenticate in the browser via the API.
 func isPublic(path string) bool {
-	return !strings.HasPrefix(path, "/v1/") || strings.HasPrefix(path, "/v1/auth/")
+	return !strings.HasPrefix(path, "/v1/") || strings.HasPrefix(path, "/v1/auth/") || path == "/v1/demo"
 }
 
 func isCron(path string) bool {
@@ -342,7 +336,7 @@ func (s *Server) authProviders(w http.ResponseWriter, r *http.Request) {
 	if s.multiTenant() {
 		mode = "multi"
 	}
-	writeJSON(w, 200, map[string]any{"tenant_mode": mode, "providers": providers, "allow_token_login": !s.HideTokenLogin})
+	writeJSON(w, 200, map[string]any{"tenant_mode": mode, "providers": providers, "allow_token_login": !s.HideTokenLogin, "demo_available": s.DemoMode})
 }
 
 func (s *Server) authStart(w http.ResponseWriter, r *http.Request) {
