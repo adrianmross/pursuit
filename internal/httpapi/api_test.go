@@ -419,7 +419,7 @@ func TestQueueLeaseApproveAndCaps(t *testing.T) {
 		t.Fatalf("prepare %d %#v", code, prepared)
 	}
 	application := prepared["application"].(map[string]any)
-	if application["status"] != domain.StatusNeedsInput || prepared["unknowns"].(float64) < 1 {
+	if application["outcome"] != domain.StatusNeedsInput || prepared["unknowns"].(float64) < 1 {
 		t.Fatalf("expected needs_input, got %#v", prepared)
 	}
 	code, _ = e.json(t, http.MethodPost, "/v1/standing", e.token, map[string]any{"key": "why_us", "answer": "I build platforms."})
@@ -689,11 +689,11 @@ func TestRejectDoesNotApproveOrSubmit(t *testing.T) {
 	}
 
 	code, raw, _ := e.do(t, http.MethodPost, "/v1/approvals/reject", e.token, []byte(`{"ids":["`+id+`"],"note":"hold off"}`), map[string]string{"Content-Type": "application/json"})
-	if code != 200 || !bytes.Contains(raw, []byte(`"status":"withdrawn"`)) || bytes.Contains(raw, []byte(`"status":"approved"`)) || bytes.Contains(raw, []byte(`"status":"submitting"`)) || bytes.Contains(raw, []byte(`"status":"submitted"`)) {
+	if code != 200 || !bytes.Contains(raw, []byte(`"outcome":"withdrawn"`)) || bytes.Contains(raw, []byte(`"status":"approved"`)) || bytes.Contains(raw, []byte(`"status":"submitting"`)) || bytes.Contains(raw, []byte(`"status":"submitted"`)) {
 		t.Fatalf("reject %d %s", code, raw)
 	}
 	code, got := e.json(t, http.MethodGet, "/v1/applications/"+id, e.token, nil)
-	if code != 200 || got["status"] != domain.StatusWithdrawn {
+	if code != 200 || got["outcome"] != domain.StatusWithdrawn || got["status"] != domain.StatusAwaitingReview {
 		t.Fatalf("stored %#v", got)
 	}
 	code, events := e.json(t, http.MethodGet, "/v1/applications/"+id+"/events", e.token, nil)

@@ -142,6 +142,11 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /v1/applications/{id}/tags", s.attachTag)
 	mux.HandleFunc("DELETE /v1/applications/{id}/tags/{tagID}", s.detachTag)
 	mux.HandleFunc("POST /v1/applications/{id}/fields/{fieldID}", s.setFieldValue)
+	mux.HandleFunc("GET /v1/applications/{id}/interviews", s.listInterviews)
+	mux.HandleFunc("POST /v1/applications/{id}/interviews", s.addInterview)
+	mux.HandleFunc("GET /v1/interviews/{id}", s.getInterview)
+	mux.HandleFunc("PATCH /v1/interviews/{id}", s.updateInterview)
+	mux.HandleFunc("DELETE /v1/interviews/{id}", s.deleteInterview)
 	mux.HandleFunc("POST /v1/applications/{id}/prepare", s.prepare)
 	mux.HandleFunc("POST /v1/applications/{id}/enqueue", s.enqueue)
 	mux.HandleFunc("GET /v1/applications/{id}/artifacts", s.listArtifacts)
@@ -1108,6 +1113,53 @@ func (s *Server) updateRole(w http.ResponseWriter, r *http.Request) {
 func (s *Server) deleteRole(w http.ResponseWriter, r *http.Request) {
 	s.deleteOne(w, r, func(ctx context.Context, id string, version int) (any, error) {
 		return s.Svc.DeleteRole(ctx, id, version)
+	})
+}
+
+func (s *Server) listInterviews(w http.ResponseWriter, r *http.Request) {
+	if _, err := query(r); err != nil {
+		writeErr(w, err)
+		return
+	}
+	rows, err := s.Svc.ListInterviews(r.Context(), r.PathValue("id"))
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	writeJSON(w, 200, map[string]any{"data": rows})
+}
+
+func (s *Server) addInterview(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	s.jsonMut(w, r, 201, domain.InterviewFields, func(ctx context.Context, body []byte) (any, error) {
+		var in service.InterviewInput
+		if err := decode(body, &in); err != nil {
+			return nil, err
+		}
+		return s.Svc.AddInterview(ctx, id, in)
+	})
+}
+
+func (s *Server) getInterview(w http.ResponseWriter, r *http.Request) {
+	s.getOne(w, r, domain.InterviewFields, func(ctx context.Context, id string) (any, error) {
+		return s.Svc.GetInterview(ctx, id)
+	})
+}
+
+func (s *Server) updateInterview(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	s.jsonMut(w, r, 200, domain.InterviewFields, func(ctx context.Context, body []byte) (any, error) {
+		var in service.InterviewPatch
+		if err := decode(body, &in); err != nil {
+			return nil, err
+		}
+		return s.Svc.UpdateInterview(ctx, id, in)
+	})
+}
+
+func (s *Server) deleteInterview(w http.ResponseWriter, r *http.Request) {
+	s.deleteOne(w, r, func(ctx context.Context, id string, version int) (any, error) {
+		return s.Svc.DeleteInterview(ctx, id, version)
 	})
 }
 

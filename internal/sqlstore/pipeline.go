@@ -390,10 +390,11 @@ func (s *Store) CountCap(ctx context.Context, userID, company, since, excludeID,
 	args := []any{userID, company, since, excludeID}
 	switch mode {
 	case "submitted":
-		q += ` AND a.status IN ('applied','submitted','submitting','screening','interviewing','offer')`
+		q += ` AND a.status IN ('applied','submitted','submitting','screening','interviewing','final','offer')`
 	default:
-		q += ` AND a.status NOT IN ('rejected','withdrawn','ghosted','failed','saved')`
+		q += ` AND a.status NOT IN ('saved')`
 	}
+	q += ` AND a.outcome NOT IN ('rejected','withdrawn','ghosted','failed')`
 	var n int
 	err := s.queryRow(ctx, q, args...).Scan(&n)
 	return n, err

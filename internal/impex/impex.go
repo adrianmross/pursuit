@@ -135,8 +135,8 @@ func FromApplication(a domain.Application) SimplifyRow {
 		Title:      a.Title,
 		Location:   a.Location,
 		JobType:    job,
-		Status:     domain.SimplifyStatus(a.Status),
-		Notes:      domain.SimplifyNotes(a.Fit, a.Salary, a.Status, a.AppliedDateValue(), a.NextStep, a.Notes),
+		Status:     domain.SimplifyStatus(a.EffectiveStatus()),
+		Notes:      domain.SimplifyNotes(a.Fit, a.Salary, a.EffectiveStatus(), a.AppliedDateValue(), a.NextStep, a.Notes),
 		PostingURL: a.PostingURL,
 	}
 }

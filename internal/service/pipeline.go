@@ -192,11 +192,11 @@ func (s *Service) Enqueue(ctx context.Context, applicationID, kind string) (Work
 			return err
 		}
 		if kind == workSubmit {
-			if app.Status != domain.StatusApproved && app.Status != domain.StatusSubmitting {
+			if app.EffectiveStatus() != domain.StatusApproved && app.EffectiveStatus() != domain.StatusSubmitting {
 				return domain.Conflict("submit work requires an approved application", "run pursuit approve <id> before queueing a submit")
 			}
-			if app.Status != domain.StatusSubmitting {
-				if err := s.guardTransition(ctx, a, app.ID, app.Company, app.Status, domain.StatusSubmitting); err != nil {
+			if app.EffectiveStatus() != domain.StatusSubmitting {
+				if err := s.guardTransition(ctx, a, app.ID, app.Company, app.EffectiveStatus(), domain.StatusSubmitting); err != nil {
 					return err
 				}
 			}
@@ -292,8 +292,8 @@ func (s *Service) CompleteWork(ctx context.Context, workID, worker, status, note
 		if err := s.DB.FinishWork(ctx, a.UserID, workID, worker, now); err != nil {
 			return err
 		}
-		if app.Status != st {
-			from := app.Status
+		if app.Shown() != st {
+			from := app.Shown()
 			app.Status = st
 			if st == domain.StatusSubmitted && app.AppliedDate == nil {
 				d := s.now().Format("2006-01-02")
@@ -339,8 +339,8 @@ func (s *Service) Approve(ctx context.Context, ids []string, note string) ([]dom
 			if err != nil {
 				return err
 			}
-			if app.Status != domain.StatusAwaitingReview {
-				return domain.Validation("application %s is %s", id, app.Status).WithHint("only awaiting_review applications can be approved")
+			if app.EffectiveStatus() != domain.StatusAwaitingReview {
+				return domain.Validation("application %s is %s", id, app.EffectiveStatus()).WithHint("only awaiting_review applications can be approved")
 			}
 			if err := s.guardTransition(ctx, a, app.ID, app.Company, app.Status, domain.StatusApproved); err != nil {
 				return err
@@ -402,8 +402,8 @@ func (s *Service) Reject(ctx context.Context, ids []string, note string) ([]doma
 			if err != nil {
 				return err
 			}
-			if app.Status != domain.StatusAwaitingReview {
-				return domain.Validation("application %s is %s", id, app.Status).WithHint("only awaiting_review applications can be rejected")
+			if app.EffectiveStatus() != domain.StatusAwaitingReview {
+				return domain.Validation("application %s is %s", id, app.EffectiveStatus()).WithHint("only awaiting_review applications can be rejected")
 			}
 			if err := s.guardTransition(ctx, a, app.ID, app.Company, app.Status, domain.StatusWithdrawn); err != nil {
 				return err
@@ -466,10 +466,10 @@ func (s *Service) Prepare(ctx context.Context, id, worker string) (PrepareResult
 		if err != nil {
 			return err
 		}
-		switch app.Status {
+		switch app.EffectiveStatus() {
 		case domain.StatusToApply, domain.StatusPreparing, domain.StatusNeedsInput, domain.StatusSaved, domain.StatusAwaitingReview:
 		default:
-			return domain.Validation("cannot prepare an application in status %s", app.Status).WithHint("prepare is for to_apply, preparing, needs_input, saved, or awaiting_review")
+			return domain.Validation("cannot prepare an application in status %s", app.EffectiveStatus()).WithHint("prepare is for to_apply, preparing, needs_input, saved, or awaiting_review")
 		}
 		if strings.TrimSpace(worker) != "" {
 			// A lease held by someone else blocks a second prepare.
@@ -700,7 +700,7 @@ func (s *Service) ApplyBatch(ctx context.Context, q domain.ListQuery, mode strin
 		result.IDs = append(result.IDs, app.ID)
 		if mode == "async" {
 			kind := workPrepare
-			if app.Status == domain.StatusApproved {
+			if app.EffectiveStatus() == domain.StatusApproved {
 				kind = workSubmit
 			}
 			if _, err := s.Enqueue(ctx, app.ID, kind); err != nil {
