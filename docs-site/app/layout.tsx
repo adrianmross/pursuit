@@ -11,7 +11,10 @@ export const metadata: Metadata = {
     template: "%s — Hire Pursuit docs",
   },
   // Same brand icon as the dashboard; served by the daemon at the root.
-  icons: { icon: "/favicon.svg" },
+  icons: {
+    icon: [{ url: "/favicon.ico", sizes: "48x48" }, { url: "/favicon.svg", type: "image/svg+xml" }],
+    apple: "/apple-touch-icon.png",
+  },
   description: "API and CLI reference for pursuit, a self-hosted job-application tracker.",
 }
 
