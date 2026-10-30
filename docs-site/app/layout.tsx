@@ -35,6 +35,33 @@ const navbar = (
   </Navbar>
 )
 
+// Same footer as the dashboard (web-app/components/SiteFooter.tsx); keep in step.
+const footer = (
+  <Footer className="hp-footer">
+    <span className="hp-footer-brand">
+      <img className="brand-logo-light" src="/docs/brand/hire-pursuit-mark.svg" alt="" />
+      <img className="brand-logo-dark" src="/docs/brand/hire-pursuit-mark-reverse.svg" alt="" />
+      Hire Pursuit
+    </span>
+    <p className="hp-footer-credit">
+      <span>
+        Built with
+        <svg aria-label="love" role="img" viewBox="0 0 24 24" className="hp-heart">
+          <path d="M2 9.5a5.5 5.5 0 0 1 9.591-3.676.56.56 0 0 0 .818 0A5.49 5.49 0 0 1 22 9.5c0 2.29-1.5 4-3 5.5l-5.492 5.313a2 2 0 0 1-3 .019L5 15c-1.5-1.5-3-3.2-3-5.5" />
+        </svg>
+        by Adrian Ross
+      </span>
+      <span aria-hidden className="hp-footer-dot">·</span>
+      <a href="https://github.com/adrianmross/pursuit/blob/main/LICENSE">MIT License © 2026</a>
+    </p>
+    <nav className="hp-footer-nav">
+      <a href="/docs/">Docs</a>
+      <a href="/reference">Reference</a>
+      <a href="https://github.com/adrianmross/pursuit">GitHub</a>
+    </nav>
+  </Footer>
+)
+
 const banner = (
   <Banner storageKey="pursuit-docs-pre">
     Pre-release — pursuit has no versioned releases yet. Everything here can change.
@@ -49,7 +76,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <Layout
           banner={banner}
           navbar={navbar}
-          footer={<Footer>MIT {new Date().getFullYear()} © Adrian Ross.</Footer>}
+          footer={footer}
           pageMap={pageMap}
           docsRepositoryBase="https://github.com/adrianmross/pursuit/tree/main/docs-site"
         >
