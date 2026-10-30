@@ -1,7 +1,7 @@
 import { useMemo, useState, type KeyboardEvent, type ReactNode } from "react"
 import { Database, History, Info, KeyRound, Palette, Rows3, Search, SlidersHorizontal, User } from "lucide-react"
 import { FILTERS, MORE, SORTS } from "@/lib/types"
-import { getDefaultSort, getDefaultStatus, getDensity, setDefaultSort, setDefaultStatus, setDensity, type Density } from "@/lib/settings"
+import { getDefaultSort, getDefaultStatus, ACCENTS, getPref, setPref, setDefaultSort, setDefaultStatus, type Accent, type Density, type TextSize } from "@/lib/settings"
 import { useTheme } from "@/lib/theme"
 import { api } from "@/lib/api"
 import { cn } from "@/lib/utils"
@@ -47,7 +47,7 @@ function ThemeCard({ value, current, onPick }: { value: Theme; current: Theme; o
       onClick={() => onPick(value)}
       aria-pressed={current === value}
       className={cn(
-        "flex flex-1 flex-col gap-1.5 rounded-lg border p-1.5 text-left text-xs capitalize outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        "flex w-28 shrink-0 flex-col gap-1.5 rounded-lg border p-1.5 text-left text-xs capitalize outline-none focus-visible:ring-2 focus-visible:ring-ring",
         current === value ? "border-primary ring-2 ring-primary/30" : "hover:bg-muted",
       )}
     >
@@ -80,23 +80,88 @@ function Row({ label, hint, children }: { label: string; hint?: string; children
   )
 }
 
+function Choice<T extends string>({
+  pref,
+  options,
+}: {
+  pref: Parameters<typeof getPref>[0]
+  options: [T, string][]
+}) {
+  const [value, setValue] = useState(getPref<T>(pref))
+  return (
+    <ToggleGroup
+      type="single"
+      variant="outline"
+      value={value}
+      onValueChange={(v) => {
+        if (!v) return
+        setValue(v as T)
+        setPref(pref, v)
+      }}
+    >
+      {options.map(([v, label]) => (
+        <ToggleGroupItem key={v} value={v} className="flex-1">
+          {label}
+        </ToggleGroupItem>
+      ))}
+    </ToggleGroup>
+  )
+}
+
+function AccentPicker() {
+  const [value, setValue] = useState(getPref<Accent>("accent"))
+  return (
+    <div className="flex flex-wrap gap-3">
+      {(Object.keys(ACCENTS) as Accent[]).map((a) => (
+        <button
+          key={a}
+          type="button"
+          aria-label={a}
+          aria-pressed={value === a}
+          title={a}
+          onClick={() => {
+            setValue(a)
+            setPref("accent", a)
+          }}
+          className={cn(
+            "size-8 rounded-full border outline-none focus-visible:ring-2 focus-visible:ring-ring",
+            value === a && "ring-2 ring-foreground ring-offset-2 ring-offset-background",
+          )}
+          style={{ background: `linear-gradient(135deg, ${ACCENTS[a][0]} 50%, ${ACCENTS[a][1]} 50%)` }}
+        />
+      ))}
+    </div>
+  )
+}
+
 function Appearance() {
   const { theme, setTheme } = useTheme()
   return (
-    <Row label="Theme" hint="System follows your operating system and switches automatically.">
-      <div className="flex gap-3">
-        {(["light", "dark", "system"] as const).map((t) => (
-          <ThemeCard key={t} value={t} current={theme} onPick={setTheme} />
-        ))}
-      </div>
-    </Row>
+    <div className="flex flex-col gap-6">
+      <Row label="Theme" hint="System follows your operating system and switches automatically.">
+        <div className="flex flex-wrap gap-3">
+          {(["light", "dark", "system"] as const).map((t) => (
+            <ThemeCard key={t} value={t} current={theme} onPick={setTheme} />
+          ))}
+        </div>
+      </Row>
+      <Row label="Accent color" hint="Buttons, focus rings and selected states. Each swatch shows its light and dark shade.">
+        <AccentPicker />
+      </Row>
+      <Row label="Text size" hint="Scales the whole interface.">
+        <Choice<TextSize> pref="textSize" options={[["small", "Small"], ["default", "Default"], ["large", "Large"]]} />
+      </Row>
+      <Row label="Motion" hint="Reduced turns off transitions and animations.">
+        <Choice pref="motion" options={[["full", "Full"], ["reduced", "Reduced"]]} />
+      </Row>
+    </div>
   )
 }
 
 function TableDefaults() {
   const [status, setStatus] = useState(getDefaultStatus())
   const [sort, setSort] = useState(getDefaultSort())
-  const [density, setDensityState] = useState(getDensity())
+  const [density, setDensityState] = useState(getPref<Density>("density"))
   return (
     <div className="flex flex-col gap-4">
       <Row label="Row density" hint="Compact fits more rows on screen.">
@@ -107,7 +172,7 @@ function TableDefaults() {
           onValueChange={(v) => {
             if (!v) return
             setDensityState(v as Density)
-            setDensity(v as Density)
+            setPref("density", v)
           }}
         >
           <ToggleGroupItem value="comfortable" className="flex-1">
@@ -117,6 +182,9 @@ function TableDefaults() {
             Compact
           </ToggleGroupItem>
         </ToggleGroup>
+      </Row>
+      <Row label="Striped rows" hint="Shade every other row to help scanning wide tables.">
+        <Choice pref="stripes" options={[["off", "Off"], ["on", "On"]]} />
       </Row>
       <Row label="Default status filter" hint="Applied when you open the pipeline with no filter in the URL.">
         <Select
@@ -193,7 +261,12 @@ type Section = { id: string; label: string; icon: ReactNode; render: () => React
 
 // `items` feed the settings search: each is a setting label plus synonyms.
 const SECTIONS: (Section & { items: [string, string][] })[] = [
-  { id: "appearance", label: "Appearance", icon: <Palette />, render: () => <Appearance />, items: [["Theme", "light dark system mode color"]] },
+  { id: "appearance", label: "Appearance", icon: <Palette />, render: () => <Appearance />, items: [
+      ["Theme", "light dark system mode color"],
+      ["Accent color", "primary highlight brand"],
+      ["Text size", "font zoom larger smaller"],
+      ["Motion", "animations reduce accessibility"],
+    ] },
   {
     id: "table",
     label: "Table",
@@ -203,6 +276,7 @@ const SECTIONS: (Section & { items: [string, string][] })[] = [
       ["Default status filter", "pipeline stage"],
       ["Default sort", "order newest"],
       ["Row density", "compact comfortable spacing rows"],
+      ["Striped rows", "zebra alternate shading"],
     ],
   },
   {

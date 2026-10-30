@@ -2,9 +2,9 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.tsx'
-import { applyDensity } from '@/lib/settings'
+import { applyAppearance } from '@/lib/settings'
 
-applyDensity()
+applyAppearance()
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
