@@ -115,7 +115,7 @@ export function HomePage() {
         <CardContent className="flex flex-col gap-3">
           <CommandBlock command="pursuit list --stale" />
           <Button variant="outline" size="sm" asChild className="self-start">
-            <a href="https://hire-pursuit.app/docs" target="_blank" rel="noopener noreferrer">
+            <a href="/docs" target="_blank" rel="noopener noreferrer">
               <BookOpen className="size-3.5" /> Read the docs
             </a>
           </Button>

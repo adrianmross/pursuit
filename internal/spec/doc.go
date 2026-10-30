@@ -132,7 +132,7 @@ func build() []byte {
 			"version":     "0.1.0",
 			"description": "Job-application tracker. Agents should prefer the pursuit CLI. Fetch this document when you need the HTTP shape; use `pursuit schema <command>` for one CLI command.",
 		},
-		"servers":  []any{map[string]any{"url": "http://127.0.0.1:8787"}},
+		"servers":  []any{map[string]any{"url": "/"}},
 		"security": []any{map[string]any{"bearerAuth": []any{}}},
 		"paths":    paths,
 		"components": map[string]any{
