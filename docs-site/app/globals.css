@@ -1,3 +1,59 @@
+@import "@fontsource-variable/outfit";
+@import "@fontsource-variable/inter";
+@import "@fontsource-variable/jetbrains-mono";
+
+/* Hire Pursuit tokens, trimmed from web/src/index.css (see docs/brand/README.md). */
+:root {
+  --nextra-primary-hue: 160deg;
+  --nextra-primary-saturation: 46%;
+  --nextra-bg: 246, 246, 244;
+  --brand-forest: #173a2e;
+  --brand-gold: #e8c547;
+  --line: #dcdcd6;
+  --ink-muted: #5d615e;
+}
+html.dark {
+  --nextra-primary-hue: 45deg;
+  --nextra-primary-saturation: 77%;
+  --nextra-bg: 14, 15, 15;
+  --brand-forest: #1f4d3d;
+  --line: #2e312f;
+  --ink-muted: #a3a7a4;
+}
+
+body {
+  font-family: "Inter Variable", system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+h1, h2, h3, h4 {
+  font-family: "Outfit Variable", "Avenir Next", system-ui, sans-serif;
+  letter-spacing: -0.01em;
+}
+code, pre, kbd {
+  font-family: "JetBrains Mono Variable", ui-monospace, Menlo, monospace;
+}
+
+/* Cards, code and tables follow the dashboard: hairline border, no shadow. */
+pre {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: none;
+}
+table {
+  border-radius: 10px;
+}
+
+.brand-logo { display: block; height: 22px; width: auto; }
+.brand-logo-dark { display: none; }
+html.dark .brand-logo-light { display: none; }
+html.dark .brand-logo-dark { display: block; }
+
+.hero-tagline {
+  font-family: "Outfit Variable", system-ui, sans-serif;
+  font-size: 1.25rem;
+  color: var(--ink-muted);
+  margin-top: -0.5rem;
+}
+
 .api-reference-frame {
   height: calc(100dvh - var(--nextra-navbar-height, 4rem) - var(--nextra-banner-height, 0px));
 }

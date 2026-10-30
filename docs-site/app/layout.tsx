@@ -19,7 +19,13 @@ export const metadata: Metadata = {
 }
 
 const navbar = (
-  <Navbar logo={<b>Hire Pursuit docs</b>} projectLink="https://github.com/adrianmross/pursuit">
+  <Navbar logo={
+      <>
+        <img className="brand-logo brand-logo-light" src="/docs/brand/hire-pursuit-wordmark.svg" alt="Hire Pursuit" />
+        <img className="brand-logo brand-logo-dark" src="/docs/brand/hire-pursuit-wordmark-reverse.svg" alt="Hire Pursuit" />
+        <span style={{ marginLeft: 10, opacity: 0.6, fontSize: 13 }}>docs</span>
+      </>
+    } projectLink="https://github.com/adrianmross/pursuit">
     <a href="/reference" className="x:text-sm x:font-medium">
       API reference
     </a>
