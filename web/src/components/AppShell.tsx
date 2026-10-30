@@ -2,6 +2,8 @@ import { useEffect, useState } from "react"
 import { NavLink, Outlet, useLocation, useNavigate, useSearchParams } from "react-router-dom"
 import { Archive, LogOut, MoreVertical, Search, Settings, User } from "lucide-react"
 import { useAuth } from "@/lib/auth"
+import { isMac, useShortcuts } from "@/lib/keybindings"
+import { Kbd } from "@/components/ui/kbd"
 import { CommandPalette } from "@/components/CommandPalette"
 import { SettingsDialog } from "@/components/SettingsDialog"
 import { Button } from "@/components/ui/button"
@@ -41,6 +43,7 @@ function GlobalSearch() {
     <div className="relative mx-auto w-full max-w-2xl">
       <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
       <Input
+        data-search="global"
         placeholder="Search — try status:applied, tag:remote, applied:>2026-01-01"
         className="h-10 pl-9 text-base"
         value={value}
@@ -62,6 +65,23 @@ export function AppShell() {
     setSettingsKey((k) => k + 1)
     setSettingsOpen(true)
   }
+  const focus = (...names: string[]) => {
+    const el = names.map((n) => document.querySelector<HTMLInputElement>(`[data-search="${n}"]`)).find(Boolean)
+    el?.focus()
+    el?.select()
+    return el ? undefined : (false as const)
+  }
+  useShortcuts({
+    settings: () => openSettings(),
+    keys: () => openSettings("keys"),
+    // Search whatever is in front: the open settings dialog, else the app.
+    search: () => (document.querySelector("[data-settings-dialog]") ? focus("audit", "settings") : focus("global")),
+    find: () => focus("audit"),
+    home: () => void navigate("/"),
+    pipeline: () => void navigate("/pipeline"),
+    archived: () => void navigate("/?archived=1"),
+    new: () => void navigate("/app/new"),
+  })
   const identity = me?.token.name || "token"
   const scopes = (me?.token.scopes || []).join(", ")
 
@@ -75,7 +95,7 @@ export function AppShell() {
         <GlobalSearch />
         <div className="flex items-center justify-end gap-2">
           <CommandPalette onOpenSettings={openSettings} />
-          <kbd className="hidden rounded border bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground sm:inline">⌘K</kbd>
+          <Kbd className="hidden sm:inline-flex">{isMac ? "⌘" : "Ctrl"} K</Kbd>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="icon" aria-label="Account">

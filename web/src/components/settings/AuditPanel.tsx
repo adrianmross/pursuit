@@ -29,6 +29,7 @@ export function AuditPanel() {
   return (
     <div className="flex flex-col gap-4">
       <Input
+        data-search="audit"
         aria-label="Search audit log"
         placeholder="Search actor, action, entity, or summary"
         value={filter}

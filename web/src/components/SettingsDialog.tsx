@@ -1,11 +1,13 @@
 import { useMemo, useState, type KeyboardEvent, type ReactNode } from "react"
-import { Database, History, Info, KeyRound, Palette, Rows3, Search, SlidersHorizontal, User } from "lucide-react"
+import { Database, History, Info, Keyboard, KeyRound, Palette, Rows3, Search, SlidersHorizontal, User } from "lucide-react"
 import { FILTERS, MORE, SORTS } from "@/lib/types"
 import { getDefaultSort, getDefaultStatus, ACCENTS, getPref, setPref, setDefaultSort, setDefaultStatus, type Accent, type Density, type TextSize } from "@/lib/settings"
+import { useShortcuts } from "@/lib/keybindings"
 import { useTheme } from "@/lib/theme"
 import { api } from "@/lib/api"
 import { cn } from "@/lib/utils"
 import { CustomFieldsManager } from "@/components/CustomFieldsManager"
+import { KeyboardPanel } from "@/components/settings/KeyboardPanel"
 import { AuditPanel } from "@/components/settings/AuditPanel"
 import { AboutPanel } from "@/components/settings/AboutPanel"
 import { AccountPanel } from "@/components/settings/AccountPanel"
@@ -310,6 +312,13 @@ const SECTIONS: (Section & { items: [string, string][] })[] = [
     ],
   },
   {
+    id: "keys",
+    label: "Keyboard",
+    icon: <Keyboard />,
+    render: () => <KeyboardPanel />,
+    items: [["Keyboard shortcuts", "keybindings keys hotkeys vim enable disable"]],
+  },
+  {
     id: "audit",
     label: "Audit log",
     icon: <History />,
@@ -375,6 +384,11 @@ export function SettingsDialog({
   }
 
   const current = SECTIONS.find((s) => s.id === active) || SECTIONS[0]
+  const step = (d: number) => {
+    setQuery("")
+    setActive(SECTIONS[(SECTIONS.indexOf(current) + d + SECTIONS.length) % SECTIONS.length].id)
+  }
+  useShortcuts({ prevSection: () => step(-1), nextSection: () => step(1) })
 
   return (
     <Dialog
@@ -384,7 +398,7 @@ export function SettingsDialog({
         onOpenChange(next)
       }}
     >
-      <DialogContent className="h-[90svh] w-[95vw] gap-0 overflow-hidden p-0 sm:max-w-6xl" showCloseButton>
+      <DialogContent data-settings-dialog className="h-[90svh] w-[95vw] gap-0 overflow-hidden p-0 sm:max-w-6xl" showCloseButton>
         <DialogTitle className="sr-only">Settings</DialogTitle>
         <DialogDescription className="sr-only">Appearance, table defaults, API tokens, account, and about.</DialogDescription>
         <div className="grid h-full min-h-0 grid-cols-1 sm:grid-cols-[14rem_1fr]">
@@ -392,6 +406,7 @@ export function SettingsDialog({
             <div className="relative">
               <Search className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
               <Input
+                data-search="settings"
                 aria-label="Search settings"
                 placeholder="Search settings"
                 className="h-8 pl-8"
