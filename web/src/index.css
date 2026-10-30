@@ -149,3 +149,31 @@
     @apply font-display;
     }
 }
+
+/* Settings → Table → Density */
+[data-density="compact"] [data-slot="table-cell"] {
+  padding-block: 0.125rem;
+}
+[data-density="compact"] [data-slot="table-head"] {
+  height: 2rem;
+}
+
+/* Settings → Appearance */
+[data-accent="forest"] { --primary: #173A2E; --ring: #173A2E; --primary-foreground: #FFFFFF; }
+.dark[data-accent="forest"] { --primary: #7CCBA8; --ring: #7CCBA8; --primary-foreground: #0E0F0F; }
+[data-accent="blue"] { --primary: #2563EB; --ring: #2563EB; --primary-foreground: #FFFFFF; }
+.dark[data-accent="blue"] { --primary: #60A5FA; --ring: #60A5FA; --primary-foreground: #0E0F0F; }
+[data-accent="violet"] { --primary: #7C3AED; --ring: #7C3AED; --primary-foreground: #FFFFFF; }
+.dark[data-accent="violet"] { --primary: #A78BFA; --ring: #A78BFA; --primary-foreground: #0E0F0F; }
+[data-accent="rose"] { --primary: #E11D48; --ring: #E11D48; --primary-foreground: #FFFFFF; }
+.dark[data-accent="rose"] { --primary: #FB7185; --ring: #FB7185; --primary-foreground: #0E0F0F; }
+[data-accent="amber"] { --primary: #B45309; --ring: #B45309; --primary-foreground: #FFFFFF; }
+.dark[data-accent="amber"] { --primary: #F5B84A; --ring: #F5B84A; --primary-foreground: #0E0F0F; }
+[data-motion="reduced"] *, [data-motion="reduced"] *::before, [data-motion="reduced"] *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+}
+[data-stripes="on"] [data-slot="table-body"] [data-slot="table-row"]:nth-child(even) {
+  background-color: color-mix(in oklab, var(--muted) 45%, transparent);
+}
