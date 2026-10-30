@@ -1,7 +1,7 @@
 "use client"
 
 import { useMemo, useState, type KeyboardEvent, type ReactNode } from "react"
-import { Database, History, Info, Keyboard, KeyRound, Palette, Rows3, Search, SlidersHorizontal, User } from "lucide-react"
+import { Database, History, IdCard, Info, Keyboard, KeyRound, Palette, Rows3, Search, SlidersHorizontal, User } from "lucide-react"
 import { FILTERS, MORE, SORTS } from "@/lib/types"
 import { getDefaultSort, getDefaultStatus, ACCENTS, getPref, setPref, setDefaultSort, setDefaultStatus, type Accent, type Density, type TextSize } from "@/lib/settings"
 import { useShortcuts } from "@/lib/keybindings"
@@ -13,6 +13,7 @@ import { KeyboardPanel } from "@/components/settings/KeyboardPanel"
 import { AuditPanel } from "@/components/settings/AuditPanel"
 import { AboutPanel } from "@/components/settings/AboutPanel"
 import { AccountPanel } from "@/components/settings/AccountPanel"
+import { ProfilePanel } from "@/components/settings/ProfilePanel"
 import { TokensPanel } from "@/components/settings/TokensPanel"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog"
@@ -309,8 +310,18 @@ const SECTIONS: (Section & { items: [string, string][] })[] = [
       ["Password", "change security"],
       ["Email", "change address"],
       ["Sign out other sessions", "revoke devices security"],
-      ["Display name", "profile email"],
+      ["Display name", "profile email avatar photo picture"],
       ["Sign out", "logout session"],
+    ],
+  },
+  {
+    id: "profile",
+    label: "Profile",
+    icon: <IdCard />,
+    render: () => <ProfilePanel />,
+    items: [
+      ["Résumé", "resume cv upload documents base cover letter linkedin export"],
+      ["Standing answers", "questionnaire questions form fill email phone linkedin github work authorization sponsorship"],
     ],
   },
   {

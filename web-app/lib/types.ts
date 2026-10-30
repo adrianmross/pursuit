@@ -53,8 +53,13 @@ export type Page<T> = {
 }
 
 export type Me = {
+  user?: { id?: string; name?: string; email?: string; avatar?: string }
   token: { name?: string; scopes?: string[] }
 }
+
+export type StandingAnswer = { key: string; answer: string; updated_at?: string }
+
+export type Document = { id: string; kind: string; filename?: string; content_type?: string; created_at?: string }
 
 export type Question = {
   prompt?: string

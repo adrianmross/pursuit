@@ -18,6 +18,8 @@ type AuthState = {
   // the deployment doesn't have demo mode on (see isDemoAvailable below).
   startDemo: () => Promise<void>
   signOut: () => Promise<void>
+  // Re-reads /v1/me after the profile (name, avatar) changes.
+  refresh: () => Promise<void>
   can: (scope: string) => boolean
   // True once signed into a demo sandbox (POST /v1/demo names its token
   // "demo" — see Service.CreateDemoSession). Settings uses this to label
@@ -142,9 +144,10 @@ export function AuthProvider({ initialMe, children }: { initialMe: Me | null; ch
   )
 
   const isDemo = me?.token.name === "demo"
+  const refresh = useCallback(async () => setMe(await api<Me>("/v1/me")), [])
 
   return (
-    <AuthContext.Provider value={{ me, loading, error, signIn, startDemo, signOut, can, isDemo }}>
+    <AuthContext.Provider value={{ me, loading, error, signIn, startDemo, signOut, refresh, can, isDemo }}>
       {children}
     </AuthContext.Provider>
   )

@@ -1,8 +1,10 @@
 "use client"
 
-import { useEffect, useState, type FormEvent } from "react"
+import { useState, type FormEvent } from "react"
 import { useAuth } from "@/lib/auth"
 import { authClient } from "@/lib/betterauth"
+import { api } from "@/lib/api-client"
+import { UserAvatar, avatarDataURL, displayName } from "@/components/UserAvatar"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -12,35 +14,56 @@ function Msg({ ok, text }: { ok: boolean; text: string }) {
 }
 
 function ProfileForm() {
-  const [email, setEmail] = useState("")
-  const [name, setName] = useState("")
+  const { me, refresh } = useAuth()
+  const [name, setName] = useState(me?.user?.name || "")
   const [msg, setMsg] = useState({ ok: true, text: "" })
 
-  useEffect(() => {
-    void authClient?.getSession().then(({ data }) => {
-      setEmail(data?.user.email || "")
-      setName(data?.user.name || "")
-    })
-  }, [])
+  async function patch(body: { name?: string; avatar?: string }) {
+    try {
+      await api("/v1/me", { method: "PATCH", body })
+      await refresh()
+      setMsg({ ok: true, text: "Saved." })
+    } catch (err) {
+      setMsg({ ok: false, text: err instanceof Error ? err.message : "Could not save" })
+    }
+  }
 
-  async function save(event: FormEvent) {
-    event.preventDefault()
-    const { error } = await authClient!.updateUser({ name })
-    setMsg(error ? { ok: false, text: error.message || "Could not save" } : { ok: true, text: "Saved." })
+  async function pick(file?: File) {
+    if (file) await patch({ avatar: await avatarDataURL(file) })
   }
 
   return (
-    <form onSubmit={save} className="flex flex-col gap-3">
+    <form
+      onSubmit={(event: FormEvent) => {
+        event.preventDefault()
+        void patch({ name })
+      }}
+      className="flex flex-col gap-3"
+    >
+      <div className="flex items-center gap-3">
+        <UserAvatar me={me} size="lg" />
+        <Button type="button" variant="outline" size="sm" asChild>
+          <label>
+            Upload photo
+            <input type="file" accept="image/*" className="sr-only" onChange={(e) => void pick(e.target.files?.[0])} />
+          </label>
+        </Button>
+        {me?.user?.avatar && (
+          <Button type="button" variant="ghost" size="sm" onClick={() => void patch({ avatar: "" })}>
+            Remove
+          </Button>
+        )}
+      </div>
       <div className="flex flex-col gap-2">
         <Label>Email</Label>
-        <Input value={email} disabled />
+        <Input value={me?.user?.email || ""} disabled />
       </div>
       <div className="flex flex-col gap-2">
         <Label htmlFor="acct-name">Display name</Label>
         <Input id="acct-name" value={name} onChange={(e) => setName(e.target.value)} />
       </div>
       <Msg {...msg} />
-      <Button type="submit" className="self-start">
+      <Button type="submit" disabled={!name.trim()} className="self-start">
         Save
       </Button>
     </form>
@@ -128,22 +151,22 @@ export function AccountPanel() {
   const { me, signOut } = useAuth()
   return (
     <div className="flex flex-col gap-6">
+      <ProfileForm />
       {authClient ? (
         <>
-          <ProfileForm />
           <EmailForm />
           <PasswordForm />
         </>
       ) : (
         <p className="text-sm text-muted-foreground">
-          This server signs in with an API token, so there is no email or password to manage. Revoke or rotate tokens
-          under API tokens.
+          This server signs in with an API token or the platform in front of it, so there is no email or password to
+          manage here. Revoke or rotate tokens under API tokens.
         </p>
       )}
       <div className="flex flex-col gap-2 border-t pt-4">
         <h3 className="text-sm font-medium">Session</h3>
         <p className="text-sm text-muted-foreground">
-          Signed in as {me?.token.name || "token"}
+          Signed in as {displayName(me)} via {me?.token.name || "token"}
           {me?.token.scopes?.length ? ` (${me.token.scopes.join(", ")})` : ""}.
         </p>
         {authClient && <OtherSessions />}
