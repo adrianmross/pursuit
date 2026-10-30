@@ -995,6 +995,67 @@ func (s *Server) page(w http.ResponseWriter, r *http.Request, allow []string, fi
 	writeProjected(w, 200, obj, fields)
 }
 
+// pageSlice pages a list the service returns whole. Without limit it returns
+// every row, as these lists did before; with limit it pages by offset.
+// ponytail: offset cursor over an in-memory slice, fine for per-application lists; move to SQL keyset paging if one grows large.
+func pageSlice[T any](w http.ResponseWriter, r *http.Request, fieldAllow []string, load func(context.Context) ([]T, error)) {
+	q, err := query(r, "limit", "cursor", "fields")
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	lq, err := listQuery(q)
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	if lq.Limit < 0 || lq.Limit > 200 {
+		writeErr(w, domain.Validation("invalid limit").WithHint("limit is an integer from 1 to 200"))
+		return
+	}
+	fields := fieldsOf(q)
+	if len(fields) > 0 && fieldAllow == nil {
+		writeErr(w, domain.Validation("fields are not supported on this response"))
+		return
+	}
+	if err := domain.ValidateFields(fields, fieldAllow); err != nil {
+		writeErr(w, err)
+		return
+	}
+	offset := 0
+	if lq.Cursor != nil {
+		if err := domain.CheckCursorSort(*lq.Cursor, "offset"); err != nil {
+			writeErr(w, err)
+			return
+		}
+		offset, err = strconv.Atoi(lq.Cursor.ID)
+		if err != nil || offset < 0 {
+			writeErr(w, domain.Validation("invalid cursor").WithHint("pass next_cursor from the previous page unchanged"))
+			return
+		}
+	}
+	rows, err := load(r.Context())
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	total := len(rows)
+	rows = rows[min(offset, total):]
+	limit := lq.Limit
+	if limit == 0 {
+		limit = len(rows)
+	}
+	out := domain.Page[T]{Data: rows[:min(limit, len(rows))], Page: domain.PageMeta{Limit: limit, Total: total}}
+	if out.Data == nil {
+		out.Data = []T{}
+	}
+	if next := offset + len(out.Data); next < total {
+		out.Page.HasMore = true
+		out.Page.NextCursor = domain.EncodeCursor("offset", "", strconv.Itoa(next))
+	}
+	writeProjected(w, 200, out, fields)
+}
+
 func (s *Server) listCompanies(w http.ResponseWriter, r *http.Request) {
 	s.page(w, r, []string{"limit", "cursor", "sort", "q", "fields"}, domain.CompanyFields, func(ctx context.Context, q domain.ListQuery) (any, error) {
 		return s.Svc.ListCompanies(ctx, q)
@@ -1139,16 +1200,9 @@ func (s *Server) deleteRole(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) listInterviews(w http.ResponseWriter, r *http.Request) {
-	if _, err := query(r); err != nil {
-		writeErr(w, err)
-		return
-	}
-	rows, err := s.Svc.ListInterviews(r.Context(), r.PathValue("id"))
-	if err != nil {
-		writeErr(w, err)
-		return
-	}
-	writeJSON(w, 200, map[string]any{"data": rows})
+	pageSlice(w, r, domain.InterviewFields, func(ctx context.Context) ([]domain.Interview, error) {
+		return s.Svc.ListInterviews(ctx, r.PathValue("id"))
+	})
 }
 
 func (s *Server) addInterview(w http.ResponseWriter, r *http.Request) {
@@ -1733,16 +1787,9 @@ func (s *Server) complete(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) listArtifacts(w http.ResponseWriter, r *http.Request) {
-	if _, err := query(r); err != nil {
-		writeErr(w, err)
-		return
-	}
-	rows, err := s.Svc.ListArtifacts(r.Context(), r.PathValue("id"))
-	if err != nil {
-		writeErr(w, err)
-		return
-	}
-	writeJSON(w, 200, map[string]any{"data": rows})
+	pageSlice(w, r, nil, func(ctx context.Context) ([]service.ArtifactView, error) {
+		return s.Svc.ListArtifacts(ctx, r.PathValue("id"))
+	})
 }
 
 func (s *Server) addArtifact(w http.ResponseWriter, r *http.Request) {
@@ -1812,32 +1859,13 @@ func (s *Server) getArtifact(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) listQuestions(w http.ResponseWriter, r *http.Request) {
-	if _, err := query(r); err != nil {
-		writeErr(w, err)
-		return
-	}
-	rows, err := s.Svc.ListQuestions(r.Context(), r.PathValue("id"))
-	if err != nil {
-		writeErr(w, err)
-		return
-	}
-	if rows == nil {
-		rows = []service.QuestionView{}
-	}
-	writeJSON(w, 200, map[string]any{"data": rows})
+	pageSlice(w, r, nil, func(ctx context.Context) ([]service.QuestionView, error) {
+		return s.Svc.ListQuestions(ctx, r.PathValue("id"))
+	})
 }
 
 func (s *Server) listStanding(w http.ResponseWriter, r *http.Request) {
-	if _, err := query(r); err != nil {
-		writeErr(w, err)
-		return
-	}
-	rows, err := s.Svc.ListStanding(r.Context())
-	if err != nil {
-		writeErr(w, err)
-		return
-	}
-	writeJSON(w, 200, map[string]any{"data": rows})
+	pageSlice(w, r, nil, s.Svc.ListStanding)
 }
 
 func (s *Server) setStanding(w http.ResponseWriter, r *http.Request) {
@@ -1910,16 +1938,7 @@ func (s *Server) checkAll(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) listHooks(w http.ResponseWriter, r *http.Request) {
-	if _, err := query(r); err != nil {
-		writeErr(w, err)
-		return
-	}
-	rows, err := s.Svc.ListWebhooks(r.Context())
-	if err != nil {
-		writeErr(w, err)
-		return
-	}
-	writeJSON(w, 200, map[string]any{"data": rows})
+	pageSlice(w, r, nil, s.Svc.ListWebhooks)
 }
 
 func (s *Server) createHook(w http.ResponseWriter, r *http.Request) {
