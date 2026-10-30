@@ -39,10 +39,12 @@ export type TextSize = "small" | "default" | "large"
 
 const SIZES: Record<TextSize, string> = { small: "14px", default: "16px", large: "18px" }
 
-const DEFAULTS = { density: "comfortable", accent: "neutral", textSize: "default", motion: "full", stripes: "off" }
+const DEFAULTS = { density: "comfortable", accent: "neutral", textSize: "default", motion: "full", stripes: "off", searchSyntax: "on" }
 type Pref = keyof typeof DEFAULTS
 
 function read(key: Pref) {
+  // Server rendering has no localStorage: fall back to the default.
+  if (typeof localStorage === "undefined") return DEFAULTS[key]
   return localStorage.getItem(PREFIX + key) || DEFAULTS[key]
 }
 

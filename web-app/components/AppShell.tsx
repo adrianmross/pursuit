@@ -1,17 +1,17 @@
 "use client"
 
-import { Suspense, useEffect, useState } from "react"
+import { Suspense, useState, useSyncExternalStore } from "react"
 import Link from "next/link"
-import { usePathname, useRouter, useSearchParams } from "next/navigation"
-import { Archive, LogOut, MoreVertical, Search, Settings, User } from "lucide-react"
+import { useRouter } from "next/navigation"
+import { Archive, LogOut, MoreVertical, Search, Settings, User, X } from "lucide-react"
 import { useAuth } from "@/lib/auth"
 import { isMac, useShortcuts } from "@/lib/keybindings"
 import { Kbd } from "@/components/ui/kbd"
 import { CommandPalette } from "@/components/CommandPalette"
 import { SettingsDialog } from "@/components/SettingsDialog"
+import { SearchBox } from "@/components/SearchBox"
 import { SiteFooter } from "@/components/SiteFooter"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -21,43 +21,15 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 
-function GlobalSearch() {
-  const pathname = usePathname()
-  const router = useRouter()
-  const params = useSearchParams()
-  const onPipeline = pathname === "/applications"
-  const [value, setValue] = useState(onPipeline ? params.get("q") || "" : "")
-
-  useEffect(() => {
-    // Syncs the box with the URL's ?q= when the external router state
-    // changes (e.g. clearing filters elsewhere), not on every render.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    if (onPipeline) setValue(params.get("q") || "")
-  }, [onPipeline, params])
-
-  function onChange(next: string) {
-    setValue(next)
-    window.clearTimeout((window as unknown as { __search?: number }).__search)
-    ;(window as unknown as { __search?: number }).__search = window.setTimeout(() => {
-      const merged = new URLSearchParams(onPipeline ? params.toString() : undefined)
-      if (next) merged.set("q", next)
-      else merged.delete("q")
-      router.push(`/applications?${merged.toString()}`)
-    }, 200)
-  }
-
-  return (
-    <div className="relative mx-auto w-full max-w-2xl">
-      <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-      <Input
-        data-search="global"
-        placeholder="Search — try status:applied, tag:remote, applied:>2026-01-01"
-        className="h-10 pl-9 text-base"
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        onKeyDown={(event) => event.key === "Escape" && event.currentTarget.blur()}
-      />
-    </div>
+function useMedia(query: string) {
+  return useSyncExternalStore(
+    (cb) => {
+      const mq = window.matchMedia(query)
+      mq.addEventListener("change", cb)
+      return () => mq.removeEventListener("change", cb)
+    },
+    () => window.matchMedia(query).matches,
+    () => false,
   )
 }
 
@@ -73,7 +45,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     setSettingsKey((k) => k + 1)
     setSettingsOpen(true)
   }
+  const narrow = useMedia("(max-width: 639px)")
+  const medium = useMedia("(max-width: 719px)")
+  const [searching, setSearching] = useState(false)
   const focus = (...names: string[]) => {
+    // On a phone the global search is an icon until tapped.
+    if (names[0] === "global" && narrow && !document.querySelector('[data-search="global"]')) {
+      setSearching(true)
+      return
+    }
     const el = names.map((n) => document.querySelector<HTMLInputElement>(`[data-search="${n}"]`)).find(Boolean)
     el?.focus()
     el?.select()
@@ -83,8 +63,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     settings: () => openSettings(),
     keys: () => openSettings("keys"),
     // Search whatever is in front: the open settings dialog, else the app.
-    search: () => (document.querySelector("[data-settings-dialog]") ? focus("audit", "settings") : focus("global")),
+    search: () => (document.querySelector("[data-settings-dialog]") ? focus("settings") : focus("global")),
     find: () => focus("audit"),
+    // Only on an application page; anywhere else Esc is left alone.
+    back: () => (window.location.pathname.startsWith("/app/") ? router.push("/applications") : false),
     home: () => router.push("/start"),
     pipeline: () => router.push("/applications"),
     archived: () => router.push("/applications?archived=1"),
@@ -95,17 +77,37 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex min-h-svh flex-col">
-      <header className="grid grid-cols-[1fr_auto_1fr] items-center gap-4 border-b px-4 py-2.5">
-        <Link href="/start" aria-label="Hire Pursuit">
-          {/* eslint-disable-next-line @next/next/no-img-element -- drawn SVG wordmark, not a photo next/image needs to optimize */}
-          <img src="/brand/hire-pursuit-wordmark.svg" alt="" className="h-5 w-auto dark:hidden" />
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/brand/hire-pursuit-wordmark-reverse.svg" alt="" className="hidden h-5 w-auto dark:block" />
-        </Link>
-        <Suspense fallback={<div className="mx-auto w-full max-w-2xl" />}>
-          <GlobalSearch />
-        </Suspense>
-        <div className="flex items-center justify-end gap-2">
+      <header className="flex items-center gap-3 border-b px-4 py-2.5">
+        {narrow && searching ? (
+          <>
+            <Suspense fallback={<div className="w-full" />}>
+              <SearchBox placeholder="Search applications" onBlurEmpty={() => setSearching(false)} />
+            </Suspense>
+            <Button variant="ghost" size="icon" aria-label="Close search" onClick={() => setSearching(false)}>
+              <X />
+            </Button>
+          </>
+        ) : (
+          <>
+            <Link href="/start" aria-label="Hire Pursuit" className="shrink-0">
+              {/* eslint-disable-next-line @next/next/no-img-element -- drawn SVG wordmark, not a photo next/image needs to optimize */}
+              <img src="/brand/hire-pursuit-wordmark.svg" alt="" className="h-5 w-auto dark:hidden" />
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/brand/hire-pursuit-wordmark-reverse.svg" alt="" className="hidden h-5 w-auto dark:block" />
+            </Link>
+            {narrow ? (
+              <Button variant="ghost" size="icon" className="ml-auto" aria-label="Search applications" onClick={() => setSearching(true)}>
+                <Search />
+              </Button>
+            ) : (
+              // Takes whatever room the logo and actions leave, up to a third of the screen (never under 22rem).
+              <div className="mx-auto min-w-0 max-w-[max(22rem,33vw)] flex-1">
+                <Suspense fallback={<div className="h-10 w-full" />}>
+                  <SearchBox placeholder={medium ? "Search" : "Search applications"} />
+                </Suspense>
+              </div>
+            )}
+        <div className="flex shrink-0 items-center justify-end gap-2">
           <CommandPalette onOpenSettings={openSettings} />
           <Kbd className="hidden sm:inline-flex">{isMac ? "⌘" : "Ctrl"} K</Kbd>
           <DropdownMenu>
@@ -136,6 +138,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
+          </>
+        )}
       </header>
       <main className="flex-1 p-4">{children}</main>
       <SiteFooter />

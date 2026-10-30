@@ -22,3 +22,13 @@ pursuit list --stale --fields id,company,title,link_status
 Standing answers (`pursuit standing set`) fill form questions. Unknown required questions become `needs_input`. Company caps return a conflict when exceeded.
 
 `GET /v1/profile` is those standing answers as one map. `POST /v1/applications/capture` saves a posting the user is viewing as `to_apply` and dedupes on the URL. The browser extension calls those. It is not a dashboard.
+
+Debugging with the audit log. Every successful change records who did what and when, with details in `metadata`.
+
+```bash
+pursuit audit list --entity-id APP_ID --sort created_at   # one application's history, oldest first
+pursuit audit list --q needs_input --since 2026-10-30      # text in summary, action, entity, actor, or metadata
+pursuit audit list --actor agent-1 --until 2026-10-30T12:00:00Z
+```
+
+A rejected request leaves no entry, so a missing step is the clue: compare the trace with what should have happened, then check the server log by `request_id`. The dashboard's Settings, Audit log page has "Copy for an agent", which copies the same entries as JSON with the command that reproduces them.

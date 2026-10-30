@@ -33,7 +33,7 @@ export function ConfirmDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button variant={danger ? "destructive" : "default"} onClick={onConfirm} disabled={busy}>
+          <Button autoFocus variant={danger ? "destructive" : "default"} onClick={onConfirm} disabled={busy}>
             {confirmLabel}
           </Button>
         </DialogFooter>

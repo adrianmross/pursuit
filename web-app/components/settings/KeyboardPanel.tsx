@@ -7,15 +7,20 @@ import { Switch } from "@/components/ui/switch"
 
 export function Keys({ combo }: { combo: string }) {
   return (
-    <span className="flex items-center gap-1.5">
-      {combo.split(" ").map((step, i) => (
-        <Fragment key={i}>
-          {i > 0 && <span className="text-xs text-muted-foreground">then</span>}
-          <KbdGroup>
-            {keyLabels(step).map((k) => (
-              <Kbd key={k}>{k}</Kbd>
-            ))}
-          </KbdGroup>
+    <span className="flex flex-wrap items-center justify-end gap-1.5">
+      {combo.split("|").map((alt, n) => (
+        <Fragment key={n}>
+          {n > 0 && <span className="text-xs text-muted-foreground">or</span>}
+          {alt.split(" ").map((step, i) => (
+            <Fragment key={i}>
+              {i > 0 && <span className="text-xs text-muted-foreground">then</span>}
+              <KbdGroup>
+                {keyLabels(step).map((k) => (
+                  <Kbd key={k}>{k}</Kbd>
+                ))}
+              </KbdGroup>
+            </Fragment>
+          ))}
         </Fragment>
       ))}
     </span>

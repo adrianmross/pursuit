@@ -1,7 +1,7 @@
 "use client"
 
 import { useMemo, useState, type KeyboardEvent, type ReactNode } from "react"
-import { Database, History, Info, Keyboard, KeyRound, Palette, Rows3, Search, SlidersHorizontal, User } from "lucide-react"
+import { Database, History, Info, Keyboard, KeyRound, ScanSearch, Palette, Rows3, Search, SlidersHorizontal, User } from "lucide-react"
 import { FILTERS, MORE, SORTS } from "@/lib/types"
 import { getDefaultSort, getDefaultStatus, ACCENTS, getPref, setPref, setDefaultSort, setDefaultStatus, type Accent, type Density, type TextSize } from "@/lib/settings"
 import { useShortcuts } from "@/lib/keybindings"
@@ -9,6 +9,7 @@ import { useTheme } from "next-themes"
 import { api } from "@/lib/api-client"
 import { cn } from "@/lib/utils"
 import { CustomFieldsManager } from "@/components/CustomFieldsManager"
+import { SearchPanel } from "@/components/settings/SearchPanel"
 import { KeyboardPanel } from "@/components/settings/KeyboardPanel"
 import { AuditPanel } from "@/components/settings/AuditPanel"
 import { AboutPanel } from "@/components/settings/AboutPanel"
@@ -261,7 +262,7 @@ function DataPanel() {
   )
 }
 
-type Section = { id: string; label: string; icon: ReactNode; render: () => ReactNode }
+type Section = { id: string; label: string; icon: ReactNode; render: (close: () => void) => ReactNode }
 
 // `items` feed the settings search: each is a setting label plus synonyms.
 const SECTIONS: (Section & { items: [string, string][] })[] = [
@@ -311,6 +312,16 @@ const SECTIONS: (Section & { items: [string, string][] })[] = [
       ["Sign out other sessions", "revoke devices security"],
       ["Display name", "profile email"],
       ["Sign out", "logout session"],
+    ],
+  },
+  {
+    id: "search",
+    label: "Search",
+    icon: <ScanSearch />,
+    render: (close) => <SearchPanel close={close} />,
+    items: [
+      ["Search syntax", "qualifiers status tag company title applied operators filter query enable disable"],
+      ["Test a search", "try example parse"],
     ],
   },
   {
@@ -482,7 +493,7 @@ export function SettingsDialog({
             ) : (
               <>
                 <h2 className="mb-4 text-base font-medium">{current.label}</h2>
-                {current.render()}
+                {current.render(() => onOpenChange(false))}
               </>
             )}
           </section>

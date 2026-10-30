@@ -1308,3 +1308,41 @@ func TestBatchRunsEachItemAsTheCaller(t *testing.T) {
 		t.Fatalf("outer idempotency key %d", code)
 	}
 }
+
+func TestAuditSearchAndTimeFilters(t *testing.T) {
+	e := newEnv(t)
+	code, app := e.json(t, http.MethodPost, "/v1/applications", e.token, map[string]any{
+		"company": "TraceCo", "title": "Traced role", "status": "to_apply",
+	})
+	if code != 201 {
+		t.Fatal(app)
+	}
+	id := app["id"].(string)
+
+	count := func(query string) int {
+		t.Helper()
+		code, page := e.json(t, http.MethodGet, "/v1/audit?"+query, e.token, nil)
+		if code != 200 {
+			t.Fatalf("%s: %d %#v", query, code, page)
+		}
+		return len(page["data"].([]any))
+	}
+	if count("q=traceco") == 0 || count("q=TRACED") == 0 {
+		t.Fatal("q should match the summary and metadata case-insensitively")
+	}
+	if count("q=no-such-text") != 0 {
+		t.Fatal("q with no match should return nothing")
+	}
+	if count("entity_id="+id) == 0 {
+		t.Fatal("entity_id should trace one application")
+	}
+	if count("since=2999-01-01") != 0 || count("until=2000-01-01") != 0 {
+		t.Fatal("time bounds should exclude everything")
+	}
+	if count("since=2000-01-01&until=2999-01-01") == 0 {
+		t.Fatal("wide time bounds should include everything")
+	}
+	if code, bad := e.json(t, http.MethodGet, "/v1/audit?since=yesterday", e.token, nil); code != 400 || errCode(bad) != "validation" {
+		t.Fatalf("bad since %d %#v", code, bad)
+	}
+}
