@@ -326,6 +326,14 @@ const SECTIONS: (Section & { items: [string, string][] })[] = [
   },
 ]
 
+// For the command palette: one entry per section, searchable by its settings.
+export const SECTION_LINKS = SECTIONS.map((s) => ({
+  id: s.id,
+  label: s.label,
+  icon: s.icon,
+  keywords: s.items.map(([label, words]) => label + " " + words).join(" "),
+}))
+
 export function SettingsDialog({
   open,
   onOpenChange,

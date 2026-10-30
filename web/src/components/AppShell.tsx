@@ -54,6 +54,14 @@ export function AppShell() {
   const { me, signOut } = useAuth()
   const navigate = useNavigate()
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [settingsSection, setSettingsSection] = useState("appearance")
+  const [settingsKey, setSettingsKey] = useState(0)
+  // Remount on each open so the dialog starts on the requested section.
+  const openSettings = (section = "appearance") => {
+    setSettingsSection(section)
+    setSettingsKey((k) => k + 1)
+    setSettingsOpen(true)
+  }
   const identity = me?.token.name || "token"
   const scopes = (me?.token.scopes || []).join(", ")
 
@@ -66,7 +74,7 @@ export function AppShell() {
         </NavLink>
         <GlobalSearch />
         <div className="flex items-center justify-end gap-2">
-          <CommandPalette />
+          <CommandPalette onOpenSettings={openSettings} />
           <kbd className="hidden rounded border bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground sm:inline">⌘K</kbd>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -86,7 +94,7 @@ export function AppShell() {
               <DropdownMenuItem onClick={() => navigate("/?archived=1")}>
                 <Archive /> View archived
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setSettingsOpen(true)}>
+              <DropdownMenuItem onClick={() => openSettings()}>
                 <Settings /> Settings
               </DropdownMenuItem>
               <DropdownMenuSeparator />
@@ -100,7 +108,7 @@ export function AppShell() {
       <main className="flex-1 p-4">
         <Outlet />
       </main>
-      <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
+      <SettingsDialog key={settingsKey} initial={settingsSection} open={settingsOpen} onOpenChange={setSettingsOpen} />
     </div>
   )
 }
