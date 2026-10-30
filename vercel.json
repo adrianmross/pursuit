@@ -1,5 +1,5 @@
 {
-  "buildCommand": "cd web && npm install && npm run build && rm -rf ../internal/dashboard/dist && cp -r dist ../internal/dashboard/dist && cd ../docs-site && npm install && npm run build && cp -r out ../internal/dashboard/dist/docs && cd .. && mkdir -p public && echo 'served by api/index.go' > public/.keep",
+  "buildCommand": "sh scripts/vercel-build.sh",
   "outputDirectory": "public",
   "rewrites": [
     { "source": "/(.*)", "destination": "/api/index.go" }
