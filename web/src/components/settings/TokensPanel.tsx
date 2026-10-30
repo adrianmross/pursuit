@@ -99,10 +99,10 @@ export function TokensPanel() {
         <div className="flex flex-col gap-2">
           <Label>Access</Label>
           <ToggleGroup type="single" variant="outline" value={scope} onValueChange={(v) => v && setScope(v)}>
-            <ToggleGroupItem value="read" className="flex-1">
+            <ToggleGroupItem value="read">
               Read only
             </ToggleGroupItem>
-            <ToggleGroupItem value="write" className="flex-1">
+            <ToggleGroupItem value="write">
               Read &amp; write
             </ToggleGroupItem>
           </ToggleGroup>

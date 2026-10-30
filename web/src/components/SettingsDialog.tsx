@@ -100,7 +100,7 @@ function Choice<T extends string>({
       }}
     >
       {options.map(([v, label]) => (
-        <ToggleGroupItem key={v} value={v} className="flex-1">
+        <ToggleGroupItem key={v} value={v}>
           {label}
         </ToggleGroupItem>
       ))}
@@ -175,10 +175,10 @@ function TableDefaults() {
             setPref("density", v)
           }}
         >
-          <ToggleGroupItem value="comfortable" className="flex-1">
+          <ToggleGroupItem value="comfortable">
             Comfortable
           </ToggleGroupItem>
-          <ToggleGroupItem value="compact" className="flex-1">
+          <ToggleGroupItem value="compact">
             Compact
           </ToggleGroupItem>
         </ToggleGroup>
