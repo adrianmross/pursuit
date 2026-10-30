@@ -1274,6 +1274,16 @@ func (s *Store) ListAudit(ctx context.Context, userID string, q domain.ListQuery
 	if q.EntityID != "" {
 		w.add("entity_id=?", q.EntityID)
 	}
+	if q.Since != "" {
+		w.add("created_at>=?", q.Since)
+	}
+	if q.Until != "" {
+		w.add("created_at<=?", q.Until)
+	}
+	if q.Q != "" {
+		p := likeContains(q.Q)
+		w.add(`(lower(summary) LIKE ? ESCAPE '\' OR lower(action) LIKE ? ESCAPE '\' OR lower(entity_type) LIKE ? ESCAPE '\' OR lower(entity_id) LIKE ? ESCAPE '\' OR lower(actor_name) LIKE ? ESCAPE '\' OR lower(metadata) LIKE ? ESCAPE '\')`, p, p, p, p, p, p)
+	}
 	countWhere := w.sql()
 	countArgs := append([]any{}, w.args...)
 	if q.Cursor != nil && q.Cursor.ID != "" {

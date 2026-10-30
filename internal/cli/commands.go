@@ -427,7 +427,7 @@ func cmdRoles() *Command {
 
 func listQ(e *exec) url.Values {
 	q := url.Values{}
-	for _, k := range []string{"q", "company", "fit", "source", "limit", "cursor", "sort", "actor", "action"} {
+	for _, k := range []string{"q", "company", "fit", "source", "limit", "cursor", "sort", "actor", "action", "since", "until"} {
 		if v := e.flag(k); v != "" {
 			q.Set(k, v)
 		}
@@ -620,7 +620,7 @@ func cmdTokens() *Command {
 
 func cmdAudit() *Command {
 	return &Command{Name: "audit", Summary: "audit log", Children: []*Command{
-		{Name: "list", Summary: "list audit entries", Flags: []Flag{{Name: "actor", Type: "string", Help: "actor name"}, {Name: "action", Type: "string", Help: "action"}, {Name: "entity-type", Type: "string", Help: "entity type"}, {Name: "entity-id", Type: "string", Help: "entity id"}, {Name: "limit", Type: "string", Help: "page size"}, {Name: "cursor", Type: "string", Help: "cursor"}}, Run: func(e *exec) error {
+		{Name: "list", Summary: "list audit entries", Flags: []Flag{{Name: "actor", Type: "string", Help: "actor name"}, {Name: "action", Type: "string", Help: "action"}, {Name: "entity-type", Type: "string", Help: "entity type"}, {Name: "entity-id", Type: "string", Help: "entity id, for example an application id to trace its history"}, {Name: "q", Type: "string", Help: "text in the summary, action, entity, actor, or metadata"}, {Name: "since", Type: "string", Help: "entries at or after this date or RFC 3339 time"}, {Name: "until", Type: "string", Help: "entries at or before this date or RFC 3339 time"}, {Name: "sort", Type: "string", Help: "created_at or -created_at (default newest first)"}, {Name: "limit", Type: "string", Help: "page size"}, {Name: "cursor", Type: "string", Help: "cursor"}}, Run: func(e *exec) error {
 			return e.send("GET", "/v1/audit", listQ(e), nil, "", false, true)
 		}},
 	}}

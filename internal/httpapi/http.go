@@ -540,6 +540,19 @@ func fieldsOf(q map[string][]string) []string {
 	return out
 }
 
+// auditTime turns a date or RFC 3339 time into the stored fixed-width form.
+func auditTime(raw, name string) (string, error) {
+	if raw == "" {
+		return "", nil
+	}
+	for _, layout := range []string{time.RFC3339, "2006-01-02"} {
+		if t, err := time.Parse(layout, raw); err == nil {
+			return domain.FormatTime(t), nil
+		}
+	}
+	return "", domain.Validation("invalid %s", name).WithHint(name + " is a date (2026-10-30) or an RFC 3339 time")
+}
+
 func listQuery(q map[string][]string) (domain.ListQuery, error) {
 	var out domain.ListQuery
 	if v := first(q, "limit"); v != "" {
@@ -568,6 +581,13 @@ func listQuery(q map[string][]string) (domain.ListQuery, error) {
 	out.Action = first(q, "action")
 	out.EntityType = first(q, "entity_type")
 	out.EntityID = first(q, "entity_id")
+	var terr error
+	if out.Since, terr = auditTime(first(q, "since"), "since"); terr != nil {
+		return out, terr
+	}
+	if out.Until, terr = auditTime(first(q, "until"), "until"); terr != nil {
+		return out, terr
+	}
 	out.AfterID = first(q, "after")
 	for _, raw := range q["status"] {
 		for _, part := range strings.Split(raw, ",") {
@@ -1496,7 +1516,7 @@ func (s *Server) listEvents(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) listAudit(w http.ResponseWriter, r *http.Request) {
-	s.page(w, r, []string{"limit", "cursor", "sort", "actor", "action", "entity_type", "entity_id", "fields"}, domain.AuditFields, func(ctx context.Context, q domain.ListQuery) (any, error) {
+	s.page(w, r, []string{"limit", "cursor", "sort", "q", "since", "until", "actor", "action", "entity_type", "entity_id", "fields"}, domain.AuditFields, func(ctx context.Context, q domain.ListQuery) (any, error) {
 		return s.Svc.ListAudit(ctx, q)
 	})
 }
