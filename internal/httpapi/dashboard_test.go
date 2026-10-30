@@ -16,18 +16,19 @@ func TestDashboardAssets(t *testing.T) {
 		t.Fatalf("content type %q", header.Get("Content-Type"))
 	}
 	page := string(body)
-	if !strings.Contains(page, `name="pursuit-dashboard"`) || !strings.Contains(page, `id="root"`) {
-		t.Fatalf("index missing the SPA shell: %s", page)
+	if !strings.Contains(page, `<title>Hire Pursuit</title>`) || !strings.Contains(page, "self.__next_f") {
+		t.Fatalf("index missing the dashboard shell: %s", page)
 	}
-	if !strings.Contains(header.Get("Content-Security-Policy"), "script-src 'self'") {
+	if !strings.Contains(header.Get("Content-Security-Policy"), "script-src 'self' 'unsafe-inline'") {
 		t.Fatalf("csp %q", header.Get("Content-Security-Policy"))
 	}
 
-	// Client-side routes have no file of their own — they fall back to the
-	// SPA shell, which authenticates against the API in the browser.
+	// A path with no file of its own (the dashboard's static export has no
+	// generic client-side catch-all anymore — every real route is its own
+	// prerendered file) falls back to the root page rather than 404ing.
 	code, body, header = e.do(t, http.MethodGet, "/app/does-not-exist", "", nil, nil)
-	if code != 200 || !strings.Contains(header.Get("Content-Type"), "text/html") || !strings.Contains(string(body), `id="root"`) {
-		t.Fatalf("spa fallback route %d %s", code, body)
+	if code != 200 || !strings.Contains(header.Get("Content-Type"), "text/html") || !strings.Contains(string(body), `<title>Hire Pursuit</title>`) {
+		t.Fatalf("fallback route %d %s", code, body)
 	}
 
 	// A path with an extension that genuinely doesn't exist 404s instead of
@@ -52,7 +53,7 @@ func TestDashboardAssets(t *testing.T) {
 func TestDocsServedAndToggle(t *testing.T) {
 	e := newEnv(t)
 	code, body, header := e.do(t, http.MethodGet, "/docs/cli", "", nil, nil)
-	if code != 200 || !strings.Contains(header.Get("Content-Type"), "text/html") || strings.Contains(string(body), `id="root"`) {
+	if code != 200 || !strings.Contains(header.Get("Content-Type"), "text/html") || !strings.Contains(string(body), "Hire Pursuit docs") {
 		t.Fatalf("docs page %d %s", code, body)
 	}
 	if !strings.Contains(header.Get("Content-Security-Policy"), "'unsafe-inline'") {

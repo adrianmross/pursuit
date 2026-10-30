@@ -9,7 +9,11 @@
 "use client"
 
 const EXPORT_MODE = process.env.NEXT_PUBLIC_EXPORT_MODE === "1"
-const PURSUIT_API_URL = process.env.NEXT_PUBLIC_PURSUIT_API_URL || "http://127.0.0.1:8787"
+// Self-hosted serves the dashboard and the API from the same pursuit
+// binary/port — same origin, so a relative path is correct by default.
+// Only set NEXT_PUBLIC_PURSUIT_API_URL if the dashboard is genuinely
+// deployed separately from the API it talks to.
+const PURSUIT_API_URL = process.env.NEXT_PUBLIC_PURSUIT_API_URL || ""
 const TOKEN_KEY = "pursuit.token"
 
 export class ApiError extends Error {
