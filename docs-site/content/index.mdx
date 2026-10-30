@@ -1,34 +1,7 @@
-import { Cards } from "nextra/components"
+---
+title: Welcome
+---
 
-# Hire Pursuit
+import { Welcome } from "../components/welcome"
 
-<p className="hero-tagline">For your higher pursuits. Agents prepare, you decide.</p>
-
-Hire Pursuit is a self-hosted job-application tracker for one person. Agents find postings and prepare applications through the `pursuit` CLI; nothing is submitted until you approve it.
-
-<Cards>
-  <Cards.Card title="Getting started" href="/getting-started" />
-  <Cards.Card title="CLI reference" href="/cli" />
-  <Cards.Card title="API reference" href="/api-reference" />
-  <Cards.Card title="Architecture" href="/architecture" />
-</Cards>
-
-## How it works
-
-1. **Prepare.** An agent with a `write` token moves a role from `to_apply` to `awaiting_review`, filling forms from your standing answers. Unknown required questions stop at `needs_input`.
-2. **Approve.** You review in the dashboard or with `pursuit approve APP_ID`. Only an `approve`-scoped token can do this, and it only enqueues the submit.
-3. **Submit.** A worker claims the queued work and finishes as `submitted`, `needs_input` or `failed`.
-
-The CLI is the agent interface: there is no MCP server. Agents call `pursuit`, which calls the HTTP API.
-
-## Tokens
-
-Bearer auth, `Authorization: Bearer $PURSUIT_TOKEN`, with three scopes:
-
-| Scope | Grants |
-| --- | --- |
-| `read` | List and get. |
-| `write` | Includes `read`. Prepare applications, mutate records. |
-| `approve` | Includes `read`, not `write`. The only scope that can move work into `submitting`. |
-
-Never put `approve` on an agent token.
+<Welcome />

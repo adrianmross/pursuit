@@ -1,5 +1,8 @@
 export default {
-  index: "Overview",
+  index: {
+    title: "Welcome",
+    theme: { layout: "full", toc: false, breadcrumb: false, pagination: false, timestamp: false },
+  },
   "getting-started": "Getting started",
   cli: "CLI reference",
   "api-reference": "API reference",
