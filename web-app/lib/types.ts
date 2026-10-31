@@ -53,6 +53,7 @@ export type Page<T> = {
 }
 
 export type Me = {
+  user?: { name?: string; email?: string }
   token: { name?: string; scopes?: string[] }
 }
 
