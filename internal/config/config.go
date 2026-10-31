@@ -23,6 +23,7 @@ type Config struct {
 	CORSOrigins     []string      `json:"cors_origins,omitempty"`
 	ServerURL       string        `json:"server,omitempty"`
 	Token           string        `json:"token,omitempty"`
+	VercelBypass    string        `json:"vercel_bypass,omitempty"`
 	DataDir         string        `json:"data_dir,omitempty"`
 	ShutdownTimeout time.Duration `json:"-"`
 	ShutdownSeconds int           `json:"shutdown_timeout_seconds,omitempty"`
@@ -181,6 +182,7 @@ func applyEnv(cfg *Config) {
 	set(&cfg.BootstrapName, "PURSUIT_BOOTSTRAP_NAME")
 	set(&cfg.ServerURL, "PURSUIT_SERVER")
 	set(&cfg.Token, "PURSUIT_TOKEN")
+	set(&cfg.VercelBypass, "PURSUIT_VERCEL_BYPASS")
 	set(&cfg.DataDir, "PURSUIT_DATA_DIR")
 	set(&cfg.ProfilePath, "PURSUIT_PROFILE")
 	set(&cfg.ResumeFile, "PURSUIT_RESUME_FILE")

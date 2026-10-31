@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/pursuit/pursuit/internal/domain"
+	"github.com/pursuit/pursuit/internal/service"
 )
 
 // sessionCookie holds the dashboard's token where page scripts can't read
@@ -45,7 +46,9 @@ func crossSiteRefused() error {
 }
 
 // createSession checks a token the way any request would, then stores it in
-// the session cookie and answers like GET /v1/me. Same-origin JSON only, so
+// the session cookie and answers like GET /v1/me. A Better Auth JWT lives
+// about 15 minutes, so it is exchanged for a Pursuit login token (as the
+// OIDC callback does) instead of being stored. Same-origin JSON only, so
 // another site can't sign the browser into an account it chose.
 func (s *Server) createSession(w http.ResponseWriter, r *http.Request) {
 	if err := sameOriginJSON(r); err != nil {
@@ -60,6 +63,17 @@ func (s *Server) createSession(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	token := strings.TrimSpace(in.Token)
+	if s.isBetterAuthJWT(token) {
+		identity, err := s.verifyBetterAuth(r.Context(), token)
+		if err != nil {
+			writeErr(w, err)
+			return
+		}
+		if token, err = s.Svc.LoginIdentity(r.Context(), identity.Email, identity.Name, s.signupsOpen()); err != nil {
+			writeErr(w, s.signupsPaused(err))
+			return
+		}
+	}
 	actor, err := s.authenticate(r.Context(), token)
 	if err != nil {
 		writeErr(w, err)
@@ -69,12 +83,20 @@ func (s *Server) createSession(w http.ResponseWriter, r *http.Request) {
 	s.me(w, r.WithContext(domain.WithActor(r.Context(), actor)))
 }
 
-// deleteSession signs the dashboard out. It clears the cookie only; the
-// token itself stays valid (it may be one the CLI also uses).
+// deleteSession signs the dashboard out. It revokes the cookie's token when
+// sign-in minted it (named "login"); any other token stays valid, since the
+// CLI may also use it. The cookie is cleared either way.
 func (s *Server) deleteSession(w http.ResponseWriter, r *http.Request) {
 	if !sameOrigin(r) {
 		writeErr(w, crossSiteRefused())
 		return
+	}
+	if c, err := r.Cookie(sessionCookie); err == nil && strings.HasPrefix(c.Value, "pst_") {
+		if actor, err := s.Svc.Authenticate(r.Context(), c.Value); err == nil && actor.Name == service.LoginTokenName {
+			if _, err := s.Svc.RevokeToken(domain.WithActor(r.Context(), actor), actor.TokenID); err != nil {
+				s.log().Warn("revoke login token on sign-out", "err", err.Error())
+			}
+		}
 	}
 	clearSessionCookie(w, r)
 	w.WriteHeader(http.StatusNoContent)

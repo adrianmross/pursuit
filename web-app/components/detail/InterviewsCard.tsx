@@ -120,12 +120,10 @@ function Row({
           placeholder={`Round ${index}`}
           disabled={!writable}
           className="w-auto text-sm font-medium"
-          inputClassName="h-7 text-sm"
           onSave={(v) => onPatch(item, { kind: v })}
         />
         <InlineSelect
           value={item.stage}
-          display={label(item.stage)}
           options={STAGES}
           disabled={!writable}
           className="text-xs text-muted-foreground"
@@ -144,7 +142,6 @@ function Row({
           placeholder="Who"
           disabled={!writable}
           className="w-auto text-sm text-muted-foreground"
-          inputClassName="h-7 text-sm"
           onSave={(v) => onPatch(item, { interviewer: v })}
         />
       </ItemContent>

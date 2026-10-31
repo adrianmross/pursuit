@@ -9,7 +9,7 @@ const CATEGORY_CLASS: Record<string, string> = {
 // Outcomes read the same colour as the segment they turn on the progress mark.
 const OUTCOME_CLASS = {
   hold: CATEGORY_CLASS.action,
-  stop: "bg-red-500/10 text-red-600 dark:bg-red-500/15 dark:text-red-400",
+  stop: "bg-destructive/10 text-destructive dark:bg-destructive/15",
 }
 
 export function StatusBadge({ status }: { status: string }) {

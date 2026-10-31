@@ -100,6 +100,23 @@ function useApprover(allowTokenLogin: boolean): { gate: ReactNode | null; ready:
   const { me, loading, can, isDemo, signOut } = useAuth()
   if (loading) return { gate: <Shell>{null}</Shell>, ready: false }
   if (!me) return { gate: <SignInForm allowTokenLogin={allowTokenLogin} demoAvailable={false} />, ready: false }
+  // The deployment-protection owner can see the dashboard but never approve.
+  if (me.proxy) {
+    return {
+      ready: false,
+      gate: (
+        <Shell>
+          <Notice title="This session can't approve a CLI login">
+            You are signed in through the deployment&apos;s access protection, which can&apos;t approve CLI logins. Sign
+            out, then sign in with an account or a token to approve.
+          </Notice>
+          <Button variant="outline" onClick={() => void signOut()}>
+            Sign out
+          </Button>
+        </Shell>
+      ),
+    }
+  }
   if (!can("approve") || isDemo) {
     return {
       ready: false,
@@ -227,6 +244,7 @@ type DeviceRequest = {
   status: string
   created_at: string
   expires_at: string
+  requested_from?: string
 }
 
 // The code is always typed by the human: a link can't pre-fill it, so a
@@ -318,7 +336,14 @@ export function DeviceConsent({ allowTokenLogin }: { allowTokenLogin: boolean })
             <CardTitle className="text-base">Approve device {request.user_code}?</CardTitle>
             <CardDescription>
               <code>{request.client_id}</code> asked for this login {ago(request.created_at)}. Only approve if you
-              started it just now and the code matches your terminal. The CLI gets a token with:
+              started it just now and the code matches your terminal.
+              {request.requested_from ? (
+                <>
+                  {" "}
+                  Requested from <code>{request.requested_from}</code>.
+                </>
+              ) : null}{" "}
+              The CLI gets a token with:
             </CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col gap-4 pt-0">

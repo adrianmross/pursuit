@@ -92,7 +92,7 @@ func runAuthLogin(e *exec) error {
 	if err != nil {
 		return err
 	}
-	me, err := whoami(server, token)
+	me, err := whoami(e.cfg.VercelBypass, server, token)
 	if err != nil {
 		return err
 	}
@@ -125,7 +125,7 @@ func runAuthLogout(e *exec) error {
 	}
 	revoked := false
 	if ok {
-		status, _, err := postForm(server, "/v1/auth/revoke", url.Values{"token": {c.Token}})
+		status, _, err := postForm(e.cfg.VercelBypass, server, "/v1/auth/revoke", url.Values{"token": {c.Token}})
 		revoked = err == nil && status == 200
 		if !revoked {
 			fmt.Fprintln(e.stderr, "Could not revoke the token on "+server+"; deleting it locally anyway.")
@@ -147,7 +147,7 @@ func runAuthStatus(e *exec) error {
 	if e.client.Token == "" {
 		return &exitError{code: 5, message: "not logged in to " + server, hint: "run pursuit auth login, or set PURSUIT_TOKEN"}
 	}
-	me, err := whoami(server, e.client.Token)
+	me, err := whoami(e.cfg.VercelBypass, server, e.client.Token)
 	if err != nil {
 		return err
 	}
@@ -167,8 +167,8 @@ func (e *exec) printValue(v any) error {
 	return e.print(b, "application/json")
 }
 
-func whoami(server, token string) (domain.Me, error) {
-	c := &apiclient.Client{BaseURL: server, Token: token}
+func whoami(bypass, server, token string) (domain.Me, error) {
+	c := &apiclient.Client{BaseURL: server, Token: token, Bypass: bypass}
 	resp, err := c.Do(nil, "GET", "/v1/me", nil, nil, "", apiclient.Options{})
 	if err != nil {
 		return domain.Me{}, &exitError{code: 1, message: strings.TrimPrefix(err.Error(), "unavailable: ")}
@@ -184,8 +184,8 @@ func whoami(server, token string) (domain.Me, error) {
 }
 
 // postForm calls a public OAuth endpoint without any bearer token.
-func postForm(server, path string, vals url.Values) (int, map[string]any, error) {
-	c := &apiclient.Client{BaseURL: server}
+func postForm(bypass, server, path string, vals url.Values) (int, map[string]any, error) {
+	c := &apiclient.Client{BaseURL: server, Bypass: bypass}
 	resp, err := c.Do(nil, "POST", path, nil, []byte(vals.Encode()), "application/x-www-form-urlencoded", apiclient.Options{})
 	if err != nil {
 		return 0, nil, &exitError{code: 1, message: strings.TrimPrefix(err.Error(), "unavailable: "), hint: "check --server or PURSUIT_SERVER"}
@@ -283,7 +283,7 @@ func loopbackLogin(e *exec, server, scope string) (string, error) {
 		}
 		return "", &exitError{code: 5, message: "browser login failed: " + code, hint: "run pursuit auth login again"}
 	}
-	status, doc, err := postForm(server, "/v1/auth/token", url.Values{
+	status, doc, err := postForm(e.cfg.VercelBypass, server, "/v1/auth/token", url.Values{
 		"grant_type": {"authorization_code"}, "code": {res.code}, "code_verifier": {verifier},
 		"redirect_uri": {redirect}, "client_id": {cliClientID},
 	})
@@ -296,7 +296,7 @@ func loopbackLogin(e *exec, server, scope string) (string, error) {
 // deviceLogin is RFC 8628: show a code, the human approves it in the
 // dashboard, and we poll until the server answers.
 func deviceLogin(e *exec, server, scope string) (string, error) {
-	status, d, err := postForm(server, "/v1/auth/device_authorization", url.Values{"client_id": {cliClientID}, "scope": {scope}})
+	status, d, err := postForm(e.cfg.VercelBypass, server, "/v1/auth/device_authorization", url.Values{"client_id": {cliClientID}, "scope": {scope}})
 	if err != nil {
 		return "", err
 	}
@@ -319,7 +319,7 @@ func deviceLogin(e *exec, server, scope string) (string, error) {
 	deadline := time.Now().Add(time.Duration(expires) * time.Second)
 	for time.Now().Before(deadline) {
 		sleep(time.Duration(interval) * time.Second)
-		status, doc, err := postForm(server, "/v1/auth/token", url.Values{"grant_type": {deviceGrantType}, "device_code": {deviceCode}, "client_id": {cliClientID}})
+		status, doc, err := postForm(e.cfg.VercelBypass, server, "/v1/auth/token", url.Values{"grant_type": {deviceGrantType}, "device_code": {deviceCode}, "client_id": {cliClientID}})
 		if err != nil {
 			return "", err
 		}

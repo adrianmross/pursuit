@@ -73,7 +73,7 @@
     }
   },
   "info": {
-    "description": "Job-application tracker. Agents should prefer the pursuit CLI. Fetch this document when you need the HTTP shape; use `pursuit schema <command>` for one CLI command.",
+    "description": "Job-application tracker. Agents should prefer the pursuit CLI. Fetch this document when you need the HTTP shape; use `pursuit schema \u003ccommand\u003e` for one CLI command.",
     "title": "Pursuit",
     "version": "0.2.1"
   },
@@ -2857,7 +2857,7 @@
           }
         },
         "security": [],
-        "summary": "dashboard sign-out: clear the pursuit_session cookie. the token stays valid; revoke it with POST /v1/auth/revoke. same-origin only; returns 204"
+        "summary": "dashboard sign-out: clear the pursuit_session cookie and revoke it when sign-in minted it (token name login). any other token stays valid; revoke it with POST /v1/auth/revoke. same-origin only; returns 204"
       },
       "post": {
         "operationId": "post__v1_auth_session",
@@ -2917,7 +2917,7 @@
           }
         },
         "security": [],
-        "summary": "dashboard sign-in: verify a token (pst_ or Better Auth JWT) and store it in the httpOnly pursuit_session cookie, then answer like GET /v1/me. requires Content-Type application/json and Sec-Fetch-Site same-origin or a matching Origin. body {token}. agents send Authorization: Bearer instead"
+        "summary": "dashboard sign-in: verify a token (pst_, or a Better Auth JWT exchanged for a pst_ login token) and store the pst_ token in the httpOnly pursuit_session cookie, then answer like GET /v1/me. requires Content-Type application/json and Sec-Fetch-Site same-origin or a matching Origin. body {token}. agents send Authorization: Bearer instead"
       }
     },
     "/v1/auth/token": {
@@ -3056,7 +3056,7 @@
           }
         },
         "security": [],
-        "summary": "OIDC callback; redirects to /#token=<secret>"
+        "summary": "OIDC callback; redirects to /#token=\u003csecret\u003e"
       }
     },
     "/v1/auth/{provider}/start": {
@@ -5243,7 +5243,7 @@
             "description": "error"
           }
         },
-        "summary": "loopback consent, called by the dashboard /authorize page that pursuit auth login opens. requires a signed-in human session with the approve scope (not the PURSUIT_TRUST_PROXY_AUTH owner), Content-Type application/json, and Sec-Fetch-Site same-origin or an Origin matching the host. writes an oauth.approve or oauth.deny audit entry. body {client_id, redirect_uri, code_challenge, code_challenge_method:S256, state, scope, approve}. redirect_uri must be http://127.0.0.1:<port>/callback or http://[::1]:<port>/callback. returns {redirect_to}: the callback with code and state, or error=access_denied when approve is false"
+        "summary": "loopback consent, called by the dashboard /authorize page that pursuit auth login opens. requires a signed-in human session with the approve scope (not the PURSUIT_TRUST_PROXY_AUTH owner), Content-Type application/json, and Sec-Fetch-Site same-origin or an Origin matching the host. writes an oauth.approve or oauth.deny audit entry. body {client_id, redirect_uri, code_challenge, code_challenge_method:S256, state, scope, approve}. redirect_uri must be http://127.0.0.1:\u003cport\u003e/callback or http://[::1]:\u003cport\u003e/callback. returns {redirect_to}: the callback with code and state, or error=access_denied when approve is false"
       }
     },
     "/v1/oauth/device": {
@@ -5304,7 +5304,7 @@
             "description": "error"
           }
         },
-        "summary": "look up a pending device login by user_code (query) so the dashboard can show the requested scopes. requires the approve scope. returns {user_code, client_id, scopes, status, created_at, expires_at}"
+        "summary": "look up a pending device login by user_code (query) so the dashboard can show the requested scopes. requires the approve scope. returns {user_code, client_id, scopes, status, created_at, expires_at, requested_from} (requested_from is the IP that started the login)"
       }
     },
     "/v1/oauth/device/approve": {
