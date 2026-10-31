@@ -1,10 +1,13 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
+import { History, Search } from "lucide-react"
 import { api } from "@/lib/api-client"
 import type { Audit, Page } from "@/lib/types"
-import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
+import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty"
+import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group"
+import { Spinner } from "@/components/ui/spinner"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 
 export function AuditPanel() {
@@ -31,18 +34,22 @@ export function AuditPanel() {
 
   return (
     <div className="flex flex-col gap-4">
-      <Input
-        data-search="audit"
-        aria-label="Search audit log"
-        placeholder="Search actor, action, entity, or summary"
-        value={filter}
-        onChange={(e) => setFilter(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key !== "Escape") return
-          if (filter) setFilter("")
-          else e.currentTarget.blur()
-        }}
-      />
+      <InputGroup>
+        <InputGroupAddon>
+          <Search />
+        </InputGroupAddon>
+        <InputGroupInput
+          data-search="audit"
+          aria-label="Search audit log"
+          placeholder="Search actor, action, entity, or summary"
+          value={filter}
+          onChange={(e) => setFilter(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key !== "Escape") return
+            if (filter) setFilter("")
+            else e.currentTarget.blur()
+          }}
+        />      </InputGroup>
       <div className="rounded-md border">
         <Table>
           <TableHeader>
@@ -57,12 +64,24 @@ export function AuditPanel() {
           <TableBody>
             {shown == null && (
               <TableRow>
-                <TableCell colSpan={5} className="text-muted-foreground">Loading…</TableCell>
+                <TableCell colSpan={5}>
+                  <Spinner className="mx-auto text-muted-foreground" />
+                </TableCell>
               </TableRow>
             )}
             {shown?.length === 0 && (
-              <TableRow>
-                <TableCell colSpan={5} className="text-muted-foreground">No activity.</TableCell>
+              <TableRow className="hover:bg-transparent">
+                <TableCell colSpan={5}>
+                  <Empty className="p-4">
+                    <EmptyHeader>
+                      <EmptyMedia variant="icon">
+                        <History />
+                      </EmptyMedia>
+                      <EmptyTitle>{filter ? "No matching activity" : "No activity"}</EmptyTitle>
+                      <EmptyDescription>{filter ? "Try another search." : "Changes you and your agents make show up here."}</EmptyDescription>
+                    </EmptyHeader>
+                  </Empty>
+                </TableCell>
               </TableRow>
             )}
             {shown?.map((e) => (

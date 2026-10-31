@@ -6,7 +6,8 @@ import { api, ApiError } from "@/lib/api-client"
 import type { ImportResult } from "@/lib/types"
 import type { IMPORTERS } from "@/lib/importers"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Item, ItemActions, ItemContent, ItemDescription, ItemMedia, ItemTitle } from "@/components/ui/item"
+import { Spinner } from "@/components/ui/spinner"
 
 export function ImportCard({ importer }: { importer: (typeof IMPORTERS)[number] }) {
   const inputRef = useRef<HTMLInputElement>(null)
@@ -30,11 +31,20 @@ export function ImportCard({ importer }: { importer: (typeof IMPORTERS)[number] 
   }
 
   return (
-    <Card size="sm">
-      <CardHeader>
-        <CardTitle className="text-sm">{importer.label}</CardTitle>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-2">
+    <Item variant="outline" size="sm">
+      <ItemMedia variant="icon">
+        <FileUp />
+      </ItemMedia>
+      <ItemContent>
+        <ItemTitle>{importer.label}</ItemTitle>
+        {result && (
+          <ItemDescription>
+            {result.applications_created} created, {result.applications_updated} updated, {result.skipped} skipped
+          </ItemDescription>
+        )}
+        {error && <ItemDescription className="text-destructive">{error}</ItemDescription>}
+      </ItemContent>
+      <ItemActions>
         <input
           ref={inputRef}
           type="file"
@@ -47,15 +57,9 @@ export function ImportCard({ importer }: { importer: (typeof IMPORTERS)[number] 
           }}
         />
         <Button variant="outline" size="sm" disabled={busy} onClick={() => inputRef.current?.click()}>
-          <FileUp className="size-3.5" /> Import {importer.label}
+          {busy ? <Spinner /> : <FileUp />} Import {importer.label}
         </Button>
-        {result && (
-          <p className="text-xs text-muted-foreground">
-            {result.applications_created} created, {result.applications_updated} updated, {result.skipped} skipped
-          </p>
-        )}
-        {error && <p className="text-xs text-destructive">{error}</p>}
-      </CardContent>
-    </Card>
+      </ItemActions>
+    </Item>
   )
 }

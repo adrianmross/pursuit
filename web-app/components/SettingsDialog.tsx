@@ -1,7 +1,7 @@
 "use client"
 
 import { useMemo, useState, type KeyboardEvent, type ReactNode } from "react"
-import { Database, History, IdCard, Info, Keyboard, KeyRound, Palette, Rows3, Search, SlidersHorizontal, User } from "lucide-react"
+import { Database, Download, History, IdCard, Info, Keyboard, KeyRound, Palette, Rows3, Search, SlidersHorizontal, User } from "lucide-react"
 import { FILTERS, MORE, SORTS } from "@/lib/types"
 import { getDefaultSort, getDefaultStatus, ACCENTS, getPref, setPref, setDefaultSort, setDefaultStatus, type Accent, type Density, type TextSize } from "@/lib/settings"
 import { useShortcuts } from "@/lib/keybindings"
@@ -17,8 +17,9 @@ import { ProfilePanel } from "@/components/settings/ProfilePanel"
 import { TokensPanel } from "@/components/settings/TokensPanel"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog"
+import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
+import { Spinner } from "@/components/ui/spinner"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
@@ -77,11 +78,11 @@ function ThemeCard({ value, current, onPick }: { value: Theme; current: Theme; o
 
 function Row({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) {
   return (
-    <div className="flex flex-col gap-2">
-      <Label>{label}</Label>
-      {children}
-      {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
-    </div>
+    <Field>
+      <FieldLabel>{label}</FieldLabel>
+      <div className="flex flex-col">{children}</div>
+      {hint && <FieldDescription>{hint}</FieldDescription>}
+    </Field>
   )
 }
 
@@ -142,7 +143,7 @@ function AccentPicker() {
 function Appearance() {
   const { theme, setTheme } = useTheme()
   return (
-    <div className="flex flex-col gap-6">
+    <FieldGroup>
       <Row label="Theme" hint="System follows your operating system and switches automatically.">
         <div className="flex flex-wrap gap-3">
           {(["light", "dark", "system"] as const).map((t) => (
@@ -159,7 +160,7 @@ function Appearance() {
       <Row label="Motion" hint="Reduced turns off transitions and animations.">
         <Choice pref="motion" options={[["full", "Full"], ["reduced", "Reduced"]]} />
       </Row>
-    </div>
+    </FieldGroup>
   )
 }
 
@@ -168,7 +169,7 @@ function TableDefaults() {
   const [sort, setSort] = useState(getDefaultSort())
   const [density, setDensityState] = useState(getPref<Density>("density"))
   return (
-    <div className="flex flex-col gap-4">
+    <FieldGroup>
       <Row label="Row density" hint="Compact fits more rows on screen.">
         <ToggleGroup
           type="single"
@@ -233,7 +234,7 @@ function TableDefaults() {
           </SelectContent>
         </Select>
       </Row>
-    </div>
+    </FieldGroup>
   )
 }
 
@@ -256,6 +257,7 @@ function DataPanel() {
   return (
     <Row label="Export" hint="Everything in your pipeline as one JSON file, re-importable with pursuit import.">
       <Button variant="outline" onClick={exportJSON} disabled={busy} className="self-start">
+        {busy ? <Spinner /> : <Download />}
         {busy ? "Exporting…" : "Download JSON"}
       </Button>
     </Row>

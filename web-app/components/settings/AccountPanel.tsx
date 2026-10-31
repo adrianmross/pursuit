@@ -1,16 +1,17 @@
 "use client"
 
 import { useState, type FormEvent } from "react"
+import { Info, KeyRound, LogOut, MonitorSmartphone } from "lucide-react"
 import { useAuth } from "@/lib/auth"
 import { authClient } from "@/lib/betterauth"
 import { api } from "@/lib/api-client"
 import { UserAvatar, avatarDataURL, displayName } from "@/components/UserAvatar"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 import { ButtonGroup } from "@/components/ui/button-group"
-import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
-import { Item, ItemActions, ItemContent, ItemDescription, ItemMedia, ItemTitle } from "@/components/ui/item"
+import { Field, FieldDescription, FieldGroup, FieldLabel, FieldLegend, FieldSeparator, FieldSet } from "@/components/ui/field"
+import { Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemMedia, ItemTitle } from "@/components/ui/item"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 
 function Msg({ ok, text }: { ok: boolean; text: string }) {
   return text ? <p className={"text-sm " + (ok ? "text-emerald-600 dark:text-emerald-400" : "text-destructive")}>{text}</p> : null
@@ -93,13 +94,20 @@ function EmailForm() {
   }
 
   return (
-    <form onSubmit={save} className="flex flex-col gap-3">
-      <h3 className="text-sm font-medium">Change email</h3>
-      <Input type="email" aria-label="New email" placeholder="new@example.com" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} />
-      <Msg {...msg} />
-      <Button type="submit" disabled={!email} className="self-start">
-        Change email
-      </Button>
+    <form onSubmit={save}>
+      <FieldSet>
+        <FieldLegend variant="label">Change email</FieldLegend>
+        <Field>
+          <Input type="email" aria-label="New email" placeholder="new@example.com" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+          <FieldDescription>A confirmation link goes to the new address.</FieldDescription>
+        </Field>
+        <Field orientation="horizontal">
+          <Button type="submit" disabled={!email}>
+            Change email
+          </Button>
+          <Msg {...msg} />
+        </Field>
+      </FieldSet>
     </form>
   )
 }
@@ -111,12 +119,21 @@ function OtherSessions() {
     setMsg(error ? { ok: false, text: error.message || "Could not sign out other sessions" } : { ok: true, text: "Other sessions were signed out." })
   }
   return (
-    <div className="flex flex-col gap-2">
-      <Button variant="outline" onClick={revoke} className="self-start">
-        Sign out other sessions
-      </Button>
-      <Msg {...msg} />
-    </div>
+    <Item variant="outline" size="sm">
+      <ItemMedia variant="icon">
+        <MonitorSmartphone />
+      </ItemMedia>
+      <ItemContent>
+        <ItemTitle>Other sessions</ItemTitle>
+        <ItemDescription>Every other browser and device signed in to this account.</ItemDescription>
+        <Msg {...msg} />
+      </ItemContent>
+      <ItemActions>
+        <Button variant="outline" size="sm" onClick={revoke}>
+          Sign out other sessions
+        </Button>
+      </ItemActions>
+    </Item>
   )
 }
 
@@ -139,20 +156,27 @@ function PasswordForm() {
   }
 
   return (
-    <form onSubmit={save} className="flex flex-col gap-3">
-      <h3 className="text-sm font-medium">Change password</h3>
-      <div className="flex flex-col gap-2">
-        <Label htmlFor="pw-current">Current password</Label>
-        <Input id="pw-current" type="password" autoComplete="current-password" value={current} onChange={(e) => setCurrent(e.target.value)} />
-      </div>
-      <div className="flex flex-col gap-2">
-        <Label htmlFor="pw-new">New password</Label>
-        <Input id="pw-new" type="password" autoComplete="new-password" minLength={8} value={next} onChange={(e) => setNext(e.target.value)} />
-      </div>
-      <Msg {...msg} />
-      <Button type="submit" disabled={!current || next.length < 8} className="self-start">
-        Update password
-      </Button>
+    <form onSubmit={save}>
+      <FieldSet>
+        <FieldLegend variant="label">Change password</FieldLegend>
+        <FieldGroup className="grid gap-4 sm:grid-cols-2">
+          <Field>
+            <FieldLabel htmlFor="pw-current">Current password</FieldLabel>
+            <Input id="pw-current" type="password" autoComplete="current-password" value={current} onChange={(e) => setCurrent(e.target.value)} />
+          </Field>
+          <Field>
+            <FieldLabel htmlFor="pw-new">New password</FieldLabel>
+            <Input id="pw-new" type="password" autoComplete="new-password" minLength={8} value={next} onChange={(e) => setNext(e.target.value)} />
+          </Field>
+        </FieldGroup>
+        <FieldDescription>At least 8 characters. Changing it signs out your other sessions.</FieldDescription>
+        <Field orientation="horizontal">
+          <Button type="submit" disabled={!current || next.length < 8}>
+            Update password
+          </Button>
+          <Msg {...msg} />
+        </Field>
+      </FieldSet>
     </form>
   )
 }
@@ -168,22 +192,39 @@ export function AccountPanel() {
           <PasswordForm />
         </>
       ) : (
-        <p className="text-sm text-muted-foreground">
-          This server signs in with an API token or the platform in front of it, so there is no email or password to
-          manage here. Revoke or rotate tokens under API tokens.
-        </p>
+        <Alert>
+          <Info />
+          <AlertDescription>
+            This server signs in with an API token or the platform in front of it, so there is no email or password to
+            manage here. Revoke or rotate tokens under API tokens.
+          </AlertDescription>
+        </Alert>
       )}
-      <div className="flex flex-col gap-2 border-t pt-4">
-        <h3 className="text-sm font-medium">Session</h3>
-        <p className="text-sm text-muted-foreground">
-          Signed in as {displayName(me)} via {me?.token.name || "token"}
-          {me?.token.scopes?.length ? ` (${me.token.scopes.join(", ")})` : ""}.
-        </p>
-        {authClient && <OtherSessions />}
-        <Button variant="outline" onClick={signOut} className="self-start">
-          Sign out
-        </Button>
-      </div>
+      <FieldSeparator />
+      <FieldSet>
+        <FieldLegend variant="label">Session</FieldLegend>
+        <ItemGroup className="gap-2">
+          <Item variant="outline" size="sm">
+            <ItemMedia variant="icon">
+              <KeyRound />
+            </ItemMedia>
+            <ItemContent>
+              <ItemTitle>Signed in as {displayName(me)}</ItemTitle>
+              <ItemDescription>
+                via {me?.token.name || "token"}
+                {me?.token.scopes?.length ? ` (${me.token.scopes.join(", ")})` : ""}
+              </ItemDescription>
+            </ItemContent>
+            <ItemActions>
+              <Button variant="outline" size="sm" onClick={signOut}>
+                <LogOut />
+                Sign out
+              </Button>
+            </ItemActions>
+          </Item>
+          {authClient && <OtherSessions />}
+        </ItemGroup>
+      </FieldSet>
     </div>
   )
 }

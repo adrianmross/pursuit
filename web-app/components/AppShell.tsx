@@ -13,7 +13,7 @@ import { SiteFooter } from "@/components/SiteFooter"
 import { UserAvatar, displayName } from "@/components/UserAvatar"
 import { ProfileNudge } from "@/components/settings/ProfilePanel"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
+import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -49,17 +49,19 @@ function GlobalSearch() {
   }
 
   return (
-    <div className="relative mx-auto w-full max-w-2xl">
-      <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-      <Input
+    <InputGroup className="mx-auto h-10 max-w-2xl">
+      <InputGroupInput
         data-search="global"
         placeholder="Search — try status:applied, tag:remote, applied:>2026-01-01"
-        className="h-10 pl-9 text-base"
+        className="text-base"
         value={value}
         onChange={(event) => onChange(event.target.value)}
         onKeyDown={(event) => event.key === "Escape" && event.currentTarget.blur()}
       />
-    </div>
+      <InputGroupAddon>
+        <Search />
+      </InputGroupAddon>
+    </InputGroup>
   )
 }
 

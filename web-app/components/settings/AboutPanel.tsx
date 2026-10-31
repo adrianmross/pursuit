@@ -1,7 +1,10 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { Fragment, useEffect, useState } from "react"
 import { api } from "@/lib/api-client"
+import { Button } from "@/components/ui/button"
+import { ButtonGroup } from "@/components/ui/button-group"
+import { Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemSeparator } from "@/components/ui/item"
 
 export function AboutPanel() {
   const [version, setVersion] = useState("…")
@@ -18,25 +21,30 @@ export function AboutPanel() {
   ]
   return (
     <div className="flex flex-col gap-4">
-      <dl className="divide-y rounded-md border text-sm">
-        {rows.map(([k, v]) => (
-          <div key={k} className="flex justify-between gap-4 p-3">
-            <dt className="text-muted-foreground">{k}</dt>
-            <dd className="font-mono">{v}</dd>
-          </div>
+      <ItemGroup className="gap-0 rounded-lg border">
+        {rows.map(([k, v], i) => (
+          <Fragment key={k}>
+            {i > 0 && <ItemSeparator className="my-0" />}
+            <Item size="sm">
+              <ItemContent>
+                <ItemDescription>{k}</ItemDescription>
+              </ItemContent>
+              <ItemActions className="font-mono">{v}</ItemActions>
+            </Item>
+          </Fragment>
         ))}
-      </dl>
-      <div className="flex gap-4 text-sm">
-        <a className="underline underline-offset-4" href="/reference">
-          API reference
-        </a>
-        <a className="underline underline-offset-4" href="/docs">
-          Docs
-        </a>
-        <a className="underline underline-offset-4" href="/llms.txt">
-          llms.txt
-        </a>
-      </div>
+      </ItemGroup>
+      <ButtonGroup>
+        <Button variant="outline" size="sm" asChild>
+          <a href="/reference">API reference</a>
+        </Button>
+        <Button variant="outline" size="sm" asChild>
+          <a href="/docs">Docs</a>
+        </Button>
+        <Button variant="outline" size="sm" asChild>
+          <a href="/llms.txt">llms.txt</a>
+        </Button>
+      </ButtonGroup>
     </div>
   )
 }

@@ -5,17 +5,24 @@ import { ExternalLink, RefreshCw } from "lucide-react"
 import { sourceLabel, type Application, type CustomField } from "@/lib/types"
 import { FIT_OPTIONS } from "@/components/AttributesForm"
 import { InlineSelect, InlineText } from "@/components/InlineEdit"
-import { Card, CardContent } from "@/components/ui/card"
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Card, CardContent } from "@/components/ui/card"
+import { Field, FieldError, FieldTitle } from "@/components/ui/field"
+import { Spinner } from "@/components/ui/spinner"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 
-function Field({ label: name, value }: { label: string; value?: string | null }) {
+function Name({ children }: { children: React.ReactNode }) {
+  return <FieldTitle className="text-xs font-normal text-muted-foreground">{children}</FieldTitle>
+}
+
+function ReadOnly({ label: name, value }: { label: string; value?: string | null }) {
   if (!value) return null
   return (
-    <div className="flex flex-col gap-0.5">
-      <span className="text-xs text-muted-foreground">{name}</span>
+    <Field className="gap-0.5">
+      <Name>{name}</Name>
       <span className="text-sm">{value}</span>
-    </div>
+    </Field>
   )
 }
 
@@ -61,8 +68,8 @@ export function DetailAttributes({
   return (
     <Card>
       <CardContent className="grid grid-cols-2 gap-4 pt-6 sm:grid-cols-3">
-        <div className="flex flex-col gap-0.5">
-          <span className="text-xs text-muted-foreground">Location</span>
+        <Field className="gap-0.5">
+          <Name>Location</Name>
           <InlineText
             value={application.location || ""}
             disabled={!writable}
@@ -70,9 +77,9 @@ export function DetailAttributes({
             inputClassName="h-7 text-sm"
             onSave={(v) => onSaveField({ location: v })}
           />
-        </div>
-        <div className="flex flex-col gap-0.5">
-          <span className="text-xs text-muted-foreground">Salary</span>
+        </Field>
+        <Field className="gap-0.5">
+          <Name>Salary</Name>
           <InlineText
             value={application.salary || ""}
             disabled={!writable}
@@ -80,9 +87,9 @@ export function DetailAttributes({
             inputClassName="h-7 text-sm"
             onSave={(v) => onSaveField({ salary: v })}
           />
-        </div>
-        <div className="flex flex-col gap-0.5">
-          <span className="text-xs text-muted-foreground">Fit</span>
+        </Field>
+        <Field className="gap-0.5">
+          <Name>Fit</Name>
           <InlineSelect
             value={application.fit || ""}
             display={application.fit || "—"}
@@ -91,11 +98,11 @@ export function DetailAttributes({
             className="text-sm"
             onSave={(v) => onSaveField({ fit: v })}
           />
-        </div>
-        <Field label="Source" value={sourceLabel(application.source) || application.source} />
-        <Field label="Applied" value={application.applied_date} />
-        <div className="col-span-2 flex flex-col gap-0.5 sm:col-span-3">
-          <span className="text-xs text-muted-foreground">Posting URL</span>
+        </Field>
+        <ReadOnly label="Source" value={sourceLabel(application.source) || application.source} />
+        <ReadOnly label="Applied" value={application.applied_date} />
+        <Field className="col-span-2 gap-0.5 sm:col-span-3">
+          <Name>Posting URL</Name>
           <div className="flex items-center gap-1.5">
             <InlineText
               value={application.posting_url || ""}
@@ -120,38 +127,37 @@ export function DetailAttributes({
                 <TooltipTrigger asChild>
                   <Button
                     variant="ghost"
-                    size="icon"
-                    className="size-6"
+                    size="icon-xs"
                     aria-label="Re-check link"
                     onClick={recheck}
                     disabled={recheckBusy}
                   >
-                    <RefreshCw className={`size-3.5 ${recheckBusy ? "animate-spin" : ""}`} />
+                    {recheckBusy ? <Spinner className="size-3.5" /> : <RefreshCw className="size-3.5" />}
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>Re-check link</TooltipContent>
               </Tooltip>
             )}
           </div>
-        </div>
+        </Field>
         {application.next_step && (
-          <div className="col-span-2 flex flex-col gap-0.5 sm:col-span-3">
-            <span className="text-xs text-muted-foreground">Next step</span>
+          <Field className="col-span-2 gap-0.5 sm:col-span-3">
+            <Name>Next step</Name>
             <span className="text-sm">{application.next_step}</span>
-          </div>
+          </Field>
         )}
         {(application.tags || []).length > 0 && (
           <div className="col-span-2 flex items-center gap-1.5 sm:col-span-3">
             {application.tags!.map((tag) => (
-              <span key={tag} className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
+              <Badge key={tag} variant="secondary">
                 {tag}
-              </span>
+              </Badge>
             ))}
           </div>
         )}
         {fields.map((f) => (
-          <div key={f.id} className="flex flex-col gap-0.5">
-            <span className="text-xs text-muted-foreground">{f.name}</span>
+          <Field key={f.id} className="gap-0.5">
+            <Name>{f.name}</Name>
             <InlineText
               value={application.custom_fields?.[f.name] || ""}
               disabled={!writable}
@@ -159,9 +165,9 @@ export function DetailAttributes({
               inputClassName="h-7 text-sm"
               onSave={(v) => onSaveCustomFieldValue(f.id, v)}
             />
-          </div>
+          </Field>
         ))}
-        {fieldError && <p className="col-span-2 text-sm text-destructive sm:col-span-3">{fieldError}</p>}
+        {fieldError && <FieldError className="col-span-2 sm:col-span-3">{fieldError}</FieldError>}
       </CardContent>
     </Card>
   )

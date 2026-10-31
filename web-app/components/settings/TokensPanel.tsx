@@ -1,36 +1,47 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { Check, Copy, Trash2 } from "lucide-react"
+import { Check, CircleAlert, Copy, KeyRound, Trash2 } from "lucide-react"
 import { api } from "@/lib/api-client"
 import type { Page, Token } from "@/lib/types"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty"
+import { Field, FieldDescription, FieldGroup, FieldLabel, FieldLegend, FieldSeparator, FieldSet } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
+import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from "@/components/ui/input-group"
+import { Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemMedia, ItemTitle } from "@/components/ui/item"
+import { Spinner } from "@/components/ui/spinner"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 
 function Secret({ value }: { value: string }) {
   const [copied, setCopied] = useState(false)
   return (
-    <div className="flex flex-col gap-2 rounded-md border border-amber-500/50 bg-amber-500/10 p-3">
-      <p className="text-xs">Copy this token now. It is shown once and cannot be recovered.</p>
-      <div className="flex items-center gap-2">
-        <code className="flex-1 overflow-x-auto rounded bg-background px-2 py-1.5 font-mono text-xs">{value}</code>
-        <Button
-          size="icon-sm"
-          variant="outline"
-          aria-label="Copy token"
-          onClick={async () => {
-            await navigator.clipboard.writeText(value)
-            setCopied(true)
-            setTimeout(() => setCopied(false), 1500)
-          }}
-        >
-          {copied ? <Check /> : <Copy />}
-        </Button>
-      </div>
-      <code className="text-[11px] text-muted-foreground">export PURSUIT_TOKEN={value}</code>
-    </div>
+    <Alert className="border-amber-500/50 bg-amber-500/10">
+      <KeyRound />
+      <AlertTitle>Copy this token now</AlertTitle>
+      <AlertDescription className="flex flex-col gap-2">
+        It is shown once and cannot be recovered.
+        <InputGroup className="bg-background">
+          <InputGroupInput readOnly value={value} aria-label="New token" className="font-mono text-xs" onFocus={(e) => e.currentTarget.select()} />
+          <InputGroupAddon align="inline-end">
+            <InputGroupButton
+              size="icon-xs"
+              aria-label="Copy token"
+              onClick={async () => {
+                await navigator.clipboard.writeText(value)
+                setCopied(true)
+                setTimeout(() => setCopied(false), 1500)
+              }}
+            >
+              {copied ? <Check /> : <Copy />}
+            </InputGroupButton>
+          </InputGroupAddon>
+        </InputGroup>
+        <code className="text-[11px] break-all">export PURSUIT_TOKEN={value}</code>
+      </AlertDescription>
+    </Alert>
   )
 }
 
@@ -81,58 +92,97 @@ export function TokensPanel() {
   }
 
   return (
-    <div className="flex flex-col gap-5">
-      <p className="text-sm text-muted-foreground">
-        Tokens let the <code>pursuit</code> CLI, agents, and the browser extension call the API as you. Approval stays a
-        human action, so tokens cannot carry the approve scope.
-      </p>
-      <div className="flex flex-col gap-3 rounded-md border p-3">
-        <div className="flex flex-col gap-2">
-          <Label htmlFor="token-name">Name</Label>
-          <Input
-            id="token-name"
-            placeholder="e.g. laptop CLI"
-            value={name}
-            maxLength={80}
-            onChange={(e) => setName(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && void create()}
-          />
-        </div>
-        <div className="flex flex-col gap-2">
-          <Label>Access</Label>
-          <ToggleGroup type="single" variant="outline" value={scope} onValueChange={(v) => v && setScope(v)}>
-            <ToggleGroupItem value="read">
-              Read only
-            </ToggleGroupItem>
-            <ToggleGroupItem value="write">
-              Read &amp; write
-            </ToggleGroupItem>
-          </ToggleGroup>
-        </div>
-        <Button onClick={create} disabled={busy || !name.trim()} className="self-start">
-          Generate token
-        </Button>
-      </div>
-      {secret && <Secret value={secret} />}
-      {error && <p className="text-sm text-destructive">{error}</p>}
-      <div className="flex flex-col divide-y rounded-md border text-sm">
-        {tokens == null && <p className="p-3 text-muted-foreground">Loading…</p>}
-        {tokens?.length === 0 && <p className="p-3 text-muted-foreground">No active tokens.</p>}
-        {tokens?.map((t) => (
-          <div key={t.id} className="flex items-center gap-3 p-3">
-            <div className="flex min-w-0 flex-1 flex-col">
-              <span className="truncate font-medium">{t.name}</span>
-              <span className="text-xs text-muted-foreground">
-                <code>{t.prefix}…</code> · {t.scopes.join(", ")} · created {new Date(t.created_at).toLocaleDateString()} ·{" "}
-                {t.last_used_at ? "used " + new Date(t.last_used_at).toLocaleDateString() : "never used"}
-              </span>
+    <FieldGroup>
+      <FieldSet>
+        <FieldLegend>New token</FieldLegend>
+        <FieldDescription>
+          Tokens let the <code>pursuit</code> CLI, agents, and the browser extension call the API as you. Approval stays a
+          human action, so tokens cannot carry the approve scope.
+        </FieldDescription>
+        <FieldGroup>
+          <Field>
+            <FieldLabel htmlFor="token-name">Name</FieldLabel>
+            <Input
+              id="token-name"
+              placeholder="e.g. laptop CLI"
+              value={name}
+              maxLength={80}
+              onChange={(e) => setName(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && void create()}
+            />
+          </Field>
+          <Field>
+            <FieldLabel>Access</FieldLabel>
+            <div>
+              <ToggleGroup type="single" variant="outline" value={scope} onValueChange={(v) => v && setScope(v)}>
+                <ToggleGroupItem value="read">
+                  Read only
+                </ToggleGroupItem>
+                <ToggleGroupItem value="write">
+                  Read &amp; write
+                </ToggleGroupItem>
+              </ToggleGroup>
             </div>
-            <Button size="icon-sm" variant="ghost" aria-label={`Revoke ${t.name}`} onClick={() => revoke(t.id)}>
-              <Trash2 />
-            </Button>
-          </div>
-        ))}
-      </div>
-    </div>
+          </Field>
+          <Button onClick={create} disabled={busy || !name.trim()} className="self-start">
+            {busy && <Spinner />}
+            Generate token
+          </Button>
+        </FieldGroup>
+      </FieldSet>
+      {secret && <Secret value={secret} />}
+      {error && (
+        <Alert variant="destructive">
+          <CircleAlert />
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
+      <FieldSeparator />
+      <FieldSet>
+        <FieldLegend variant="label">Active tokens</FieldLegend>
+        {tokens == null ? (
+          <Spinner className="text-muted-foreground" />
+        ) : tokens.length === 0 ? (
+          <Empty className="border p-4">
+            <EmptyHeader>
+              <EmptyMedia variant="icon">
+                <KeyRound />
+              </EmptyMedia>
+              <EmptyTitle>No active tokens</EmptyTitle>
+              <EmptyDescription>Generate one above to use the CLI, an agent, or the browser extension.</EmptyDescription>
+            </EmptyHeader>
+          </Empty>
+        ) : (
+          <ItemGroup className="gap-2">
+            {tokens.map((t) => (
+              <Item key={t.id} variant="outline" size="sm">
+                <ItemMedia variant="icon">
+                  <KeyRound />
+                </ItemMedia>
+                <ItemContent className="min-w-0">
+                  <ItemTitle className="max-w-full">
+                    <span className="truncate">{t.name}</span>
+                    {t.scopes.map((s) => (
+                      <Badge key={s} variant="secondary">
+                        {s}
+                      </Badge>
+                    ))}
+                  </ItemTitle>
+                  <ItemDescription className="text-xs">
+                    <code>{t.prefix}…</code> · created {new Date(t.created_at).toLocaleDateString()} ·{" "}
+                    {t.last_used_at ? "used " + new Date(t.last_used_at).toLocaleDateString() : "never used"}
+                  </ItemDescription>
+                </ItemContent>
+                <ItemActions>
+                  <Button size="icon-sm" variant="ghost" aria-label={`Revoke ${t.name}`} onClick={() => revoke(t.id)}>
+                    <Trash2 />
+                  </Button>
+                </ItemActions>
+              </Item>
+            ))}
+          </ItemGroup>
+        )}
+      </FieldSet>
+    </FieldGroup>
   )
 }

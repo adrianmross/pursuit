@@ -15,6 +15,7 @@ function Unanswered({ prompt }: { prompt: string }) {
   const [answer, setAnswer] = useState("")
   const [state, setState] = useState<"" | "saved" | string>("")
   async function save() {
+    if (!answer.trim()) return
     try {
       await api("/v1/standing", { method: "POST", body: { key: prompt, answer } })
       setState("saved")
@@ -39,7 +40,8 @@ function Unanswered({ prompt }: { prompt: string }) {
       <InputGroup>
         <InputGroupInput aria-label={prompt} placeholder="Answer once, reuse everywhere" value={answer} onChange={(e) => setAnswer(e.target.value)} />
         <InputGroupAddon align="inline-end">
-          <InputGroupButton type="submit" variant="secondary" disabled={!answer.trim()}>
+          {/* Not disabled when empty: a disabled control greys out the whole InputGroup. */}
+          <InputGroupButton type="submit" variant="secondary">
             Save
           </InputGroupButton>
         </InputGroupAddon>
@@ -67,8 +69,10 @@ export function PreparedAnswers({ questions }: { questions: Question[] }) {
                 {q.prompt || "Question"}
                 {open ? (
                   <Badge variant="outline">{q.required ? "Required" : "Optional"}</Badge>
-                ) : (
+                ) : q.answer ? (
                   q.source && SOURCE[q.source] && <Badge variant="secondary">{SOURCE[q.source]}</Badge>
+                ) : (
+                  <Badge variant="outline">Optional</Badge>
                 )}
               </ItemTitle>
               {!open && <ItemDescription>{q.answer || "No answer"}</ItemDescription>}

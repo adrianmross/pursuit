@@ -16,7 +16,9 @@ import {
   Filter,
   MoreHorizontal,
   Plus,
+  CircleAlert,
   RefreshCw,
+  SearchX,
   SlidersHorizontal,
   Trash2,
   X,
@@ -48,13 +50,18 @@ import { ConfirmDialog } from "@/components/ConfirmDialog"
 import { PreparedAnswers } from "@/components/PreparedAnswers"
 import { ProgressMark } from "@/components/ProgressMark"
 import { StatusBadge } from "@/components/StatusBadge"
+import { Alert, AlertTitle } from "@/components/ui/alert"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { ButtonGroup } from "@/components/ui/button-group"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
+import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Slider } from "@/components/ui/slider"
+import { Spinner } from "@/components/ui/spinner"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 
@@ -362,7 +369,9 @@ function ExpandedRow({ row, columnCount }: { row: Application; columnCount: numb
         <div className="flex flex-col gap-2">
           <span className="text-xs font-medium text-muted-foreground">Prepared answers</span>
           {questions == null ? (
-            <p className="text-sm text-muted-foreground">Loading…</p>
+            <p className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Spinner /> Loading…
+            </p>
           ) : (
             <PreparedAnswers questions={questions} />
           )}
@@ -391,8 +400,8 @@ function IconAction({
       <TooltipTrigger asChild>
         <Button
           variant="ghost"
-          size="icon"
-          className={`size-7 ${danger ? "text-destructive hover:text-destructive" : ""}`}
+          size="icon-sm"
+          className={danger ? "text-destructive hover:text-destructive" : undefined}
           aria-label={text}
           onClick={onClick}
           disabled={disabled}
@@ -477,7 +486,7 @@ function RowActions({
       {hasMenu && (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" className="size-7" disabled={busy} aria-label="More actions">
+            <Button variant="ghost" size="icon-sm" disabled={busy} aria-label="More actions">
               <MoreHorizontal className="size-3.5" />
             </Button>
           </DropdownMenuTrigger>
@@ -703,37 +712,43 @@ export function PipelineView({ initial }: { initial: PipelineInitial | null }) {
         </div>
       </div>
 
-      {error && <p className="text-sm text-destructive">{error}</p>}
+      {error && (
+        <Alert variant="destructive">
+          <CircleAlert />
+          <AlertTitle>{error}</AlertTitle>
+        </Alert>
+      )}
 
       {selected.size > 0 && (
         <div className="flex items-center gap-2 rounded-md border bg-muted/40 px-3 py-2">
           <span className="text-sm">{selected.size} selected</span>
           <div className="ml-auto flex gap-2">
+            {bulkBusy && <Spinner className="self-center text-muted-foreground" />}
             {canBulkApprove && (
-              <>
+              <ButtonGroup>
                 <Button size="sm" variant="outline" disabled={bulkBusy} onClick={() => bulkDecide("approve")}>
-                  Approve
+                  <Check /> Approve
                 </Button>
                 <Button size="sm" variant="outline" disabled={bulkBusy} onClick={() => bulkDecide("reject")}>
-                  Reject
+                  <X /> Reject
                 </Button>
-              </>
+              </ButtonGroup>
             )}
             {can("write") && (
-              <>
+              <ButtonGroup>
                 {archivedView ? (
                   <Button size="sm" variant="outline" disabled={bulkBusy} onClick={bulkUnarchive}>
-                    Unarchive
+                    <ArchiveRestore /> Unarchive
                   </Button>
                 ) : (
                   <Button size="sm" variant="outline" disabled={bulkBusy} onClick={bulkArchive}>
-                    Archive
+                    <Archive /> Archive
                   </Button>
                 )}
-                <Button size="sm" variant="destructive" disabled={bulkBusy} onClick={bulkDelete}>
-                  Delete
+                <Button size="sm" variant="outline" className="text-destructive hover:text-destructive" disabled={bulkBusy} onClick={bulkDelete}>
+                  <Trash2 /> Delete
                 </Button>
-              </>
+              </ButtonGroup>
             )}
             <Button size="sm" variant="ghost" onClick={() => setSelected(new Set())}>
               Clear
@@ -809,9 +824,17 @@ export function PipelineView({ initial }: { initial: PipelineInitial | null }) {
           </TableHeader>
           <TableBody>
             {visibleRows.length === 0 && !loading && (
-              <TableRow>
-                <TableCell colSpan={columnCount} className="text-center text-muted-foreground">
-                  No applications match.
+              <TableRow className="hover:bg-transparent">
+                <TableCell colSpan={columnCount} className="whitespace-normal">
+                  <Empty className="py-8">
+                    <EmptyHeader>
+                      <EmptyMedia variant="icon">
+                        <SearchX />
+                      </EmptyMedia>
+                      <EmptyTitle>No applications match.</EmptyTitle>
+                      <EmptyDescription>Try a different search, or loosen the filters.</EmptyDescription>
+                    </EmptyHeader>
+                  </Empty>
                 </TableCell>
               </TableRow>
             )}
@@ -828,8 +851,7 @@ export function PipelineView({ initial }: { initial: PipelineInitial | null }) {
                     <TableCell>
                       <Button
                         variant="ghost"
-                        size="icon"
-                        className="size-6"
+                        size="icon-xs"
                         aria-label={isExpanded ? "Collapse" : "Show prepared answers"}
                         onClick={() => setExpanded(isExpanded ? null : row.id)}
                       >
@@ -852,9 +874,9 @@ export function PipelineView({ initial }: { initial: PipelineInitial | null }) {
                       <span className="flex items-center gap-1.5">
                         <StatusBadge status={shown(row)} />
                         {(row.tags || []).map((tag) => (
-                          <span key={tag} className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                          <Badge key={tag} variant="secondary" className="text-[10px] text-muted-foreground">
                             {tag}
-                          </span>
+                          </Badge>
                         ))}
                       </span>
                     </TableCell>
@@ -900,6 +922,7 @@ export function PipelineView({ initial }: { initial: PipelineInitial | null }) {
 
       {nextCursor && (
         <Button variant="outline" onClick={() => load(nextCursor)} disabled={loading}>
+          {loading && <Spinner />}
           Load more
         </Button>
       )}
