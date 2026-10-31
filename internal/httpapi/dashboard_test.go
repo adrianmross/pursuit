@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"net/http"
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -21,6 +22,19 @@ func TestDashboardAssets(t *testing.T) {
 	}
 	if !strings.Contains(header.Get("Content-Security-Policy"), "script-src 'self' 'unsafe-inline'") {
 		t.Fatalf("csp %q", header.Get("Content-Security-Policy"))
+	}
+	if header.Get("Cache-Control") != "no-cache" {
+		t.Fatalf("index cache-control %q", header.Get("Cache-Control"))
+	}
+
+	// Hashed build output is cached for good; only the HTML revalidates.
+	chunk := regexp.MustCompile(`/_next/static/[^"]+\.js`).FindString(page)
+	if chunk == "" {
+		t.Fatalf("index references no _next/static chunk")
+	}
+	code, _, header = e.do(t, http.MethodGet, chunk, "", nil, nil)
+	if code != 200 || !strings.Contains(header.Get("Cache-Control"), "immutable") {
+		t.Fatalf("chunk %s: %d cache-control %q", chunk, code, header.Get("Cache-Control"))
 	}
 
 	// A path with no file of its own (every real route is its own

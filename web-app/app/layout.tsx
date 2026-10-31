@@ -21,6 +21,14 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     <html lang="en" suppressHydrationWarning>
       <body className="min-h-svh">
         <Providers initialMe={me}>{children}</Providers>
+        {/* Cloudflare Web Analytics (page views + Core Web Vitals). Read at build time; unset in self-hosted builds. */}
+        {process.env.PURSUIT_CF_BEACON_TOKEN && (
+          <script
+            defer
+            src="https://static.cloudflareinsights.com/beacon.min.js"
+            data-cf-beacon={JSON.stringify({ token: process.env.PURSUIT_CF_BEACON_TOKEN })}
+          />
+        )}
       </body>
     </html>
   )
