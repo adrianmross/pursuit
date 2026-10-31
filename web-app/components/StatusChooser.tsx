@@ -18,7 +18,7 @@ import {
 import { HoldIcon, OutcomePiece } from "@/components/Sketch"
 import { Kbd } from "@/components/ui/kbd"
 import { ProgressMark } from "@/components/ProgressMark"
-import { AddRoundIcon, RoundsList, TaskIcon, useRounds, useTasks } from "@/components/Rounds"
+import { AddRoundIcon, RoundsList, TaskIcon, TaskList, useRounds, useTasks } from "@/components/Rounds"
 import { Button } from "@/components/ui/button"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
@@ -241,12 +241,15 @@ const HOLDS = ["waiting", "needs_input"]
 const STOPS = ["failed", "rejected", "ghosted", "withdrawn"]
 const HOLD_NOTE: Record<string, string> = { waiting: "On them", needs_input: "On you" }
 
-// "tasks" opens the rounds view with the current stage's tasks open.
+// "tasks" is one stage's tasks (the current stage when opened directly).
 export type ChooserView = "stage" | "outcome" | "steps" | "rounds" | "tasks"
-type View = Exclude<ChooserView, "tasks">
+type View = ChooserView
 
 // Outcome, steps and rounds share one height so the popover doesn't jump
 // between them; the slider view stays small.
+// Where focus goes in each view: the slider, the task input, or the view itself.
+const focusTarget = (view: string) => (view === "stage" ? "[role=slider]" : view === "tasks" ? "[data-task-input]" : "[data-view]")
+
 const SUB_VIEW = "flex h-[16.5rem] flex-col gap-3 overflow-y-auto outline-none"
 
 function ViewHeader({ title, sub, onBack }: { title: string; sub: string; onBack: () => void }) {
@@ -303,38 +306,44 @@ export function StatusChooser({
   const [view, setView] = useState<View>("stage")
   // Opening resets to the start view (adjusting state on a prop change, not in an effect).
   const [wasOpen, setWasOpen] = useState(open)
-  // The row the + and - keys act on in the rounds view, and the row whose tasks are open.
+  // The row the + and - keys act on in the rounds view, and the stage the tasks view shows.
   const [sel, setSel] = useState(0)
-  const [expanded, setExpanded] = useState<number | null>(null)
+  const [taskStage, setTaskStage] = useState(0)
   const stage = Math.min(6, Math.max(0, app.stage ?? statusPieces(app.status)))
   if (open !== wasOpen) {
     setWasOpen(open)
     if (open) {
-      setView(startView === "tasks" ? "rounds" : startView)
+      setView(startView)
       setSel(stage)
-      setExpanded(startView === "tasks" ? stage : null)
+      setTaskStage(stage)
     }
   }
 
   // Keep keyboard focus inside the popover as the view changes.
   useEffect(() => {
-    content.current?.querySelector<HTMLElement>(view === "stage" ? "[role=slider]" : "[data-view]")?.focus()
+    content.current?.querySelector<HTMLElement>(focusTarget(view))?.focus()
   }, [view])
 
   const rounds = useRounds(app.id, stage, onRoundsChange)
   const tasks = useTasks(app.id, stage, onRoundsChange)
   useEffect(() => {
-    if (view !== "rounds") return
+    if (view !== "rounds" && view !== "tasks") return
     rounds.fetchRounds().catch(() => {})
     tasks.fetchTasks().catch(() => {})
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [view, app.id])
 
-  function openRounds(withTasks = false) {
+  function openRounds() {
     setSel(stage)
-    setExpanded(withTasks ? stage : null)
     setView("rounds")
   }
+  function openTasksView(i: number) {
+    setSel(i)
+    setTaskStage(i)
+    setView("tasks")
+  }
+  // Back from tasks lands on the rounds list it came from.
+  const back = () => setView(view === "tasks" ? "rounds" : "stage")
   // While a change is in flight, show where it's going.
   const outcome = pending ? (OUTCOMES.includes(pending) ? pending : "") : app.outcome || ""
   const current = pending ?? shown(app)
@@ -381,7 +390,7 @@ export function StatusChooser({
       if (view === "rounds") setView("stage")
       else openRounds()
     }
-    else if ((k === "backspace" || k === "arrowleft") && view !== "stage") setView("stage")
+    else if ((k === "backspace" || k === "arrowleft") && view !== "stage") back()
     // + and - add or remove a round: on the selected row in the rounds view,
     // else on the stage the application is on.
     else if ((k === "+" || k === "=" || k === "-" || k === "_") && onRoundsChange && (view === "rounds" || view === "stage")) {
@@ -394,8 +403,7 @@ export function StatusChooser({
       setSel(Math.min(6, Math.max(0, sel + (k === "arrowdown" ? 1 : -1))))
     // T opens the tasks of the highlighted stage (or, from the slider, the current one).
     else if (k === "t" && onRoundsChange) {
-      if (view === "rounds") setExpanded(expanded === sel ? null : sel)
-      else openRounds(true)
+      openTasksView(view === "rounds" ? sel : stage)
     }
     else if (view === "outcome" && n >= 1 && n <= 6) void toggleOutcome([...HOLDS, ...STOPS][n - 1])
     else if (view === "steps" && n >= 1 && n <= SUB_STEPS.length) void set(SUB_STEPS[n - 1])
@@ -418,14 +426,14 @@ export function StatusChooser({
         className="w-72 rounded-2xl p-3"
         onOpenAutoFocus={(e) => {
           e.preventDefault()
-          content.current?.querySelector<HTMLElement>(view === "stage" ? "[role=slider]" : "[data-view]")?.focus()
+          content.current?.querySelector<HTMLElement>(focusTarget(view))?.focus()
         }}
         onCloseAutoFocus={(e) => e.preventDefault()}
         // Esc on a sub-view steps back to the stage; on the stage it closes.
         onEscapeKeyDown={(e) => {
           if (view === "stage") return
           e.preventDefault()
-          setView("stage")
+          back()
         }}
         onKeyDown={onKey}
       >
@@ -524,10 +532,20 @@ export function StatusChooser({
         {view === "rounds" && (
           <div data-view tabIndex={-1} className={SUB_VIEW}>
             <ViewHeader title="Rounds" sub={rounds.summary()} onBack={() => setView("stage")} />
-            <RoundsList rounds={rounds} tasks={tasks} stage={stage} sel={sel} onSelect={setSel} expanded={expanded} onExpand={setExpanded} />
+            <RoundsList rounds={rounds} tasks={tasks} stage={stage} sel={sel} onSelect={setSel} onExpand={(i) => i != null && openTasksView(i)} />
             <p className="mt-auto text-center text-[11px] text-muted-foreground">
-              <Kbd>+</Kbd> <Kbd>−</Kbd> rounds · <Kbd>↑</Kbd> <Kbd>↓</Kbd> stage · <Kbd>Esc</Kbd> back
+              <Kbd>+</Kbd> <Kbd>−</Kbd> rounds · <Kbd>T</Kbd> tasks · <Kbd>Esc</Kbd> back
             </p>
+          </div>
+        )}
+        {view === "tasks" && (
+          <div data-view tabIndex={-1} className={SUB_VIEW}>
+            <ViewHeader
+              title={`${STAGE_STOPS[taskStage][1]} tasks`}
+              sub={`${tasks.forStage(STAGE_STOPS[taskStage][0]).filter((t) => !t.done_at).length} open`}
+              onBack={back}
+            />
+            <TaskList stageKey={STAGE_STOPS[taskStage][0]} name={STAGE_STOPS[taskStage][1]} tasks={tasks.forStage(STAGE_STOPS[taskStage][0])} api={tasks} />
           </div>
         )}
         {view === "stage" && (

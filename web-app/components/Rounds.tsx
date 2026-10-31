@@ -172,37 +172,31 @@ const doneOf = (rounds: Interview[]) => rounds.filter((r) => r.done_at).length
 // Clicking the pie fills the next wedge; once all are done it empties the last.
 const nextToggle = (rounds: Interview[]) => rounds.find((r) => !r.done_at) ?? rounds[rounds.length - 1]
 
-// A stage's tasks, opened under its row: tick, delete, or type to add.
-function TaskPanel({ stageKey, name, tasks, api: t }: { stageKey: string; name: string; tasks: Task[]; api: TasksApi }) {
+// A stage's tasks at a usable size: type and Enter (or Add) on top, then
+// each task to tick off or delete.
+export function TaskList({
+  stageKey,
+  name,
+  tasks,
+  api: t,
+}: {
+  stageKey: string
+  name: string
+  tasks: Task[]
+  api: TasksApi
+}) {
   const [title, setTitle] = useState("")
+  function submit() {
+    if (!title.trim()) return
+    void t.add(title.trim(), stageKey).then(() => setTitle(""))
+  }
   return (
-    <li className="flex flex-col gap-0.5 pt-0.5 pb-1.5 pl-[6.25rem]">
-      {tasks.map((task) => (
-        <span key={task.id} className="group flex h-6 items-center gap-2">
-          <Checkbox
-            aria-label={`Done: ${task.title}`}
-            checked={!!task.done_at}
-            disabled={t.busy}
-            onCheckedChange={() => t.toggle(task)}
-            className="size-3.5"
-          />
-          <span className={cn("min-w-0 flex-1 truncate text-xs", task.done_at && "text-muted-foreground line-through")}>{task.title}</span>
-          <button
-            type="button"
-            aria-label={`Delete ${task.title}`}
-            disabled={t.busy}
-            onClick={() => t.remove(task)}
-            className="rounded text-muted-foreground opacity-0 outline-none group-hover:opacity-100 hover:text-foreground focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-ring"
-          >
-            <X className="size-3.5" />
-          </button>
-        </span>
-      ))}
+    <div className="flex flex-col gap-2">
       <form
+        className="flex gap-2"
         onSubmit={(e) => {
           e.preventDefault()
-          if (!title.trim()) return
-          void t.add(title.trim(), stageKey).then(() => setTitle(""))
+          submit()
         }}
       >
         <Input
@@ -210,15 +204,40 @@ function TaskPanel({ stageKey, name, tasks, api: t }: { stageKey: string; name: 
           data-task-input
           value={title}
           onChange={(e) => setTitle(e.target.value)}
-          placeholder={`Add a ${name} task, Enter to save`}
-          aria-label={`Add a ${name} task`}
-          className="h-7 text-xs"
+          placeholder="What needs doing?"
+          aria-label={`New ${name} task`}
+          className="h-9 flex-1 text-sm"
         />
+        <Button type="submit" size="sm" className="h-9" disabled={!title.trim() || t.busy}>
+          <Plus /> Add
+        </Button>
       </form>
-    </li>
+      {tasks.length === 0 ? (
+        <p className="px-1 text-[13px] text-muted-foreground">Nothing waiting on you at {name}.</p>
+      ) : (
+        <ul className="flex flex-col">
+          {tasks.map((task) => (
+            <li key={task.id} className="group flex min-h-9 items-center gap-2.5 rounded-lg px-1 hover:bg-muted/60">
+              <Checkbox aria-label={`Done: ${task.title}`} checked={!!task.done_at} disabled={t.busy} onCheckedChange={() => t.toggle(task)} />
+              <span className={cn("min-w-0 flex-1 text-sm break-words", task.done_at && "text-muted-foreground line-through")}>{task.title}</span>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="size-7 text-muted-foreground opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
+                aria-label={`Delete ${task.title}`}
+                disabled={t.busy}
+                onClick={() => t.remove(task)}
+              >
+                <X className="size-4" />
+              </Button>
+            </li>
+          ))}
+        </ul>
+      )}
+      {t.error && <p className="text-[12px] text-destructive">{t.error}</p>}
+    </div>
   )
 }
-
 
 // One stage: its rounds as a pie (click to fill the next wedge) with how many
 // there are, its tasks as a box with how many are open, then remove-last
@@ -371,7 +390,11 @@ export function RoundsList({
                 onAdd={() => rounds.add(key, i)}
                 onTasks={tasks && onExpand ? () => onExpand(expanded === i ? null : i) : undefined}
               />
-              {tasks && expanded === i && <TaskPanel stageKey={key} name={name} tasks={own ?? []} api={tasks} />}
+              {tasks && expanded === i && (
+                <li className="px-1.5 pt-1 pb-3">
+                  <TaskList stageKey={key} name={name} tasks={own ?? []} api={tasks} />
+                </li>
+              )}
             </Fragment>
           )
         })}
@@ -380,7 +403,6 @@ export function RoundsList({
         <p className="text-[12px] text-destructive">“{armedRound.kind || "This round"}” has details. Press − again to delete it.</p>
       )}
       {rounds.error && <p className="text-[12px] text-destructive">{rounds.error}</p>}
-      {tasks?.error && <p className="text-[12px] text-destructive">{tasks.error}</p>}
     </>
   )
 }
