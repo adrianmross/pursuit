@@ -2,58 +2,33 @@ import { outcomeKind } from "@/lib/types"
 
 // The logo's p as a game piece: five ring segments plus a sixth, gold tail
 // on an offer. Geometry from the Hire Pursuit design system's ProgressMark.
-// The ring paths run clockwise from the upper left; stages fill them the other
-// way round — bottom first, counter-clockwise up to the tail, then down it.
+// Stages fill them bottom first, counter-clockwise up to the tail, then down it.
 const PIECES = [
-  { d: "M34.73 64.55 A20.5 20.5 0 0 1 17.34 64.58", fromEnd: true },
-  { d: "M46.36 48.36 A20.5 20.5 0 0 1 37.23 63.15", fromEnd: true },
-  { d: "M38.73 29.93 A20.5 20.5 0 0 1 46.49 45.50", fromEnd: true },
-  { d: "M19.06 26.71 A20.5 20.5 0 0 1 36.37 28.32", fromEnd: true },
-  { d: "M5.95 41.74 A20.5 20.5 0 0 1 16.44 27.87", fromEnd: true },
-  { d: "M5.5 46 V84", fromEnd: false },
+  "M34.73 64.55 A20.5 20.5 0 0 1 17.34 64.58",
+  "M46.36 48.36 A20.5 20.5 0 0 1 37.23 63.15",
+  "M38.73 29.93 A20.5 20.5 0 0 1 46.49 45.50",
+  "M19.06 26.71 A20.5 20.5 0 0 1 36.37 28.32",
+  "M5.95 41.74 A20.5 20.5 0 0 1 16.44 27.87",
+  "M5.5 46 V84",
 ]
-// Share of a piece left open between the sub-arcs of several rounds.
-const GAP = 0.1
 
 type Counts = Record<string, { done: number; total: number }>
 
 type Props = {
   stage: number
   outcome?: string
-  // Rounds per stage number: each one is a sub-arc of that stage's piece.
+  // Rounds per stage number. A piece with rounds isn't split: it fills in
+  // levels as they're done, so the mark stays as calm as the logo.
   interviews?: Counts
   size?: number
 }
 
-// Arc draws the stretch [from, to] of a piece, measured from the end where
-// filling starts. pathLength=1 turns the dash pattern into fractions.
-function Arc({
-  d,
-  fromEnd,
-  from = 0,
-  to = 1,
-  className,
-}: {
-  d: string
-  fromEnd: boolean
-  from?: number
-  to?: number
-  className: string
-}) {
-  const partial = from > 0 || to < 1
-  // A dash starting at `start` along the path covers [start, start + length].
-  const start = fromEnd ? 1 - to : from
-  return (
-    <path
-      d={d}
-      pathLength={1}
-      fill="none"
-      strokeWidth={11}
-      className={className}
-      strokeDasharray={partial ? `${to - from} 2` : undefined}
-      strokeDashoffset={partial ? -start : undefined}
-    />
-  )
+// How filled a piece reads for its rounds, in four steps rather than an exact
+// share so the levels stay tellable apart at 20px.
+export function roundLevel(done: number, total: number) {
+  if (total === 0 || done >= total) return 1
+  if (done === 0) return 0.3
+  return done / total < 0.5 ? 0.5 : 0.75
 }
 
 export function ProgressMark({ stage, outcome, interviews, size = 32 }: Props) {
@@ -73,31 +48,24 @@ export function ProgressMark({ stage, outcome, interviews, size = 32 }: Props) {
       role="img"
       aria-label={`${n} of 6 pieces${outcome ? `, ${outcome.replace("_", " ")}` : ""}`}
     >
-      {PIECES.map(({ d, fromEnd }, i) => {
+      {PIECES.map((d, i) => {
         const piece = i + 1
-        const reached = n >= piece
         const tinted = piece === target
-        const base = tinted ? tint : piece === 6 ? "stroke-brand-gold" : "stroke-foreground"
-        const faded = reached || tinted ? `${base} opacity-30` : "stroke-border"
         const rounds = interviews?.[piece]
-        const total = rounds?.total ?? 0
-        if (total === 0) {
-          return <Arc key={piece} d={d} fromEnd={fromEnd} className={reached || tinted ? base : "stroke-border"} />
-        }
         const done = rounds?.done ?? 0
+        // A piece shows once it's reached, or ahead of time if a round on it is done.
+        const shown = n >= piece || tinted || done > 0
+        const base = tinted ? tint : piece === 6 ? "stroke-brand-gold" : "stroke-foreground"
         return (
-          <g key={piece}>
-            {Array.from({ length: total }, (_, k) => (
-              <Arc
-                key={k}
-                d={d}
-                fromEnd={fromEnd}
-                from={total === 1 ? 0 : k / total + GAP / 2}
-                to={total === 1 ? 1 : (k + 1) / total - GAP / 2}
-                className={k < done ? base : faded}
-              />
-            ))}
-          </g>
+          <path
+            key={piece}
+            d={d}
+            fill="none"
+            strokeWidth={11}
+            // Pieces fade in and out as the stage changes (the status chooser leans on this).
+            className={`transition-[stroke,opacity] duration-300 ease-out ${shown ? base : "stroke-border"}`}
+            opacity={shown ? roundLevel(done, rounds?.total ?? 0) : 1}
+          />
         )
       })}
     </svg>

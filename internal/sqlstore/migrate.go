@@ -420,4 +420,23 @@ var migrations = []migration{{
 		// entry can name who let it in.
 		`ALTER TABLE oauth_grants ADD COLUMN approver_token_id TEXT NOT NULL DEFAULT ''`,
 	},
+}, {
+	version: "011",
+	stmts: []string{
+		// Tasks: the small things waiting on you, on any stage of an application.
+		`CREATE TABLE IF NOT EXISTS tasks (
+			id TEXT PRIMARY KEY,
+			user_id TEXT NOT NULL,
+			application_id TEXT NOT NULL REFERENCES applications(id) ON DELETE CASCADE,
+			stage TEXT NOT NULL,
+			title TEXT NOT NULL,
+			notes TEXT NOT NULL DEFAULT '',
+			due_at TEXT NOT NULL DEFAULT '',
+			done_at TEXT NOT NULL DEFAULT '',
+			version BIGINT NOT NULL DEFAULT 1,
+			created_at TEXT NOT NULL,
+			updated_at TEXT NOT NULL
+		)`,
+		`CREATE INDEX IF NOT EXISTS tasks_app_idx ON tasks(application_id, created_at, id)`,
+	},
 }}

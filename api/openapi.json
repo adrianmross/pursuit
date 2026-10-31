@@ -1500,6 +1500,7 @@
     },
     "/v1/applications/{id}/interviews": {
       "get": {
+        "deprecated": true,
         "operationId": "get__v1_applications__id__interviews",
         "responses": {
           "200": {
@@ -1556,9 +1557,10 @@
             "description": "error"
           }
         },
-        "summary": "list interview rounds for an application. limit, cursor, fields; no limit returns all"
+        "summary": "deprecated alias of GET /v1/applications/{id}/rounds"
       },
       "post": {
+        "deprecated": true,
         "operationId": "post__v1_applications__id__interviews",
         "parameters": [
           {
@@ -1623,7 +1625,7 @@
             "description": "error"
           }
         },
-        "summary": "add an interview round. stage is prepared, applied, screening, interviewing, final, or offer and defaults to the current stage. prep holds what to rehearse"
+        "summary": "deprecated alias of POST /v1/applications/{id}/rounds"
       }
     },
     "/v1/applications/{id}/prepare": {
@@ -1754,6 +1756,134 @@
           }
         },
         "summary": "list form questions and answers. limit, cursor; no limit returns all"
+      }
+    },
+    "/v1/applications/{id}/rounds": {
+      "get": {
+        "operationId": "get__v1_applications__id__rounds",
+        "responses": {
+          "200": {
+            "description": "JSON body"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "error"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "error"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "error"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "error"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "error"
+          }
+        },
+        "summary": "list rounds for an application. limit, cursor, fields; no limit returns all"
+      },
+      "post": {
+        "operationId": "post__v1_applications__id__rounds",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          },
+          {
+            "$ref": "#/components/parameters/DryRun"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "JSON body"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "error"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "error"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "error"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "error"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "error"
+          }
+        },
+        "summary": "add a round. stage is prepared, applied, screening, interviewing, final, or offer and defaults to the current stage. prep holds what to rehearse"
       }
     },
     "/v1/applications/{id}/tags": {
@@ -1892,6 +2022,134 @@
           }
         },
         "summary": "detach a tag"
+      }
+    },
+    "/v1/applications/{id}/tasks": {
+      "get": {
+        "operationId": "get__v1_applications__id__tasks",
+        "responses": {
+          "200": {
+            "description": "JSON body"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "error"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "error"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "error"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "error"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "error"
+          }
+        },
+        "summary": "list an application's tasks, the things waiting on you. limit, cursor, fields; no limit returns all"
+      },
+      "post": {
+        "operationId": "post__v1_applications__id__tasks",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          },
+          {
+            "$ref": "#/components/parameters/DryRun"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "JSON body"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "error"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "error"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "error"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "error"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "error"
+          }
+        },
+        "summary": "add a task. title is required. stage is to_apply, prepared, applied, screening, interviewing, final, or offer and defaults to the current stage. due_at is RFC3339 or YYYY-MM-DD"
       }
     },
     "/v1/applications/{id}/transition": {
@@ -4292,6 +4550,7 @@
     },
     "/v1/interviews/{id}": {
       "delete": {
+        "deprecated": true,
         "operationId": "delete__v1_interviews__id_",
         "parameters": [
           {
@@ -4356,9 +4615,10 @@
             "description": "error"
           }
         },
-        "summary": "delete an interview round; version query or If-Match"
+        "summary": "deprecated alias of DELETE /v1/rounds/{id}"
       },
       "get": {
+        "deprecated": true,
         "operationId": "get__v1_interviews__id_",
         "responses": {
           "200": {
@@ -4415,9 +4675,10 @@
             "description": "error"
           }
         },
-        "summary": "get an interview round"
+        "summary": "deprecated alias of GET /v1/rounds/{id}"
       },
       "patch": {
+        "deprecated": true,
         "operationId": "patch__v1_interviews__id_",
         "parameters": [
           {
@@ -4482,7 +4743,7 @@
             "description": "error"
           }
         },
-        "summary": "update an interview round; body.version is required. done true/false marks it done"
+        "summary": "deprecated alias of PATCH /v1/rounds/{id}"
       }
     },
     "/v1/links": {
@@ -5576,6 +5837,201 @@
         "summary": "update a role"
       }
     },
+    "/v1/rounds/{id}": {
+      "delete": {
+        "operationId": "delete__v1_rounds__id_",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          },
+          {
+            "$ref": "#/components/parameters/DryRun"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "JSON body"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "error"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "error"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "error"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "error"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "error"
+          }
+        },
+        "summary": "delete a round; version query or If-Match"
+      },
+      "get": {
+        "operationId": "get__v1_rounds__id_",
+        "responses": {
+          "200": {
+            "description": "JSON body"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "error"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "error"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "error"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "error"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "error"
+          }
+        },
+        "summary": "get a round"
+      },
+      "patch": {
+        "operationId": "patch__v1_rounds__id_",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          },
+          {
+            "$ref": "#/components/parameters/DryRun"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "JSON body"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "error"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "error"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "error"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "error"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "error"
+          }
+        },
+        "summary": "update a round; body.version is required. done true/false marks it done"
+      }
+    },
     "/v1/standing": {
       "get": {
         "operationId": "get__v1_standing",
@@ -5968,6 +6424,201 @@
           }
         },
         "summary": "delete a tag"
+      }
+    },
+    "/v1/tasks/{id}": {
+      "delete": {
+        "operationId": "delete__v1_tasks__id_",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          },
+          {
+            "$ref": "#/components/parameters/DryRun"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "JSON body"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "error"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "error"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "error"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "error"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "error"
+          }
+        },
+        "summary": "delete a task; version query or If-Match"
+      },
+      "get": {
+        "operationId": "get__v1_tasks__id_",
+        "responses": {
+          "200": {
+            "description": "JSON body"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "error"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "error"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "error"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "error"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "error"
+          }
+        },
+        "summary": "get a task"
+      },
+      "patch": {
+        "operationId": "patch__v1_tasks__id_",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          },
+          {
+            "$ref": "#/components/parameters/DryRun"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "JSON body"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "error"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "error"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "error"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "error"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "error"
+          }
+        },
+        "summary": "update a task; body.version is required. done true/false marks it done"
       }
     },
     "/v1/tokens": {

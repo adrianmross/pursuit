@@ -632,6 +632,7 @@ type Application struct {
 	Outcome        string                 `json:"outcome"`
 	Stage          int                    `json:"stage"`
 	Interviews     map[int]InterviewCount `json:"interviews"`
+	Tasks          map[int]InterviewCount `json:"tasks"`
 	AppliedDate    *string                `json:"applied_date"`
 	NextStep       string                 `json:"next_step"`
 	Notes          string                 `json:"notes"`
@@ -725,7 +726,43 @@ func ParseInterviewStage(s string) (string, error) {
 			return key, nil
 		}
 	}
-	return "", Validation("invalid interview stage %q", s).WithHint("stage is prepared, applied, screening, interviewing, final, or offer")
+	return "", Validation("invalid round stage %q", s).WithHint("stage is prepared, applied, screening, interviewing, final, or offer")
+}
+
+// Task is a to-do on an application, tied to a stage: something waiting on you.
+type Task struct {
+	ID            string     `json:"id"`
+	UserID        string     `json:"-"`
+	ApplicationID string     `json:"application_id"`
+	Stage         string     `json:"stage"`
+	Title         string     `json:"title"`
+	Notes         string     `json:"notes"`
+	DueAt         *time.Time `json:"due_at,omitempty"`
+	DoneAt        *time.Time `json:"done_at,omitempty"`
+	Version       int        `json:"version"`
+	CreatedAt     time.Time  `json:"created_at"`
+	UpdatedAt     time.Time  `json:"updated_at"`
+}
+
+// ParseTaskStage accepts to_apply or any stage a round can sit in. It
+// returns the stored key.
+func ParseTaskStage(s string) (string, error) {
+	if st, err := ParseStatus(s); err == nil && st == StatusToApply {
+		return StatusToApply, nil
+	}
+	if key, err := ParseInterviewStage(s); err == nil {
+		return key, nil
+	}
+	return "", Validation("invalid task stage %q", s).WithHint("stage is to_apply, prepared, applied, screening, interviewing, final, or offer")
+}
+
+// TaskStageKey is the stage a task joins by default: the application's
+// stage, or to_apply before it reaches one.
+func TaskStageKey(stage int) string {
+	if key := StageKey(stage); key != "" {
+		return key
+	}
+	return StatusToApply
 }
 
 func (a Application) AppliedDateValue() string {
@@ -890,9 +927,10 @@ func CheckCursorSort(c Cursor, sort string) error {
 var (
 	CompanyFields     = []string{"id", "name", "website", "icon_url", "notes", "version", "created_at", "updated_at"}
 	RoleFields        = []string{"id", "company_id", "company", "title", "location", "salary", "salary_min_cents", "salary_max_cents", "fit", "posting_url", "source", "job_type", "version", "created_at", "updated_at"}
-	AppFields         = []string{"id", "company_id", "company", "role_id", "title", "location", "salary", "salary_min_cents", "salary_max_cents", "fit", "status", "outcome", "stage", "interviews", "applied_date", "next_step", "notes", "posting_url", "source", "job_type", "resume_version", "resume_file_ref", "contact_email", "external_id", "tags", "link_status", "link_checked_at", "archived_at", "custom_fields", "version", "created_at", "updated_at"}
+	AppFields         = []string{"id", "company_id", "company", "role_id", "title", "location", "salary", "salary_min_cents", "salary_max_cents", "fit", "status", "outcome", "stage", "interviews", "tasks", "applied_date", "next_step", "notes", "posting_url", "source", "job_type", "resume_version", "resume_file_ref", "contact_email", "external_id", "tags", "link_status", "link_checked_at", "archived_at", "custom_fields", "version", "created_at", "updated_at"}
 	EventFields       = []string{"id", "application_id", "kind", "from_status", "to_status", "title", "body", "occurred_at", "created_at", "actor"}
 	InterviewFields   = []string{"id", "application_id", "stage", "kind", "interviewer", "scheduled_at", "done_at", "prep", "notes", "version", "created_at", "updated_at"}
+	TaskFields        = []string{"id", "application_id", "stage", "title", "notes", "due_at", "done_at", "version", "created_at", "updated_at"}
 	TagFields         = []string{"id", "name", "created_at"}
 	CustomFieldFields = []string{"id", "name", "type", "created_at"}
 	TokenFields       = []string{"id", "name", "prefix", "scopes", "created_at", "last_used_at", "revoked_at"}

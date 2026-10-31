@@ -1,11 +1,11 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { AlertCircle, CalendarClock, ChevronDown, Plus, Trash2 } from "lucide-react"
-import { api, ApiError } from "@/lib/api-client"
-import { label, type Interview } from "@/lib/types"
+import { CalendarClock, ChevronDown, Plus, Trash2 } from "lucide-react"
+import { api } from "@/lib/api-client"
+import { label, ROUND_STAGES, type Interview } from "@/lib/types"
+import { hasDetails, RoundsList, useRounds, useTasks } from "@/components/Rounds"
 import { InlineSelect, InlineText } from "@/components/InlineEdit"
-import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { ButtonGroup } from "@/components/ui/button-group"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -17,14 +17,7 @@ import { Item, ItemActions, ItemContent, ItemGroup, ItemMedia } from "@/componen
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 
-const STAGES: [string, string][] = [
-  ["awaiting_review", "Prepared"],
-  ["applied", "Applied"],
-  ["screening", "Screening"],
-  ["interviewing", "Interviewing"],
-  ["final", "Final"],
-  ["offer", "Offer"],
-]
+const STAGES = ROUND_STAGES
 
 const day = (value?: string) => (value ? value.slice(0, 10) : "")
 
@@ -70,15 +63,47 @@ function TextBox({
 
 function Row({
   item,
+  index,
   writable,
   onPatch,
   onDelete,
 }: {
   item: Interview
+  index: number
   writable: boolean
   onPatch: (item: Interview, body: Record<string, unknown>) => void
   onDelete: (item: Interview) => void
 }) {
+  // A round with nothing filled in stays one line until you open it.
+  const [open, setOpen] = useState(hasDetails(item))
+  if (!open) {
+    return (
+      <Item variant="outline" size="sm" role="listitem" className="py-1.5">
+        <ItemMedia>
+          <Checkbox
+            aria-label="Done"
+            checked={!!item.done_at}
+            disabled={!writable}
+            onCheckedChange={(checked) => onPatch(item, { done: checked === true })}
+          />
+        </ItemMedia>
+        <ItemContent className="flex-row items-center gap-2.5">
+          <span className={item.done_at ? "text-sm text-muted-foreground line-through" : "text-sm"}>Round {index}</span>
+          <span className="text-xs text-muted-foreground">{label(item.stage)}</span>
+        </ItemContent>
+        {writable && (
+          <ItemActions>
+            <Button variant="ghost" size="sm" className="h-7 px-2 text-xs text-muted-foreground" onClick={() => setOpen(true)}>
+              Add details
+            </Button>
+            <Button variant="ghost" size="icon-xs" aria-label="Delete round" onClick={() => onDelete(item)}>
+              <Trash2 className="size-3.5" />
+            </Button>
+          </ItemActions>
+        )}
+      </Item>
+    )
+  }
   return (
     <Item variant="outline" size="sm" role="listitem">
       <ItemMedia>
@@ -92,9 +117,9 @@ function Row({
       <ItemContent className="flex-row flex-wrap items-center gap-x-3 gap-y-1.5">
         <InlineText
           value={item.kind || ""}
-          placeholder="Round"
+          placeholder={`Round ${index}`}
           disabled={!writable}
-          className="text-sm font-medium"
+          className="w-auto text-sm font-medium"
           inputClassName="h-7 text-sm"
           onSave={(v) => onPatch(item, { kind: v })}
         />
@@ -118,14 +143,14 @@ function Row({
           value={item.interviewer || ""}
           placeholder="Who"
           disabled={!writable}
-          className="text-sm text-muted-foreground"
+          className="w-auto text-sm text-muted-foreground"
           inputClassName="h-7 text-sm"
           onSave={(v) => onPatch(item, { interviewer: v })}
         />
       </ItemContent>
       {writable && (
         <ItemActions>
-          <Button variant="ghost" size="icon-xs" aria-label="Delete interview" onClick={() => onDelete(item)}>
+          <Button variant="ghost" size="icon-xs" aria-label="Delete round" onClick={() => onDelete(item)}>
             <Trash2 className="size-3.5" />
           </Button>
         </ItemActions>
@@ -155,8 +180,7 @@ function Row({
 }
 
 // InterviewsCard lists an application's rounds. Any stage can have them, and
-// each round is a sub-arc of its stage's piece on the progress mark; marking
-// one done fills it.
+// marking them done fills that stage's piece on the progress mark.
 export function InterviewsCard({
   appId,
   current,
@@ -168,57 +192,54 @@ export function InterviewsCard({
   writable: boolean
   onChange: () => void
 }) {
-  const [items, setItems] = useState<Interview[]>([])
-  const [error, setError] = useState<string | null>(null)
   const [kind, setKind] = useState("")
+  const [sel, setSel] = useState(current)
+  const [expanded, setExpanded] = useState<number | null>(null)
   // New rounds join the stage the application is on.
   const [stage, setStage] = useState(STAGES[Math.max(current, 1) - 1][0])
-  const base = `/v1/applications/${encodeURIComponent(appId)}/interviews`
-
-  async function load() {
-    try {
-      const page = await api<{ data: Interview[] }>(base)
-      setItems(page.data || [])
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Failed to load interviews")
-    }
-  }
+  const base = `/v1/applications/${encodeURIComponent(appId)}/rounds`
+  // The same rounds the status chooser edits: one list, one set of operations.
+  const rounds = useRounds(appId, current, onChange)
+  const tasks = useTasks(appId, current, onChange)
+  const items = rounds.list ?? []
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    void load()
+    rounds.fetchRounds().catch(() => {})
+    tasks.fetchTasks().catch(() => {})
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [appId])
 
-  async function run(request: Promise<unknown>) {
-    setError(null)
-    try {
-      await request
-      await load()
-      onChange()
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Failed to save")
-    }
-  }
-
-  const add = () => run(api(base, { method: "POST", body: { stage, kind } }).then(() => setKind("")))
+  const add = () => rounds.run(() => api(base, { method: "POST", body: { stage, kind } }).then(() => setKind("")))
   const patch = (item: Interview, body: Record<string, unknown>) =>
-    run(api(`/v1/interviews/${encodeURIComponent(item.id)}`, { method: "PATCH", body: { version: item.version, ...body } }))
+    rounds.run(() => api(`/v1/rounds/${encodeURIComponent(item.id)}`, { method: "PATCH", body: { version: item.version, ...body } }))
   const remove = (item: Interview) =>
-    run(api(`/v1/interviews/${encodeURIComponent(item.id)}?version=${item.version}`, { method: "DELETE" }))
+    rounds.run(() => api(`/v1/rounds/${encodeURIComponent(item.id)}?version=${item.version}`, { method: "DELETE" }))
 
   const ordered = STAGES.flatMap(([value]) => items.filter((item) => item.stage === value))
 
   return (
     <Card>
-      <CardHeader>
-        <CardTitle className="text-base">Interviews</CardTitle>
+      <CardHeader className="flex flex-row items-baseline justify-between">
+        <CardTitle className="text-base">Rounds and tasks</CardTitle>
+        <span className="text-xs text-muted-foreground">{rounds.summary()}</span>
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
+        {writable && (
+          <div className="max-w-sm">
+            <RoundsList rounds={rounds} tasks={tasks} stage={current} sel={sel} onSelect={setSel} expanded={expanded} onExpand={setExpanded} />
+          </div>
+        )}
         {ordered.length > 0 && (
           <ItemGroup className="gap-2">
             {ordered.map((item) => (
-              <Row key={item.id} item={item} writable={writable} onPatch={patch} onDelete={remove} />
+              <Row
+                key={item.id}
+                item={item}
+                index={ordered.filter((o) => o.stage === item.stage).indexOf(item) + 1}
+                writable={writable}
+                onPatch={patch}
+                onDelete={remove}
+              />
             ))}
           </ItemGroup>
         )}
@@ -228,8 +249,8 @@ export function InterviewsCard({
               <EmptyMedia variant="icon">
                 <CalendarClock />
               </EmptyMedia>
-              <EmptyTitle>No rounds yet</EmptyTitle>
-              <EmptyDescription>Each one fills part of the mark as you finish it.</EmptyDescription>
+              <EmptyTitle>No named rounds yet</EmptyTitle>
+              <EmptyDescription>Each stage is one round until you split it with +. Name a round below to add prep and notes.</EmptyDescription>
             </EmptyHeader>
           </Empty>
         )}
@@ -265,12 +286,6 @@ export function InterviewsCard({
               </Button>
             </ButtonGroup>
           </form>
-        )}
-        {error && (
-          <Alert variant="destructive">
-            <AlertCircle />
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
         )}
       </CardContent>
     </Card>

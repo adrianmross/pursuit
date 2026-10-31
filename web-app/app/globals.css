@@ -162,3 +162,11 @@
     @apply font-display;
   }
 }
+
+/* Settings › Motion › Reduced. */
+[data-motion="reduced"] *,
+[data-motion="reduced"] *::before,
+[data-motion="reduced"] *::after {
+  transition: none !important;
+  animation: none !important;
+}

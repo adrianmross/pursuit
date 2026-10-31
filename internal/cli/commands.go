@@ -41,7 +41,9 @@ func rootCommand() *Command {
 			cmdEvents(),
 			cmdTags(),
 			cmdFields(),
-			cmdInterviews(),
+			{Name: "rounds", Summary: "rounds within any of an application's stages", Children: roundCommands()},
+			{Name: "interviews", Summary: "alias of rounds", Children: roundCommands()},
+			cmdTasks(),
 			cmdAuth(),
 			cmdTokens(),
 			cmdAudit(),
@@ -532,7 +534,8 @@ func cmdFields() *Command {
 	}}
 }
 
-func cmdInterviews() *Command {
+// roundCommands are the children of rounds and of its alias interviews.
+func roundCommands() []*Command {
 	fields := []Flag{
 		{Name: "stage", Type: "string", Help: "prepared, applied, screening, interviewing, final, or offer (default: the application's current stage)"},
 		{Name: "kind", Type: "string", Help: "the round, e.g. Recruiter call or System design"},
@@ -559,11 +562,11 @@ func cmdInterviews() *Command {
 		}
 		return nil
 	}
-	return &Command{Name: "interviews", Summary: "rounds within any of an application's stages", Children: []*Command{
-		{Name: "list", Summary: "list an application's interviews", Usage: "pursuit interviews list <application-id>", Args: []Arg{{Name: "application-id", Required: true}}, Run: func(e *exec) error {
-			return e.send("GET", "/v1/applications/"+url.PathEscape(e.args[0])+"/interviews", nil, nil, "", false, true)
+	return []*Command{
+		{Name: "list", Summary: "list an application's rounds", Usage: "pursuit rounds list <application-id>", Args: []Arg{{Name: "application-id", Required: true}}, Run: func(e *exec) error {
+			return e.send("GET", "/v1/applications/"+url.PathEscape(e.args[0])+"/rounds", nil, nil, "", false, true)
 		}},
-		{Name: "add", Summary: "add an interview round", Mutating: true, Usage: "pursuit interviews add <application-id> --kind \"System design\" --when 2026-11-05 --prep-file prep.md", Args: []Arg{{Name: "application-id", Required: true}}, Flags: append(append([]Flag{}, fields...), Flag{Name: "done", Type: "bool", Help: "already happened"}), Run: func(e *exec) error {
+		{Name: "add", Summary: "add a round", Mutating: true, Usage: "pursuit rounds add <application-id> --kind \"System design\" --when 2026-11-05 --prep-file prep.md", Args: []Arg{{Name: "application-id", Required: true}}, Flags: append(append([]Flag{}, fields...), Flag{Name: "done", Type: "bool", Help: "already happened"}), Run: func(e *exec) error {
 			payload := map[string]any{}
 			if err := put(e, payload); err != nil {
 				return err
@@ -575,23 +578,70 @@ func cmdInterviews() *Command {
 			if err != nil {
 				return err
 			}
-			return e.send("POST", "/v1/applications/"+url.PathEscape(e.args[0])+"/interviews", nil, body, "application/json", true, true)
+			return e.send("POST", "/v1/applications/"+url.PathEscape(e.args[0])+"/rounds", nil, body, "application/json", true, true)
 		}},
-		{Name: "set", Summary: "change an interview round", Mutating: true, Usage: "pursuit interviews set <id> [--prep ...] [--notes ...] [--done|--undone]", Args: []Arg{{Name: "id", Required: true}}, Flags: append(append([]Flag{}, fields...), Flag{Name: "done", Type: "bool", Help: "mark done"}, Flag{Name: "undone", Type: "bool", Help: "mark not done"}, Flag{Name: "version", Type: "string", Help: "object version"}), Run: func(e *exec) error {
-			return patchInterview(e, put)
+		{Name: "set", Summary: "change a round", Mutating: true, Usage: "pursuit rounds set <id> [--prep ...] [--notes ...] [--done|--undone]", Args: []Arg{{Name: "id", Required: true}}, Flags: append(append([]Flag{}, fields...), Flag{Name: "done", Type: "bool", Help: "mark done"}, Flag{Name: "undone", Type: "bool", Help: "mark not done"}, Flag{Name: "version", Type: "string", Help: "object version"}), Run: func(e *exec) error {
+			return patchDone(e, "/v1/rounds/"+url.PathEscape(e.args[0]), put)
 		}},
-		{Name: "done", Summary: "mark an interview done", Mutating: true, Usage: "pursuit interviews done <id> [--notes ...]", Args: []Arg{{Name: "id", Required: true}}, Flags: []Flag{{Name: "notes", Type: "string", Help: "what happened"}, {Name: "version", Type: "string", Help: "object version"}}, Run: func(e *exec) error {
+		{Name: "done", Summary: "mark a round done", Mutating: true, Usage: "pursuit rounds done <id> [--notes ...]", Args: []Arg{{Name: "id", Required: true}}, Flags: []Flag{{Name: "notes", Type: "string", Help: "what happened"}, {Name: "version", Type: "string", Help: "object version"}}, Run: func(e *exec) error {
 			e.flags["done"] = []string{"true"}
-			return patchInterview(e, put)
+			return patchDone(e, "/v1/rounds/"+url.PathEscape(e.args[0]), put)
 		}},
-		{Name: "delete", Summary: "delete an interview round", Mutating: true, Args: []Arg{{Name: "id", Required: true}}, Flags: []Flag{{Name: "version", Type: "string", Help: "object version"}}, Run: func(e *exec) error {
-			return e.delete("/v1/interviews/" + url.PathEscape(e.args[0]))
+		{Name: "delete", Summary: "delete a round", Mutating: true, Args: []Arg{{Name: "id", Required: true}}, Flags: []Flag{{Name: "version", Type: "string", Help: "object version"}}, Run: func(e *exec) error {
+			return e.delete("/v1/rounds/" + url.PathEscape(e.args[0]))
+		}},
+	}
+}
+
+func cmdTasks() *Command {
+	fields := []Flag{
+		{Name: "title", Type: "string", Help: "what needs doing"},
+		{Name: "stage", Type: "string", Help: "to_apply, prepared, applied, screening, interviewing, final, or offer (default: the application's current stage)"},
+		{Name: "notes", Type: "string", Help: "details"},
+		{Name: "due", Type: "string", Help: "RFC3339 or YYYY-MM-DD"},
+	}
+	put := func(e *exec, payload map[string]any) error {
+		for key, flag := range map[string]string{"title": "title", "stage": "stage", "notes": "notes", "due_at": "due"} {
+			if _, ok := e.flags[flag]; ok {
+				payload[key] = e.flag(flag)
+			}
+		}
+		return nil
+	}
+	return &Command{Name: "tasks", Summary: "to-dos on an application, things waiting on you", Children: []*Command{
+		{Name: "list", Summary: "list an application's tasks", Usage: "pursuit tasks list <application-id>", Args: []Arg{{Name: "application-id", Required: true}}, Run: func(e *exec) error {
+			return e.send("GET", "/v1/applications/"+url.PathEscape(e.args[0])+"/tasks", nil, nil, "", false, true)
+		}},
+		{Name: "add", Summary: "add a task", Mutating: true, Usage: "pursuit tasks add <application-id> --title \"Send references\" [--stage ...] [--due 2026-11-05]", Args: []Arg{{Name: "application-id", Required: true}}, Flags: append(append([]Flag{}, fields...), Flag{Name: "done", Type: "bool", Help: "already done"}), Run: func(e *exec) error {
+			payload := map[string]any{}
+			if err := put(e, payload); err != nil {
+				return err
+			}
+			if e.flag("done") == "true" {
+				payload["done"] = true
+			}
+			body, err := e.jsonBody(payload)
+			if err != nil {
+				return err
+			}
+			return e.send("POST", "/v1/applications/"+url.PathEscape(e.args[0])+"/tasks", nil, body, "application/json", true, true)
+		}},
+		{Name: "set", Summary: "change a task", Mutating: true, Usage: "pursuit tasks set <id> [--title ...] [--due ...] [--done|--undone]", Args: []Arg{{Name: "id", Required: true}}, Flags: append(append([]Flag{}, fields...), Flag{Name: "done", Type: "bool", Help: "mark done"}, Flag{Name: "undone", Type: "bool", Help: "mark not done"}, Flag{Name: "version", Type: "string", Help: "object version"}), Run: func(e *exec) error {
+			return patchDone(e, "/v1/tasks/"+url.PathEscape(e.args[0]), put)
+		}},
+		{Name: "done", Summary: "mark a task done", Mutating: true, Usage: "pursuit tasks done <id>", Args: []Arg{{Name: "id", Required: true}}, Flags: []Flag{{Name: "notes", Type: "string", Help: "details"}, {Name: "version", Type: "string", Help: "object version"}}, Run: func(e *exec) error {
+			e.flags["done"] = []string{"true"}
+			return patchDone(e, "/v1/tasks/"+url.PathEscape(e.args[0]), put)
+		}},
+		{Name: "delete", Summary: "delete a task", Mutating: true, Args: []Arg{{Name: "id", Required: true}}, Flags: []Flag{{Name: "version", Type: "string", Help: "object version"}}, Run: func(e *exec) error {
+			return e.delete("/v1/tasks/" + url.PathEscape(e.args[0]))
 		}},
 	}}
 }
 
-func patchInterview(e *exec, put func(*exec, map[string]any) error) error {
-	path := "/v1/interviews/" + url.PathEscape(e.args[0])
+// patchDone PATCHes path with the flags put copies, plus done from --done or
+// --undone, fetching the version when it wasn't passed.
+func patchDone(e *exec, path string, put func(*exec, map[string]any) error) error {
 	ver, err := e.ensureVersion(path)
 	if err != nil {
 		return err
