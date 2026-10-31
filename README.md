@@ -26,6 +26,14 @@ pursuit import seed
 pursuit list --status to_apply --fields id,company,title,status
 ```
 
+Or sign the CLI in through the dashboard instead of exporting a token. `pursuit auth login` opens the dashboard's `/authorize` page; sign in, check the scopes, and approve. On a machine with no browser (SSH, no display) or with `--device`, it prints a short code to enter at `/device` instead. The token is stored per server in the OS keyring (macOS Keychain or Linux Secret Service) or, without one, in `~/.config/pursuit/credentials.json` (mode 0600). It gets `read` and `write` unless you pass `--scope`; `approve` only when you name it. `PURSUIT_TOKEN` and `--token` still win over a stored login, so agents are unaffected.
+
+```bash
+pursuit auth login --server http://127.0.0.1:8787
+pursuit auth status
+pursuit auth logout
+```
+
 Applicant answers and the résumé file stay outside the repo:
 
 ```bash
@@ -163,6 +171,8 @@ Exit codes: 0 ok, 2 usage, 3 not found, 4 conflict, 5 auth, 6 validation, 1 othe
 `pursuit schema` lists commands. `pursuit schema apps list` returns that command only. `GET /openapi.json` is the HTTP document.
 
 Scopes are `read`, `write`, and `approve`. `write` includes `read`. `approve` includes `read` and does not include `write`. New tokens are read-only unless you pass scopes. The bootstrap token has all three.
+
+`pursuit auth login` (browser, or `--device`), `pursuit auth status`, and `pursuit auth logout` manage a stored per-server token. The OAuth2 endpoints behind it are `POST /v1/auth/device_authorization`, `POST /v1/auth/token`, and `POST /v1/auth/revoke`; the dashboard approves through `/v1/oauth/*` with a session that has `approve`.
 
 ## Apply pipeline
 
