@@ -583,6 +583,7 @@ type Company struct {
 	UserID    string    `json:"-"`
 	Name      string    `json:"name"`
 	Website   string    `json:"website"`
+	IconURL   string    `json:"icon_url"`
 	Notes     string    `json:"notes"`
 	Version   int       `json:"version"`
 	CreatedAt time.Time `json:"created_at"`
@@ -880,7 +881,7 @@ func CheckCursorSort(c Cursor, sort string) error {
 }
 
 var (
-	CompanyFields     = []string{"id", "name", "website", "notes", "version", "created_at", "updated_at"}
+	CompanyFields     = []string{"id", "name", "website", "icon_url", "notes", "version", "created_at", "updated_at"}
 	RoleFields        = []string{"id", "company_id", "company", "title", "location", "salary", "salary_min_cents", "salary_max_cents", "fit", "posting_url", "source", "job_type", "version", "created_at", "updated_at"}
 	AppFields         = []string{"id", "company_id", "company", "role_id", "title", "location", "salary", "salary_min_cents", "salary_max_cents", "fit", "status", "outcome", "stage", "interviews", "applied_date", "next_step", "notes", "posting_url", "source", "job_type", "resume_version", "resume_file_ref", "contact_email", "external_id", "tags", "link_status", "link_checked_at", "archived_at", "custom_fields", "version", "created_at", "updated_at"}
 	EventFields       = []string{"id", "application_id", "kind", "from_status", "to_status", "title", "body", "occurred_at", "created_at", "actor"}

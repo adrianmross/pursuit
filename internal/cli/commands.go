@@ -348,14 +348,14 @@ func cmdCompanies() *Command {
 		{Name: "get", Summary: "get a company", Args: []Arg{{Name: "id", Required: true}}, Run: func(e *exec) error {
 			return e.send("GET", "/v1/companies/"+url.PathEscape(e.args[0]), nil, nil, "", false, true)
 		}},
-		{Name: "create", Summary: "create a company", Mutating: true, Flags: []Flag{{Name: "name", Type: "string", Help: "name"}, {Name: "website", Type: "string", Help: "website"}, {Name: "notes", Type: "string", Help: "notes"}}, Run: func(e *exec) error {
-			body, err := e.jsonBody(map[string]string{"name": e.flag("name"), "website": e.flag("website"), "notes": e.flag("notes")})
+		{Name: "create", Summary: "create a company", Mutating: true, Flags: []Flag{{Name: "name", Type: "string", Help: "name"}, {Name: "website", Type: "string", Help: "website"}, {Name: "icon-url", Type: "string", Help: "favicon override url"}, {Name: "notes", Type: "string", Help: "notes"}}, Run: func(e *exec) error {
+			body, err := e.jsonBody(map[string]string{"name": e.flag("name"), "website": e.flag("website"), "icon_url": e.flag("icon-url"), "notes": e.flag("notes")})
 			if err != nil {
 				return err
 			}
 			return e.send("POST", "/v1/companies", nil, body, "application/json", true, true)
 		}},
-		{Name: "update", Summary: "update a company", Mutating: true, Args: []Arg{{Name: "id", Required: true}}, Flags: []Flag{{Name: "version", Type: "string", Help: "version"}, {Name: "name", Type: "string", Help: "name"}, {Name: "website", Type: "string", Help: "website"}, {Name: "notes", Type: "string", Help: "notes"}}, Run: func(e *exec) error {
+		{Name: "update", Summary: "update a company", Mutating: true, Args: []Arg{{Name: "id", Required: true}}, Flags: []Flag{{Name: "version", Type: "string", Help: "version"}, {Name: "name", Type: "string", Help: "name"}, {Name: "website", Type: "string", Help: "website"}, {Name: "icon-url", Type: "string", Help: "favicon override url"}, {Name: "notes", Type: "string", Help: "notes"}}, Run: func(e *exec) error {
 			ver, err := e.ensureVersion("/v1/companies/" + url.PathEscape(e.args[0]))
 			if err != nil {
 				return err
@@ -366,6 +366,9 @@ func cmdCompanies() *Command {
 			}
 			if _, ok := e.flags["website"]; ok {
 				payload["website"] = e.flag("website")
+			}
+			if _, ok := e.flags["icon-url"]; ok {
+				payload["icon_url"] = e.flag("icon-url")
 			}
 			if _, ok := e.flags["notes"]; ok {
 				payload["notes"] = e.flag("notes")

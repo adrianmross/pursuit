@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState, type KeyboardEvent, type ReactNode } from "react"
+import { useEffect, useMemo, useState, type KeyboardEvent, type ReactNode } from "react"
 import { Database, History, Info, Keyboard, KeyRound, ScanSearch, Palette, Rows3, Search, SlidersHorizontal, User } from "lucide-react"
 import { FILTERS, MORE, SORTS } from "@/lib/types"
 import { getDefaultSort, getDefaultStatus, ACCENTS, getPref, setPref, setDefaultSort, setDefaultStatus, type Accent, type Density, type TextSize } from "@/lib/settings"
@@ -139,6 +139,21 @@ function AccentPicker() {
   )
 }
 
+function FaviconService() {
+  const [serverDefault, setServerDefault] = useState("")
+  useEffect(() => {
+    api<{ favicon_service?: string }>("/version").then((v) => setServerDefault(v.favicon_service || "")).catch(() => {})
+  }, [])
+  return (
+    <Row
+      label="Company icons"
+      hint={`When a site has no usable icon of its own, fall back to Google's favicon service. That tells Google which company domains you track. Off shows the company's initial instead. Default follows this server${serverDefault ? ` (${serverDefault})` : ""}. Changes apply after a reload.`}
+    >
+      <Choice pref="faviconService" options={[["default", "Default"], ["on", "On"], ["off", "Off"]]} />
+    </Row>
+  )
+}
+
 function Appearance() {
   const { theme, setTheme } = useTheme()
   return (
@@ -156,6 +171,7 @@ function Appearance() {
       <Row label="Text size" hint="Scales the whole interface.">
         <Choice<TextSize> pref="textSize" options={[["small", "Small"], ["default", "Default"], ["large", "Large"]]} />
       </Row>
+      <FaviconService />
       <Row label="Motion" hint="Reduced turns off transitions and animations.">
         <Choice pref="motion" options={[["full", "Full"], ["reduced", "Reduced"]]} />
       </Row>
@@ -271,6 +287,7 @@ const SECTIONS: (Section & { items: [string, string][] })[] = [
       ["Accent color", "primary highlight brand"],
       ["Text size", "font zoom larger smaller"],
       ["Motion", "animations reduce accessibility"],
+      ["Company icons", "favicon logo google service privacy fallback"],
     ] },
   {
     id: "table",
