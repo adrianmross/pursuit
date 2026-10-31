@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react"
 import { ChevronDown, Plus, Trash2 } from "lucide-react"
 import { api, ApiError } from "@/lib/api-client"
-import { label, type Interview } from "@/lib/types"
+import { label, ROUND_STAGES, type Interview } from "@/lib/types"
 import { InlineSelect, InlineText } from "@/components/InlineEdit"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -13,14 +13,7 @@ import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 
-const STAGES: [string, string][] = [
-  ["awaiting_review", "Prepared"],
-  ["applied", "Applied"],
-  ["screening", "Screening"],
-  ["interviewing", "Interviewing"],
-  ["final", "Final"],
-  ["offer", "Offer"],
-]
+const STAGES = ROUND_STAGES
 
 const day = (value?: string) => (value ? value.slice(0, 10) : "")
 

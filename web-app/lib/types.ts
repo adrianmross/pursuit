@@ -168,6 +168,21 @@ export const LABELS: Record<string, string> = {
   ghosted: "Ghosted",
 }
 
+// The seven stops on the progress mark, piece 0 (To apply) to 6 (Offer).
+// Index = piece, so STAGE_STOPS[app.stage] is the stage an app sits on.
+export const STAGE_STOPS: [string, string][] = ["to_apply", "awaiting_review", "applied", "screening", "interviewing", "final", "offer"].map(
+  (s) => [s, LABELS[s]],
+)
+
+// Rounds attach to pieces 1-6, keyed by the stage's status name.
+export const ROUND_STAGES = STAGE_STOPS.slice(1)
+
+// Mirrors domain.IsOutcome: these overlay a stage instead of replacing it.
+export const OUTCOMES = ["waiting", "needs_input", "failed", "rejected", "ghosted", "withdrawn"]
+
+// Statuses between the stops (agent pipeline steps), offered under "more".
+export const SUB_STEPS = ["saved", "preparing", "approved", "submitting", "submitted", "in_progress"]
+
 // The status an application displays: its outcome when set, else its stage.
 export function shown(app: Pick<Application, "status" | "outcome">) {
   return app.outcome || app.status

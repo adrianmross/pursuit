@@ -118,6 +118,20 @@ export function DetailShell({ id, initial, children }: { id: string; initial: De
     }
   }
 
+  // Bumped after the header adds a round so the rounds card refetches.
+  const [roundsTick, setRoundsTick] = useState(0)
+  async function onAddRound(stage: string) {
+    if (!application) return
+    setFieldError(null)
+    try {
+      await api(`/v1/applications/${encodeURIComponent(application.id)}/interviews`, { method: "POST", body: { stage } })
+      setRoundsTick((n) => n + 1)
+      await reload()
+    } catch (err) {
+      setFieldError(err instanceof ApiError ? err.message : "Failed to add a round")
+    }
+  }
+
   async function onRecheckLink() {
     if (!application) return
     await api(`/v1/applications/${encodeURIComponent(application.id)}/check-link`, { method: "POST", body: {} })
@@ -190,6 +204,7 @@ export function DetailShell({ id, initial, children }: { id: string; initial: De
             onUnarchive={onUnarchive}
             onDecide={onDecide}
             onDelete={onDelete}
+            onAddRound={onAddRound}
           />
           <DetailAttributes
             application={application}
@@ -200,7 +215,7 @@ export function DetailShell({ id, initial, children }: { id: string; initial: De
             onRecheckLink={onRecheckLink}
             fieldError={fieldError}
           />
-          <InterviewsCard appId={application.id} current={application.stage ?? 0} writable={writable} onChange={reload} />
+          <InterviewsCard key={roundsTick} appId={application.id} current={application.stage ?? 0} writable={writable} onChange={reload} />
           <DetailNotes notes={application.notes || ""} writable={writable} onSave={onSaveNotes} />
         </>
       )}

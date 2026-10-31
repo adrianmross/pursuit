@@ -12,12 +12,13 @@ import {
   ArrowUp,
   Check,
   ChevronDown,
+  ChevronRight,
   ExternalLink,
   ListChecks,
-  Filter,
   MoreHorizontal,
   Plus,
   RefreshCw,
+  RotateCcw,
   SlidersHorizontal,
   Trash2,
   X,
@@ -26,16 +27,16 @@ import { api, ApiError } from "@/lib/api-client"
 import { useAuth } from "@/lib/auth"
 import { useShortcuts } from "@/lib/keybindings"
 import { Kbd } from "@/components/ui/kbd"
-import { getDefaultSort, getDefaultStatus } from "@/lib/settings"
+import { getDefaultSort, getDefaultStatus, getPref } from "@/lib/settings"
 import { buildApplicationsQuery } from "@/lib/pipeline-query"
 import { applicationHref } from "@/lib/links"
 import {
   CATEGORY_LABELS,
   CATEGORY_ORDER,
-  FILTERS,
   label,
-  MORE,
+  OUTCOMES,
   SORTS,
+  STAGE_STOPS,
   sourceLabel,
   statusCategory,
   markOf,
@@ -49,10 +50,10 @@ import { CompanyAvatar } from "@/components/CompanyAvatar"
 import { ConfirmDialog } from "@/components/ConfirmDialog"
 import { ProgressMark } from "@/components/ProgressMark"
 import { StatusBadge } from "@/components/StatusBadge"
+import { OutcomeChip, SectionLabel, StageHeading, StageSlider, stageTarget, StatusChooser, SubSteps } from "@/components/StatusChooser"
 import { STATUS_OPTIONS } from "@/components/AttributesForm"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -65,50 +66,19 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Slider } from "@/components/ui/slider"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 
-const PRIMARY_STATUSES = FILTERS.filter(([value]) => value)
-// "All" sits at position 0 on the slider, then each primary status in order.
-const SLIDER_POSITIONS: [string, string][] = [["", "All"], ...PRIMARY_STATUSES]
+// The filter's stops: "All" first, then every piece of the mark.
+const FILTER_STOPS: [string, string][] = [["", "All"], ...STAGE_STOPS]
+// Category names short enough for one segmented row.
+const CATEGORY_SHORT: Record<StatusCategory, string> = { action: "You", waiting: "Them", closed: "Closed", rejected: "Rejected" }
 
 export type PipelineInitial = {
   rows: Application[]
   total: number
   nextCursor: string
   fields: CustomField[]
-}
-
-function StatusSlider({ status, onChange }: { status: string; onChange: (value: string) => void }) {
-  const index = Math.max(
-    0,
-    SLIDER_POSITIONS.findIndex(([value]) => value === status),
-  )
-  return (
-    <div className="flex flex-col gap-3 px-1">
-      <Slider
-        min={0}
-        max={SLIDER_POSITIONS.length - 1}
-        step={1}
-        value={[index]}
-        onValueChange={([next]) => onChange(SLIDER_POSITIONS[next]![0])}
-        className="[&_[data-slot=slider-thumb]]:size-4 [&_[data-slot=slider-thumb]]:border-0 [&_[data-slot=slider-thumb]]:bg-foreground [&_[data-slot=slider-thumb]]:shadow-md [&_[data-slot=slider-track]]:h-1.5"
-      />
-      <div className="flex justify-between">
-        {SLIDER_POSITIONS.map(([value, text], i) => (
-          <button
-            key={value || "all"}
-            type="button"
-            onClick={() => onChange(value)}
-            className={`text-[11px] leading-tight ${i === index ? "font-medium text-foreground" : "text-muted-foreground"}`}
-          >
-            {text}
-          </button>
-        ))}
-      </div>
-    </div>
-  )
 }
 
 function safeURL(raw?: string) {
@@ -158,26 +128,35 @@ function LinkBadge({ status }: { status?: string }) {
   )
 }
 
+// The pipeline's filter: the same minimal stage slider as the status chooser,
+// expanding to outcomes (each a die, tap to hide), who moves next, the steps
+// between stages, and sort.
 function FilterSortBar({
   status,
   category,
   sort,
+  exclude,
   onPatch,
 }: {
   status: string
   category: string
   sort: string
+  exclude: string[]
   onPatch: (next: Record<string, string>) => void
 }) {
-  const [moreOpen, setMoreOpen] = useState(false)
-  const active = status !== "" || category !== ""
+  const [expanded, setExpanded] = useState(false)
+  const [drag, setDrag] = useState<number | null>(null)
+  const index = FILTER_STOPS.findIndex(([value]) => value === status)
+  const at = drag ?? Math.max(0, index)
+  const current = drag != null ? FILTER_STOPS[drag][0] : status
+  const hidden = OUTCOMES.filter((s) => exclude.includes(s)).length
+  const active = status !== "" || category !== "" || exclude.length > 0
+  const title =
+    drag == null && category ? CATEGORY_LABELS[category as StatusCategory] : current ? label(current) : "All stages"
 
-  function toggleStatus(value: string) {
-    onPatch({ status: status === value ? "" : value, category: "" })
-  }
-
-  function toggleCategory(value: StatusCategory) {
-    onPatch({ category: category === value ? "" : value, status: "" })
+  function toggleOutcome(value: string) {
+    const next = exclude.includes(value) ? exclude.filter((v) => v !== value) : [...exclude, value]
+    onPatch({ exclude: next.join(",") })
   }
 
   return (
@@ -188,75 +167,168 @@ function FilterSortBar({
           {active && <span className="absolute -right-1 -top-1 size-2 rounded-full bg-primary" />}
         </Button>
       </PopoverTrigger>
-      <PopoverContent align="end" className="w-80">
-        <div className="flex flex-col gap-4">
-          <div className="flex flex-col gap-1.5">
-            <span className="text-xs font-medium text-muted-foreground">Sort</span>
-            <Select value={sort} onValueChange={(value) => onPatch({ sort: value })}>
-              <SelectTrigger className="w-full" aria-label="Sort">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {SORTS.map(([value, text]) => (
-                  <SelectItem key={value} value={value}>
-                    {text}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <span className="text-xs font-medium text-muted-foreground">Category</span>
-            <div className="flex flex-wrap gap-1.5">
-              {CATEGORY_ORDER.map((cat) => (
-                <Button
-                  key={cat}
-                  size="sm"
-                  variant={category === cat ? "default" : "outline"}
-                  className="h-7 text-xs"
-                  onClick={() => toggleCategory(cat)}
-                >
-                  {CATEGORY_LABELS[cat]}
-                </Button>
-              ))}
-            </div>
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-medium text-muted-foreground">Status</span>
-              {active && (
+      <PopoverContent align="end" className="w-[22rem] rounded-2xl p-3">
+        <div className="flex flex-col gap-3">
+          <div className="flex items-start justify-between">
+            <Button
+              variant="ghost"
+              size="icon"
+              className={`size-7 ${expanded ? "bg-muted text-foreground" : "text-muted-foreground"}`}
+              aria-label={expanded ? "Fewer filters" : "More filters"}
+              aria-expanded={expanded}
+              onClick={() => setExpanded(!expanded)}
+            >
+              <SlidersHorizontal className="size-4" />
+            </Button>
+            <StageHeading
+              stage={at === 0 ? 6 : at - 1}
+              title={title}
+              gold={current === "offer"}
+              sub={
                 <button
                   type="button"
-                  className="text-xs text-muted-foreground underline"
-                  onClick={() => onPatch({ status: "", category: "" })}
+                  aria-expanded={expanded}
+                  onClick={() => setExpanded(!expanded)}
+                  className="flex items-center gap-0.5 rounded text-[13px] leading-[18px] text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
                 >
-                  Reset to all
+                  {hidden ? `${hidden} outcome${hidden === 1 ? "" : "s"} hidden` : "Every outcome shown"}
+                  <ChevronRight className={`size-3 transition-transform ${expanded ? "rotate-90" : ""}`} />
                 </button>
-              )}
-            </div>
-            <StatusSlider status={status} onChange={(value) => onPatch({ status: value, category: "" })} />
-            <Collapsible open={moreOpen} onOpenChange={setMoreOpen}>
-              <CollapsibleTrigger className="mt-1 text-xs text-muted-foreground underline">
-                {moreOpen ? "Fewer statuses" : "More statuses"}
-              </CollapsibleTrigger>
-              <CollapsibleContent className="mt-1.5 flex flex-wrap gap-1.5">
-                {MORE.map(([value, text]) => (
-                  <Button
-                    key={value}
-                    size="sm"
-                    variant={status === value ? "default" : "outline"}
-                    className="h-7 text-xs"
-                    onClick={() => toggleStatus(value)}
-                  >
-                    {text}
-                  </Button>
-                ))}
-              </CollapsibleContent>
-            </Collapsible>
+              }
+            />
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-7 text-muted-foreground"
+              aria-label="Reset filters"
+              disabled={!active}
+              onClick={() => onPatch({ status: "", category: "", exclude: "" })}
+            >
+              <RotateCcw className="size-4" />
+            </Button>
           </div>
+          <StageSlider
+            stops={FILTER_STOPS}
+            value={Math.max(0, index)}
+            label="Stage filter"
+            onDrag={setDrag}
+            onCommit={(i) => onPatch({ status: FILTER_STOPS[i][0], category: "" })}
+          />
+          {expanded && (
+            <div className="flex flex-col gap-4 border-t pt-3">
+              <div className="flex flex-col gap-1.5">
+                <SectionLabel>Outcomes</SectionLabel>
+                <div className="flex flex-wrap gap-1.5">
+                  {OUTCOMES.map((s) => (
+                    <OutcomeChip
+                      key={s}
+                      status={s}
+                      pressed={!exclude.includes(s)}
+                      dim={exclude.includes(s)}
+                      onClick={() => toggleOutcome(s)}
+                    />
+                  ))}
+                </div>
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <SectionLabel>Who moves next</SectionLabel>
+                <div role="radiogroup" aria-label="Category" className="grid grid-cols-5 gap-0.5 rounded-[10px] bg-muted p-0.5">
+                  {[["", "Any"] as const, ...CATEGORY_ORDER.map((c) => [c, CATEGORY_SHORT[c]] as const)].map(([value, text]) => (
+                    <button
+                      key={value || "any"}
+                      type="button"
+                      role="radio"
+                      aria-checked={category === value}
+                      title={value ? CATEGORY_LABELS[value] : "Any category"}
+                      onClick={() => onPatch({ category: value, status: "" })}
+                      className={`h-7 truncate rounded-lg px-1 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+                        category === value ? "bg-card font-semibold text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+                      }`}
+                    >
+                      {text}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <SectionLabel>Steps between</SectionLabel>
+                <SubSteps current={status} onPick={(s) => onPatch({ status: status === s ? "" : s, category: "" })} />
+              </div>
+              <div className="flex items-center justify-between gap-3">
+                <SectionLabel>Sort</SectionLabel>
+                <Select value={sort} onValueChange={(value) => onPatch({ sort: value })}>
+                  <SelectTrigger size="sm" className="w-48" aria-label="Sort">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {SORTS.map(([value, text]) => (
+                      <SelectItem key={value} value={value}>
+                        {text}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          )}
         </div>
       </PopoverContent>
     </Popover>
+  )
+}
+
+// Opt-in (Settings › Table): the stages as a bar above the table, each segment
+// sized by how many applications sit on it. Click one to filter to it.
+function StageFunnel({ status, refresh, onPick }: { status: string; refresh: unknown; onPick: (status: string) => void }) {
+  const [counts, setCounts] = useState<number[] | null>(null)
+  useEffect(() => {
+    let live = true
+    const requests = STAGE_STOPS.map(([s]) => ({ method: "GET", path: `/v1/applications?status=${s}&limit=1` }))
+    api<{ results: { status: number; body: unknown }[] }>("/v1/batch", { method: "POST", body: { requests } })
+      .then((r) => {
+        if (!live) return
+        setCounts(
+          r.results.map((x) => {
+            const body = (typeof x.body === "string" ? JSON.parse(x.body) : x.body) as Page<Application> | null
+            return body?.page?.total ?? 0
+          }),
+        )
+      })
+      .catch(() => live && setCounts(null))
+    return () => {
+      live = false
+    }
+  }, [refresh])
+  if (!counts) return null
+  return (
+    <div role="radiogroup" aria-label="Stage" className="flex h-12 gap-[3px]">
+      {STAGE_STOPS.map(([s, text], i) => {
+        const on = status === s
+        const gold = s === "offer"
+        return (
+          <button
+            key={s}
+            type="button"
+            role="radio"
+            aria-checked={on}
+            onClick={() => onPick(on ? "" : s)}
+            style={{ flex: `${Math.max(counts[i], 1)} 1 0px` }}
+            className={`flex min-w-16 flex-col items-start justify-center rounded-[3px] px-3 text-left outline-none transition-colors first:rounded-l-[10px] last:rounded-r-[10px] focus-visible:ring-2 focus-visible:ring-ring ${
+              on
+                ? gold
+                  ? "bg-brand-gold text-[#141615]"
+                  : "bg-primary text-primary-foreground"
+                : gold
+                  ? "bg-brand-gold/25 text-gold-ink hover:bg-brand-gold/40"
+                  : "bg-muted hover:bg-border"
+            }`}
+          >
+            <span className="font-mono text-sm font-medium tabular-nums">{counts[i]}</span>
+            <span className="text-xs opacity-85">{text}</span>
+          </button>
+        )
+      })}
+    </div>
   )
 }
 
@@ -319,45 +391,6 @@ function SortHeader({
   )
 }
 
-function StatusExcludeFilter({ exclude, onChange }: { exclude: string[]; onChange: (next: string[]) => void }) {
-  const active = exclude.length > 0
-  function toggle(value: string) {
-    onChange(exclude.includes(value) ? exclude.filter((v) => v !== value) : [...exclude, value])
-  }
-  return (
-    <Popover>
-      <PopoverTrigger asChild>
-        <Button variant="ghost" size="icon" className="relative size-5" aria-label="Exclude statuses">
-          <Filter className="size-3" />
-          {active && <span className="absolute -right-0.5 -top-0.5 size-1.5 rounded-full bg-primary" />}
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent align="start" className="w-56">
-        <div className="flex flex-col gap-1.5">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-muted-foreground">Exclude statuses</span>
-            {active && (
-              <button type="button" className="text-xs text-muted-foreground underline" onClick={() => onChange([])}>
-                Clear
-              </button>
-            )}
-          </div>
-          <div className="flex max-h-48 flex-col gap-1 overflow-y-auto">
-            {FILTERS.concat(MORE)
-              .filter(([value]) => value)
-              .map(([value, text]) => (
-                <label key={value} className="flex items-center gap-2 text-sm">
-                  <Checkbox checked={exclude.includes(value)} onCheckedChange={() => toggle(value)} />
-                  {text}
-                </label>
-              ))}
-          </div>
-        </div>
-      </PopoverContent>
-    </Popover>
-  )
-}
-
 function IconAction({
   label: text,
   onClick,
@@ -399,7 +432,6 @@ function hostnameLabel(url?: string) {
   }
 }
 
-const STAGES = FILTERS.map(([v]) => v).filter(Boolean)
 
 function RowActions({
   row,
@@ -552,6 +584,10 @@ export function PipelineView({ initial }: { initial: PipelineInitial | null }) {
   const [archiveTarget, setArchiveTarget] = useState<Application | null>(null)
   const [cursor, setCursor] = useState<string | null>(null)
   const [menuFor, setMenuFor] = useState<string | null>(null)
+  // Read after mount: the server render has no localStorage.
+  const [funnel, setFunnel] = useState(false)
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => setFunnel(getPref("funnel") === "on"), [])
   const [statusFor, setStatusFor] = useState<string | null>(null)
   const [bulkMenu, setBulkMenu] = useState(false)
   const [bulkConfirm, setBulkConfirm] = useState<"archive" | "delete" | null>(null)
@@ -680,13 +716,24 @@ export function PipelineView({ initial }: { initial: PipelineInitial | null }) {
       setError(err instanceof ApiError ? err.message : "Failed to change the status")
     }
   }
+  async function addRound(row: Application, stage: string) {
+    setError(null)
+    try {
+      await api(`/v1/applications/${encodeURIComponent(row.id)}/interviews`, { method: "POST", body: { stage } })
+      const updated = await api<Application>(`/v1/applications/${encodeURIComponent(row.id)}`)
+      setRows((prev) => prev.map((r) => (r.id === row.id ? { ...r, ...updated } : r)))
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Failed to add a round")
+    }
+  }
   // [ and ] walk the pipeline stages for the highlighted row.
   const step = (d: number) => {
     const row = visibleRows.find((r) => r.id === cursorId)
     if (!row || !idle() || !can("write")) return false
-    const i = STAGES.indexOf(shown(row))
-    if (i < 0 || !STAGES[i + d]) return false
-    void changeStatus(row, STAGES[i + d])
+    const from = Math.min(6, Math.max(0, markOf(row).stage))
+    const next = from + d >= 0 && from + d <= 6 ? stageTarget(row, from, from + d) : null
+    if (!next) return false
+    void changeStatus(row, next)
   }
   useShortcuts({
     rowStatusNext: () => step(1),
@@ -877,7 +924,7 @@ export function PipelineView({ initial }: { initial: PipelineInitial | null }) {
               <ArchiveRestore className="size-3.5" /> Exit archive view
             </Button>
           )}
-          {!archivedView && <FilterSortBar status={status} category={category} sort={sort} onPatch={patch} />}
+          {!archivedView && <FilterSortBar status={status} category={category} sort={sort} exclude={exclude} onPatch={patch} />}
           {can("write") && !archivedView && (
             <Button size="sm" asChild>
               <Link href="/app/new">
@@ -890,6 +937,8 @@ export function PipelineView({ initial }: { initial: PipelineInitial | null }) {
       </div>
 
       {error && <p className="text-sm text-destructive">{error}</p>}
+
+      {funnel && !archivedView && <StageFunnel status={status} refresh={rows} onPick={(s) => patch({ status: s, category: "" })} />}
 
 
       <div className="rounded-md border">
@@ -911,10 +960,7 @@ export function PipelineView({ initial }: { initial: PipelineInitial | null }) {
                 <SortHeader text="Role" field="title" sort={sort} onSort={(next) => patch({ sort: next })} />
               </TableHead>
               <TableHead className="w-72">
-                <span className="flex items-center gap-1">
-                  Status
-                  <StatusExcludeFilter exclude={exclude} onChange={(next) => patch({ exclude: next.join(",") })} />
-                </span>
+                Status
               </TableHead>
               {fields.map((f) => (
                 <TableHead key={f.id} className="w-36">
@@ -993,25 +1039,17 @@ export function PipelineView({ initial }: { initial: PipelineInitial | null }) {
                     <TableCell className="overflow-hidden">
                       <span className="flex items-center gap-1.5">
                         {can("write") ? (
-                          <DropdownMenu open={statusFor === row.id} onOpenChange={(open) => setStatusFor(open ? row.id : null)}>
-                            <DropdownMenuTrigger asChild>
-                              <button type="button" className="rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring" aria-label="Change status">
-                                <StatusBadge status={shown(row)} />
-                              </button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent
-                              align="start"
-                              className="max-h-80"
-                              onCloseAutoFocus={(e) => e.preventDefault()}
-                            >
-                              {STATUS_OPTIONS.map(([v, text]) => (
-                                <DropdownMenuItem key={v} onSelect={() => void changeStatus(row, v)}>
-                                  {text}
-                                  {v === shown(row) && <Check className="ml-auto size-3.5" />}
-                                </DropdownMenuItem>
-                              ))}
-                            </DropdownMenuContent>
-                          </DropdownMenu>
+                          <StatusChooser
+                            app={row}
+                            open={statusFor === row.id}
+                            onOpenChange={(open) => setStatusFor(open ? row.id : null)}
+                            onStatus={(next) => changeStatus(row, next)}
+                            onAddRound={(stage) => addRound(row, stage)}
+                          >
+                            <button type="button" className="rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring" aria-label="Change status">
+                              <StatusBadge status={shown(row)} />
+                            </button>
+                          </StatusChooser>
                         ) : (
                           <StatusBadge status={shown(row)} />
                         )}

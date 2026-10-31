@@ -49,7 +49,8 @@ function Arc({
       pathLength={1}
       fill="none"
       strokeWidth={11}
-      className={className}
+      // Pieces fade in and out as the stage changes (the status chooser leans on this).
+      className={`transition-[stroke,opacity] duration-300 ease-out ${className}`}
       strokeDasharray={partial ? `${to - from} 2` : undefined}
       strokeDashoffset={partial ? -start : undefined}
     />

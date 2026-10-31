@@ -3,56 +3,18 @@
 import { useState } from "react"
 import { Check, MoreHorizontal, X } from "lucide-react"
 import { markOf, shown, type Application } from "@/lib/types"
-import { STATUS_OPTIONS } from "@/components/AttributesForm"
 import { CompanyAvatar } from "@/components/CompanyAvatar"
 import { ConfirmDialog } from "@/components/ConfirmDialog"
 import { InlineText } from "@/components/InlineEdit"
 import { ProgressMark } from "@/components/ProgressMark"
 import { StatusBadge } from "@/components/StatusBadge"
+import { StatusChooser } from "@/components/StatusChooser"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-
-function StatusEditor({ value, disabled, onSave }: { value: string; disabled?: boolean; onSave: (next: string) => void }) {
-  const [editing, setEditing] = useState(false)
-
-  if (disabled) return <StatusBadge status={value} />
-
-  if (editing) {
-    return (
-      <Select
-        defaultOpen
-        value={value}
-        onValueChange={(next) => {
-          setEditing(false)
-          if (next !== value) onSave(next)
-        }}
-        onOpenChange={(open) => !open && setEditing(false)}
-      >
-        <SelectTrigger className="h-7 w-auto gap-1 border-none bg-transparent px-0 shadow-none focus-visible:ring-0" aria-label="Status">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          {STATUS_OPTIONS.map(([v, text]) => (
-            <SelectItem key={v} value={v}>
-              {text}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-    )
-  }
-
-  return (
-    <button type="button" className="rounded-full" onClick={() => setEditing(true)}>
-      <StatusBadge status={value} />
-    </button>
-  )
-}
 
 export function DetailHeader({
   application,
@@ -63,6 +25,7 @@ export function DetailHeader({
   onUnarchive,
   onDecide,
   onDelete,
+  onAddRound,
 }: {
   application: Application
   writable: boolean
@@ -72,6 +35,7 @@ export function DetailHeader({
   onUnarchive: () => void
   onDecide: (kind: "approve" | "reject", note: string) => Promise<void>
   onDelete: () => Promise<void>
+  onAddRound: (stage: string) => Promise<void>
 }) {
   const [decision, setDecision] = useState<"approve" | "reject" | null>(null)
   const [note, setNote] = useState("")
@@ -103,7 +67,15 @@ export function DetailHeader({
           </div>
         </div>
         <div className="flex items-center gap-1">
-          <StatusEditor value={shown(application)} disabled={!writable} onSave={(v) => onSaveField({ status: v })} />
+          {writable ? (
+            <StatusChooser app={application} align="end" onStatus={(v) => onSaveField({ status: v })} onAddRound={onAddRound}>
+              <button type="button" className="rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring" aria-label="Change status">
+                <StatusBadge status={shown(application)} />
+              </button>
+            </StatusChooser>
+          ) : (
+            <StatusBadge status={shown(application)} />
+          )}
           {application.archived_at && <Badge variant="outline">Archived</Badge>}
           {shown(application) === "awaiting_review" &&
             (canApprove ? (

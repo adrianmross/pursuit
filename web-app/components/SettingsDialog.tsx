@@ -191,6 +191,9 @@ function TableDefaults() {
       <Row label="Striped rows" hint="Shade every other row to help scanning wide tables.">
         <Choice pref="stripes" options={[["off", "Off"], ["on", "On"]]} />
       </Row>
+      <Row label="Stage funnel" hint="A bar of every stage above the table, sized by how many roles sit on each. Click one to filter.">
+        <Choice pref="funnel" options={[["off", "Off"], ["on", "On"]]} />
+      </Row>
       <Row label="Default status filter" hint="Applied when you open the pipeline with no filter in the URL.">
         <Select
           value={status || "__all"}
@@ -282,6 +285,7 @@ const SECTIONS: (Section & { items: [string, string][] })[] = [
       ["Default sort", "order newest"],
       ["Row density", "compact comfortable spacing rows"],
       ["Striped rows", "zebra alternate shading"],
+      ["Stage funnel", "pipeline bar counts stages overview"],
     ],
   },
   {

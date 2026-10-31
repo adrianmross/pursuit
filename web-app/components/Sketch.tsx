@@ -69,6 +69,7 @@ export function Four({ x, tilt = 0 }: { x: number; tilt?: number }) {
 }
 
 const PIPS: Record<number, [number, number][]> = {
+  0: [],
   1: [[0, 0]],
   2: [[-1, -1], [1, 1]],
   3: [[-1, -1], [0, 0], [1, 1]],
@@ -125,6 +126,26 @@ export function SnakeEyes({ className, roughness = 2 }: { className?: string; ro
     <Sketch viewBox="0 0 64 40" roughness={roughness} className={className}>
       <Die x={18} y={21} size={22} tilt={-14} pips={1} />
       <Die x={45} y={18} size={22} tilt={11} pips={1} />
+    </Sketch>
+  )
+}
+
+// One die per outcome, so each reads at a glance without a label: a bad roll
+// for rejected, a blank face for ghosted, one tipped over for withdrawn.
+const OUTCOME_DICE: Record<string, { pips: number; tilt: number }> = {
+  waiting: { pips: 3, tilt: -8 },
+  needs_input: { pips: 2, tilt: 6 },
+  failed: { pips: 4, tilt: -4 },
+  rejected: { pips: 1, tilt: -14 },
+  ghosted: { pips: 0, tilt: 10 },
+  withdrawn: { pips: 1, tilt: 90 },
+}
+
+export function OutcomeDie({ status, className }: { status: string; className?: string }) {
+  const { pips, tilt } = OUTCOME_DICE[status] ?? { pips: 1, tilt: 0 }
+  return (
+    <Sketch viewBox="-16 -16 32 32" roughness={2} className={className}>
+      <Die x={0} y={0} size={22} tilt={tilt} pips={pips} />
     </Sketch>
   )
 }
