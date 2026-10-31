@@ -1,4 +1,4 @@
-.PHONY: test build linux run web
+.PHONY: test build linux run web openapi
 
 web:
 	sh scripts/vercel-build.sh
@@ -15,3 +15,7 @@ linux: web
 
 run: build
 	./bin/pursuit serve
+
+# Regenerate api/openapi.json from internal/spec; go test fails when it drifts.
+openapi:
+	UPDATE_OPENAPI=1 go test -count=1 ./internal/spec -run TestOpenAPIFile
