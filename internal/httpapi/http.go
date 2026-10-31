@@ -506,7 +506,7 @@ func (s *Server) dashboard(w http.ResponseWriter, r *http.Request) {
 		// out a per-request nonce to allow just those, so 'unsafe-inline'
 		// it is for this embed.
 		scriptSrc := "'self' 'unsafe-inline'"
-		w.Header().Set("Content-Security-Policy", "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src "+scriptSrc+"; connect-src "+connectSrc+"; img-src 'self' data:; font-src 'self'; base-uri 'self'; form-action 'self'")
+		w.Header().Set("Content-Security-Policy", "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src "+scriptSrc+"; connect-src "+connectSrc+"; img-src 'self' data: blob:; frame-src 'self' blob:; font-src 'self'; base-uri 'self'; form-action 'self'")
 		w.Header().Set("Referrer-Policy", "no-referrer")
 	}
 	w.WriteHeader(http.StatusOK)
