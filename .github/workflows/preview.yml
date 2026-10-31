@@ -1,9 +1,8 @@
 name: preview
 
-# Vercel builds only the `release` branch, which release.yml points at each
-# new tag (vercel.json git.deploymentEnabled); every
-# other branch deploys only from here, when its PR carries the `preview`
-# label. Labelling deploys right away and each later push redeploys, so the
+# Vercel's Git integration builds nothing (vercel.json git.deploymentEnabled):
+# production deploys from release.yml on each tag, and a branch deploys only
+# from here, when its PR carries the `preview` label. Labelling deploys right away and each later push redeploys, so the
 # 100-deployments-a-day Hobby limit is spent on branches someone asked for.
 
 # pull_request_target, not pull_request: it always runs main's copy of this

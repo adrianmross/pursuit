@@ -1,6 +1,6 @@
 {
   "git": {
-    "deploymentEnabled": { "**": false, "release": true }
+    "deploymentEnabled": false
   },
   "buildCommand": "sh scripts/vercel-build.sh",
   "outputDirectory": "public",
