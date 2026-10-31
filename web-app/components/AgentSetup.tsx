@@ -149,7 +149,8 @@ export function AgentSetup() {
           </p>
           {server && <CommandBlock command={`curl -fsSL ${server}/skill.md`} />}
         </TabsContent>
-        <TabsContent value="token" className="pt-2">
+        {/* Stays mounted so a minted token survives switching tabs. */}
+        <TabsContent value="token" forceMount className="pt-2 data-[state=inactive]:hidden">
           <TokenTab server={server} />
         </TabsContent>
       </Tabs>
