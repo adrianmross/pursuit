@@ -10,6 +10,7 @@ import { useEffect, useState, type FormEvent, type ReactNode } from "react"
 import { api, ApiError } from "@/lib/api-client"
 import { useAuth } from "@/lib/auth"
 import { SignInForm } from "@/components/SignInForm"
+import { ThemeToggle } from "@/components/ThemeToggle"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -37,7 +38,8 @@ function ago(iso: string) {
 
 function Shell({ children }: { children: ReactNode }) {
   return (
-    <div className="flex min-h-svh items-center justify-center bg-brand-forest p-4">
+    <div className="relative flex min-h-svh items-center justify-center bg-brand-forest p-4">
+      <ThemeToggle className="absolute top-4 right-4 text-brand-cream/80 hover:bg-white/10 hover:text-brand-cream dark:hover:bg-white/10" />
       <div className="flex w-full max-w-md flex-col gap-4">
         <div className="flex flex-col items-center gap-3 pb-2 text-center">
           <img src="/brand/hire-pursuit-wordmark-reverse.svg" alt="Hire Pursuit" className="h-8 w-auto" />
