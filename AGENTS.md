@@ -7,9 +7,9 @@ export PURSUIT_SERVER=http://127.0.0.1:8787
 export PURSUIT_TOKEN=pst_...   # write scope to prepare; never put approve on an agent token
 ```
 
-Credentials, scopes, approval, and what to do on 401/403: [AUTH.md](AUTH.md), served at `GET /auth.md`.
+Credentials, scopes, approval, and what to do on 401/403: [AUTH.md](AUTH.md), served at `GET /auth.md`. The Agent Skill is [skills/pursuit/SKILL.md](skills/pursuit/SKILL.md), served at `GET /skill.md` (`npx skills add adrianmross/pursuit --skill pursuit`).
 
-`pursuit auth login` is for a human at a terminal: it stores a per-server token after someone approves in the dashboard. `PURSUIT_TOKEN` and `--token` always win over it. Without them the CLI uses that stored login, which is at most `read,write`; OAuth never grants `approve`. Do not approve a login at `/authorize` or `/device`.
+`pursuit auth login` stores a per-server token after a human approves in the dashboard. An agent may start `pursuit auth login --device` when asked and hand the human the code; the human types it at `/device`. `PURSUIT_TOKEN` and `--token` always win over it. Without them the CLI uses that stored login, which is at most `read,write`; OAuth never grants `approve`. Do not approve a login at `/authorize` or `/device`.
 
 Stdout is compact JSON when piped. Errors are JSON on stderr. Exit codes: 0 ok, 2 usage, 3 not found, 4 conflict, 5 auth, 6 validation, 1 other. Pass `--fields` to keep payloads small, `--dry-run` before a mutation, and `--idempotency-key` on writes. Pass `--all-pages` to a list instead of looping cursors, and `pursuit batch <file|->` (`POST /v1/batch`, up to 100 requests) instead of one call per item. Batched approve still needs the `approve` scope.
 

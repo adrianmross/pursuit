@@ -23,6 +23,7 @@ pursuit schema apps update
 
 OpenAPI: GET /openapi.json. One command's flags: `pursuit schema <command>`.
 Auth guide for agents (tokens, scopes, approval, 401/403): GET /auth.md.
+Agent Skill (setup, commands, approval boundary): GET /skill.md, or `npx skills add adrianmross/pursuit --skill pursuit`.
 SQLite is the default database. Postgres is for more than one replica.
 
 The browser extension uses GET /v1/profile, GET /v1/applications/by-url?url=, and POST /v1/applications/capture. It needs a write token and PURSUIT_CORS_ORIGINS. It does not approve or submit.
