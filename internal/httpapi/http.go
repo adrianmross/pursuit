@@ -78,7 +78,18 @@ type Server struct {
 	demoLimiterOnce sync.Once
 	demoLimiterVal  *demoLimiter
 
+	deviceLimiterOnce sync.Once
+	deviceLimiterVal  *demoLimiter
+
 	mux *http.ServeMux
+}
+
+// deviceLimiterFor caps device_authorization starts per client IP.
+func (s *Server) deviceLimiterFor() *demoLimiter {
+	s.deviceLimiterOnce.Do(func() {
+		s.deviceLimiterVal = &demoLimiter{window: time.Minute, limit: 10, seen: map[string][]time.Time{}}
+	})
+	return s.deviceLimiterVal
 }
 
 func (s *Server) demoLimiterFor() *demoLimiter {
@@ -130,6 +141,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /v1/auth/{provider}/start", s.authStart)
 	mux.HandleFunc("GET /v1/auth/{provider}/callback", s.authCallback)
 	mux.HandleFunc("POST /v1/demo", s.startDemo)
+	s.registerOAuth(mux)
 
 	mux.HandleFunc("GET /v1/me", s.me)
 	mux.HandleFunc("PATCH /v1/me", s.updateMe)
@@ -339,7 +351,7 @@ func (s *Server) proxyOwner(ctx context.Context) (domain.Actor, error) {
 		return domain.Actor{}, err
 	}
 	// Name is who acted in events and the audit log: the owner, not the platform.
-	return domain.Actor{UserID: user.ID, Name: cmp.Or(user.Name, user.Email), Scopes: []string{"read", "write", "approve"}}, nil
+	return domain.Actor{UserID: user.ID, Name: cmp.Or(user.Name, user.Email), Scopes: []string{"read", "write", "approve"}, Proxy: true}, nil
 }
 
 func (s *Server) authProviders(w http.ResponseWriter, r *http.Request) {
@@ -525,7 +537,10 @@ func (s *Server) dashboard(w http.ResponseWriter, r *http.Request) {
 		// out a per-request nonce to allow just those, so 'unsafe-inline'
 		// it is for this embed.
 		scriptSrc := "'self' 'unsafe-inline'"
-		w.Header().Set("Content-Security-Policy", "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src "+scriptSrc+"; connect-src "+connectSrc+"; img-src 'self' data: blob:; frame-src 'self' blob:; font-src 'self'; base-uri 'self'; form-action 'self'")
+		w.Header().Set("Content-Security-Policy", "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src "+scriptSrc+"; connect-src "+connectSrc+"; img-src 'self' data: blob:; frame-src 'self' blob:; font-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'")
+		// Only the dashboard frames itself (blob: document previews); refusing
+		// other sites blocks clickjacking the /authorize and /device buttons.
+		w.Header().Set("X-Frame-Options", "SAMEORIGIN")
 		w.Header().Set("Referrer-Policy", "no-referrer")
 	}
 	w.WriteHeader(status)

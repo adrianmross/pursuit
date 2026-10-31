@@ -42,6 +42,7 @@ func rootCommand() *Command {
 			cmdTags(),
 			cmdFields(),
 			cmdInterviews(),
+			cmdAuth(),
 			cmdTokens(),
 			cmdAudit(),
 			cmdImport(),

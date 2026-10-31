@@ -522,6 +522,9 @@ type Actor struct {
 	// an anonymous caller drive outbound HTTP from the server (link
 	// checks, favicon fetches) — an SSRF vector a verified sign-up doesn't have.
 	Demo bool
+	// Proxy is the PURSUIT_TRUST_PROXY_AUTH owner: trusted for the
+	// dashboard, but never allowed to approve an OAuth login.
+	Proxy bool
 }
 
 func (a Actor) Can(scope string) bool {

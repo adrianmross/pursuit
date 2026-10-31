@@ -12,6 +12,10 @@ async function forward(request: NextRequest, path: string[]) {
   if (token) headers.Authorization = "Bearer " + token
   const contentType = request.headers.get("content-type")
   if (contentType) headers["Content-Type"] = contentType
+  // The Go API's CSRF check on /v1/oauth/* trusts the browser's own
+  // Sec-Fetch-Site for this origin; pass it through, never invent it.
+  const fetchSite = request.headers.get("sec-fetch-site")
+  if (fetchSite) headers["Sec-Fetch-Site"] = fetchSite
 
   const url = API_BASE + "/" + path.join("/") + request.nextUrl.search
   const hasBody = request.method !== "GET" && request.method !== "HEAD"

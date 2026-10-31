@@ -3,6 +3,7 @@ package httpapi
 import (
 	"net"
 	"net/http"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -44,11 +45,22 @@ func (l *demoLimiter) allow(key string) bool {
 		return false
 	}
 	l.seen[key] = append(kept, now)
+	// ponytail: full sweep when the map grows; a ring or LRU if it ever shows in profiles.
+	if len(l.seen) > 10000 {
+		for k, ts := range l.seen {
+			if len(ts) == 0 || !ts[len(ts)-1].After(cutoff) {
+				delete(l.seen, k)
+			}
+		}
+	}
 	return true
 }
 
+// clientIP keys the rate limiters. X-Forwarded-For is trusted only on
+// Vercel, whose edge sets it; a directly exposed server would otherwise let
+// every request pick its own key.
 func clientIP(r *http.Request) string {
-	if fwd := r.Header.Get("X-Forwarded-For"); fwd != "" {
+	if fwd := r.Header.Get("X-Forwarded-For"); fwd != "" && os.Getenv("VERCEL") != "" {
 		return strings.TrimSpace(strings.Split(fwd, ",")[0])
 	}
 	host, _, err := net.SplitHostPort(r.RemoteAddr)

@@ -26,6 +26,14 @@ pursuit import seed
 pursuit list --status to_apply --fields id,company,title,status
 ```
 
+Or sign the CLI in through the dashboard instead of exporting a token. `pursuit auth login` opens the dashboard's `/authorize` page; sign in, check the scopes, and approve. On a machine with no browser (SSH, no display) or with `--device`, it prints a short code; type it at `/device` yourself (links never pre-fill it). The token is stored per server in the OS keyring (macOS Keychain or Linux Secret Service) or, without one, in `~/.config/pursuit/credentials.json` (mode 0600). It gets `read` and `write`, or less with `--scope read`. It never gets `approve`: approving stays in the dashboard, or in an approve token you mint yourself and pass as `PURSUIT_TOKEN`. `PURSUIT_TOKEN` and `--token` still win over a stored login. Any process running as you that calls the CLI without them, an agent included, uses the stored login; that is at most `read,write`, the same as an agent token. A Keychain item written by `/usr/bin/security` can be read back by any process running as your user, so on macOS it protects no better than the 0600 file against a local agent.
+
+```bash
+pursuit auth login --server http://127.0.0.1:8787
+pursuit auth status
+pursuit auth logout
+```
+
 Applicant answers and the résumé file stay outside the repo:
 
 ```bash
@@ -169,6 +177,8 @@ Exit codes: 0 ok, 2 usage, 3 not found, 4 conflict, 5 auth, 6 validation, 1 othe
 `pursuit schema` lists commands. `pursuit schema apps list` returns that command only. `GET /openapi.json` is the HTTP document.
 
 Scopes are `read`, `write`, and `approve`. `write` includes `read`. `approve` includes `read` and does not include `write`. New tokens are read-only unless you pass scopes. The bootstrap token has all three.
+
+`pursuit auth login` (browser, or `--device`), `pursuit auth status`, and `pursuit auth logout` manage a stored per-server token. The OAuth2 endpoints behind it are `POST /v1/auth/device_authorization`, `POST /v1/auth/token`, and `POST /v1/auth/revoke`; the dashboard approves through `/v1/oauth/*` with a session that has `approve` (same-origin JSON only, never the `PURSUIT_TRUST_PROXY_AUTH` owner), and each decision is audited as `oauth.approve` or `oauth.deny`. OAuth grants `read` and `write` only; `approve` is `invalid_scope`.
 
 ## Apply pipeline
 
