@@ -4678,7 +4678,7 @@
             "description": "error"
           }
         },
-        "summary": "set display name or avatar (png, jpeg, or webp data URL under 256KB; empty clears it)"
+        "summary": "set display name or avatar (png, jpeg, or webp data URL under 256KB; empty clears it). email is accepted only from the PURSUIT_TRUST_PROXY_AUTH owner (GET /v1/me returns proxy: true)"
       }
     },
     "/v1/oauth/authorize": {

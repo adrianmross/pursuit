@@ -55,6 +55,8 @@ export type Page<T> = {
 export type Me = {
   user?: { id?: string; name?: string; email?: string; avatar?: string }
   token: { name?: string; scopes?: string[] }
+  // The PURSUIT_TRUST_PROXY_AUTH owner, who may change their email.
+  proxy?: boolean
 }
 
 export type StandingAnswer = { key: string; answer: string; updated_at?: string }

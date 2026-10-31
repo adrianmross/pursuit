@@ -114,7 +114,7 @@ func build() []byte {
 	add("/v1/auth/{provider}/callback", "get", "OIDC callback; redirects to /#token=<secret>", false, open)
 	add("/v1/demo", "post", "mint a token for a fresh, isolated demo sandbox when demo mode is on", false, open)
 	add("/v1/me", "get", "current user and token", false, nil)
-	add("/v1/me", "patch", "set display name or avatar (png, jpeg, or webp data URL under 256KB; empty clears it)", true, nil)
+	add("/v1/me", "patch", "set display name or avatar (png, jpeg, or webp data URL under 256KB; empty clears it). email is accepted only from the PURSUIT_TRUST_PROXY_AUTH owner (GET /v1/me returns proxy: true)", true, nil)
 	add("/v1/tokens", "get", "list tokens", false, nil)
 	add("/v1/tokens", "post", "create a token; secret is returned once", true, nil)
 	add("/v1/tokens/{id}", "delete", "revoke a token", true, nil)

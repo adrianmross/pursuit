@@ -67,7 +67,7 @@ func (s *Store) GetUser(ctx context.Context, id string) (domain.User, error) {
 }
 
 func (s *Store) UpdateUserProfile(ctx context.Context, u domain.User) error {
-	_, err := s.exec(ctx, `UPDATE users SET name=?, avatar=? WHERE id=?`, u.Name, u.Avatar, u.ID)
+	_, err := s.exec(ctx, `UPDATE users SET name=?, avatar=?, email=? WHERE id=?`, u.Name, u.Avatar, u.Email, u.ID)
 	return err
 }
 

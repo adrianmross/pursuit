@@ -1374,6 +1374,22 @@ func TestUpdateMe(t *testing.T) {
 	if code != 200 || me["user"].(map[string]any)["name"] != "Ada" {
 		t.Fatalf("me %#v", me)
 	}
+	if code, _ := e.json(t, http.MethodPatch, "/v1/me", e.token, map[string]any{"email": "ada@example.com"}); code != 400 {
+		t.Fatalf("token owner changed email %d", code)
+	}
+
+	// The proxy owner is authenticated by the platform, not the email.
+	e.api.TrustProxyAuth = "vercel"
+	if code, _ := e.json(t, http.MethodPatch, "/v1/me", "", map[string]any{"email": "not an email"}); code != 400 {
+		t.Fatalf("bad email %d", code)
+	}
+	code, user = e.json(t, http.MethodPatch, "/v1/me", "", map[string]any{"email": " ada@example.com "})
+	if code != 200 || user["email"] != "ada@example.com" {
+		t.Fatalf("proxy email %d %#v", code, user)
+	}
+	if code, me = e.json(t, http.MethodGet, "/v1/me", "", nil); me["proxy"] != true {
+		t.Fatalf("proxy me %d %#v", code, me)
+	}
 }
 
 func TestDeleteStanding(t *testing.T) {

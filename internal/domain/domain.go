@@ -581,6 +581,8 @@ type IssuedToken struct {
 type Me struct {
 	User  User  `json:"user"`
 	Token Token `json:"token"`
+	// Proxy is true for the PURSUIT_TRUST_PROXY_AUTH owner, who may change their email.
+	Proxy bool `json:"proxy,omitempty"`
 }
 
 type Company struct {
