@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Pursuit",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Save the job you are viewing and fill Greenhouse, Ashby, and Lever forms from your Pursuit tracker.",
   "permissions": [
     "storage",
