@@ -22,6 +22,7 @@ import {
   RotateCcw,
   SearchX,
   SlidersHorizontal,
+  SquareCheckBig,
   Trash2,
   X,
 } from "lucide-react"
@@ -74,6 +75,7 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Spinner } from "@/components/ui/spinner"
+import { Toggle } from "@/components/ui/toggle"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 
@@ -174,12 +176,18 @@ function FilterSortBar({
 
   return (
     <Popover>
-      <PopoverTrigger asChild>
-        <Button variant="outline" size="sm" className="relative gap-1.5">
-          <SlidersHorizontal className="size-3.5" /> Filter &amp; sort
-          {active && <span className="absolute -right-1 -top-1 size-2 rounded-full bg-primary" />}
-        </Button>
-      </PopoverTrigger>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <PopoverTrigger asChild>
+            <Button variant="outline" size="sm" className="relative gap-1.5" aria-label="Filter & sort">
+              <SlidersHorizontal className="size-3.5" /> <span className="hidden sm:inline">Filter &amp; sort</span>
+              {active && <span className="absolute -right-1 -top-1 size-2 rounded-full bg-primary" />}
+            </Button>
+          </PopoverTrigger>
+        </TooltipTrigger>
+        {/* The label is on the button from sm up; below that it's an icon and this names it. */}
+        <TooltipContent className="sm:hidden">Filter &amp; sort</TooltipContent>
+      </Tooltip>
       <PopoverContent align="end" className="w-[22rem] rounded-2xl p-3">
         <div className="flex flex-col gap-3">
           <div className="flex items-start justify-between">
@@ -330,7 +338,7 @@ function StageFunnel({ status, refresh, onPick }: { status: string; refresh: unk
               on
                 ? gold
                   ? "bg-brand-gold text-[#141615]"
-                  : "bg-primary text-primary-foreground"
+                  : "bg-piece text-piece-foreground"
                 : gold
                   ? "bg-brand-gold/25 text-gold-ink hover:bg-brand-gold/40"
                   : "bg-muted hover:bg-border"
@@ -593,6 +601,8 @@ export function PipelineView({ initial }: { initial: PipelineInitial | null }) {
   const [loading, setLoading] = useState(initial == null)
   const [error, setError] = useState<string | null>(null)
   const [selected, setSelected] = useState<Set<string>>(new Set())
+  // Row checkboxes and bulk actions only show once Select is on.
+  const [selecting, setSelecting] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<Application | null>(null)
   const [archiveTarget, setArchiveTarget] = useState<Application | null>(null)
   const [cursor, setCursor] = useState<string | null>(null)
@@ -608,7 +618,7 @@ export function PipelineView({ initial }: { initial: PipelineInitial | null }) {
   const [checkingAll, setCheckingAll] = useState(false)
   const [fields, setFields] = useState<CustomField[]>(initial?.fields ?? [])
   const loadGen = useRef(0)
-  const columnCount = 7 + fields.length
+  const columnCount = (selecting ? 7 : 6) + fields.length
 
   // The server already fetched the first page (and fields) for this exact
   // URL — skip the redundant client refetch on mount, but still refetch
@@ -765,7 +775,12 @@ export function PipelineView({ initial }: { initial: PipelineInitial | null }) {
     rowNext: () => move(1),
     rowPrev: () => move(-1),
     rowOpen: () => (cursorId && idle() && !onControl() ? router.push(applicationHref(cursorId)) : false),
-    rowSelect: () => (cursorId && idle() && !onControl() ? toggleSelected(cursorId) : false),
+    // Selecting from the keyboard turns Select on, so the checkbox shows.
+    rowSelect: () => {
+      if (!cursorId || !idle() || onControl()) return false
+      setSelecting(true)
+      toggleSelected(cursorId)
+    },
     // With rows selected the menu acts on all of them, else on the highlighted row.
     rowMenu: () => {
       if (!idle() || onControl() || !can("write")) return false
@@ -853,6 +868,26 @@ export function PipelineView({ initial }: { initial: PipelineInitial | null }) {
       setBulkBusy(false)
     }
   }
+
+  const selectToggle = (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Toggle
+          variant="outline"
+          size="sm"
+          aria-label="Select"
+          pressed={selecting}
+          onPressedChange={(on) => {
+            setSelecting(on)
+            if (!on) setSelected(new Set())
+          }}
+        >
+          <SquareCheckBig /> <span className="hidden sm:inline">Select</span>
+        </Toggle>
+      </TooltipTrigger>
+      <TooltipContent className="sm:hidden">{selecting ? "Stop selecting" : "Select"}</TooltipContent>
+    </Tooltip>
+  )
 
   return (
     <div className="flex flex-col gap-4">
@@ -943,6 +978,7 @@ export function PipelineView({ initial }: { initial: PipelineInitial | null }) {
                 <X /> Clear
               </Button>
             </ButtonGroup>
+            {selectToggle}
           </div>
         ) : (
         <div className="flex gap-2">
@@ -952,6 +988,7 @@ export function PipelineView({ initial }: { initial: PipelineInitial | null }) {
             </Button>
           )}
           {!archivedView && <FilterSortBar status={status} category={category} sort={sort} exclude={exclude} onPatch={patch} />}
+          {selectToggle}
           {can("write") && !archivedView && (
             <Button size="sm" asChild>
               <Link href="/app/new">
@@ -978,13 +1015,15 @@ export function PipelineView({ initial }: { initial: PipelineInitial | null }) {
         <Table className="min-w-[56rem] table-fixed">
           <TableHeader>
             <TableRow>
-              <TableHead className="w-10">
-                <Checkbox
-                  checked={visibleRows.length > 0 && selected.size === visibleRows.length}
-                  onCheckedChange={toggleSelectAll}
-                  aria-label="Select all"
-                />
-              </TableHead>
+              {selecting && (
+                <TableHead className="w-10">
+                  <Checkbox
+                    checked={visibleRows.length > 0 && selected.size === visibleRows.length}
+                    onCheckedChange={toggleSelectAll}
+                    aria-label="Select all"
+                  />
+                </TableHead>
+              )}
               <TableHead className="w-[22%]">
                 <SortHeader text="Company" field="company" sort={sort} onSort={(next) => patch({ sort: next })} />
               </TableHead>
@@ -1068,9 +1107,11 @@ export function PipelineView({ initial }: { initial: PipelineInitial | null }) {
                     onClick={() => setCursor(row.id)}
                     className="data-[cursor=true]:bg-muted data-[cursor=true]:shadow-[inset_2px_0_0_var(--primary)]"
                   >
-                    <TableCell>
-                      <Checkbox checked={selected.has(row.id)} onCheckedChange={() => toggleSelected(row.id)} aria-label="Select row" />
-                    </TableCell>
+                    {selecting && (
+                      <TableCell>
+                        <Checkbox checked={selected.has(row.id)} onCheckedChange={() => toggleSelected(row.id)} aria-label="Select row" />
+                      </TableCell>
+                    )}
                     <TableCell className="overflow-hidden font-medium">
                       <span className="flex items-center gap-2">
                         <ProgressMark {...markOf(row)} size={20} />

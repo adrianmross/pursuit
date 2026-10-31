@@ -108,7 +108,7 @@ export function StageSlider({
       }}
     >
       <div
-        className={cn("absolute inset-y-0.5 left-0.5 rounded-full bg-primary", ease)}
+        className={cn("absolute inset-y-0.5 left-0.5 rounded-full bg-piece", ease)}
         style={{ width: `calc((100% - 36px) * ${f} + 32px)` }}
       />
       <div className="relative flex h-8 items-center justify-between">
@@ -118,7 +118,7 @@ export function StageSlider({
               <span
                 className={cn(
                   "size-[5px] rounded-full",
-                  v === "offer" ? "bg-brand-gold" : i < pos ? "bg-primary-foreground/55" : "bg-input",
+                  v === "offer" ? "bg-brand-gold" : i < pos ? "bg-piece-foreground/55" : "bg-input",
                 )}
               />
             )}
@@ -165,7 +165,7 @@ export function StageHeading({
 }
 
 const HOLD_TONE = "text-amber-600 dark:text-amber-400"
-const STOP_TONE = "text-red-600 dark:text-red-400"
+const STOP_TONE = "text-negative"
 const toneOf = (status: string) => (outcomeKind(status) === "hold" ? HOLD_TONE : STOP_TONE)
 
 // An outcome's piece with its name, for the pipeline filter. `dim` greys out
@@ -484,7 +484,7 @@ export function StatusChooser({
                     onClick={() => toggleOutcome(s)}
                     className={cn(
                       "flex flex-col items-center gap-1 rounded-lg py-1.5 outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring",
-                      on ? "bg-red-500/10 ring-1 ring-red-500/50" : "hover:bg-muted",
+                      on ? "bg-negative/10 ring-1 ring-negative/50" : "hover:bg-muted",
                     )}
                   >
                     <OutcomePiece status={s} className={cn("size-8", on || !outcome ? STOP_TONE : "text-muted-foreground/60")} />
