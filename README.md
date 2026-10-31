@@ -138,7 +138,9 @@ Turn on Deployment Protection and choose Vercel Authentication so preview deploy
 
 Production finds its own public URL. With `PURSUIT_SERVER` unset, it uses `VERCEL_PROJECT_PRODUCTION_URL`, which Vercel sets to the shortest custom domain once you add one. Moving to a new domain needs no Pursuit env change. Outside Pursuit, you still update the OIDC provider's redirect URI (`https://<domain>/v1/auth/<provider>/callback`) and any Better Auth trusted origins, run `pursuit auth login` again (stored logins are per server URL), and point the extension at the new URL.
 
-With Better Auth (Neon Auth, `NEXT_PUBLIC_NEON_AUTH_URL` at build time), the dashboard's sign-in card has email and password, a verification code on first sign-in, and "Forgot password?": it emails a 6-digit code, you set a new password, and you are signed in. Codes work with Neon's shared sender; nothing extra to configure. Passkeys are not available: managed Neon Auth does not expose the passkey plugin.
+With Better Auth (Neon Auth, `NEXT_PUBLIC_NEON_AUTH_URL` at build time), the dashboard's sign-in card has email and password, a verification code on first sign-in, and "Forgot password?": it emails a 6-digit code, you set a new password, and you are signed in. Codes work with Neon's shared sender; nothing extra to configure.
+
+Passkeys are pursuit's own (WebAuthn in the Go server), not Neon Auth's, so they work for `pursuit serve` too. They are off until `PURSUIT_WEBAUTHN_RP_ID` is set. Then a signed-in user adds one under Settings, Account, Passkeys, and the sign-in page shows "Sign in with a passkey". It signs in an existing account only, never creates one, and gives the same 30-day `pursuit_session` cookie with a `login` token as the other sign-ins. The password or token stays the fallback: lose every passkey and you sign in that way, then remove the old passkey. A passkey only works on the RP ID it was made under, so moving to a new domain retires every passkey made for the old one.
 
 ### Environment
 
@@ -148,6 +150,8 @@ With Better Auth (Neon Auth, `NEXT_PUBLIC_NEON_AUTH_URL` at build time), the das
 | `POSTGRES_URL` | fallback | Used only when `DATABASE_URL` is empty. The Marketplace usually sets both. |
 | `PURSUIT_TRUST_PROXY_AUTH` | previews only | `vercel`, set for the Preview environment. A request with no Pursuit token or session is the single owner and has `read`, `write`, and `approve`; its writes must come from the dashboard's own origin. A request that sends `Authorization: Bearer` is still that token, so the CLI and agents keep using scoped tokens. Any other value, and any non-preview deployment, is ignored. |
 | `PURSUIT_SERVER` | no | The public URL, when it isn't the one Vercel reports (see above). Used for OIDC redirect URIs. |
+| `PURSUIT_WEBAUTHN_RP_ID` | for passkeys | The passkey domain, e.g. `hirepursuit.app` (`localhost` for local `pursuit serve`). Unset turns passkeys off, which keeps preview deployments off. Permanent for every passkey made under it. |
+| `PURSUIT_WEBAUTHN_ORIGINS` | no | Comma-separated origins a passkey ceremony may come from, e.g. `https://hirepursuit.app`. Defaults to the public URL. Each must be the RP ID or a subdomain of it. The same two variables (or `webauthn_rp_id` and `webauthn_origins` in the config file) work for `pursuit serve`, where the default is `PURSUIT_SERVER`. |
 | `PURSUIT_NO_DOCS` | no | `true` stops serving the embedded docs at `/docs` (the same variable works for `pursuit serve`). |
 | `PURSUIT_CF_BEACON_TOKEN` | no | Cloudflare Web Analytics site token. Read at build time to embed the beacon in the dashboard, and at runtime to allow it in the CSP. Unset means no analytics script. |
 | `CRON_SECRET` | yes, for the daily link check | A long random secret. Vercel Cron sends `GET /v1/cron/links` with `Authorization: Bearer <CRON_SECRET>`. There is no background checker on Vercel. A missing or wrong secret is 401, including when proxy auth is on. |

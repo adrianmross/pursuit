@@ -6,6 +6,7 @@ import { useAuth } from "@/lib/auth"
 import { authClient } from "@/lib/betterauth"
 import { api } from "@/lib/api-client"
 import { UserAvatar, avatarDataURL, displayName } from "@/components/UserAvatar"
+import { PasskeysSection } from "@/components/settings/PasskeysSection"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { ButtonGroup } from "@/components/ui/button-group"
 import { Field, FieldDescription, FieldGroup, FieldLabel, FieldLegend, FieldSeparator, FieldSet } from "@/components/ui/field"
@@ -211,6 +212,7 @@ export function AccountPanel() {
           </AlertDescription>
         </Alert>
       )}
+      <PasskeysSection />
       <FieldSeparator />
       <FieldSet>
         <FieldLegend variant="label">Session</FieldLegend>

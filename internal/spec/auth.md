@@ -88,6 +88,16 @@ Exit code 5 means auth. The JSON error on stderr has `code`, `message` and `hint
 
 Tokens do not expire. Revoked tokens fail with 401.
 
+## Passkeys are for humans
+
+Passkey routes (`/v1/passkeys`, `/v1/auth/passkey/*`) need a browser and the human's device. Do not call them. They need `approve` and same-origin JSON, and a passkey login only sets the dashboard's cookie.
+
+Owner recovery, when someone has lost both their password and every passkey: remove the passkeys, then the user resets their password (Neon Auth's "Forgot password?").
+
+```sql
+DELETE FROM webauthn_credentials WHERE user_id = (SELECT id FROM users WHERE lower(email) = lower('person@example.com'));
+```
+
 ## Never
 
 - Put `approve` on an agent token, or use an `approve` token you were given.
