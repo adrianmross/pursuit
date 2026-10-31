@@ -167,7 +167,8 @@ func Run(args []string, stdout, stderr io.Writer) int {
 	if cfg.Token == "" && cmd.Name != "serve" {
 		c, ok, err := config.LoadCredential(cfg.ServerURL)
 		switch {
-		case err != nil && cmd.Name != "logout":
+		// login and logout are how you recover from a broken credential.
+		case err != nil && cmd.Name != "logout" && cmd.Name != "login":
 			// A locked or denied keychain is not "logged out": say so.
 			writeErr(stderr, 5, "unauthorized", "stored credential unavailable: "+err.Error(), "unlock the keychain, pass --token or PURSUIT_TOKEN, or run pursuit auth logout")
 			return 5
