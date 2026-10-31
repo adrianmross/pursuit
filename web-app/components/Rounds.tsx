@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/button"
 export const shownRounds = (stored: Interview[]) => Math.max(1, stored.length)
 
 // A round carrying anything typed into it takes a second press to delete.
-const hasDetails = (r: Interview) => !!(r.kind || r.interviewer || r.scheduled_at || r.prep || r.notes)
+export const hasDetails = (r: Interview) => !!(r.kind || r.interviewer || r.scheduled_at || r.prep || r.notes)
 
 // A stage's rounds as one pie: a wedge per round, clockwise from the top,
 // the first `done` filled. More rounds split the same pie finer.
@@ -105,17 +105,12 @@ export function useRounds(appId: string, stage: number, onChange?: () => Promise
     if (hasDetails(r) && armed !== r.id) return setArmed(r.id)
     void run(() => api(`/v1/interviews/${encodeURIComponent(r.id)}?version=${r.version}`, { method: "DELETE" }))
   }
-  // Done out of shown, counting each stage's implied round.
+  // How many rounds in all, counting each stage's implied one; the pies show
+  // which are done.
   function summary() {
     if (!list) return "Loading…"
-    let done = 0
-    let total = 0
-    ROUND_STAGES.forEach(([key], i) => {
-      const stored = storedFor(list, key)
-      total += shownRounds(stored)
-      done += stored.length ? stored.filter((r) => r.done_at).length : i + 1 <= stage ? 1 : 0
-    })
-    return `${done} of ${total} rounds done`
+    const total = ROUND_STAGES.reduce((n, [key]) => n + shownRounds(storedFor(list, key)), 0)
+    return `${total} rounds`
   }
 
   return { list, busy, armed, error, fetchRounds, run, storedFor, add, toggle, remove, summary }
@@ -177,9 +172,7 @@ function RoundRow({
             <RoundPie total={rounds.length} done={doneOf(rounds)} />
           </button>
         )}
-        <span className="text-[11px] tabular-nums text-muted-foreground">
-          {rounds.length ? `${doneOf(rounds)}/${rounds.length}` : reached ? "done" : ""}
-        </span>
+        <span className="text-[11px] tabular-nums text-muted-foreground">{shownRounds(rounds)}</span>
       </span>
       <Button
         variant="ghost"

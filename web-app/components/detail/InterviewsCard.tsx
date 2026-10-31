@@ -4,7 +4,7 @@ import { useEffect, useState } from "react"
 import { ChevronDown, Plus, Trash2 } from "lucide-react"
 import { api } from "@/lib/api-client"
 import { label, ROUND_STAGES, type Interview } from "@/lib/types"
-import { RoundsList, useRounds } from "@/components/Rounds"
+import { hasDetails, RoundsList, useRounds } from "@/components/Rounds"
 import { InlineSelect, InlineText } from "@/components/InlineEdit"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -60,15 +60,43 @@ function TextBox({
 
 function Row({
   item,
+  index,
   writable,
   onPatch,
   onDelete,
 }: {
   item: Interview
+  index: number
   writable: boolean
   onPatch: (item: Interview, body: Record<string, unknown>) => void
   onDelete: (item: Interview) => void
 }) {
+  // A round with nothing filled in stays one line until you open it.
+  const [open, setOpen] = useState(hasDetails(item))
+  if (!open) {
+    return (
+      <li className="flex h-9 items-center gap-2.5 rounded-lg border px-3">
+        <Checkbox
+          aria-label="Done"
+          checked={!!item.done_at}
+          disabled={!writable}
+          onCheckedChange={(checked) => onPatch(item, { done: checked === true })}
+        />
+        <span className={item.done_at ? "text-sm text-muted-foreground line-through" : "text-sm"}>Round {index}</span>
+        <span className="text-xs text-muted-foreground">{label(item.stage)}</span>
+        {writable && (
+          <>
+            <Button variant="ghost" size="sm" className="ml-auto h-7 px-2 text-xs text-muted-foreground" onClick={() => setOpen(true)}>
+              Add details
+            </Button>
+            <Button variant="ghost" size="icon" className="size-6" aria-label="Delete round" onClick={() => onDelete(item)}>
+              <Trash2 className="size-3.5" />
+            </Button>
+          </>
+        )}
+      </li>
+    )
+  }
   return (
     <li className="flex flex-col gap-2 rounded-lg border p-3">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
@@ -80,9 +108,9 @@ function Row({
         />
         <InlineText
           value={item.kind || ""}
-          placeholder="Round"
+          placeholder={`Round ${index}`}
           disabled={!writable}
-          className="text-sm font-medium"
+          className="w-auto text-sm font-medium"
           inputClassName="h-7 text-sm"
           onSave={(v) => onPatch(item, { kind: v })}
         />
@@ -106,12 +134,12 @@ function Row({
           value={item.interviewer || ""}
           placeholder="Who"
           disabled={!writable}
-          className="text-sm text-muted-foreground"
+          className="w-auto text-sm text-muted-foreground"
           inputClassName="h-7 text-sm"
           onSave={(v) => onPatch(item, { interviewer: v })}
         />
         {writable && (
-          <Button variant="ghost" size="icon" className="ml-auto size-6" aria-label="Delete interview" onClick={() => onDelete(item)}>
+          <Button variant="ghost" size="icon" className="ml-auto size-6" aria-label="Delete round" onClick={() => onDelete(item)}>
             <Trash2 className="size-3.5" />
           </Button>
         )}
@@ -141,8 +169,7 @@ function Row({
 }
 
 // InterviewsCard lists an application's rounds. Any stage can have them, and
-// each round is a sub-arc of its stage's piece on the progress mark; marking
-// one done fills it.
+// marking them done fills that stage's piece on the progress mark.
 export function InterviewsCard({
   appId,
   current,
@@ -179,7 +206,7 @@ export function InterviewsCard({
   return (
     <Card>
       <CardHeader className="flex flex-row items-baseline justify-between">
-        <CardTitle className="text-base">Interviews</CardTitle>
+        <CardTitle className="text-base">Rounds</CardTitle>
         <span className="text-xs text-muted-foreground">{rounds.summary()}</span>
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
@@ -191,7 +218,14 @@ export function InterviewsCard({
         {ordered.length > 0 && (
           <ul className="flex flex-col gap-2">
             {ordered.map((item) => (
-              <Row key={item.id} item={item} writable={writable} onPatch={patch} onDelete={remove} />
+              <Row
+                key={item.id}
+                item={item}
+                index={ordered.filter((o) => o.stage === item.stage).indexOf(item) + 1}
+                writable={writable}
+                onPatch={patch}
+                onDelete={remove}
+              />
             ))}
           </ul>
         )}
