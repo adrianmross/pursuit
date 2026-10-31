@@ -36,7 +36,7 @@ export PURSUIT_DATABASE_URL='postgres://pursuit:pursuit@127.0.0.1:5432/pursuit?s
 ./bin/pursuit serve
 ```
 
-Use `sslmode=require` for Neon. Queue claims use `SELECT ... FOR UPDATE SKIP LOCKED`; the link sweep takes a Postgres advisory lock so only one replica checks postings. `docker compose up --build` starts Postgres and two replicas on ports 8787 and 8788.
+Use `sslmode=require` for Neon. Queue claims use `SELECT ... FOR UPDATE SKIP LOCKED`; the link sweep takes a Postgres advisory lock so only one replica checks postings. `devenv up --profile postgres` starts Postgres and two replicas on ports 8787 and 8788.
 
 ## The dashboard
 

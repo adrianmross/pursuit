@@ -58,3 +58,16 @@ jobs:
       - run: npm install
       - run: npm test
       - run: npm run build
+
+  # Build only: the devenv OCI image is not pushed anywhere yet.
+  container:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: cachix/install-nix-action@v31
+      - uses: cachix/cachix-action@v16
+        with:
+          name: devenv
+      - run: nix profile install nixpkgs#devenv
+      - run: devenv shell -- make linux
+      - run: devenv container build serve

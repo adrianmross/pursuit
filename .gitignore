@@ -15,6 +15,7 @@
 .direnv/
 .env.neon
 .env*
+!.envrc
 /.devdata/
 .neon
 /public/

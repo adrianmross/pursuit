@@ -73,22 +73,26 @@ export PURSUIT_DATABASE_URL='postgres://pursuit:pursuit@127.0.0.1:5432/pursuit?s
 
 Use `sslmode=require` for Neon. Two replicas can share one Postgres database. Queue claims use `SELECT ... FOR UPDATE SKIP LOCKED`. The link sweep takes a Postgres advisory lock so only one replica checks postings.
 
-`docker compose up --build` starts Postgres and two replicas on ports 8787 and 8788.
+`devenv up --profile postgres` starts Postgres and two replicas on ports 8787 and 8788.
 
 ## Dev environment (devenv)
 
-[devenv](https://devenv.sh) sets up Go for you. Plain `devenv shell` just gives you Go; `pursuit serve` still defaults to SQLite.
+[devenv](https://devenv.sh) sets up Go 1.26, Node 22, GoReleaser, actionlint and `changelogger`. `direnv allow` loads it on `cd`; otherwise use `devenv shell`. `pursuit serve` still defaults to SQLite.
 
 ```bash
-devenv shell          # Go only, SQLite default
-pursuit-build && ./bin/pursuit serve
+devenv shell
+pursuit-run                      # builds the web assets and the binary, then serves
+devenv tasks run dev:validate    # tests, vet, extension tests, release config checks
 ```
 
-Add `--profile postgres` to run a local Postgres instead:
+Add `--profile postgres` to run a local Postgres and two replicas (8787, 8788) against it. Add `postgres` at the end to start only the database:
 
 ```bash
-devenv up --profile postgres   # starts Postgres, exports PURSUIT_DATABASE_URL
+devenv up --profile postgres            # Postgres + pursuit-a + pursuit-b
+devenv up --profile postgres postgres   # Postgres only, exports PURSUIT_DATABASE_URL
 ```
+
+`devenv container build serve` builds an OCI image from a Linux binary you build first with `make linux`. On macOS that needs a Linux builder. CI builds it on every push. The `Dockerfile` builds the same image with plain Docker.
 
 Add `--profile neon` to point at an existing Neon database. Put the connection string in a git-ignored `.env.neon` (`PURSUIT_DATABASE_URL=postgres://...neon.tech/...?sslmode=require`), which devenv loads automatically:
 
@@ -98,7 +102,7 @@ devenv shell --profile neon
 
 ## Dashboard
 
-Fastest path: `go build -o bin/pursuit ./cmd/pursuit && ./bin/pursuit serve`, then open `http://127.0.0.1:8787/` and paste the bootstrap token the first start printed. No database setup needed; it uses SQLite by default.
+Fastest path: `make run` (builds the embedded web assets, then the binary, then serves), then open `http://127.0.0.1:8787/` and paste the bootstrap token the first start printed. No database setup needed; it uses SQLite by default.
 
 `pursuit serve` embeds a small web dashboard and serves it at the same address as the API, `http://127.0.0.1:8787/`. The pages are static files in the binary. They call the REST API and do not have a private backend.
 
