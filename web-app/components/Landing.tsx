@@ -8,6 +8,7 @@ import { CompanyAvatar } from "@/components/CompanyAvatar"
 import { ProgressMark } from "@/components/ProgressMark"
 import { SiteFooter } from "@/components/SiteFooter"
 import { StatusBadge } from "@/components/StatusBadge"
+import { ThemeToggle } from "@/components/ThemeToggle"
 import { Button, buttonVariants } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -374,6 +375,7 @@ export function Landing() {
             <a href="https://github.com/adrianmross/pursuit" className={cn(link, "hidden sm:inline")}>
               GitHub
             </a>
+            <ThemeToggle />
             <Link href={entry} className={buttonVariants({ size: "sm" })}>
               {me ? "Open app" : "Log in"}
             </Link>
