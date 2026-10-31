@@ -32,12 +32,9 @@ jobs:
       BRANCH: ${{ github.head_ref }}
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
-        with:
-          go-version-file: go.mod
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
+      # Vercel builds it, as it would from Git. A local `vercel build` +
+      # `deploy --prebuilt` breaks on the Go function: its output symlinks a
+      # bootstrap binary in /tmp that is gone by upload time.
       - name: Deploy preview
         id: deploy
         run: |
@@ -47,9 +44,7 @@ jobs:
             exit 1
           fi
           vercel="npx --yes vercel@65.8.0"
-          $vercel pull --yes --environment=preview --git-branch="$BRANCH" --token="$VERCEL_TOKEN"
-          $vercel build --token="$VERCEL_TOKEN"
-          url="$($vercel deploy --prebuilt --token="$VERCEL_TOKEN" \
+          url="$($vercel deploy --yes --token="$VERCEL_TOKEN" \
             --meta githubDeployment=1 --meta githubCommitRef="$BRANCH")"
           echo "url=$url" >> "$GITHUB_OUTPUT"
       - name: Comment the preview URL
