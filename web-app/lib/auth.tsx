@@ -43,11 +43,17 @@ function readProxySignedOut() {
 
 // Export mode sign-in: same-origin, the server checks the token and keeps
 // it in its httpOnly cookie; split-origin, the browser keeps it.
-async function storeToken(token: string): Promise<Me> {
-  if (COOKIE_SESSION) return api<Me>("/v1/auth/session", { method: "POST", body: { token } })
+async function storeToken(token: string, timeoutMs?: number): Promise<Me> {
+  if (COOKIE_SESSION) return api<Me>("/v1/auth/session", { method: "POST", body: { token }, timeoutMs })
   setToken(token)
-  return api<Me>("/v1/me")
+  return api<Me>("/v1/me", { timeoutMs })
 }
+
+// The mount-time session check gates every signed-in page (AppGate renders
+// nothing until it settles), so it can't wait on a stalled request forever:
+// a cold serverless start or a dropped connection would leave a blank page.
+// Past this, the check gives up and the gate sends the visitor to sign in.
+const SESSION_CHECK_TIMEOUT_MS = 10_000
 
 // On the hosted build, `me` is fetched server-side (middleware already
 // redirects anonymous requests to /sign-in, and the root layout passes the
@@ -90,13 +96,18 @@ export function AuthProvider({ initialMe, children }: { initialMe: Me | null; ch
     }
     let cancelled = false
     const legacy = COOKIE_SESSION ? getToken() : ""
-    const check = legacy ? storeToken(legacy).finally(() => setToken("")) : api<Me>("/v1/me")
+    const timeoutMs = SESSION_CHECK_TIMEOUT_MS
+    const check = legacy ? storeToken(legacy, timeoutMs).finally(() => setToken("")) : api<Me>("/v1/me", { timeoutMs })
     check
       .then((result) => {
         if (!cancelled) setMe(result)
       })
-      .catch(() => {
-        if (!cancelled) setToken("")
+      .catch((err) => {
+        if (cancelled) return
+        // Only a server that answered and refused the token signs it out; a
+        // timeout or network error leaves it for the next attempt.
+        if (err instanceof ApiError) setToken("")
+        else setError("Couldn't reach the server. Check your connection and try again.")
       })
       .finally(() => {
         if (!cancelled) setLoading(false)

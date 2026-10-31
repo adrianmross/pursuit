@@ -47,11 +47,15 @@ type ApiOptions = {
   method?: string
   body?: unknown
   rawBody?: { text: string; contentType: string }
+  // Aborts the request after this many milliseconds (a DOMException named
+  // "TimeoutError"). Unset means no limit, which long uploads rely on.
+  timeoutMs?: number
 }
 
 export async function api<T>(path: string, options: ApiOptions = {}): Promise<T> {
   const headers: Record<string, string> = {}
   const init: RequestInit = { method: options.method || "GET", headers }
+  if (options.timeoutMs) init.signal = AbortSignal.timeout(options.timeoutMs)
   if (options.rawBody) {
     headers["Content-Type"] = options.rawBody.contentType
     init.body = options.rawBody.text
