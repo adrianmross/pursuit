@@ -1,41 +1,5 @@
 # Pursuit
 
-Self-hosted job-application tracker. The CLI is the agent interface. Do not expect an MCP server.
+The agent guide lives in internal/spec/llms.txt so the server can embed it. A running server serves it at GET /llms.txt.
 
-Auth: `Authorization: Bearer $PURSUIT_TOKEN` or `pursuit --token`. Scopes: read, write, approve. write does not grant approve. Nothing moves to submitting without `pursuit approve` from an approve-scoped token. A human can run `pursuit auth login` (browser, or `--device`) to store a read,write token per server; OAuth never grants approve (`invalid_scope`). `PURSUIT_TOKEN` and `--token` still win over it; without them, the CLI uses the stored login. Agents must not approve a login: approving at `/authorize` or `/device` needs a same-origin dashboard session with approve. OAuth2 endpoints: POST /v1/auth/device_authorization, POST /v1/auth/token, POST /v1/auth/revoke.
-
-JSON: stdout is compact JSON when it is not a terminal, or with `--json`. Errors are always JSON on stderr. `--fields a,b` trims responses. `--dry-run` on mutations writes nothing. `--idempotency-key` replays a successful mutation.
-
-Exit codes: 0 ok, 2 usage, 3 not found, 4 conflict, 5 auth, 6 validation, 1 other.
-
-```
-pursuit apps list --status to_apply --fields id,company,title,status
-pursuit apply APP_ID --prepare
-pursuit apply --batch status=to_apply --async
-pursuit queue claim --worker agent-1
-pursuit approve APP_ID
-pursuit reject APP_ID
-pursuit links
-pursuit events --follow
-pursuit check-links --all
-pursuit schema apps update
-```
-
-OpenAPI: GET /openapi.json. One command's flags: `pursuit schema <command>`.
-Auth guide for agents (tokens, scopes, approval, 401/403): GET /auth.md.
-Agent Skill (setup, commands, approval boundary): GET /skill.md, or `npx skills add adrianmross/pursuit --skill pursuit`.
-SQLite is the default database. Postgres is for more than one replica.
-
-The browser extension uses GET /v1/profile, GET /v1/applications/by-url?url=, and POST /v1/applications/capture. It needs a write token and PURSUIT_CORS_ORIGINS. It does not approve or submit.
-
-The dashboard at `/` is for a person. Agents keep using the CLI. `POST /v1/approvals/reject` declines `awaiting_review` work (approve scope) and does not submit. `GET /v1/links?attention=true` lists closed or changed postings. On Vercel, `GET /v1/cron/links` is the daily link check and it requires `Authorization: Bearer $CRON_SECRET`. `PURSUIT_TRUST_PROXY_AUTH=vercel` is for a human behind deployment protection. Agents still send a Pursuit token.
-
-Debugging with the audit log. Every successful change records who did what and when, with details in `metadata`.
-
-```bash
-pursuit audit list --entity-id APP_ID --sort created_at   # one application's history, oldest first
-pursuit audit list --q needs_input --since 2026-10-30      # text in summary, action, entity, actor, or metadata
-pursuit audit list --actor agent-1 --until 2026-10-30T12:00:00Z
-```
-
-A rejected request leaves no entry, so a missing step is the clue: compare the trace with what should have happened, then check the server log by `request_id`. The dashboard's Settings, Audit log page has "Copy for an agent", which copies the same entries as JSON with the command that reproduces them.
+Short version: use the `pursuit` CLI, not an MCP server. HTTP shapes are at GET /openapi.json, auth at GET /auth.md, the Agent Skill at GET /skill.md.
