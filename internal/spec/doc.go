@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 
 	"github.com/pursuit/pursuit/internal/version"
+	"github.com/pursuit/pursuit/skills"
 )
 
 //go:embed llms.txt
@@ -14,6 +15,10 @@ var LLMS []byte
 //
 //go:embed auth.md
 var Auth []byte
+
+// Skill is the Agent Skill served at /skill.md. It lives at skills/pursuit/SKILL.md
+// so the skills CLI can install it from the repo.
+var Skill = skills.Pursuit
 
 // Reference is the standalone Scalar API-reference page served at
 // /reference. It renders the same-origin /openapi.json, so it works
@@ -66,7 +71,7 @@ func build() []byte {
 		paths[path] = item
 	}
 	pub := map[string]string{
-		"/healthz": "liveness", "/readyz": "readiness", "/version": "version", "/openapi.json": "this document", "/llms.txt": "short agent guide", "/auth.md": "agent auth guide: tokens, scopes, approval", "/reference": "interactive API reference page (HTML)",
+		"/healthz": "liveness", "/readyz": "readiness", "/version": "version", "/openapi.json": "this document", "/llms.txt": "short agent guide", "/auth.md": "agent auth guide: tokens, scopes, approval", "/skill.md": "Agent Skill for the pursuit CLI", "/reference": "interactive API reference page (HTML)",
 	}
 	for p, s := range pub {
 		add(p, "get", s, false, map[string]any{"security": []any{}})

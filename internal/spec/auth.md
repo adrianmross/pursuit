@@ -6,7 +6,7 @@ Served at `GET /auth.md`. Short version: a human gives you a `read` or `read,wri
 
 A human creates it for you and hands you the secret once:
 
-- Dashboard: Settings, Tokens. It offers `read` or `read,write` only.
+- Dashboard: Settings, Tokens, or the Token tab on `/agents` (Connect an agent). They offer `read` or `read,write` only.
 - CLI: `pursuit tokens create --name agent-1 --scope write`. Prints `secret` once.
 
 ```bash
@@ -55,7 +55,7 @@ Do not transition to `submitting` or `submitted` yourself. `pursuit events --fol
 
 - It grants `read` and/or `write`. It never grants `approve`.
 - Consent needs the `approve` scope from a human's dashboard session, sent from the dashboard page as a same-origin JSON request. Agent tokens lack `approve`, so they cannot consent. Demo tenants and the `PURSUIT_TRUST_PROXY_AUTH=vercel` owner are refused too.
-- Agents do not run it, and never approve their own login. Use `PURSUIT_TOKEN`.
+- An agent may start `pursuit auth login --device` when the human asks (the `/agents` prompt does) and hand them the code. The human types it at `/device` and approves. An agent never approves its own login.
 
 ## HTTP
 
@@ -63,7 +63,7 @@ Do not transition to `submitting` or `submitted` yourself. `pursuit events --fol
 Authorization: Bearer pst_...
 ```
 
-Every `/v1/` route needs it except `/v1/auth/*`, `/v1/demo`, and `/v1/cron/links` (which takes `CRON_SECRET`). `GET /v1/me` returns the user and token, including scopes. `/healthz`, `/version`, `/openapi.json`, `/llms.txt` and `/auth.md` are public.
+Every `/v1/` route needs it except `/v1/auth/*`, `/v1/demo`, and `/v1/cron/links` (which takes `CRON_SECRET`). `GET /v1/me` returns the user and token, including scopes. `/healthz`, `/version`, `/openapi.json`, `/llms.txt`, `/auth.md` and `/skill.md` are public.
 
 OAuth2 endpoints behind `pursuit auth login`, for completeness (form-encoded, RFC 6749 errors):
 

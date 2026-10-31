@@ -1417,6 +1417,18 @@ func TestAuthDocIsPublicMarkdown(t *testing.T) {
 	}
 }
 
+func TestSkillDocIsPublicMarkdown(t *testing.T) {
+	e := newEnv(t)
+	code, body, h := e.do(t, http.MethodGet, "/skill.md", "", nil, nil)
+	if code != 200 || h.Get("Content-Type") != "text/markdown; charset=utf-8" || !bytes.HasPrefix(body, []byte("---\nname: pursuit\n")) || !bytes.Contains(body, []byte("awaiting_review")) {
+		t.Fatalf("skill.md %d %q %.80s", code, h.Get("Content-Type"), body)
+	}
+	_, spec, _ := e.do(t, http.MethodGet, "/openapi.json", "", nil, nil)
+	if !bytes.Contains(spec, []byte(`"/skill.md"`)) {
+		t.Fatal("openapi is missing /skill.md")
+	}
+}
+
 func TestTokensMintOnlyScopesTheyHold(t *testing.T) {
 	e := newEnv(t)
 	mint := func(token string, scopes ...string) (int, map[string]any) {

@@ -1,4 +1,5 @@
-import { BookOpen, Download, Puzzle, Terminal } from "lucide-react"
+import Link from "next/link"
+import { ArrowRight, BookOpen, Bot, Download, Puzzle, Terminal } from "lucide-react"
 import { EXPORT_MODE, pursuitApiAuthed } from "@/lib/pursuit-api"
 import type { Application, Page } from "@/lib/types"
 import { Button } from "@/components/ui/button"
@@ -36,6 +37,25 @@ export default async function Home() {
       </div>
 
       <ItemGroup>
+        <Item variant="outline">
+          <ItemMedia variant="icon">
+            <Bot />
+          </ItemMedia>
+          <ItemContent>
+            <ItemTitle>Connect an agent</ItemTitle>
+            <ItemDescription>
+              Copy one prompt into your coding agent. It installs the CLI and signs in with a code you type here.
+            </ItemDescription>
+          </ItemContent>
+          <ItemActions>
+            <Button size="sm" asChild>
+              <Link href="/agents">
+                Set up <ArrowRight />
+              </Link>
+            </Button>
+          </ItemActions>
+        </Item>
+
         <Item variant="outline">
           <ItemMedia variant="icon">
             <Terminal />

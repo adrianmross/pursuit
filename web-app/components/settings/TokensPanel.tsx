@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import { Check, CircleAlert, Copy, KeyRound, Trash2 } from "lucide-react"
 import { api } from "@/lib/api-client"
 import type { Page, Token } from "@/lib/types"
+import { CommandBlock } from "@/components/CommandBlock"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -15,7 +16,8 @@ import { Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemMedia, 
 import { Spinner } from "@/components/ui/spinner"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 
-function Secret({ value }: { value: string }) {
+// With `server`, the exports become one copyable block with PURSUIT_SERVER too.
+export function Secret({ value, server }: { value: string; server?: string }) {
   const [copied, setCopied] = useState(false)
   return (
     <Alert className="border-amber-500/50 bg-amber-500/10">
@@ -39,7 +41,11 @@ function Secret({ value }: { value: string }) {
             </InputGroupButton>
           </InputGroupAddon>
         </InputGroup>
-        <code className="text-[11px] break-all">export PURSUIT_TOKEN={value}</code>
+        {server ? (
+          <CommandBlock wrap command={`export PURSUIT_SERVER=${server}\nexport PURSUIT_TOKEN=${value}`} />
+        ) : (
+          <code className="text-[11px] break-all">export PURSUIT_TOKEN={value}</code>
+        )}
       </AlertDescription>
     </Alert>
   )

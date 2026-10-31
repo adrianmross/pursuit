@@ -27,6 +27,7 @@ Bulk: `POST /v1/batch` (`pursuit batch <file|->`) runs up to 100 requests, each 
 
 OpenAPI: GET /openapi.json. One command's flags: `pursuit schema <command>`.
 Auth guide for agents (tokens, scopes, approval, 401/403): GET /auth.md.
+Agent Skill (setup, commands, approval boundary): GET /skill.md, or `npx skills add adrianmross/pursuit --skill pursuit`.
 SQLite is the default database. Postgres is for more than one replica.
 
 `pursuit documents add --kind base_resume --file resume.pdf` stores the base résumé; prepare attaches the newest one before falling back to PURSUIT_RESUME_FILE. Tailored files go on one application with `pursuit artifacts add`. Save the user's answer to a `needs_input` question with `pursuit standing set` so later prepares reuse it.

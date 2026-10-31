@@ -176,7 +176,7 @@ Exit codes: 0 ok, 2 usage, 3 not found, 4 conflict, 5 auth, 6 validation, 1 othe
 
 `pursuit schema` lists commands. `pursuit schema apps list` returns that command only. `GET /openapi.json` is the HTTP document.
 
-Agents: [AUTH.md](AUTH.md) (served at `GET /auth.md`) covers tokens, scopes, approval, and auth errors.
+Agents: [AUTH.md](AUTH.md) (served at `GET /auth.md`) covers tokens, scopes, approval, and auth errors. The dashboard's Connect an agent page (`/agents`) gives a setup prompt with no token in it, the Agent Skill ([skills/pursuit/SKILL.md](skills/pursuit/SKILL.md), served at `GET /skill.md`, installed with `npx skills add adrianmross/pursuit --skill pursuit`), and a `read,write` token for headless agents.
 
 Scopes are `read`, `write`, and `approve`. `write` includes `read`. `approve` includes `read` and does not include `write`. New tokens are read-only unless you pass scopes. The bootstrap token has all three.
 

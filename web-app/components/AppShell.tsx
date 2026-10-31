@@ -3,7 +3,7 @@
 import { Suspense, useState, useSyncExternalStore } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { Archive, IdCard, LogOut, Search, Settings, X } from "lucide-react"
+import { Archive, Bot, IdCard, LogOut, Search, Settings, X } from "lucide-react"
 import { useAuth } from "@/lib/auth"
 import { isMac, useShortcuts } from "@/lib/keybindings"
 import { Kbd } from "@/components/ui/kbd"
@@ -133,6 +133,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => router.push("/profile")}>
                 <IdCard /> Profile
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => router.push("/agents")}>
+                <Bot /> Connect an agent
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => openSettings()}>
                 <Settings /> Settings
