@@ -3,16 +3,27 @@
   "name": "Pursuit",
   "version": "0.1.0",
   "description": "Save the job you are viewing and fill Greenhouse, Ashby, and Lever forms from your Pursuit tracker.",
-  "permissions": ["storage", "activeTab"],
-  "optional_host_permissions": ["http://*/*", "https://*/*"],
+  "permissions": [
+    "storage",
+    "activeTab"
+  ],
+  "optional_host_permissions": [
+    "http://*/*",
+    "https://*/*"
+  ],
   "action": {
     "default_title": "Pursuit",
     "default_popup": "popup.html"
   },
   "content_scripts": [
     {
-      "matches": ["http://*/*", "https://*/*"],
-      "js": ["content.js"],
+      "matches": [
+        "http://*/*",
+        "https://*/*"
+      ],
+      "js": [
+        "content.js"
+      ],
       "run_at": "document_idle"
     }
   ],
