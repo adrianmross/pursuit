@@ -17,7 +17,7 @@ Linux and Windows binaries, and the browser extension zip, are on [GitHub Releas
 
 With no database URL the daemon creates `~/.local/share/pursuit/pursuit.db` and listens on `:8787`. The first start logs a bootstrap token once. Save it. It is not written to disk.
 
-In `devenv shell`, `pursuit-dev` runs it through [portless](https://github.com/portless-dev/portless) instead, giving it a stable `https://pursuit.localhost` URL (`$PORT` overrides the listen address; `PURSUIT_ADDR` still wins if both are set).
+In `devenv shell`, `pursuit-dev` runs it through [portless](https://github.com/portless-dev/portless) instead, giving it a stable `https://pursuit.localhost` URL (`$PORT` overrides the listen address; `PURSUIT_ADDR` still wins if both are set). To work on the dashboard, `pursuit-preview` runs `next dev` with hot reload in front of the Go API instead, at `https://pursuit-<branch>.localhost` for a worktree, so edits show up without rebuilding the embedded export.
 
 ```bash
 export PURSUIT_TOKEN=pst_...

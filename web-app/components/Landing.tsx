@@ -84,7 +84,7 @@ function Terminal({ onDone }: { onDone: () => void }) {
   )
 }
 
-// The signed-in app's top bar, shrunk: wordmark, search, ⌘K.
+// The signed-in app's top bar, shrunk: wordmark, search, ⌘P.
 function AppBar() {
   return (
     <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 border-b px-4 py-2">
@@ -95,7 +95,7 @@ function AppBar() {
       <span className="flex h-7 w-40 items-center gap-2 rounded-md border px-2.5 text-xs text-muted-foreground sm:w-72">
         <Search className="size-3.5" /> Search
       </span>
-      <kbd className="justify-self-end rounded border bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">⌘K</kbd>
+      <kbd className="justify-self-end rounded border bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">⌘P</kbd>
     </div>
   )
 }
@@ -359,11 +359,7 @@ export function Landing() {
   return (
     <div className="min-h-svh overflow-x-clip bg-background text-foreground">
       <header className="sticky top-0 z-20 border-b border-transparent bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-5">
-          <Link href="/" aria-label="Hire Pursuit">
-            <img src="/brand/hire-pursuit-wordmark.svg" alt="Hire Pursuit" className="h-6 w-auto dark:hidden" />
-            <img src="/brand/hire-pursuit-wordmark-reverse.svg" alt="" className="hidden h-6 w-auto dark:block" />
-          </Link>
+        <div className="mx-auto flex h-16 max-w-6xl items-center justify-end px-5">
           <nav className="flex items-center gap-5">
             <a href="/docs/" className={link}>
               Docs
@@ -383,22 +379,21 @@ export function Landing() {
 
       <main className="mx-auto max-w-6xl px-4 pb-24 sm:px-5">
         <section className="pt-10 text-center sm:pt-14">
-          <img src="/brand/hire-pursuit-mark.svg" alt="" className="mx-auto mb-5 h-12 w-auto dark:hidden" />
-          <img src="/brand/hire-pursuit-mark-reverse.svg" alt="" className="mx-auto mb-5 hidden h-12 w-auto dark:block" />
-          <h1 className="font-heading text-5xl font-semibold leading-[0.95] tracking-tight text-balance sm:text-7xl">
+          <img src="/brand/hire-pursuit-mark.svg" alt="Hire Pursuit" className="mx-auto mb-5 h-12 w-auto dark:hidden" />
+          <img src="/brand/hire-pursuit-mark-reverse.svg" alt="Hire Pursuit" className="mx-auto mb-5 hidden h-12 w-auto dark:block" />
+          <h1 className="font-heading text-4xl font-semibold leading-[1.05] tracking-tight text-balance sm:text-5xl">
             For your higher pursuits.
           </h1>
-          <p className="mx-auto mt-6 max-w-xl text-lg text-balance text-muted-foreground">
-            Every application, from first look to offer.
+          <p className="mx-auto mt-5 max-w-xl text-lg text-balance text-muted-foreground">
+            Job applications for the modern era.
           </p>
-          <div className="mb-12 mt-8 flex flex-wrap justify-center gap-3">
-            <Link href={entry} className={buttonVariants({ size: "lg" })}>
-              Get started <ArrowRight />
-            </Link>
-            <a href="/docs/" className={buttonVariants({ size: "lg", variant: "outline" })}>
-              Read the docs
-            </a>
-          </div>
+          <Link
+            href={entry}
+            className="group mb-12 mt-8 inline-flex items-center gap-2 rounded-sm font-display text-2xl font-semibold tracking-tight underline decoration-transparent decoration-2 underline-offset-[6px] transition-[text-decoration-color] hover:decoration-current focus-visible:decoration-current focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring"
+          >
+            Get started
+            <ArrowRight className="size-5 transition-transform group-hover:translate-x-1 group-focus-visible:translate-x-1 motion-reduce:transition-none" />
+          </Link>
           <Showcase />
         </section>
 

@@ -34,7 +34,7 @@ export function roundLevel(done: number, total: number) {
 export function ProgressMark({ stage, outcome, interviews, size = 32 }: Props) {
   const n = Math.max(0, Math.min(6, stage))
   const kind = outcomeKind(outcome)
-  const tint = kind === "stop" ? "stroke-red-500" : kind === "hold" ? "stroke-amber-500" : ""
+  const tint = kind === "stop" ? "stroke-negative" : kind === "hold" ? "stroke-amber-500" : ""
   // The overlay colours the piece the application is on; before the first
   // piece it marks the one that fills next.
   const target = kind ? (n === 0 ? 1 : n) : 0
@@ -55,7 +55,7 @@ export function ProgressMark({ stage, outcome, interviews, size = 32 }: Props) {
         const done = rounds?.done ?? 0
         // A piece shows once it's reached, or ahead of time if a round on it is done.
         const shown = n >= piece || tinted || done > 0
-        const base = tinted ? tint : piece === 6 ? "stroke-brand-gold" : "stroke-foreground"
+        const base = tinted ? tint : piece === 6 ? "stroke-brand-gold" : "stroke-piece"
         return (
           <path
             key={piece}

@@ -8,7 +8,7 @@ whatever the CLI/API already expose.
 ## Phases
 
 1. **`dashboard-fix-bugs`** (this one) — two real defects, not feature work:
-   - Command palette (⌘K) renders a blank dialog: `CommandDialog` in
+   - Command palette (⌘P) renders a blank dialog: `CommandDialog` in
      `web/src/components/ui/command.tsx` never wraps `children` in the cmdk
      `<Command>` root primitive, so `CommandInput`/`CommandList`/`CommandItem`
      have no context to read from.

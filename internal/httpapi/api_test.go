@@ -1119,6 +1119,34 @@ func TestCustomFields(t *testing.T) {
 	}
 }
 
+func TestPatchApplicationCompany(t *testing.T) {
+	e := newEnv(t)
+	code, app := e.json(t, http.MethodPost, "/v1/applications", e.token, map[string]any{"company": "Old Co", "title": "Engineer", "status": "to_apply"})
+	if code != 201 {
+		t.Fatal(app)
+	}
+	id, oldCompany := app["id"].(string), app["company_id"].(string)
+	code, moved := e.json(t, http.MethodPatch, "/v1/applications/"+id, e.token, map[string]any{"version": app["version"], "company": " New Co "})
+	if code != 200 || moved["company"] != "New Co" || moved["company_id"] == oldCompany || moved["version"].(float64) != 2 {
+		t.Fatalf("move: %d %#v", code, moved)
+	}
+	// Same company in another case is a no-op; an existing name is reused.
+	code, same := e.json(t, http.MethodPatch, "/v1/applications/"+id, e.token, map[string]any{"version": 2, "company": "new co"})
+	if code != 200 || same["version"].(float64) != 2 {
+		t.Fatalf("no-op: %d %#v", code, same)
+	}
+	code, back := e.json(t, http.MethodPatch, "/v1/applications/"+id, e.token, map[string]any{"version": 2, "company": "Old Co"})
+	if code != 200 || back["company_id"] != oldCompany {
+		t.Fatalf("reuse: %d %#v", code, back)
+	}
+	if code, _ := e.json(t, http.MethodPatch, "/v1/applications/"+id, e.token, map[string]any{"version": 3, "company": "  "}); code != 400 {
+		t.Fatalf("blank company: %d", code)
+	}
+	if code, _ := e.json(t, http.MethodPatch, "/v1/applications/"+id, e.token, map[string]any{"version": 2, "company": "Third Co"}); code != 409 {
+		t.Fatalf("stale version: %d", code)
+	}
+}
+
 func TestArchiveAndUnarchive(t *testing.T) {
 	e := newEnv(t)
 	code, app := e.json(t, http.MethodPost, "/v1/applications", e.token, map[string]any{

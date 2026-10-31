@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { ExternalLink, RefreshCw } from "lucide-react"
-import { sourceLabel, type Application, type CustomField } from "@/lib/types"
+import { SOURCE_LABELS, type Application, type CustomField } from "@/lib/types"
 import { FIT_OPTIONS } from "@/components/AttributesForm"
 import { InlineSelect, InlineText } from "@/components/InlineEdit"
 import { Badge } from "@/components/ui/badge"
@@ -14,16 +14,6 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 
 function Name({ children }: { children: React.ReactNode }) {
   return <FieldTitle className="text-xs font-normal text-muted-foreground">{children}</FieldTitle>
-}
-
-function ReadOnly({ label: name, value }: { label: string; value?: string | null }) {
-  if (!value) return null
-  return (
-    <Field className="gap-0.5">
-      <Name>{name}</Name>
-      <span className="text-sm">{value}</span>
-    </Field>
-  )
 }
 
 function safeURL(raw?: string) {
@@ -48,8 +38,8 @@ export function DetailAttributes({
   application: Application
   fields: CustomField[]
   writable: boolean
-  onSaveField: (patch: Record<string, string>) => void
-  onSaveCustomFieldValue: (fieldID: string, value: string) => void
+  onSaveField: (patch: Record<string, string>) => Promise<unknown>
+  onSaveCustomFieldValue: (fieldID: string, value: string) => Promise<unknown>
   onRecheckLink: () => Promise<void>
   fieldError: string | null
 }) {
@@ -65,51 +55,61 @@ export function DetailAttributes({
     }
   }
 
+  // One editable cell per field the PATCH accepts.
+  const text = (name: string, key: keyof Application & string, type?: "date") => (
+    <Field className="gap-0.5">
+      <Name>{name}</Name>
+      <InlineText
+        value={String(application[key] ?? "")}
+        label={name}
+        disabled={!writable}
+        className="text-sm"
+        type={type}
+        onSave={(v) => onSaveField({ [key]: v })}
+      />
+    </Field>
+  )
+
   return (
     <Card>
       <CardContent className="grid grid-cols-2 gap-4 pt-6 sm:grid-cols-3">
-        <Field className="gap-0.5">
-          <Name>Location</Name>
-          <InlineText
-            value={application.location || ""}
-            disabled={!writable}
-            className="text-sm"
-            inputClassName="h-7 text-sm"
-            onSave={(v) => onSaveField({ location: v })}
-          />
-        </Field>
-        <Field className="gap-0.5">
-          <Name>Salary</Name>
-          <InlineText
-            value={application.salary || ""}
-            disabled={!writable}
-            className="text-sm"
-            inputClassName="h-7 text-sm"
-            onSave={(v) => onSaveField({ salary: v })}
-          />
-        </Field>
+        {text("Location", "location")}
+        {text("Salary", "salary")}
         <Field className="gap-0.5">
           <Name>Fit</Name>
           <InlineSelect
             value={application.fit || ""}
-            display={application.fit || "—"}
+            label="Fit"
             options={FIT_OPTIONS.map((f) => [f, f] as [string, string])}
             disabled={!writable}
             className="text-sm"
             onSave={(v) => onSaveField({ fit: v })}
           />
         </Field>
-        <ReadOnly label="Source" value={sourceLabel(application.source) || application.source} />
-        <ReadOnly label="Applied" value={application.applied_date} />
+        <Field className="gap-0.5">
+          <Name>Source</Name>
+          <InlineSelect
+            value={application.source || ""}
+            label="Source"
+            options={Object.entries(SOURCE_LABELS)}
+            disabled={!writable}
+            className="text-sm"
+            onSave={(v) => onSaveField({ source: v })}
+          />
+        </Field>
+        {text("Applied", "applied_date", "date")}
+        {text("Job type", "job_type")}
+        {text("Contact email", "contact_email")}
+        {text("Résumé version", "resume_version")}
         <Field className="col-span-2 gap-0.5 sm:col-span-3">
           <Name>Posting URL</Name>
           <div className="flex items-center gap-1.5">
             <InlineText
               value={application.posting_url || ""}
               placeholder="No link"
+              label="Posting URL"
               disabled={!writable}
-              className="text-sm"
-              inputClassName="h-7 flex-1 text-sm"
+              className="flex-1 text-sm"
               onSave={(v) => onSaveField({ posting_url: v })}
             />
             {posting && (
@@ -140,12 +140,16 @@ export function DetailAttributes({
             )}
           </div>
         </Field>
-        {application.next_step && (
-          <Field className="col-span-2 gap-0.5 sm:col-span-3">
-            <Name>Next step</Name>
-            <span className="text-sm">{application.next_step}</span>
-          </Field>
-        )}
+        <Field className="col-span-2 gap-0.5 sm:col-span-3">
+          <Name>Next step</Name>
+          <InlineText
+            value={application.next_step || ""}
+            label="Next step"
+            disabled={!writable}
+            className="text-sm"
+            onSave={(v) => onSaveField({ next_step: v })}
+          />
+        </Field>
         {(application.tags || []).length > 0 && (
           <div className="col-span-2 flex items-center gap-1.5 sm:col-span-3">
             {application.tags!.map((tag) => (
@@ -160,9 +164,9 @@ export function DetailAttributes({
             <Name>{f.name}</Name>
             <InlineText
               value={application.custom_fields?.[f.name] || ""}
+              label={f.name}
               disabled={!writable}
               className="text-sm"
-              inputClassName="h-7 text-sm"
               onSave={(v) => onSaveCustomFieldValue(f.id, v)}
             />
           </Field>

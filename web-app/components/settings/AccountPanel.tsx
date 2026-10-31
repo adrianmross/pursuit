@@ -1,24 +1,44 @@
 "use client"
 
-import { useState, type FormEvent } from "react"
-import { Info, KeyRound, LogOut, MonitorSmartphone } from "lucide-react"
+import { useCallback, useEffect, useState, type FormEvent } from "react"
+import { Info, KeyRound, LogOut, Monitor, Smartphone } from "lucide-react"
 import { useAuth } from "@/lib/auth"
 import { authClient } from "@/lib/betterauth"
 import { api } from "@/lib/api-client"
+import type { Me } from "@/lib/types"
 import { UserAvatar, avatarDataURL, displayName } from "@/components/UserAvatar"
-import { PasskeysSection } from "@/components/settings/PasskeysSection"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Badge } from "@/components/ui/badge"
 import { ButtonGroup } from "@/components/ui/button-group"
-import { Field, FieldDescription, FieldGroup, FieldLabel, FieldLegend, FieldSeparator, FieldSet } from "@/components/ui/field"
+import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemMedia, ItemTitle } from "@/components/ui/item"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Spinner } from "@/components/ui/spinner"
+import { PasskeysSection } from "@/components/settings/PasskeysSection"
+
+// Better Auth's default minPasswordLength; Neon Auth doesn't change it.
+const MIN_PASSWORD = 8
 
 function Msg({ ok, text }: { ok: boolean; text: string }) {
   return text ? <p className={"text-sm " + (ok ? "text-emerald-600 dark:text-emerald-400" : "text-destructive")}>{text}</p> : null
 }
 
-function ProfileForm() {
+// How this browser signed in decides what can be managed here. Only a
+// Better Auth sign-in has a password and sign-in sessions; the server marks
+// it with the actor name "betterauth" (Service.ResolveTenantUser).
+type Mode = "account" | "proxy" | "token"
+
+function modeOf(me: Me | null): Mode {
+  if (me?.proxy) return "proxy"
+  if (authClient && me?.token.name === "betterauth") return "account"
+  return "token"
+}
+
+function ProfileCard({ mode }: { mode: Mode }) {
   const { me, refresh } = useAuth()
   const [name, setName] = useState(me?.user?.name || "")
   const [email, setEmail] = useState(me?.user?.email || "")
@@ -38,206 +58,388 @@ function ProfileForm() {
     if (file) await patch({ avatar: await avatarDataURL(file) })
   }
 
+  const emailNote =
+    mode === "proxy"
+      ? "The platform in front of this server signs you in, so this is only how you're shown."
+      : mode === "account"
+        ? "Your sign-in email. Pursuit keeps your applications under this address, so it can't be changed here."
+        : "The email on this Pursuit account. It can't be changed from the dashboard."
+
   return (
-    <form
-      onSubmit={(event: FormEvent) => {
-        event.preventDefault()
-        void patch(me?.proxy && email !== me.user?.email ? { name, email } : { name })
-      }}
-      className="flex flex-col gap-3"
-    >
-      <Item variant="outline">
-        <ItemMedia>
-          <UserAvatar me={me} size="lg" />
-        </ItemMedia>
-        <ItemContent>
-          <ItemTitle>{displayName(me)}</ItemTitle>
-          <ItemDescription>{me?.user?.email}</ItemDescription>
-        </ItemContent>
-        <ItemActions>
-          <ButtonGroup>
-            <Button type="button" variant="outline" size="sm" asChild>
-              <label>
-                {me?.user?.avatar ? "Change photo" : "Upload photo"}
-                <input type="file" accept="image/*" className="sr-only" onChange={(e) => void pick(e.target.files?.[0])} />
-              </label>
+    <Card>
+      <CardHeader>
+        <CardTitle>Profile</CardTitle>
+        <CardDescription>How you appear in the header, on events, and in the audit log.</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <form
+          onSubmit={(event: FormEvent) => {
+            event.preventDefault()
+            void patch(mode === "proxy" && email !== me?.user?.email ? { name, email } : { name })
+          }}
+          className="flex flex-col gap-4"
+        >
+          <Item variant="muted">
+            <ItemMedia>
+              <UserAvatar me={me} size="lg" />
+            </ItemMedia>
+            <ItemContent>
+              <ItemTitle>{displayName(me)}</ItemTitle>
+              <ItemDescription>Profile photo</ItemDescription>
+            </ItemContent>
+            <ItemActions>
+              <ButtonGroup>
+                <Button type="button" variant="outline" size="sm" asChild>
+                  <label>
+                    {me?.user?.avatar ? "Change photo" : "Upload photo"}
+                    <input type="file" accept="image/*" className="sr-only" onChange={(e) => void pick(e.target.files?.[0])} />
+                  </label>
+                </Button>
+                {me?.user?.avatar && (
+                  <Button type="button" variant="outline" size="sm" onClick={() => void patch({ avatar: "" })}>
+                    Remove
+                  </Button>
+                )}
+              </ButtonGroup>
+            </ItemActions>
+          </Item>
+          <FieldGroup className="grid gap-4 sm:grid-cols-2">
+            <Field>
+              <FieldLabel htmlFor="acct-name">Display name</FieldLabel>
+              <Input id="acct-name" value={name} onChange={(e) => setName(e.target.value)} />
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="acct-email">Email</FieldLabel>
+              <Input
+                id="acct-email"
+                type="email"
+                autoComplete="email"
+                value={mode === "proxy" ? email : me?.user?.email || ""}
+                readOnly={mode !== "proxy"}
+                onChange={(e) => setEmail(e.target.value)}
+              />
+              <FieldDescription>{emailNote}</FieldDescription>
+            </Field>
+          </FieldGroup>
+          <div className="flex items-center gap-3">
+            <Button type="submit" disabled={!name.trim() || (mode === "proxy" && !email.trim())}>
+              Save
             </Button>
-            {me?.user?.avatar && (
-              <Button type="button" variant="outline" size="sm" onClick={() => void patch({ avatar: "" })}>
-                Remove
-              </Button>
-            )}
-          </ButtonGroup>
-        </ItemActions>
-      </Item>
-      <Field>
-        <FieldLabel htmlFor="acct-name">Display name</FieldLabel>
-        <Input id="acct-name" value={name} onChange={(e) => setName(e.target.value)} />
-        <FieldDescription>
-          Shown in the header and recorded on events and the audit log.
-          {!me?.proxy && " Your email is your sign-in and can't be changed here."}
-        </FieldDescription>
-      </Field>
-      {me?.proxy && (
-        <Field>
-          <FieldLabel htmlFor="acct-email">Email</FieldLabel>
-          <Input id="acct-email" type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} />
-          <FieldDescription>The platform in front of this server signs you in, so this is only how you&apos;re shown.</FieldDescription>
-        </Field>
-      )}
-      <Msg {...msg} />
-      <Button type="submit" disabled={!name.trim() || (me?.proxy && !email.trim())} className="self-start">
-        Save
-      </Button>
-    </form>
+            <Msg {...msg} />
+          </div>
+        </form>
+      </CardContent>
+    </Card>
   )
 }
 
-function EmailForm() {
-  const [email, setEmail] = useState("")
-  const [msg, setMsg] = useState({ ok: true, text: "" })
-
-  async function save(event: FormEvent) {
-    event.preventDefault()
-    const { error } = await authClient!.changeEmail({ newEmail: email })
-    if (error) return setMsg({ ok: false, text: error.message || "Could not change the email" })
-    setEmail("")
-    setMsg({ ok: true, text: "Check your inbox to confirm the change." })
-  }
-
-  return (
-    <form onSubmit={save}>
-      <FieldSet>
-        <FieldLegend variant="label">Change email</FieldLegend>
-        <Field>
-          <Input type="email" aria-label="New email" placeholder="new@example.com" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} />
-          <FieldDescription>A confirmation link goes to the new address.</FieldDescription>
-        </Field>
-        <Field orientation="horizontal">
-          <Button type="submit" disabled={!email}>
-            Change email
-          </Button>
-          <Msg {...msg} />
-        </Field>
-      </FieldSet>
-    </form>
-  )
-}
-
-function OtherSessions() {
-  const [msg, setMsg] = useState({ ok: true, text: "" })
-  async function revoke() {
-    const { error } = await authClient!.revokeOtherSessions()
-    setMsg(error ? { ok: false, text: error.message || "Could not sign out other sessions" } : { ok: true, text: "Other sessions were signed out." })
-  }
-  return (
-    <Item variant="outline" size="sm">
-      <ItemMedia variant="icon">
-        <MonitorSmartphone />
-      </ItemMedia>
-      <ItemContent>
-        <ItemTitle>Other sessions</ItemTitle>
-        <ItemDescription>Every other browser and device signed in to this account.</ItemDescription>
-        <Msg {...msg} />
-      </ItemContent>
-      <ItemActions>
-        <Button variant="outline" size="sm" onClick={revoke}>
-          Sign out other sessions
-        </Button>
-      </ItemActions>
-    </Item>
-  )
-}
-
-function PasswordForm() {
+function ChangePasswordDialog({ open, onOpenChange, onChanged }: { open: boolean; onOpenChange: (open: boolean) => void; onChanged: (revoked: boolean) => void }) {
   const [current, setCurrent] = useState("")
   const [next, setNext] = useState("")
-  const [msg, setMsg] = useState({ ok: true, text: "" })
+  const [confirm, setConfirm] = useState("")
+  const [revokeOthers, setRevokeOthers] = useState(true)
+  const [touched, setTouched] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [serverError, setServerError] = useState("")
+
+  const tooShort = next.length > 0 && next.length < MIN_PASSWORD
+  const mismatch = confirm.length > 0 && next !== confirm
+  const same = next.length > 0 && next === current
+  const valid = current.length > 0 && next.length >= MIN_PASSWORD && next === confirm && !same
+
+  function close(nextOpen: boolean) {
+    if (!nextOpen) {
+      setCurrent("")
+      setNext("")
+      setConfirm("")
+      setRevokeOthers(true)
+      setTouched(false)
+      setServerError("")
+    }
+    onOpenChange(nextOpen)
+  }
 
   async function save(event: FormEvent) {
     event.preventDefault()
-    const { error } = await authClient!.changePassword({
-      currentPassword: current,
-      newPassword: next,
-      revokeOtherSessions: true,
-    })
-    if (error) return setMsg({ ok: false, text: error.message || "Could not change the password" })
-    setCurrent("")
-    setNext("")
-    setMsg({ ok: true, text: "Password changed. Other sessions were signed out." })
+    setTouched(true)
+    if (!valid || !authClient) return
+    setBusy(true)
+    setServerError("")
+    // Better Auth checks currentPassword server-side; a wrong one changes nothing.
+    const { error } = await authClient.changePassword({ currentPassword: current, newPassword: next, revokeOtherSessions: revokeOthers })
+    setBusy(false)
+    if (error) return setServerError(error.message || "Could not change the password")
+    onChanged(revokeOthers)
+    close(false)
   }
 
   return (
-    <form onSubmit={save}>
-      <FieldSet>
-        <FieldLegend variant="label">Change password</FieldLegend>
-        <FieldGroup className="grid gap-4 sm:grid-cols-2">
-          <Field>
-            <FieldLabel htmlFor="pw-current">Current password</FieldLabel>
-            <Input id="pw-current" type="password" autoComplete="current-password" value={current} onChange={(e) => setCurrent(e.target.value)} />
-          </Field>
-          <Field>
-            <FieldLabel htmlFor="pw-new">New password</FieldLabel>
-            <Input id="pw-new" type="password" autoComplete="new-password" minLength={8} value={next} onChange={(e) => setNext(e.target.value)} />
-          </Field>
-        </FieldGroup>
-        <FieldDescription>At least 8 characters. Changing it signs out your other sessions.</FieldDescription>
-        <Field orientation="horizontal">
-          <Button type="submit" disabled={!current || next.length < 8}>
-            Update password
-          </Button>
-          <Msg {...msg} />
-        </Field>
-      </FieldSet>
-    </form>
+    <Dialog open={open} onOpenChange={close}>
+      <DialogContent className="sm:max-w-md">
+        <form onSubmit={save} className="flex flex-col gap-6" noValidate>
+          <DialogHeader>
+            <DialogTitle>Change password</DialogTitle>
+            <DialogDescription>Enter your current password to set a new one.</DialogDescription>
+          </DialogHeader>
+          <FieldGroup>
+            <Field data-invalid={!!serverError || (touched && !current) || undefined}>
+              <FieldLabel htmlFor="pw-current">Current password</FieldLabel>
+              <Input
+                id="pw-current"
+                type="password"
+                autoComplete="current-password"
+                autoFocus
+                aria-invalid={!!serverError || (touched && !current) || undefined}
+                value={current}
+                onChange={(e) => {
+                  setCurrent(e.target.value)
+                  setServerError("")
+                }}
+              />
+              {touched && !current && <FieldError>Enter your current password.</FieldError>}
+              {serverError && <FieldError>{serverError}</FieldError>}
+            </Field>
+            <Field data-invalid={tooShort || same || (touched && !next) || undefined}>
+              <FieldLabel htmlFor="pw-new">New password</FieldLabel>
+              <Input
+                id="pw-new"
+                type="password"
+                autoComplete="new-password"
+                aria-invalid={tooShort || same || (touched && !next) || undefined}
+                value={next}
+                onChange={(e) => setNext(e.target.value)}
+              />
+              {tooShort || (touched && !next) ? (
+                <FieldError>Use at least {MIN_PASSWORD} characters.</FieldError>
+              ) : same ? (
+                <FieldError>Choose a password different from the current one.</FieldError>
+              ) : (
+                <FieldDescription>At least {MIN_PASSWORD} characters.</FieldDescription>
+              )}
+            </Field>
+            <Field data-invalid={mismatch || (touched && !confirm) || undefined}>
+              <FieldLabel htmlFor="pw-confirm">Confirm new password</FieldLabel>
+              <Input
+                id="pw-confirm"
+                type="password"
+                autoComplete="new-password"
+                aria-invalid={mismatch || (touched && !confirm) || undefined}
+                value={confirm}
+                onChange={(e) => setConfirm(e.target.value)}
+              />
+              {(mismatch || (touched && !confirm)) && <FieldError>The new passwords don&apos;t match.</FieldError>}
+            </Field>
+            <Field orientation="horizontal">
+              <Checkbox id="pw-revoke" checked={revokeOthers} onCheckedChange={(v) => setRevokeOthers(v === true)} />
+              <FieldLabel htmlFor="pw-revoke" className="font-normal">
+                Sign out other sessions
+              </FieldLabel>
+            </Field>
+          </FieldGroup>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => close(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={busy}>
+              {busy && <Spinner />}
+              Change password
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+type AuthSession = { id: string; token: string; userAgent?: string | null; ipAddress?: string | null; createdAt: Date | string }
+
+function describeAgent(ua?: string | null) {
+  if (!ua) return "Unknown device"
+  const browser = /Edg\//.test(ua) ? "Edge" : /Firefox\//.test(ua) ? "Firefox" : /Chrome\//.test(ua) ? "Chrome" : /Safari\//.test(ua) ? "Safari" : "Browser"
+  const os = /iPhone|iPad/.test(ua) ? "iOS" : /Android/.test(ua) ? "Android" : /Mac OS X/.test(ua) ? "macOS" : /Windows/.test(ua) ? "Windows" : /Linux/.test(ua) ? "Linux" : ""
+  return os ? `${browser} on ${os}` : browser
+}
+
+// Password and sign-in sessions for a Better Auth (Neon Auth) account.
+// Neon Auth's session cookie is third-party to this site, so it can be gone
+// (expired, or blocked by the browser) while Pursuit still holds a valid
+// JWT; then nothing here would work, and the card says how to get it back.
+function SecurityCard() {
+  const [state, setState] = useState<"loading" | "ready" | "missing">("loading")
+  const [currentToken, setCurrentToken] = useState("")
+  const [sessions, setSessions] = useState<AuthSession[]>([])
+  const [open, setOpen] = useState(false)
+  const [msg, setMsg] = useState({ ok: true, text: "" })
+
+  const load = useCallback(async () => {
+    if (!authClient) return
+    const { data } = await authClient.getSession()
+    if (!data?.session) return setState("missing")
+    setCurrentToken(data.session.token)
+    const list = await authClient.listSessions()
+    setSessions((list.data as AuthSession[] | null) || [])
+    setState("ready")
+  }, [])
+
+  useEffect(() => {
+    // Fetches from Neon Auth; state is only set after the requests resolve.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    load().catch(() => setState("missing"))
+  }, [load])
+
+  async function revoke(token: string) {
+    const { error } = await authClient!.revokeSession({ token })
+    setMsg(error ? { ok: false, text: error.message || "Could not sign out that session" } : { ok: true, text: "Session signed out." })
+    await load()
+  }
+
+  async function revokeOthers() {
+    const { error } = await authClient!.revokeOtherSessions()
+    setMsg(error ? { ok: false, text: error.message || "Could not sign out other sessions" } : { ok: true, text: "Other sessions were signed out." })
+    await load()
+  }
+
+  const ordered = [...sessions].sort((a, b) => Number(b.token === currentToken) - Number(a.token === currentToken))
+  const hasOthers = sessions.some((s) => s.token !== currentToken)
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Security</CardTitle>
+        <CardDescription>Your password and the browsers signed in to your account.</CardDescription>
+        {state === "ready" && (
+          <CardAction>
+            <Button variant="outline" size="sm" onClick={() => setOpen(true)}>
+              <KeyRound />
+              Change password
+            </Button>
+          </CardAction>
+        )}
+      </CardHeader>
+      <CardContent className="flex flex-col gap-3">
+        {state === "loading" && (
+          <p className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Spinner /> Loading sessions
+          </p>
+        )}
+        {state === "missing" && (
+          <Alert>
+            <Info />
+            <AlertDescription>
+              Your session with the sign-in service has ended. It expires on its own, and some browsers block its cookie.
+              Sign out and sign back in with your email to change your password or manage sessions.
+            </AlertDescription>
+          </Alert>
+        )}
+        {state === "ready" && (
+          <>
+            <ItemGroup className="gap-2">
+              {ordered.map((s) => {
+                const isCurrent = s.token === currentToken
+                return (
+                  <Item key={s.id} variant="outline" size="sm">
+                    <ItemMedia variant="icon">{/iPhone|iPad|Android/.test(s.userAgent || "") ? <Smartphone /> : <Monitor />}</ItemMedia>
+                    <ItemContent>
+                      <ItemTitle>
+                        {describeAgent(s.userAgent)}
+                        {isCurrent && <Badge variant="secondary">This browser</Badge>}
+                      </ItemTitle>
+                      <ItemDescription>
+                        Signed in {new Date(s.createdAt).toLocaleString()}
+                        {s.ipAddress ? ` · ${s.ipAddress}` : ""}
+                      </ItemDescription>
+                    </ItemContent>
+                    {!isCurrent && (
+                      <ItemActions>
+                        <Button variant="outline" size="sm" onClick={() => void revoke(s.token)}>
+                          Sign out
+                        </Button>
+                      </ItemActions>
+                    )}
+                  </Item>
+                )
+              })}
+            </ItemGroup>
+            <div className="flex flex-wrap items-center gap-3">
+              {hasOthers && (
+                <Button variant="outline" size="sm" onClick={() => void revokeOthers()}>
+                  Sign out other sessions
+                </Button>
+              )}
+              <Msg {...msg} />
+            </div>
+            <p className="text-xs text-muted-foreground">
+              These are sign-in sessions. A browser already signed in to Pursuit stays signed in until its session token
+              expires. API tokens are managed under API tokens.
+            </p>
+          </>
+        )}
+      </CardContent>
+      <ChangePasswordDialog
+        open={open}
+        onOpenChange={setOpen}
+        onChanged={(revoked) => {
+          setMsg({ ok: true, text: revoked ? "Password changed. Other sessions were signed out." : "Password changed." })
+          void load()
+        }}
+      />
+    </Card>
+  )
+}
+
+function NoAccountCard({ mode }: { mode: Mode }) {
+  const { me } = useAuth()
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Security</CardTitle>
+        <CardDescription>Password and sign-in sessions.</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <Alert>
+          <Info />
+          <AlertDescription>
+            {mode === "proxy"
+              ? "The platform in front of this server signs you in, so your password and sessions are managed there."
+              : `You signed in with the API token "${me?.token.name || "token"}", which has no password or sign-in sessions. Rotate or revoke it under API tokens.`}
+          </AlertDescription>
+        </Alert>
+      </CardContent>
+    </Card>
   )
 }
 
 export function AccountPanel() {
   const { me, signOut } = useAuth()
+  const mode = modeOf(me)
+  const via = mode === "account" ? "email and password" : mode === "proxy" ? "the platform" : `token "${me?.token.name || "token"}"`
+
+  async function signOutEverywhere() {
+    // Also end the Neon Auth session, so the next sign-in asks for the password.
+    if (mode === "account") await authClient?.signOut().catch(() => {})
+    await signOut()
+  }
+
   return (
-    <div className="flex flex-col gap-6">
-      <ProfileForm />
-      {authClient ? (
-        <>
-          <EmailForm />
-          <PasswordForm />
-        </>
-      ) : (
-        <Alert>
-          <Info />
-          <AlertDescription>
-            This server signs in with an API token or the platform in front of it, so there is no email or password to
-            manage here. Revoke or rotate tokens under API tokens.
-          </AlertDescription>
-        </Alert>
-      )}
+    <div className="flex flex-col gap-4">
+      <ProfileCard mode={mode} />
+      {mode === "account" ? <SecurityCard /> : <NoAccountCard mode={mode} />}
       <PasskeysSection />
-      <FieldSeparator />
-      <FieldSet>
-        <FieldLegend variant="label">Session</FieldLegend>
-        <ItemGroup className="gap-2">
-          <Item variant="outline" size="sm">
-            <ItemMedia variant="icon">
-              <KeyRound />
-            </ItemMedia>
-            <ItemContent>
-              <ItemTitle>Signed in as {displayName(me)}</ItemTitle>
-              <ItemDescription>
-                via {me?.token.name || "token"}
-                {me?.token.scopes?.length ? ` (${me.token.scopes.join(", ")})` : ""}
-              </ItemDescription>
-            </ItemContent>
-            <ItemActions>
-              <Button variant="outline" size="sm" onClick={signOut}>
-                <LogOut />
-                Sign out
-              </Button>
-            </ItemActions>
-          </Item>
-          {authClient && <OtherSessions />}
-        </ItemGroup>
-      </FieldSet>
+      <Card>
+        <CardHeader>
+          <CardTitle>Sign out</CardTitle>
+          <CardDescription>
+            Signed in as {displayName(me)} via {via}
+            {me?.token.scopes?.length ? ` (${me.token.scopes.join(", ")})` : ""}.
+          </CardDescription>
+          <CardAction>
+            <Button variant="outline" size="sm" onClick={() => void signOutEverywhere()}>
+              <LogOut />
+              Sign out
+            </Button>
+          </CardAction>
+        </CardHeader>
+      </Card>
     </div>
   )
 }

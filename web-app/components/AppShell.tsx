@@ -1,11 +1,11 @@
 "use client"
 
-import { Suspense, useState, useSyncExternalStore } from "react"
+import { Suspense, useEffect, useState, useSyncExternalStore } from "react"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
-import { Archive, Bot, IdCard, LogOut, Search, Settings, X } from "lucide-react"
+import { usePathname, useRouter } from "next/navigation"
+import { Archive, ArrowLeft, Bot, IdCard, LogOut, MessageSquareText, Search, Settings, X } from "lucide-react"
 import { useAuth } from "@/lib/auth"
-import { isMac, useShortcuts } from "@/lib/keybindings"
+import { keyLabels, useShortcuts } from "@/lib/keybindings"
 import { Kbd } from "@/components/ui/kbd"
 import { CommandPalette } from "@/components/CommandPalette"
 import { SettingsDialog } from "@/components/SettingsDialog"
@@ -35,9 +35,21 @@ function useMedia(query: string) {
   )
 }
 
+// Every signed-in page but the table goes back to it.
+// ponytail: one parent for all; map pathname -> parent once pages nest.
+const PARENT = "/applications"
+// The page shown before this one, if it was inside the app.
+let lastPath = ""
+
 export function AppShell({ children }: { children: React.ReactNode }) {
   const { me, signOut } = useAuth()
   const router = useRouter()
+  const pathname = usePathname()
+  useEffect(() => () => void (lastPath = pathname), [pathname])
+  // History keeps the table's filters and scroll, but only when the table is
+  // what history would return to; otherwise open it fresh.
+  // ponytail: lastPath is wrong after a browser Forward; history.state indexes would fix it.
+  const goBack = () => (lastPath === PARENT ? router.back() : router.push(PARENT))
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [settingsSection, setSettingsSection] = useState("appearance")
   const [settingsKey, setSettingsKey] = useState(0)
@@ -67,8 +79,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     // Search whatever is in front: the open settings dialog, else the app.
     search: () => (document.querySelector("[data-settings-dialog]") ? focus("settings") : focus("global")),
     find: () => focus("audit"),
+    // Not while typing in some other field; the search box itself is fine.
+    searchApps: () =>
+      document.activeElement?.matches("input:not([data-search]), textarea, select, [contenteditable='true']") ? false : focus("global"),
     // Only on an application page; anywhere else Esc is left alone.
-    back: () => (window.location.pathname.startsWith("/app/") ? router.push("/applications") : false),
+    back: () => (window.location.pathname.startsWith("/app/") ? goBack() : false),
     home: () => router.push("/start"),
     pipeline: () => router.push("/applications"),
     archived: () => router.push("/applications?archived=1"),
@@ -96,6 +111,22 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src="/brand/hire-pursuit-wordmark-reverse.svg" alt="" className="hidden h-5 w-auto dark:block" />
             </Link>
+            {pathname !== PARENT && (
+              <Button variant="ghost" size="sm" className="shrink-0 text-muted-foreground" asChild>
+                <Link
+                  href={PARENT}
+                  aria-label="Back to applications"
+                  onClick={(e) => {
+                    if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return
+                    e.preventDefault()
+                    goBack()
+                  }}
+                >
+                  <ArrowLeft />
+                  <span className="hidden md:inline">Applications</span>
+                </Link>
+              </Button>
+            )}
             {narrow ? (
               <Button variant="ghost" size="icon" className="ml-auto" aria-label="Search applications" onClick={() => setSearching(true)}>
                 <Search />
@@ -110,7 +141,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             )}
         <div className="flex shrink-0 items-center justify-end gap-2">
           <CommandPalette onOpenSettings={openSettings} />
-          <Kbd className="hidden sm:inline-flex">{isMac ? "⌘" : "Ctrl"} K</Kbd>
+          <Kbd className="hidden sm:inline-flex" title="Command palette">{keyLabels("mod+p").join(" ")}</Kbd>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="icon" className="rounded-full" aria-label="Account">
@@ -134,6 +165,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               <DropdownMenuItem onClick={() => router.push("/profile")}>
                 <IdCard /> Profile
               </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => router.push("/profile/questions")}>
+                <MessageSquareText /> Questions
+              </DropdownMenuItem>
               <DropdownMenuItem onClick={() => router.push("/agents")}>
                 <Bot /> Connect an agent
               </DropdownMenuItem>
@@ -151,7 +185,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         )}
       </header>
       <main className="flex-1 p-4">
-        <ProfileNudge onOpen={() => router.push("/profile")} />
+        <ProfileNudge onOpen={(href) => router.push(href)} />
         {children}
       </main>
       <SiteFooter />
