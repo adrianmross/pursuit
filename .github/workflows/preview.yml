@@ -1,0 +1,63 @@
+name: preview
+
+# Vercel builds main automatically (vercel.json git.deploymentEnabled); every
+# other branch deploys only from here, when its PR carries the `preview`
+# label. Labelling deploys right away and each later push redeploys, so the
+# 100-deployments-a-day Hobby limit is spent on branches someone asked for.
+
+on:
+  pull_request:
+    types: [labeled, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: preview-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    # Same-repo PRs only: fork PRs get no secrets, and must not deploy.
+    if: >-
+      contains(github.event.pull_request.labels.*.name, 'preview') &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      (github.event.action != 'labeled' || github.event.label.name == 'preview')
+    runs-on: ubuntu-latest
+    env:
+      VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      BRANCH: ${{ github.head_ref }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Deploy preview
+        id: deploy
+        run: |
+          set -euo pipefail
+          if [ -z "$VERCEL_TOKEN" ]; then
+            echo "::error::Set the VERCEL_TOKEN repository secret to deploy previews."
+            exit 1
+          fi
+          vercel="npx --yes vercel@65.8.0"
+          $vercel pull --yes --environment=preview --git-branch="$BRANCH" --token="$VERCEL_TOKEN"
+          $vercel build --token="$VERCEL_TOKEN"
+          url="$($vercel deploy --prebuilt --token="$VERCEL_TOKEN" \
+            --meta githubDeployment=1 --meta githubCommitRef="$BRANCH")"
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+      - name: Comment the preview URL
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+          URL: ${{ steps.deploy.outputs.url }}
+          SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          gh pr comment "$PR" --repo "$GITHUB_REPOSITORY" --edit-last --create-if-none \
+            --body "Preview for ${SHA:0:7}: $URL"
