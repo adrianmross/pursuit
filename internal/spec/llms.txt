@@ -26,6 +26,7 @@ pursuit batch requests.json
 Bulk: `POST /v1/batch` (`pursuit batch <file|->`) runs up to 100 requests, each through its normal route and scope check, and returns per-item `{status, body}`. List endpoints page with `limit` (1-200) and `cursor`; `--all-pages` on any CLI list follows `next_cursor` for you.
 
 OpenAPI: GET /openapi.json. One command's flags: `pursuit schema <command>`.
+Auth guide for agents (tokens, scopes, approval, 401/403): GET /auth.md.
 SQLite is the default database. Postgres is for more than one replica.
 
 `pursuit documents add --kind base_resume --file resume.pdf` stores the base résumé; prepare attaches the newest one before falling back to PURSUIT_RESUME_FILE. Tailored files go on one application with `pursuit artifacts add`. Save the user's answer to a `needs_input` question with `pursuit standing set` so later prepares reuse it.

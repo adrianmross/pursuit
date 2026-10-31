@@ -1390,6 +1390,18 @@ func TestDeleteStanding(t *testing.T) {
 	}
 }
 
+func TestAuthDocIsPublicMarkdown(t *testing.T) {
+	e := newEnv(t)
+	code, body, h := e.do(t, http.MethodGet, "/auth.md", "", nil, nil)
+	if code != 200 || h.Get("Content-Type") != "text/markdown; charset=utf-8" || !bytes.Contains(body, []byte("PURSUIT_TOKEN")) {
+		t.Fatalf("auth.md %d %q %.80s", code, h.Get("Content-Type"), body)
+	}
+	_, spec, _ := e.do(t, http.MethodGet, "/openapi.json", "", nil, nil)
+	if !bytes.Contains(spec, []byte(`"/auth.md"`)) {
+		t.Fatal("openapi is missing /auth.md")
+	}
+}
+
 func TestTokensMintOnlyScopesTheyHold(t *testing.T) {
 	e := newEnv(t)
 	mint := func(token string, scopes ...string) (int, map[string]any) {
