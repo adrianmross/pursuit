@@ -10,6 +10,18 @@ import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { CommandBlock } from "@/components/CommandBlock"
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp"
+import { SnakeEyes } from "@/components/Sketch"
+import { cn } from "@/lib/utils"
+
+// A failed sign-in step: the message beside a sketched bad roll.
+function FailNote({ className, children }: { className?: string; children: React.ReactNode }) {
+  return (
+    <p role="alert" className={cn("flex items-center gap-2 text-sm text-destructive", className)}>
+      <SnakeEyes className="w-11 shrink-0" />
+      {children}
+    </p>
+  )
+}
 
 function VerifyStep({
   email,
@@ -75,7 +87,7 @@ function VerifyStep({
         <CardDescription>Sent to {email}</CardDescription>
       </CardHeader>
       <CardContent className="pt-0">
-        {localError && <p className="mb-3 text-sm text-destructive">{localError}</p>}
+        {localError && <FailNote className="mb-3">{localError}</FailNote>}
         <form onSubmit={onSubmit} className="flex flex-col items-center gap-4">
           <InputOTP maxLength={6} value={otp} onChange={setOtp} autoFocus>
             <InputOTPGroup>
@@ -166,7 +178,7 @@ function AccountSignIn() {
         <CardTitle className="text-base">{mode === "sign-up" ? "Create an account" : "Sign in"}</CardTitle>
       </CardHeader>
       <CardContent className="pt-0">
-        {(localError || error) && <p className="mb-3 text-sm text-destructive">{localError || error}</p>}
+        {(localError || error) && <FailNote className="mb-3">{localError || error}</FailNote>}
         <form onSubmit={onSubmit} className="flex flex-col gap-4">
           {mode === "sign-up" && (
             <div className="flex flex-col gap-2">
@@ -239,7 +251,7 @@ function TokenSignIn() {
       </CardHeader>
       <CardContent className="flex flex-col gap-4 pt-0">
         <CommandBlock command={"pursuit serve\npursuit tokens create"} />
-        {(localError || error) && <p className="text-sm text-destructive">{localError || error}</p>}
+        {(localError || error) && <FailNote>{localError || error}</FailNote>}
         <form onSubmit={onSubmit} className="flex flex-col gap-4">
           <div className="flex flex-col gap-2">
             <Label htmlFor="token">API token</Label>
@@ -280,7 +292,7 @@ function TryDemo() {
 
   return (
     <div className="flex flex-col gap-2 text-center">
-      {(localError || error) && <p className="text-sm text-destructive">{localError || error}</p>}
+      {(localError || error) && <FailNote className="justify-center">{localError || error}</FailNote>}
       <Button type="button" variant="outline" disabled={submitting} onClick={onClick}>
         {submitting ? "Starting…" : "Try it without an account"}
       </Button>

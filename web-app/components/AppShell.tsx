@@ -66,10 +66,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     search: () => (document.querySelector("[data-settings-dialog]") ? focus("settings") : focus("global")),
     find: () => focus("audit"),
     // Only on an application page; anywhere else Esc is left alone.
-    back: () => (window.location.pathname.startsWith("/app/") ? router.push("/pipeline") : false),
-    home: () => router.push("/"),
-    pipeline: () => router.push("/pipeline"),
-    archived: () => router.push("/?archived=1"),
+    back: () => (window.location.pathname.startsWith("/app/") ? router.push("/applications") : false),
+    home: () => router.push("/start"),
+    pipeline: () => router.push("/applications"),
+    archived: () => router.push("/applications?archived=1"),
     new: () => router.push("/app/new"),
   })
   const identity = me?.token.name || "token"
@@ -89,7 +89,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </>
         ) : (
           <>
-            <Link href="/" aria-label="Hire Pursuit" className="shrink-0">
+            <Link href="/start" aria-label="Hire Pursuit" className="shrink-0">
               {/* eslint-disable-next-line @next/next/no-img-element -- drawn SVG wordmark, not a photo next/image needs to optimize */}
               <img src="/brand/hire-pursuit-wordmark.svg" alt="" className="h-5 w-auto dark:hidden" />
               {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -125,7 +125,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 </span>
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => router.push("/?archived=1")}>
+              <DropdownMenuItem onClick={() => router.push("/applications?archived=1")}>
                 <Archive /> View archived
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => openSettings()}>

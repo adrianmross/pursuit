@@ -60,7 +60,7 @@ export function SearchPanel({ close }: { close: () => void }) {
                 disabled={!on}
                 onClick={() => {
                   close()
-                  router.push("/pipeline?q=" + encodeURIComponent(example))
+                  router.push("/applications?q=" + encodeURIComponent(example))
                 }}
               >
                 Try it

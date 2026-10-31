@@ -57,7 +57,7 @@ export function SearchBox({ placeholder, onBlurEmpty }: { placeholder: string; o
   const pathname = usePathname()
   const router = useRouter()
   const params = useSearchParams()
-  const onPipeline = pathname === "/pipeline"
+  const onPipeline = pathname === "/applications"
   const [value, setValue] = useState(onPipeline ? params.get("q") || "" : "")
   const [caret, setCaret] = useState(0)
   const [scroll, setScroll] = useState(0)
@@ -85,7 +85,7 @@ export function SearchBox({ placeholder, onBlurEmpty }: { placeholder: string; o
       const merged = new URLSearchParams(onPipeline ? params.toString() : undefined)
       if (next) merged.set("q", next)
       else merged.delete("q")
-      router[onPipeline ? "replace" : "push"](`/pipeline?${merged.toString()}`)
+      router[onPipeline ? "replace" : "push"](`/applications?${merged.toString()}`)
     }, 200)
   }
 

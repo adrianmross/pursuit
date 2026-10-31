@@ -23,12 +23,11 @@ func TestDashboardAssets(t *testing.T) {
 		t.Fatalf("csp %q", header.Get("Content-Security-Policy"))
 	}
 
-	// A path with no file of its own (the dashboard's static export has no
-	// generic client-side catch-all anymore — every real route is its own
-	// prerendered file) falls back to the root page rather than 404ing.
-	code, body, header = e.do(t, http.MethodGet, "/app/does-not-exist", "", nil, nil)
-	if code != 200 || !strings.Contains(header.Get("Content-Type"), "text/html") || !strings.Contains(string(body), `<title>Hire Pursuit</title>`) {
-		t.Fatalf("fallback route %d %s", code, body)
+	// A path with no file of its own (every real route is its own
+	// prerendered file) gets the themed 404 page, not the landing page.
+	code, body, header = e.do(t, http.MethodGet, "/pipeline", "", nil, nil)
+	if code != 404 || !strings.Contains(header.Get("Content-Type"), "text/html") || !strings.Contains(string(body), "You rolled a 404.") {
+		t.Fatalf("unknown route %d %s", code, body)
 	}
 
 	// A path with an extension that genuinely doesn't exist 404s instead of
