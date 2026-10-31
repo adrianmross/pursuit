@@ -75,7 +75,7 @@
   "info": {
     "description": "Job-application tracker. Agents should prefer the pursuit CLI. Fetch this document when you need the HTTP shape; use `pursuit schema <command>` for one CLI command.",
     "title": "Pursuit",
-    "version": "0.2.0"
+    "version": "0.2.1"
   },
   "openapi": "3.0.3",
   "paths": {

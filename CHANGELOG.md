@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.1](https://github.com/adrianmross/pursuit/compare/v0.2.0...v0.2.1) (2026-10-31)
+
+
+### Bug Fixes
+
+* **pursuit:** Deploy Vercel previews only for pull requests labeled preview ([#62](https://github.com/adrianmross/pursuit/issues/62)) ([f70b43d](https://github.com/adrianmross/pursuit/commit/f70b43db6c1fa87111d3a41730ae4713687e8305))
+
 ## [0.2.0](https://github.com/adrianmross/pursuit/compare/v0.1.0...v0.2.0) (2026-10-31)
 
 
