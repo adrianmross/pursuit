@@ -20,9 +20,10 @@ function Msg({ ok, text }: { ok: boolean; text: string }) {
 function ProfileForm() {
   const { me, refresh } = useAuth()
   const [name, setName] = useState(me?.user?.name || "")
+  const [email, setEmail] = useState(me?.user?.email || "")
   const [msg, setMsg] = useState({ ok: true, text: "" })
 
-  async function patch(body: { name?: string; avatar?: string }) {
+  async function patch(body: { name?: string; avatar?: string; email?: string }) {
     try {
       await api("/v1/me", { method: "PATCH", body })
       await refresh()
@@ -40,7 +41,7 @@ function ProfileForm() {
     <form
       onSubmit={(event: FormEvent) => {
         event.preventDefault()
-        void patch({ name })
+        void patch(me?.proxy && email !== me.user?.email ? { name, email } : { name })
       }}
       className="flex flex-col gap-3"
     >
@@ -71,10 +72,20 @@ function ProfileForm() {
       <Field>
         <FieldLabel htmlFor="acct-name">Display name</FieldLabel>
         <Input id="acct-name" value={name} onChange={(e) => setName(e.target.value)} />
-        <FieldDescription>Shown in the header and recorded on events and the audit log. Your email is your sign-in and can&apos;t be changed here.</FieldDescription>
+        <FieldDescription>
+          Shown in the header and recorded on events and the audit log.
+          {!me?.proxy && " Your email is your sign-in and can't be changed here."}
+        </FieldDescription>
       </Field>
+      {me?.proxy && (
+        <Field>
+          <FieldLabel htmlFor="acct-email">Email</FieldLabel>
+          <Input id="acct-email" type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+          <FieldDescription>The platform in front of this server signs you in, so this is only how you&apos;re shown.</FieldDescription>
+        </Field>
+      )}
       <Msg {...msg} />
-      <Button type="submit" disabled={!name.trim()} className="self-start">
+      <Button type="submit" disabled={!name.trim() || (me?.proxy && !email.trim())} className="self-start">
         Save
       </Button>
     </form>

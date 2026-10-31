@@ -14,10 +14,13 @@ const maxAvatar = 256 << 10
 type MePatch struct {
 	Name   *string `json:"name"`
 	Avatar *string `json:"avatar"`
+	Email  *string `json:"email"`
 }
 
 // UpdateMe changes the display name and avatar. Email is the identity key
-// for sign-in, so it is not editable here.
+// for sign-in, so only the PURSUIT_TRUST_PROXY_AUTH owner may change it: the
+// platform in front authenticates them, not the email, and they are the only
+// user, so nothing else can be keyed on the old address.
 func (s *Service) UpdateMe(ctx context.Context, in MePatch) (domain.User, error) {
 	a, err := s.actor(ctx, true)
 	if err != nil {
@@ -41,6 +44,19 @@ func (s *Service) UpdateMe(ctx context.Context, in MePatch) (domain.User, error)
 			return domain.User{}, domain.Validation("avatar is too large").WithHint("keep it under 256KB; resize to about 256px")
 		}
 		user.Avatar = v
+	}
+	if in.Email != nil {
+		if !a.Proxy {
+			return domain.User{}, domain.Validation("email is your sign-in and can't be changed here").WithHint("change it through your sign-in provider")
+		}
+		v, err := domain.ParseEmail(*in.Email)
+		if err != nil {
+			return domain.User{}, err
+		}
+		if v == "" {
+			return domain.User{}, domain.Validation("email is required")
+		}
+		user.Email = v
 	}
 	err = s.DB.WithTx(ctx, func(ctx context.Context) error {
 		if err := s.DB.UpdateUserProfile(ctx, user); err != nil {

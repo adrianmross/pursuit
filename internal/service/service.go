@@ -386,7 +386,7 @@ func (s *Service) Me(ctx context.Context) (domain.Me, error) {
 		return domain.Me{}, err
 	}
 	if strings.TrimSpace(a.TokenID) == "" {
-		return domain.Me{User: user, Token: domain.Token{UserID: user.ID, Name: a.Name, Scopes: append([]string(nil), a.Scopes...)}}, nil
+		return domain.Me{User: user, Token: domain.Token{UserID: user.ID, Name: a.Name, Scopes: append([]string(nil), a.Scopes...)}, Proxy: a.Proxy}, nil
 	}
 	tok, err := s.DB.GetToken(ctx, a.UserID, a.TokenID)
 	if err != nil {
