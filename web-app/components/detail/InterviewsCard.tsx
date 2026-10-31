@@ -186,7 +186,7 @@ export function InterviewsCard({
   const [expanded, setExpanded] = useState<number | null>(null)
   // New rounds join the stage the application is on.
   const [stage, setStage] = useState(STAGES[Math.max(current, 1) - 1][0])
-  const base = `/v1/applications/${encodeURIComponent(appId)}/interviews`
+  const base = `/v1/applications/${encodeURIComponent(appId)}/rounds`
   // The same rounds the status chooser edits: one list, one set of operations.
   const rounds = useRounds(appId, current, onChange)
   const tasks = useTasks(appId, current, onChange)
@@ -200,9 +200,9 @@ export function InterviewsCard({
 
   const add = () => rounds.run(() => api(base, { method: "POST", body: { stage, kind } }).then(() => setKind("")))
   const patch = (item: Interview, body: Record<string, unknown>) =>
-    rounds.run(() => api(`/v1/interviews/${encodeURIComponent(item.id)}`, { method: "PATCH", body: { version: item.version, ...body } }))
+    rounds.run(() => api(`/v1/rounds/${encodeURIComponent(item.id)}`, { method: "PATCH", body: { version: item.version, ...body } }))
   const remove = (item: Interview) =>
-    rounds.run(() => api(`/v1/interviews/${encodeURIComponent(item.id)}?version=${item.version}`, { method: "DELETE" }))
+    rounds.run(() => api(`/v1/rounds/${encodeURIComponent(item.id)}?version=${item.version}`, { method: "DELETE" }))
 
   const ordered = STAGES.flatMap(([value]) => items.filter((item) => item.stage === value))
 

@@ -18,7 +18,7 @@ import {
 import { HoldIcon, OutcomePiece } from "@/components/Sketch"
 import { Kbd } from "@/components/ui/kbd"
 import { ProgressMark } from "@/components/ProgressMark"
-import { AddRoundIcon, RoundsList, useRounds, useTasks } from "@/components/Rounds"
+import { AddRoundIcon, RoundsList, TaskIcon, useRounds, useTasks } from "@/components/Rounds"
 import { Button } from "@/components/ui/button"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
@@ -452,7 +452,13 @@ export function StatusChooser({
                       <span className="flex items-center gap-1 text-[11px] leading-4 text-muted-foreground">
                         <HoldIcon status={s} className="size-3" />
                         {HOLD_NOTE[s]}
-                        {s === "needs_input" && openTasks(app) > 0 && ` · ${openTasks(app)} task${openTasks(app) === 1 ? "" : "s"}`}
+                        {s === "needs_input" && openTasks(app) > 0 && (
+                          <span className="flex items-center gap-0.5 whitespace-nowrap" title="Open tasks">
+                            {" · "}
+                            <TaskIcon done={false} className="size-3" />
+                            {openTasks(app)}
+                          </span>
+                        )}
                       </span>
                     </span>
                   </button>

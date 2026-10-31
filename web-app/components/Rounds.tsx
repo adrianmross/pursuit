@@ -62,7 +62,7 @@ export function useRounds(appId: string, stage: number, onChange?: () => Promise
   const [busy, setBusy] = useState(false)
   const [armed, setArmed] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const base = `/v1/applications/${encodeURIComponent(appId)}/interviews`
+  const base = `/v1/applications/${encodeURIComponent(appId)}/rounds`
 
   async function fetchRounds() {
     const page = await api<{ data: Interview[] }>(base)
@@ -94,18 +94,18 @@ export function useRounds(appId: string, stage: number, onChange?: () => Promise
       if (storedFor(list ?? (await fetchRounds()), key).length === 0) {
         const first = await api<Interview>(base, { method: "POST", body: { stage: key } })
         if (piece <= stage)
-          await api(`/v1/interviews/${encodeURIComponent(first.id)}`, { method: "PATCH", body: { version: first.version, done: true } })
+          await api(`/v1/rounds/${encodeURIComponent(first.id)}`, { method: "PATCH", body: { version: first.version, done: true } })
       }
       await api(base, { method: "POST", body: { stage: key } })
     })
   const toggle = (r: Interview) =>
-    run(() => api(`/v1/interviews/${encodeURIComponent(r.id)}`, { method: "PATCH", body: { version: r.version, done: !r.done_at } }))
+    run(() => api(`/v1/rounds/${encodeURIComponent(r.id)}`, { method: "PATCH", body: { version: r.version, done: !r.done_at } }))
   async function remove(key: string) {
     const stored = storedFor(list ?? (await fetchRounds().catch(() => [])), key)
     if (shownRounds(stored) <= 1) return
     const r = stored[stored.length - 1]
     if (hasDetails(r) && armed !== r.id) return setArmed(r.id)
-    void run(() => api(`/v1/interviews/${encodeURIComponent(r.id)}?version=${r.version}`, { method: "DELETE" }))
+    void run(() => api(`/v1/rounds/${encodeURIComponent(r.id)}?version=${r.version}`, { method: "DELETE" }))
   }
   // How many rounds in all, counting each stage's implied one; the pies show
   // which are done.
@@ -262,7 +262,8 @@ function RoundRow({
       <span className={cn("w-[5.5rem] shrink-0 truncate text-[13px]", current ? "font-semibold" : "text-muted-foreground")}>{name}</span>
       <span className="flex min-w-0 flex-1 items-center gap-1.5">
         {noRounds ? (
-          <span className="w-[2.125rem]" />
+          // Holds the pie and count's width so the task box lines up.
+          <span className="w-9" />
         ) : rounds.length === 0 ? (
           <span title="The stage itself; + splits it into rounds" className="flex">
             <RoundPie total={1} done={reached ? 1 : 0} />
