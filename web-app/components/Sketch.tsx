@@ -130,47 +130,44 @@ export function SnakeEyes({ className, roughness = 2 }: { className?: string; ro
   )
 }
 
-// A piece per outcome, readable without a label. The holds aren't dice, since
-// nothing's been rolled yet: an hourglass for waiting on them, a card turned
-// up with a question for needs input. The stops are bad rolls: a one for
-// rejected, a blank face for ghosted, a die tipped over for withdrawn.
+// Every outcome is a die whose face is its number key in the status chooser
+// (1 waiting ... 6 withdrawn), so the die doubles as the shortcut hint.
+// Withdrawn's die lies tipped over.
 const OUTCOME_DICE: Record<string, { pips: number; tilt: number }> = {
-  failed: { pips: 4, tilt: -4 },
-  rejected: { pips: 1, tilt: -14 },
-  ghosted: { pips: 0, tilt: 10 },
-  withdrawn: { pips: 1, tilt: 90 },
-}
-
-function Hourglass() {
-  return (
-    <g transform="rotate(-8)" stroke="currentColor" strokeWidth="2.4">
-      <path d="M-9 -12 H9 M-9 12 H9" />
-      <path d="M-7 -12 C-7 -4 0 -2 0 0 C0 2 -7 4 -7 12 M7 -12 C7 -4 0 -2 0 0 C0 2 7 4 7 12" />
-      <path d="M-4 9 Q0 4 4 9 Z" fill="currentColor" strokeWidth="1.2" />
-    </g>
-  )
-}
-
-function QuestionCard() {
-  return (
-    <g transform="rotate(8)">
-      <rect x="-8.5" y="-12" width="17" height="24" rx="3" className="fill-background" stroke="currentColor" strokeWidth="2.4" />
-      <path d="M-3.2 -3.5 A3.4 3.4 0 1 1 1 -0.2 C0 0.4 0 1.2 0 3" stroke="currentColor" strokeWidth="2.2" />
-      <circle cx="0" cy="7" r="1.5" fill="currentColor" />
-    </g>
-  )
+  waiting: { pips: 1, tilt: -8 },
+  needs_input: { pips: 2, tilt: 6 },
+  failed: { pips: 3, tilt: -4 },
+  rejected: { pips: 4, tilt: -14 },
+  ghosted: { pips: 5, tilt: 10 },
+  withdrawn: { pips: 6, tilt: 90 },
 }
 
 export function OutcomePiece({ status, className }: { status: string; className?: string }) {
   const die = OUTCOME_DICE[status] ?? { pips: 1, tilt: 0 }
   return (
     <Sketch viewBox="-16 -16 32 32" roughness={2} className={className}>
+      <Die x={0} y={0} size={22} tilt={die.tilt} pips={die.pips} />
+    </Sketch>
+  )
+}
+
+// Small marks for whose move a hold is: an hourglass for waiting on them, a
+// card turned up with a question for needs input.
+export function HoldIcon({ status, className }: { status: string; className?: string }) {
+  return (
+    <Sketch viewBox="-14 -14 28 28" roughness={1.5} className={className}>
       {status === "waiting" ? (
-        <Hourglass />
-      ) : status === "needs_input" ? (
-        <QuestionCard />
+        <g stroke="currentColor" strokeWidth="2.6">
+          <path d="M-9 -12 H9 M-9 12 H9" />
+          <path d="M-7 -12 C-7 -4 0 -2 0 0 C0 2 -7 4 -7 12 M7 -12 C7 -4 0 -2 0 0 C0 2 7 4 7 12" />
+          <path d="M-4 9 Q0 4 4 9 Z" fill="currentColor" strokeWidth="1.2" />
+        </g>
       ) : (
-        <Die x={0} y={0} size={22} tilt={die.tilt} pips={die.pips} />
+        <g transform="rotate(8)">
+          <rect x="-8.5" y="-12" width="17" height="24" rx="3" stroke="currentColor" strokeWidth="2.6" />
+          <path d="M-3.2 -3.5 A3.4 3.4 0 1 1 1 -0.2 C0 0.4 0 1.2 0 3" stroke="currentColor" strokeWidth="2.4" />
+          <circle cx="0" cy="7" r="1.6" fill="currentColor" />
+        </g>
       )}
     </Sketch>
   )

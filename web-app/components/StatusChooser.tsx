@@ -14,7 +14,7 @@ import {
   SUB_STEPS,
   type Application,
 } from "@/lib/types"
-import { OutcomePiece } from "@/components/Sketch"
+import { HoldIcon, OutcomePiece } from "@/components/Sketch"
 import { Kbd } from "@/components/ui/kbd"
 import { ProgressMark } from "@/components/ProgressMark"
 import { Button } from "@/components/ui/button"
@@ -224,7 +224,8 @@ export function stageTarget(app: Pick<Application, "status" | "outcome">, from: 
   return app.outcome ? app.status : null
 }
 
-// Order on the outcome page, so 1-6 pick them: the two holds, then the stops.
+// Order on the outcome page: the two holds, then the stops. Key n picks the
+// outcome whose die shows n.
 const HOLDS = ["waiting", "needs_input"]
 const STOPS = ["failed", "rejected", "ghosted", "withdrawn"]
 const HOLD_NOTE: Record<string, string> = { waiting: "On them", needs_input: "On you" }
@@ -248,7 +249,7 @@ function ViewHeader({ title, sub, onBack }: { title: string; sub: string; onBack
 
 // The status chooser for one application. Its first view is only the stage:
 // drag or [ ] to move along the pieces, + to add a round. O opens the outcomes
-// (holds as tiles, stops as dice), S the steps between stages, 1-6 picks on
+// (each a die showing its key), S the steps between stages, 1-6 picks on
 // either, and Backspace comes back.
 export function StatusChooser({
   app,
@@ -359,7 +360,7 @@ export function StatusChooser({
           <div data-view tabIndex={-1} className="flex flex-col gap-3 outline-none">
             <ViewHeader title={outcome ? label(outcome) : "Outcome"} sub={`at ${STAGE_STOPS[stage][1]}`} onBack={() => setView("stage")} />
             <div className="grid grid-cols-2 gap-1.5">
-              {HOLDS.map((s, i) => {
+              {HOLDS.map((s) => {
                 const on = outcome === s
                 return (
                   <button
@@ -368,22 +369,24 @@ export function StatusChooser({
                     aria-pressed={on}
                     onClick={() => toggleOutcome(s)}
                     className={cn(
-                      "relative flex items-center gap-2 rounded-xl border border-dashed p-2 text-left outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring",
+                      "flex items-center gap-2 rounded-xl border border-dashed p-2 text-left outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring",
                       on ? "border-amber-500 bg-amber-500/10" : "border-input hover:bg-muted",
                     )}
                   >
-                    <OutcomePiece status={s} className={cn("size-7 shrink-0", HOLD_TONE)} />
+                    <OutcomePiece status={s} className={cn("size-8 shrink-0", HOLD_TONE)} />
                     <span className="flex min-w-0 flex-col">
                       <span className="text-[13px] leading-5 font-medium whitespace-nowrap">{label(s)}</span>
-                      <span className="text-[11px] leading-4 text-muted-foreground">{HOLD_NOTE[s]}</span>
+                      <span className="flex items-center gap-1 text-[11px] leading-4 text-muted-foreground">
+                        <HoldIcon status={s} className="size-3" />
+                        {HOLD_NOTE[s]}
+                      </span>
                     </span>
-                    <Kbd className="absolute top-1.5 right-1.5 h-4 min-w-4 text-[10px]">{i + 1}</Kbd>
                   </button>
                 )
               })}
             </div>
             <div className="grid grid-cols-4 gap-1">
-              {STOPS.map((s, i) => {
+              {STOPS.map((s) => {
                 const on = outcome === s
                 return (
                   <button
@@ -398,7 +401,6 @@ export function StatusChooser({
                   >
                     <OutcomePiece status={s} className={cn("size-8", on || !outcome ? STOP_TONE : "text-muted-foreground/60")} />
                     <span className="text-[11px] leading-4">{label(s)}</span>
-                    <Kbd className="h-4 min-w-4 text-[10px]">{i + 3}</Kbd>
                   </button>
                 )
               })}
