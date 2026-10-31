@@ -373,4 +373,27 @@ var migrations = []migration{{
 	stmts: []string{
 		`ALTER TABLE companies ADD COLUMN icon_url TEXT NOT NULL DEFAULT ''`,
 	},
+}, {
+	version: "008",
+	stmts: []string{
+		// OAuth2 grants for pursuit auth login. kind is code (loopback +
+		// PKCE) or device. Codes are stored as SHA-256 hashes only.
+		`CREATE TABLE IF NOT EXISTS oauth_grants (
+			id TEXT PRIMARY KEY,
+			kind TEXT NOT NULL,
+			code_hash TEXT NOT NULL UNIQUE,
+			user_code_hash TEXT UNIQUE,
+			client_id TEXT NOT NULL,
+			scopes TEXT NOT NULL,
+			redirect_uri TEXT NOT NULL DEFAULT '',
+			code_challenge TEXT NOT NULL DEFAULT '',
+			user_id TEXT REFERENCES users(id),
+			status TEXT NOT NULL,
+			interval_seconds BIGINT NOT NULL DEFAULT 0,
+			last_polled_at TEXT NOT NULL DEFAULT '',
+			expires_at TEXT NOT NULL,
+			created_at TEXT NOT NULL
+		)`,
+		`CREATE INDEX IF NOT EXISTS oauth_grants_expires_idx ON oauth_grants(expires_at)`,
+	},
 }}

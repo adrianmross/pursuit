@@ -66,6 +66,42 @@ func build() []byte {
 	for p, s := range pub {
 		add(p, "get", s, false, map[string]any{"security": []any{}})
 	}
+	form := func(props map[string]any, required ...string) map[string]any {
+		return map[string]any{"required": true, "content": map[string]any{"application/x-www-form-urlencoded": map[string]any{
+			"schema": map[string]any{"type": "object", "properties": props, "required": required},
+		}}}
+	}
+	str := map[string]any{"type": "string"}
+	oauthResp := func(desc string, props map[string]any) map[string]any {
+		return map[string]any{
+			"200": map[string]any{"description": desc, "content": map[string]any{"application/json": map[string]any{"schema": map[string]any{"type": "object", "properties": props}}}},
+			"400": map[string]any{"description": "RFC 6749 error", "content": map[string]any{"application/json": map[string]any{"schema": map[string]any{"$ref": "#/components/schemas/OAuthError"}}}},
+		}
+	}
+	add("/v1/auth/device_authorization", "post", "RFC 8628 device authorization for pursuit auth login --device. scope is space or comma separated and defaults to read write; approve is granted only when named. device codes last 10 minutes; poll /v1/auth/token no faster than interval", false, map[string]any{
+		"security":    []any{},
+		"requestBody": form(map[string]any{"client_id": str, "scope": str}),
+		"responses": oauthResp("device authorization", map[string]any{
+			"device_code": str, "user_code": str, "verification_uri": str, "verification_uri_complete": str,
+			"expires_in": map[string]any{"type": "integer"}, "interval": map[string]any{"type": "integer"},
+		}),
+	})
+	add("/v1/auth/token", "post", "OAuth2 token endpoint. grant_type=authorization_code takes code, code_verifier (PKCE S256), redirect_uri, client_id; codes are single-use and last 60 seconds. grant_type=urn:ietf:params:oauth:grant-type:device_code takes device_code, client_id and answers authorization_pending, slow_down, expired_token, or access_denied until approved. The access_token is a normal pst_ API token", false, map[string]any{
+		"security": []any{},
+		"requestBody": form(map[string]any{
+			"grant_type": map[string]any{"type": "string", "enum": []string{"authorization_code", "urn:ietf:params:oauth:grant-type:device_code"}},
+			"code":       str, "code_verifier": str, "redirect_uri": str, "device_code": str, "client_id": str,
+		}, "grant_type"),
+		"responses": oauthResp("token", map[string]any{"access_token": str, "token_type": str, "scope": str}),
+	})
+	add("/v1/auth/revoke", "post", "RFC 7009 token revocation. holding the token is the authority; unknown tokens still return 200. pursuit auth logout calls this", false, map[string]any{
+		"security":    []any{},
+		"requestBody": form(map[string]any{"token": str}, "token"),
+		"responses":   oauthResp("revoked", map[string]any{"revoked": map[string]any{"type": "boolean"}}),
+	})
+	add("/v1/oauth/authorize", "post", "loopback consent, called by the dashboard /authorize page that pursuit auth login opens. requires a signed-in human session with the approve scope. body {client_id, redirect_uri, code_challenge, code_challenge_method:S256, state, scope, approve}. redirect_uri must be http://127.0.0.1:<port>/callback or http://[::1]:<port>/callback. returns {redirect_to}: the callback with code and state, or error=access_denied when approve is false", false, nil)
+	add("/v1/oauth/device", "get", "look up a pending device login by user_code (query) so the dashboard can show the requested scopes. requires the approve scope. returns {user_code, client_id, scopes, status, expires_at}", false, nil)
+	add("/v1/oauth/device/approve", "post", "approve or deny a device login from the dashboard /device page. body {user_code, approve}. requires a signed-in human session with the approve scope; the code alone approves nothing. returns {status: approved|denied}", false, nil)
 	add("/v1/me", "get", "current user and token", false, nil)
 	add("/v1/tokens", "get", "list tokens", false, nil)
 	add("/v1/tokens", "post", "create a token; secret is returned once", true, nil)
@@ -152,6 +188,13 @@ func build() []byte {
 				"DryRun":         map[string]any{"name": "X-Dry-Run", "in": "header", "schema": map[string]any{"type": "string", "enum": []string{"true"}}},
 			},
 			"schemas": map[string]any{
+				"OAuthError": map[string]any{
+					"type": "object",
+					"properties": map[string]any{
+						"error":             map[string]any{"type": "string", "enum": []string{"invalid_request", "invalid_grant", "invalid_scope", "unsupported_grant_type", "authorization_pending", "slow_down", "expired_token", "access_denied", "server_error"}},
+						"error_description": map[string]any{"type": "string"},
+					},
+				},
 				"Error": map[string]any{
 					"type": "object",
 					"properties": map[string]any{
