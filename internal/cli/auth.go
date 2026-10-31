@@ -18,6 +18,7 @@ import (
 	"github.com/pursuit/pursuit/internal/auth"
 	"github.com/pursuit/pursuit/internal/config"
 	"github.com/pursuit/pursuit/internal/domain"
+	"github.com/pursuit/pursuit/internal/service"
 )
 
 const (
@@ -41,7 +42,7 @@ func cmdAuth() *Command {
 			Example: "pursuit auth login --server https://pursuit.example.com",
 			Flags: []Flag{
 				{Name: "device", Type: "bool", Help: "use a device code instead of a browser callback (default when there is no display or over SSH)"},
-				{Name: "scope", Type: "string", Help: "scopes to request, default read,write; approve only when named"},
+				{Name: "scope", Type: "string", Help: "read, write, or read,write (default); approve is never granted to the CLI"},
 			},
 			Run: runAuthLogin,
 		},
@@ -70,9 +71,12 @@ func runAuthLogin(e *exec) error {
 	if raw == "" {
 		raw = defaultCLIScopes
 	}
-	scopes, err := auth.NormalizeScopes([]string{strings.ReplaceAll(raw, " ", ",")})
+	if strings.Contains(strings.ToLower(raw), "approve") {
+		return &exitError{code: 2, message: "pursuit auth login never grants approve", hint: "approve in the dashboard, or have a human mint an approve token and pass it as PURSUIT_TOKEN"}
+	}
+	scopes, err := service.ParseOAuthScopes(raw)
 	if err != nil {
-		return &exitError{code: 2, message: err.Error(), hint: "scopes are read, write, and approve"}
+		return &exitError{code: 2, message: "invalid --scope " + raw, hint: "use read, write, or read,write (lowercase)"}
 	}
 	scope := strings.Join(scopes, " ")
 	method := "browser"
@@ -117,7 +121,7 @@ func runAuthLogout(e *exec) error {
 	server := config.ServerKey(e.cfg.ServerURL)
 	c, ok, err := config.LoadCredential(server)
 	if err != nil {
-		return &exitError{code: 1, message: "read credentials: " + err.Error()}
+		return &exitError{code: 1, message: "cannot read the stored token, so nothing was revoked or removed: " + err.Error(), hint: "unlock the keychain and run pursuit auth logout again"}
 	}
 	revoked := false
 	if ok {
@@ -129,7 +133,7 @@ func runAuthLogout(e *exec) error {
 	}
 	removed, err := config.DeleteCredential(server)
 	if err != nil {
-		return &exitError{code: 1, message: "delete credentials: " + err.Error()}
+		return &exitError{code: 1, message: fmt.Sprintf("revoked=%v, but the stored credential was not removed: %s", revoked, err.Error()), hint: "unlock the keychain and run pursuit auth logout again"}
 	}
 	out := map[string]any{"status": "logged_out", "server": server, "revoked": revoked, "removed": removed}
 	if src := tokenSource(e.g, e.cfg); src == "env" || src == "flag" {
@@ -311,9 +315,6 @@ func deviceLogin(e *exec, server, scope string) (string, error) {
 	}
 	fmt.Fprintln(e.stderr, "Open "+str(d, "verification_uri")+" while signed in to the dashboard and enter:")
 	fmt.Fprintln(e.stderr, "  "+str(d, "user_code"))
-	if c := str(d, "verification_uri_complete"); c != "" {
-		fmt.Fprintln(e.stderr, "Or open "+c)
-	}
 	fmt.Fprintln(e.stderr, "Waiting for approval ...")
 	deadline := time.Now().Add(time.Duration(expires) * time.Second)
 	for time.Now().Before(deadline) {

@@ -165,7 +165,13 @@ func Run(args []string, stdout, stderr io.Writer) int {
 	// `pursuit auth login` credential, so agent workflows are unchanged.
 	source := tokenSource(g, cfg)
 	if cfg.Token == "" && cmd.Name != "serve" {
-		if c, ok, err := config.LoadCredential(cfg.ServerURL); err == nil && ok {
+		c, ok, err := config.LoadCredential(cfg.ServerURL)
+		switch {
+		case err != nil && cmd.Name != "logout":
+			// A locked or denied keychain is not "logged out": say so.
+			writeErr(stderr, 5, "unauthorized", "stored credential unavailable: "+err.Error(), "unlock the keychain, pass --token or PURSUIT_TOKEN, or run pursuit auth logout")
+			return 5
+		case ok:
 			cfg.Token, source = c.Token, c.Storage
 		}
 	}

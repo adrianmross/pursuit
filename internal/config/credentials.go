@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -128,7 +129,10 @@ func LoadCredential(server string) (Credential, bool, error) {
 	}
 	if c.Storage != "file" {
 		tok, err := keyringRead(c.Storage, ServerKey(server))
-		if err != nil || tok == "" {
+		if errors.Is(err, errNotFound) {
+			return Credential{}, false, nil
+		}
+		if err != nil {
 			return Credential{}, false, err
 		}
 		c.Token = tok
@@ -166,18 +170,56 @@ func DeleteCredential(server string) (bool, error) {
 	if !ok {
 		return false, nil
 	}
+	// A keyring item that can't be deleted (locked, access denied) is an
+	// error, and the file entry stays so the two remain in step.
 	if c.Storage != "file" {
-		keyringDelete(c.Storage, key)
+		if err := keyringDelete(c.Storage, key); err != nil {
+			return false, err
+		}
 	}
 	delete(cf.Servers, key)
 	return true, writeCredentials(path, cf)
 }
 
+// errNotFound is a keyring lookup that found no item: logged out, not broken.
+var errNotFound = errors.New("not found")
+
+// macItemNotFound is security's exit status for "The specified item could
+// not be found in the keychain".
+const macItemNotFound = 44
+
+// macQuote quotes one argument for `security -i`, which reads command
+// lines from stdin and accepts double quotes with backslash escapes.
+func macQuote(s string) (string, error) {
+	if strings.ContainsAny(s, "\r\n\x00") {
+		return "", errors.New("value contains a line break")
+	}
+	return `"` + strings.NewReplacer(`\`, `\\`, `"`, `\"`).Replace(s) + `"`, nil
+}
+
 func keyringWrite(backend, account, token string) error {
 	switch backend {
 	case "macos-keychain":
-		// -U updates an existing item. security has no stdin form for -w.
-		return exec.Command("security", "add-generic-password", "-a", account, "-s", keyringService, "-w", token, "-U").Run()
+		// The token reaches `security -i` on stdin, never argv, so it does
+		// not show in ps. security -i exits 0 even when its command fails,
+		// so read the item back to confirm it landed.
+		a, err := macQuote(account)
+		if err != nil {
+			return err
+		}
+		w, err := macQuote(token)
+		if err != nil {
+			return err
+		}
+		cmd := exec.Command("security", "-i")
+		cmd.Stdin = strings.NewReader("add-generic-password -U -a " + a + " -s " + keyringService + " -w " + w + "\n")
+		if err := cmd.Run(); err != nil {
+			return err
+		}
+		if got, err := keyringRead(backend, account); err != nil || got != token {
+			return errors.New("macOS Keychain did not store the token")
+		}
+		return nil
 	case "secret-service":
 		cmd := exec.Command("secret-tool", "store", "--label", "pursuit token for "+account, "service", keyringService, "account", account)
 		cmd.Stdin = strings.NewReader(token)
@@ -186,6 +228,8 @@ func keyringWrite(backend, account, token string) error {
 	return errors.New("no keyring")
 }
 
+// keyringRead returns errNotFound for a missing item and any other
+// failure (locked keychain, denied access) as a real error.
 func keyringRead(backend, account string) (string, error) {
 	var cmd *exec.Cmd
 	switch backend {
@@ -196,18 +240,55 @@ func keyringRead(backend, account string) (string, error) {
 	default:
 		return "", errors.New("unknown credential storage " + backend)
 	}
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
 	out, err := cmd.Output()
 	if err != nil {
-		return "", nil // missing item: treat as logged out
+		return "", keyringErr(backend, "read", err, stderr.String())
 	}
-	return string(bytes.TrimSpace(out)), nil
+	tok := string(bytes.TrimSpace(out))
+	if tok == "" {
+		return "", errNotFound
+	}
+	return tok, nil
 }
 
-func keyringDelete(backend, account string) {
+func keyringDelete(backend, account string) error {
+	var cmd *exec.Cmd
 	switch backend {
 	case "macos-keychain":
-		_ = exec.Command("security", "delete-generic-password", "-a", account, "-s", keyringService).Run()
+		cmd = exec.Command("security", "delete-generic-password", "-a", account, "-s", keyringService)
 	case "secret-service":
-		_ = exec.Command("secret-tool", "clear", "service", keyringService, "account", account).Run()
+		cmd = exec.Command("secret-tool", "clear", "service", keyringService, "account", account)
+	default:
+		return errors.New("unknown credential storage " + backend)
 	}
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		if err := keyringErr(backend, "delete", err, stderr.String()); !errors.Is(err, errNotFound) {
+			return err
+		}
+	}
+	return nil
+}
+
+// keyringErr maps a keyring command failure to errNotFound when the tool
+// said the item is missing, otherwise to a descriptive error.
+func keyringErr(backend, op string, err error, stderr string) error {
+	var ee *exec.ExitError
+	if errors.As(err, &ee) {
+		if backend == "macos-keychain" && ee.ExitCode() == macItemNotFound {
+			return errNotFound
+		}
+		// secret-tool exits 1 with nothing on stderr when nothing matched.
+		if backend == "secret-service" && ee.ExitCode() == 1 && strings.TrimSpace(stderr) == "" {
+			return errNotFound
+		}
+	}
+	msg := strings.TrimSpace(stderr)
+	if msg == "" {
+		msg = err.Error()
+	}
+	return fmt.Errorf("%s: %s token: %s", backend, op, msg)
 }

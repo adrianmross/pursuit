@@ -93,6 +93,7 @@ func (a *authEnv) approveAs(t *testing.T, authURL string) error {
 	req, _ := http.NewRequest("POST", a.srv.URL+"/v1/oauth/authorize", bytes.NewReader(body))
 	req.Header.Set("Authorization", "Bearer "+a.owner)
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Origin", a.srv.URL)
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return err
@@ -198,6 +199,8 @@ func TestAuthLoginDevice(t *testing.T) {
 		body, _ := json.Marshal(map[string]any{"user_code": m[1], "approve": true})
 		req, _ := http.NewRequest("POST", a.srv.URL+"/v1/oauth/device/approve", bytes.NewReader(body))
 		req.Header.Set("Authorization", "Bearer "+a.owner)
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Sec-Fetch-Site", "same-origin")
 		resp, err := http.DefaultClient.Do(req)
 		if err != nil || resp.StatusCode != 200 {
 			t.Fatalf("approve: %v %v", resp, err)
@@ -218,6 +221,45 @@ func TestAuthLoginDevice(t *testing.T) {
 	}
 	if polls < 2 {
 		t.Fatalf("expected polling, got %d", polls)
+	}
+}
+
+func TestAuthLoginRefusesApproveScope(t *testing.T) {
+	a := newAuthEnv(t)
+	openBrowser = func(string) error { t.Fatal("must not reach the browser"); return nil }
+	t.Cleanup(func() { openBrowser = defaultOpenBrowser })
+	for _, sc := range []string{"approve", "read,approve", "APPROVE", "Read"} {
+		if code, _, stderr := a.run(t, "auth", "login", "--scope", sc); code != 2 {
+			t.Fatalf("--scope %s exited %d: %s", sc, code, stderr)
+		}
+	}
+}
+
+// An unreadable stored credential is an error, not a silent logout.
+func TestStoredCredentialErrorsSurface(t *testing.T) {
+	a := newAuthEnv(t)
+	path := filepath.Join(a.dir, ".config", "pursuit", "credentials.json")
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	// A keyring backend this machine can't read stands in for a locked keychain.
+	body := `{"servers":{"` + a.srv.URL + `":{"storage":"locked-keyring"}}}`
+	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	code, _, stderr := a.run(t, "auth", "status")
+	if code != 5 || !strings.Contains(stderr, "stored credential unavailable") {
+		t.Fatalf("status with unreadable credential: %d %s", code, stderr)
+	}
+	code, _, stderr = a.run(t, "auth", "logout")
+	if code != 1 || !strings.Contains(stderr, "nothing was revoked or removed") {
+		t.Fatalf("logout with unreadable credential: %d %s", code, stderr)
+	}
+	if b, _ := os.ReadFile(path); !strings.Contains(string(b), "locked-keyring") {
+		t.Fatal("logout removed a credential it could not delete")
+	}
+	if code, _, _ := a.run(t, "--token", a.owner, "auth", "status"); code != 0 {
+		t.Fatal("--token should still work past an unreadable stored credential")
 	}
 }
 
