@@ -67,6 +67,9 @@ type Server struct {
 	// type a raw secret there); the bearer-token API itself is unaffected
 	// for CLI/automation use either way.
 	HideTokenLogin bool
+	// SignupsClosed (PURSUIT_SIGNUPS=closed) stops verified identities
+	// without an account from getting one; existing users sign in as before.
+	SignupsClosed bool
 	// NoDocs 404s the embedded docs under /docs.
 	NoDocs bool
 	// DemoMode lets an unauthenticated caller in as a fresh, isolated,
@@ -101,6 +104,22 @@ func (s *Server) multiTenant() bool {
 	return strings.EqualFold(strings.TrimSpace(s.TenantMode), "multi")
 }
 
+// signupsOpen reports whether a verified identity with no Pursuit account
+// gets one. Only multi-tenant mode creates accounts; SignupsClosed pauses
+// that without touching existing users.
+func (s *Server) signupsOpen() bool {
+	return s.multiTenant() && !s.SignupsClosed
+}
+
+// signupsPaused turns "no account for this verified email" into an answer
+// the person can act on while sign-ups are closed.
+func (s *Server) signupsPaused(err error) error {
+	if s.multiTenant() && s.SignupsClosed && domain.IsCode(err, "unauthorized") {
+		return &domain.Error{Code: "forbidden", Message: "sign-ups are paused", Hint: "this email has no account yet; ask the owner for access", Status: 403}
+	}
+	return err
+}
+
 // authenticate dispatches a bearer token to the right verifier: Pursuit's
 // own tokens are prefixed "pst_"; anything else that looks like a JWT
 // (two dots) is checked against Better Auth, when configured and only
@@ -122,7 +141,8 @@ func (s *Server) authenticate(ctx context.Context, raw string) (domain.Actor, er
 		if !identity.EmailVerified {
 			return domain.Actor{}, domain.Unauthorized()
 		}
-		return s.Svc.ResolveTenantUser(ctx, identity.Email, identity.Name, true)
+		actor, err := s.Svc.ResolveTenantUser(ctx, identity.Email, identity.Name, s.signupsOpen())
+		return actor, s.signupsPaused(err)
 	}
 	return s.Svc.Authenticate(ctx, raw)
 }
@@ -404,7 +424,7 @@ func (s *Server) authProviders(w http.ResponseWriter, r *http.Request) {
 	if s.multiTenant() {
 		mode = "multi"
 	}
-	writeJSON(w, 200, map[string]any{"tenant_mode": mode, "providers": providers, "allow_token_login": !s.HideTokenLogin, "demo_available": s.DemoMode})
+	writeJSON(w, 200, map[string]any{"tenant_mode": mode, "providers": providers, "allow_token_login": !s.HideTokenLogin, "demo_available": s.DemoMode, "signups_open": s.signupsOpen()})
 }
 
 func (s *Server) authStart(w http.ResponseWriter, r *http.Request) {
@@ -432,9 +452,9 @@ func (s *Server) authCallback(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, domain.Unauthorized())
 		return
 	}
-	secret, err := s.Svc.LoginIdentity(r.Context(), identity.Email, identity.Name, s.multiTenant())
+	secret, err := s.Svc.LoginIdentity(r.Context(), identity.Email, identity.Name, s.signupsOpen())
 	if err != nil {
-		writeErr(w, err)
+		writeErr(w, s.signupsPaused(err))
 		return
 	}
 	setSessionCookie(w, r, secret)

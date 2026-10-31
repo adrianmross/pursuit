@@ -130,6 +130,8 @@ The UI is plain HTML, CSS, and JavaScript, with no build step, so those files em
 
 The same dashboard and API can run as one Go function on Vercel, with Neon Postgres from the Vercel Marketplace. This does not change `pursuit serve`. With the variables below unset, the binary still uses its own database URL, still requires a Pursuit token, and still runs the link checker in the daemon.
 
+With `PURSUIT_TENANT_MODE=multi`, any verified email that signs in gets its own account. Set `PURSUIT_SIGNUPS=closed` to pause that: existing users still sign in, a new email gets `403 sign-ups are paused`, and the dashboard hides "Create an account". Neon Auth's own switch (`neon neon-auth config email-password update --disable-sign-up true`) stops new email/password accounts at the source; the pursuit toggle also covers social and OIDC sign-ins.
+
 Turn on Deployment Protection and choose Vercel Authentication so preview deployments are private to you. `PURSUIT_TRUST_PROXY_AUTH=vercel` is safe only in that case. It is off unless that exact value is set, and it is honored only on preview deployments (`VERCEL_ENV=preview`). Production ignores it and needs a real sign-in: a token, Google or another OIDC provider, or Better Auth.
 
 Production finds its own public URL. With `PURSUIT_SERVER` unset, it uses `VERCEL_PROJECT_PRODUCTION_URL`, which Vercel sets to the shortest custom domain once you add one. Moving to a new domain needs no Pursuit env change. Outside Pursuit, you still update the OIDC provider's redirect URI (`https://<domain>/v1/auth/<provider>/callback`) and any Better Auth trusted origins, run `pursuit auth login` again (stored logins are per server URL), and point the extension at the new URL.

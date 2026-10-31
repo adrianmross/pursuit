@@ -129,6 +129,15 @@ function AccountSignIn() {
   const [name, setName] = useState("")
   const [submitting, setSubmitting] = useState(false)
   const [localError, setLocalError] = useState<string | null>(null)
+  // Hidden until the server says sign-ups are open (PURSUIT_SIGNUPS=closed
+  // pauses them), so a paused deployment never offers "Create account".
+  const [signupsOpen, setSignupsOpen] = useState(false)
+
+  useEffect(() => {
+    api<{ signups_open?: boolean }>("/v1/auth/providers")
+      .then((result) => setSignupsOpen(result.signups_open === true))
+      .catch(() => {})
+  }, [])
 
   async function finishSignIn() {
     if (!authClient) return
@@ -214,13 +223,15 @@ function AccountSignIn() {
             <Button type="submit" disabled={submitting}>
               {mode === "sign-up" ? "Create account" : "Sign in"}
             </Button>
-            <button
-              type="button"
-              className="text-sm text-muted-foreground underline-offset-4 hover:underline"
-              onClick={() => setMode(mode === "sign-up" ? "sign-in" : "sign-up")}
-            >
-              {mode === "sign-up" ? "Already have an account? Sign in" : "New here? Create an account"}
-            </button>
+            {(signupsOpen || mode === "sign-up") && (
+              <button
+                type="button"
+                className="text-sm text-muted-foreground underline-offset-4 hover:underline"
+                onClick={() => setMode(mode === "sign-up" ? "sign-in" : "sign-up")}
+              >
+                {mode === "sign-up" ? "Already have an account? Sign in" : "New here? Create an account"}
+              </button>
+            )}
           </FieldGroup>
         </form>
       </CardContent>
