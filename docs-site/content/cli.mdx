@@ -180,11 +180,11 @@ The response is `{"results": [{"status", "body"}], "failed": n}`. Each item goes
 
 ## Signing in
 
-- `pursuit auth login [--server URL] [--device] [--scope read,write]` — opens the dashboard's `/authorize` page and listens on `127.0.0.1` for the callback (OAuth2 authorization code with PKCE). `--device`, an SSH session, or Linux with no display uses a device code instead: open `/device`, enter the code, approve. Approving needs a dashboard session with the `approve` scope. The new token has `read` and `write` by default; `approve` only when passed in `--scope`.
+- `pursuit auth login [--server URL] [--device] [--scope read,write]` — opens the dashboard's `/authorize` page and listens on `127.0.0.1` for the callback (OAuth2 authorization code with PKCE). `--device`, an SSH session, or Linux with no display uses a device code instead: open `/device`, type the code, approve. Approving needs your own dashboard session with the `approve` scope and is audited as `oauth.approve` or `oauth.deny`. The new token has `read` and `write` by default, or `--scope read`. It never has `approve`: `--scope approve` exits 2 and the server answers `invalid_scope`.
 - `pursuit auth status` — server, user, scopes, and where the token came from (`flag`, `env`, `config`, or the stored `file`/`macos-keychain`/`secret-service`). Exits 5 when there is no token.
 - `pursuit auth logout` — revokes the stored token on the server and deletes it locally.
 
-Stored tokens go to the OS keyring when `security` (macOS) or `secret-tool` (Linux) is available, otherwise `~/.config/pursuit/credentials.json` (mode 0600, override with `PURSUIT_CREDENTIALS`). `PURSUIT_AUTH_SECRET_STORE=file` forces the file. `--token`, `PURSUIT_TOKEN`, and a config-file token always take precedence over a stored login.
+Stored tokens go to the OS keyring when `security` (macOS) or `secret-tool` (Linux) is available, otherwise `~/.config/pursuit/credentials.json` (mode 0600, override with `PURSUIT_CREDENTIALS`). `PURSUIT_AUTH_SECRET_STORE=file` forces the file. `--token`, `PURSUIT_TOKEN`, and a config-file token always take precedence over a stored login. Otherwise any process running as you that calls the CLI (an agent included) uses the stored login, which is at most `read,write`. A Keychain item written by `/usr/bin/security` is readable by any process running as your user, so it is no stronger than the 0600 file against a local agent. A locked or unreadable keyring is an error (exit 5), not a silent logout.
 
 ## Tokens, audit, webhooks
 

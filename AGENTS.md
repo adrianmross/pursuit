@@ -7,7 +7,7 @@ export PURSUIT_SERVER=http://127.0.0.1:8787
 export PURSUIT_TOKEN=pst_...   # write scope to prepare; never put approve on an agent token
 ```
 
-`pursuit auth login` is for a human at a terminal: it stores a per-server token after someone approves in the dashboard. `PURSUIT_TOKEN` and `--token` always win over it. Do not approve your own login at `/authorize` or `/device`, and do not request `--scope approve`.
+`pursuit auth login` is for a human at a terminal: it stores a per-server token after someone approves in the dashboard. `PURSUIT_TOKEN` and `--token` always win over it. Without them the CLI uses that stored login, which is at most `read,write`; OAuth never grants `approve`. Do not approve a login at `/authorize` or `/device`.
 
 Stdout is compact JSON when piped. Errors are JSON on stderr. Exit codes: 0 ok, 2 usage, 3 not found, 4 conflict, 5 auth, 6 validation, 1 other. Pass `--fields` to keep payloads small, `--dry-run` before a mutation, and `--idempotency-key` on writes. Pass `--all-pages` to a list instead of looping cursors, and `pursuit batch <file|->` (`POST /v1/batch`, up to 100 requests) instead of one call per item. Batched approve still needs the `approve` scope.
 
