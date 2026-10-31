@@ -74,6 +74,11 @@ const FILTER_STOPS: [string, string][] = [["", "All"], ...STAGE_STOPS]
 // Category names short enough for one segmented row.
 const CATEGORY_SHORT: Record<StatusCategory, string> = { action: "You", waiting: "Them", closed: "Closed", rejected: "Rejected" }
 
+// First pages by query, so flipping between filters shows rows at once while
+// they refetch. ponytail: unbounded and per-tab; it holds one page per filter
+// combination visited, so cap it if that ever grows large.
+const pageCache = new Map<string, { rows: Application[]; total: number; nextCursor: string }>()
+
 export type PipelineInitial = {
   rows: Application[]
   total: number
@@ -617,9 +622,18 @@ export function PipelineView({ initial }: { initial: PipelineInitial | null }) {
     const gen = ++loadGen.current
     setLoading(true)
     const qs = buildApplicationsQuery({ status, category, sort, archivedView, exclude, cursor })
+    const key = qs.toString()
+    // Show the last result for this filter straight away, then refresh it.
+    const hit = !cursor && pageCache.get(key)
+    if (hit) {
+      setRows(hit.rows)
+      setTotal(hit.total)
+      setNextCursor(hit.nextCursor)
+    }
     try {
-      const page = await api<Page<Application>>("/v1/applications?" + qs.toString())
+      const page = await api<Page<Application>>("/v1/applications?" + key)
       if (gen !== loadGen.current) return
+      if (!cursor) pageCache.set(key, { rows: page.data, total: page.page.total, nextCursor: page.page.next_cursor || "" })
       setRows((prev) => (cursor ? prev.concat(page.data) : page.data))
       setTotal(page.page.total)
       setNextCursor(page.page.next_cursor || "")
@@ -634,6 +648,10 @@ export function PipelineView({ initial }: { initial: PipelineInitial | null }) {
   useEffect(() => {
     if (skipNextLoad.current) {
       skipNextLoad.current = false
+      if (initial) {
+        const key = buildApplicationsQuery({ status, category, sort, archivedView, exclude }).toString()
+        pageCache.set(key, { rows: initial.rows, total: initial.total, nextCursor: initial.nextCursor })
+      }
       return
     }
     void load()
@@ -646,7 +664,10 @@ export function PipelineView({ initial }: { initial: PipelineInitial | null }) {
       if (value || key === "status") merged.set(key, value)
       else merged.delete(key)
     }
-    router.replace(`${pathname}?${merged.toString()}`, { scroll: false })
+    // A shallow URL update: useSearchParams follows it at once and load()
+    // fetches the rows, where router.replace would re-render the server page
+    // first and leave the filter showing the old choice meanwhile.
+    window.history.replaceState(null, "", `${pathname}?${merged.toString()}`)
   }
 
   const visibleRows = useMemo(() => {
@@ -716,15 +737,10 @@ export function PipelineView({ initial }: { initial: PipelineInitial | null }) {
       setError(err instanceof ApiError ? err.message : "Failed to change the status")
     }
   }
-  async function addRound(row: Application, stage: string) {
-    setError(null)
-    try {
-      await api(`/v1/applications/${encodeURIComponent(row.id)}/interviews`, { method: "POST", body: { stage } })
-      const updated = await api<Application>(`/v1/applications/${encodeURIComponent(row.id)}`)
-      setRows((prev) => prev.map((r) => (r.id === row.id ? { ...r, ...updated } : r)))
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Failed to add a round")
-    }
+  // After the chooser changes a row's rounds: refetch it for the new mark.
+  async function refreshRow(row: Application) {
+    const updated = await api<Application>(`/v1/applications/${encodeURIComponent(row.id)}`)
+    setRows((prev) => prev.map((r) => (r.id === row.id ? { ...r, ...updated } : r)))
   }
   // [ and ] walk the pipeline stages for the highlighted row.
   const step = (d: number) => {
@@ -1044,7 +1060,7 @@ export function PipelineView({ initial }: { initial: PipelineInitial | null }) {
                             open={statusFor === row.id}
                             onOpenChange={(open) => setStatusFor(open ? row.id : null)}
                             onStatus={(next) => changeStatus(row, next)}
-                            onAddRound={(stage) => addRound(row, stage)}
+                            onRoundsChange={() => refreshRow(row)}
                           >
                             <button type="button" className="rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring" aria-label="Change status">
                               <StatusBadge status={shown(row)} />

@@ -1,7 +1,8 @@
 "use client"
 
 import { useEffect, useRef, useState, type ReactNode } from "react"
-import { ChevronLeft, ChevronRight, Plus } from "lucide-react"
+import { ChevronLeft, ChevronRight, Minus, Plus } from "lucide-react"
+import { api, ApiError } from "@/lib/api-client"
 import { cn } from "@/lib/utils"
 import {
   label,
@@ -13,6 +14,7 @@ import {
   statusPieces,
   SUB_STEPS,
   type Application,
+  type Interview,
 } from "@/lib/types"
 import { HoldIcon, OutcomePiece } from "@/components/Sketch"
 import { Kbd } from "@/components/ui/kbd"
@@ -44,7 +46,12 @@ export function StageSlider({
   const track = useRef<HTMLDivElement>(null)
   const [drag, setDrag] = useState<number | null>(null)
   const [sliding, setSliding] = useState(false)
-  const pos = drag ?? value
+  // The stop just released on, kept while `value` still shows the old one: the
+  // URL or the server catches up a moment later, and without this the knob
+  // would spring back and then jump forward.
+  const [held, setHeld] = useState<{ at: number; from: number } | null>(null)
+  const settled = held && held.from === value ? held.at : value
+  const pos = drag ?? settled
   const at = Math.round(pos)
   const f = last ? pos / last : 0
   const ease = sliding ? "" : "transition-[left,width] duration-200 ease-out"
@@ -63,7 +70,11 @@ export function StageSlider({
     setDrag(null)
     setSliding(false)
     onDrag?.(null)
-    if (commit) onCommit(Math.round(drag))
+    if (commit) release(Math.round(drag))
+  }
+  function release(i: number) {
+    setHeld(i === value ? null : { at: i, from: value })
+    onCommit(i)
   }
 
   return (
@@ -90,10 +101,10 @@ export function StageSlider({
       onPointerUp={() => end(true)}
       onPointerCancel={() => end(false)}
       onKeyDown={(e) => {
-        const next = e.key === "Home" ? 0 : e.key === "End" ? last : STEP[e.key] ? value + STEP[e.key] : null
+        const next = e.key === "Home" ? 0 : e.key === "End" ? last : STEP[e.key] ? settled + STEP[e.key] : null
         if (next == null) return
         e.preventDefault()
-        if (next >= 0 && next <= last && next !== value) onCommit(next)
+        if (next >= 0 && next <= last && next !== settled) release(next)
       }}
     >
       <div
@@ -230,7 +241,68 @@ const HOLDS = ["waiting", "needs_input"]
 const STOPS = ["failed", "rejected", "ghosted", "withdrawn"]
 const HOLD_NOTE: Record<string, string> = { waiting: "On them", needs_input: "On you" }
 
-type View = "stage" | "outcome" | "steps"
+type View = "stage" | "outcome" | "steps" | "rounds"
+
+// A round carrying anything typed into it takes a second click to delete.
+const hasDetails = (r: Interview) => !!(r.kind || r.interviewer || r.scheduled_at || r.prep || r.notes)
+
+// One stage's rounds: a pill per round (filled when done, click to toggle),
+// then remove-last and add.
+function RoundRow({
+  name,
+  current,
+  rounds,
+  armed,
+  busy,
+  onToggle,
+  onRemove,
+  onAdd,
+}: {
+  name: string
+  current: boolean
+  rounds: Interview[]
+  armed: boolean
+  busy: boolean
+  onToggle: (r: Interview) => void
+  onRemove: () => void
+  onAdd: () => void
+}) {
+  return (
+    <li className={cn("flex h-8 items-center gap-2 rounded-lg px-1.5", current && "bg-muted")}>
+      <span className={cn("w-[5.5rem] shrink-0 truncate text-[13px]", current ? "font-semibold" : "text-muted-foreground")}>{name}</span>
+      <span className="flex min-w-0 flex-1 flex-wrap items-center gap-1">
+        {rounds.map((r, i) => (
+          <button
+            key={r.id}
+            type="button"
+            aria-pressed={!!r.done_at}
+            aria-label={`${r.kind || `Round ${i + 1}`}: ${r.done_at ? "done" : "not done"}`}
+            title={r.kind || `Round ${i + 1}`}
+            disabled={busy}
+            onClick={() => onToggle(r)}
+            className={cn(
+              "h-2.5 w-5 rounded-full border-[1.5px] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring",
+              r.done_at ? "border-primary bg-primary" : "border-foreground/50 hover:bg-foreground/15",
+            )}
+          />
+        ))}
+      </span>
+      <Button
+        variant="ghost"
+        size="icon"
+        className={cn("size-6", armed ? "text-destructive hover:text-destructive" : "text-muted-foreground")}
+        aria-label={armed ? `Confirm deleting the last ${name} round` : `Remove the last ${name} round`}
+        disabled={!rounds.length || busy}
+        onClick={onRemove}
+      >
+        <Minus className="size-3.5" />
+      </Button>
+      <Button variant="ghost" size="icon" className="size-6 text-muted-foreground" aria-label={`Add a ${name} round`} disabled={busy} onClick={onAdd}>
+        <Plus className="size-3.5" />
+      </Button>
+    </li>
+  )
+}
 
 function ViewHeader({ title, sub, onBack }: { title: string; sub: string; onBack: () => void }) {
   return (
@@ -249,14 +321,14 @@ function ViewHeader({ title, sub, onBack }: { title: string; sub: string; onBack
 
 // The status chooser for one application. Its first view is only the stage:
 // drag or [ ] to move along the pieces, + to add a round. O opens the outcomes
-// (each a die showing its key), S the steps between stages, 1-6 picks on
-// either, and Backspace comes back.
+// (each a die showing its key), S the steps between stages, R the rounds of
+// every stage, 1-6 picks on outcomes and steps, and Backspace comes back.
 export function StatusChooser({
   app,
   open,
   onOpenChange,
   onStatus,
-  onAddRound,
+  onRoundsChange,
   align = "start",
   children,
 }: {
@@ -264,7 +336,9 @@ export function StatusChooser({
   open?: boolean
   onOpenChange?: (open: boolean) => void
   onStatus: (next: string) => Promise<unknown> | void
-  onAddRound?: (stage: string) => Promise<unknown> | void
+  // Called after a round is added, removed or marked done, to refetch the app.
+  // Without it the chooser offers no rounds.
+  onRoundsChange?: () => Promise<unknown> | void
   align?: "start" | "center" | "end"
   children: ReactNode
 }) {
@@ -272,12 +346,52 @@ export function StatusChooser({
   const [pending, setPending] = useState<string | null>(null)
   const [drag, setDrag] = useState<number | null>(null)
   const [view, setView] = useState<View>("stage")
-  const [adding, setAdding] = useState(false)
+  const [list, setList] = useState<Interview[] | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [armed, setArmed] = useState<string | null>(null)
+  const [roundError, setRoundError] = useState<string | null>(null)
+  const base = `/v1/applications/${encodeURIComponent(app.id)}/interviews`
 
   // Keep keyboard focus inside the popover as the view changes.
   useEffect(() => {
     content.current?.querySelector<HTMLElement>(view === "stage" ? "[role=slider]" : "[data-view]")?.focus()
   }, [view])
+
+  async function loadRounds() {
+    const page = await api<{ data: Interview[] }>(base)
+    setList(page.data || [])
+  }
+  useEffect(() => {
+    if (view !== "rounds") return
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    loadRounds().catch(() => setRoundError("Couldn't load the rounds"))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view, app.id])
+
+  async function roundOp(request: () => Promise<unknown>) {
+    if (busy) return
+    setBusy(true)
+    setArmed(null)
+    setRoundError(null)
+    try {
+      await request()
+      await onRoundsChange?.()
+      if (view === "rounds") await loadRounds()
+    } catch (err) {
+      setRoundError(err instanceof ApiError ? err.message : "Couldn't save the round")
+    } finally {
+      setBusy(false)
+    }
+  }
+  const addRoundTo = (stageKey: string) => roundOp(() => api(base, { method: "POST", body: { stage: stageKey } }))
+  const toggleRound = (r: Interview) =>
+    roundOp(() => api(`/v1/interviews/${encodeURIComponent(r.id)}`, { method: "PATCH", body: { version: r.version, done: !r.done_at } }))
+  function removeLast(rounds: Interview[]) {
+    const r = rounds[rounds.length - 1]
+    if (!r) return
+    if (hasDetails(r) && armed !== r.id) return setArmed(r.id)
+    void roundOp(() => api(`/v1/interviews/${encodeURIComponent(r.id)}?version=${r.version}`, { method: "DELETE" }))
+  }
 
   const stage = Math.min(6, Math.max(0, app.stage ?? statusPieces(app.status)))
   // While a change is in flight, show where it's going.
@@ -299,15 +413,7 @@ export function StatusChooser({
     }
   }
   const toggleOutcome = (s: string) => set(outcome === s ? app.status : s)
-  async function addRound() {
-    if (!roundStage || !onAddRound) return
-    setAdding(true)
-    try {
-      await onAddRound(roundStage[0])
-    } finally {
-      setAdding(false)
-    }
-  }
+  const armedRound = list?.find((r) => r.id === armed)
 
   const sub =
     drag != null
@@ -329,6 +435,7 @@ export function StatusChooser({
       if (to >= 0 && to <= 6) void set(stageTarget(app, stage, to))
     } else if (k === "o") setView(view === "outcome" ? "stage" : "outcome")
     else if (k === "s") setView(view === "steps" ? "stage" : "steps")
+    else if (k === "r" && onRoundsChange) setView(view === "rounds" ? "stage" : "rounds")
     else if (k === "backspace" && view !== "stage") setView("stage")
     else if (view === "outcome" && n >= 1 && n <= 6) void toggleOutcome([...HOLDS, ...STOPS][n - 1])
     else if (view === "steps" && n >= 1 && n <= SUB_STEPS.length) void set(SUB_STEPS[n - 1])
@@ -441,10 +548,47 @@ export function StatusChooser({
             </ol>
           </div>
         )}
+        {view === "rounds" && (
+          <div data-view tabIndex={-1} className="flex flex-col gap-3 outline-none">
+            <ViewHeader
+              title="Rounds"
+              sub={
+                list
+                  ? `${list.filter((r) => r.done_at).length} of ${list.length} done`
+                  : "Loading…"
+              }
+              onBack={() => setView("stage")}
+            />
+            <ul className="flex flex-col gap-0.5">
+              {ROUND_STAGES.map(([key, name], i) => {
+                const rounds = (list ?? []).filter((r) => r.stage === key)
+                return (
+                  <RoundRow
+                    key={key}
+                    name={name}
+                    current={i + 1 === stage}
+                    rounds={rounds}
+                    armed={!!armed && rounds.some((r) => r.id === armed)}
+                    busy={busy || !list}
+                    onToggle={toggleRound}
+                    onRemove={() => removeLast(rounds)}
+                    onAdd={() => addRoundTo(key)}
+                  />
+                )
+              })}
+            </ul>
+            {armedRound && (
+              <p className="text-[12px] text-destructive">
+                “{armedRound.kind || "This round"}” has details. Press − again to delete it.
+              </p>
+            )}
+            {roundError && <p className="text-[12px] text-destructive">{roundError}</p>}
+          </div>
+        )}
         {view === "stage" && (
           <div className="flex flex-col gap-3">
             <div className="flex items-start justify-between">
-              {onAddRound ? (
+              {onRoundsChange ? (
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Button
@@ -452,13 +596,15 @@ export function StatusChooser({
                       size="icon"
                       className="size-7 text-muted-foreground"
                       aria-label={roundStage ? `Add a round to ${roundStage[1]}` : "Add a round"}
-                      disabled={!roundStage || adding || drag != null}
-                      onClick={addRound}
+                      disabled={!roundStage || busy || drag != null}
+                      onClick={() => roundStage && addRoundTo(roundStage[0])}
                     >
                       <Plus className="size-4" />
                     </Button>
                   </TooltipTrigger>
-                  <TooltipContent>{roundStage ? `Add a round to ${roundStage[1]}` : "Rounds start at Prepared"}</TooltipContent>
+                  <TooltipContent>
+                    {roundStage ? `Add a round to ${roundStage[1]}` : "Rounds start at Prepared"} · all rounds <Kbd>R</Kbd>
+                  </TooltipContent>
                 </Tooltip>
               ) : (
                 <span className="size-7" />

@@ -118,18 +118,11 @@ export function DetailShell({ id, initial, children }: { id: string; initial: De
     }
   }
 
-  // Bumped after the header adds a round so the rounds card refetches.
+  // Bumped after the header's chooser changes rounds so the rounds card refetches.
   const [roundsTick, setRoundsTick] = useState(0)
-  async function onAddRound(stage: string) {
-    if (!application) return
-    setFieldError(null)
-    try {
-      await api(`/v1/applications/${encodeURIComponent(application.id)}/interviews`, { method: "POST", body: { stage } })
-      setRoundsTick((n) => n + 1)
-      await reload()
-    } catch (err) {
-      setFieldError(err instanceof ApiError ? err.message : "Failed to add a round")
-    }
+  async function onRoundsChange() {
+    setRoundsTick((n) => n + 1)
+    await reload()
   }
 
   async function onRecheckLink() {
@@ -204,7 +197,7 @@ export function DetailShell({ id, initial, children }: { id: string; initial: De
             onUnarchive={onUnarchive}
             onDecide={onDecide}
             onDelete={onDelete}
-            onAddRound={onAddRound}
+            onRoundsChange={onRoundsChange}
           />
           <DetailAttributes
             application={application}

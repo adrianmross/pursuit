@@ -25,7 +25,7 @@ export function DetailHeader({
   onUnarchive,
   onDecide,
   onDelete,
-  onAddRound,
+  onRoundsChange,
 }: {
   application: Application
   writable: boolean
@@ -35,7 +35,7 @@ export function DetailHeader({
   onUnarchive: () => void
   onDecide: (kind: "approve" | "reject", note: string) => Promise<void>
   onDelete: () => Promise<void>
-  onAddRound: (stage: string) => Promise<void>
+  onRoundsChange: () => Promise<void>
 }) {
   const [decision, setDecision] = useState<"approve" | "reject" | null>(null)
   const [note, setNote] = useState("")
@@ -68,7 +68,7 @@ export function DetailHeader({
         </div>
         <div className="flex items-center gap-1">
           {writable ? (
-            <StatusChooser app={application} align="end" onStatus={(v) => onSaveField({ status: v })} onAddRound={onAddRound}>
+            <StatusChooser app={application} align="end" onStatus={(v) => onSaveField({ status: v })} onRoundsChange={onRoundsChange}>
               <button type="button" className="rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring" aria-label="Change status">
                 <StatusBadge status={shown(application)} />
               </button>
