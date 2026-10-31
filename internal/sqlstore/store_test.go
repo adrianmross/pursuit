@@ -4,17 +4,16 @@ import (
 	"bytes"
 	"context"
 	"os"
-	"path/filepath"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/pursuit/pursuit/internal/domain"
+	"github.com/pursuit/pursuit/internal/sqlstore/sqlstoretest"
 )
 
 func TestMigrateTwiceAndForeignKey(t *testing.T) {
-	dir := t.TempDir()
-	dsn := "sqlite://" + filepath.Join(dir, "t.db")
+	dsn := sqlstoretest.DSN(t)
 	s, err := Open(context.Background(), dsn)
 	if err != nil {
 		t.Fatal(err)
@@ -172,7 +171,7 @@ func TestSkipLockedClausePresent(t *testing.T) {
 
 func openTest(t *testing.T) *Store {
 	t.Helper()
-	s, err := Open(context.Background(), "sqlite://"+filepath.Join(t.TempDir(), "t.db"))
+	s, err := Open(context.Background(), sqlstoretest.DSN(t))
 	if err != nil {
 		t.Fatal(err)
 	}
