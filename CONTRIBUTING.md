@@ -25,3 +25,7 @@ changelogger
 It asks for the bump and a one-line note, writes `.changelogs/<slug>.md`, and prints the PR title to use (`feat(pursuit): ...`). CI fails a PR whose title does not match its fragment. Pre-1.0, `fix` bumps the patch and `feat` or a breaking change bumps the minor. PRs touching only `.github/`, `docs/` or `*.md` need no fragment.
 
 After merge, Release Please opens a `chore(release): pursuit vX.Y.Z` PR that bumps every version string and `CHANGELOG.md`. Merging it tags the release and publishes binaries and the extension zip to [GitHub Releases](https://github.com/adrianmross/pursuit/releases); the [Homebrew tap](https://github.com/adrianmross/homebrew-tap) picks the release up.
+
+## Previews
+
+Vercel deploys `main` to production automatically. No other branch deploys on push (`git.deploymentEnabled` in `vercel.json`), which keeps bot branches and work-in-progress pushes from burning the daily deployment limit. To get a preview, add the `preview` label to the pull request: `.github/workflows/preview.yml` deploys it, comments the URL, and redeploys on each later push while the label stays on.
