@@ -17,7 +17,10 @@ import (
 type Client struct {
 	BaseURL string
 	Token   string
-	HTTP    *http.Client
+	// Bypass is a Vercel "Protection Bypass for Automation" secret, for a
+	// server behind Vercel deployment protection.
+	Bypass string
+	HTTP   *http.Client
 }
 
 type Response struct {
@@ -53,6 +56,12 @@ func (c *Client) Do(ctx context.Context, method, path string, query url.Values, 
 	}
 	if c.Token != "" {
 		req.Header.Set("Authorization", "Bearer "+c.Token)
+	}
+	// Behind PURSUIT_TRUST_PROXY_AUTH=vercel, a request that gets past Vercel
+	// with no bearer is the owner with approve. So the bypass rides only with
+	// a token, or on the token-less OAuth calls that mint one.
+	if c.Bypass != "" && (c.Token != "" || strings.HasPrefix(path, "/v1/auth/")) {
+		req.Header.Set("x-vercel-protection-bypass", c.Bypass)
 	}
 	req.Header.Set("User-Agent", "pursuit/"+version.Version)
 	req.Header.Set("Accept", "application/json, text/csv;q=0.9")
