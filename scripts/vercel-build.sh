@@ -10,6 +10,10 @@
 # SSR/streaming, is a separate, bigger reconfiguration (routing split,
 # Vercel project settings) — not done by this script.
 set -e
+# The account sign-in (Better Auth via Neon Auth) only renders when this is
+# set at build time. The Neon integration provides the URL under other names.
+NEXT_PUBLIC_NEON_AUTH_URL=${NEXT_PUBLIC_NEON_AUTH_URL:-${VITE_NEON_AUTH_URL:-$NEON_AUTH_BASE_URL}}
+export NEXT_PUBLIC_NEON_AUTH_URL
 (cd web-app && npm install && npm run build:self-hosted)
 rm -rf internal/dashboard/dist
 cp -r web-app/out internal/dashboard/dist
