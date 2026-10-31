@@ -148,6 +148,7 @@ func (s *Service) OAuthAuthorize(ctx context.Context, in AuthorizeInput) (string
 		return "", err
 	}
 	now := s.now()
+	_ = s.DB.DeleteExpiredOAuthGrants(ctx, domain.FormatTime(now.Add(-time.Hour)))
 	if err := s.DB.CreateOAuthGrant(ctx, sqlstore.OAuthGrant{
 		ID: s.NewID(), Kind: "code", CodeHash: auth.Hash(code), ClientID: clientID, Scopes: scopes,
 		RedirectURI: in.RedirectURI, CodeChallenge: in.CodeChallenge, UserID: a.UserID, Status: "approved",
