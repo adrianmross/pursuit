@@ -1390,6 +1390,64 @@ func TestDeleteStanding(t *testing.T) {
 	}
 }
 
+func TestTokensMintOnlyScopesTheyHold(t *testing.T) {
+	e := newEnv(t)
+	mint := func(token string, scopes ...string) (int, map[string]any) {
+		return e.json(t, http.MethodPost, "/v1/tokens", token, map[string]any{"name": "t", "scopes": scopes})
+	}
+	// The bootstrap owner token is the human holding approve.
+	code, doc := mint(e.token, "read", "write", "approve")
+	if code != 201 {
+		t.Fatalf("owner approve %d %#v", code, doc)
+	}
+	_, doc = mint(e.token, "read", "write")
+	writer := doc["secret"].(string)
+	_, doc = mint(e.token, "read")
+	reader := doc["secret"].(string)
+
+	for _, c := range []struct {
+		token  string
+		scopes []string
+		want   int
+	}{
+		{writer, []string{"approve"}, 403},
+		{writer, []string{"write", "approve"}, 403},
+		{reader, []string{"write"}, 403},
+		{writer, []string{"write"}, 201},
+		{writer, []string{"read"}, 201},
+	} {
+		code, doc := mint(c.token, c.scopes...)
+		if code != c.want || (c.want == 403 && errCode(doc) != "forbidden") {
+			t.Fatalf("%v: %d %#v", c.scopes, code, doc)
+		}
+	}
+
+	// The PURSUIT_TRUST_PROXY_AUTH owner cannot mint approve either, the
+	// same as it cannot consent to OAuth logins. (Proxy auth needs exactly
+	// one user, so this runs before the demo tenant exists.)
+	e.api.TrustProxyAuth = "vercel"
+	if code, doc := mint("", "approve"); code != 403 {
+		t.Fatalf("proxy approve %d %#v", code, doc)
+	}
+	if code, doc := mint("", "write"); code != 201 {
+		t.Fatalf("proxy write %d %#v", code, doc)
+	}
+	e.api.TrustProxyAuth = ""
+
+	// A demo visitor holds approve on its throwaway tenant but is not a
+	// human approver, so it cannot mint an approve token.
+	demo, _, err := e.svc.CreateDemoSession(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if code, doc := mint(demo, "approve"); code != 403 {
+		t.Fatalf("demo approve %d %#v", code, doc)
+	}
+	if code, doc := mint(demo, "write"); code != 201 {
+		t.Fatalf("demo write %d %#v", code, doc)
+	}
+}
+
 func TestAuditSearchAndTimeFilters(t *testing.T) {
 	e := newEnv(t)
 	code, app := e.json(t, http.MethodPost, "/v1/applications", e.token, map[string]any{

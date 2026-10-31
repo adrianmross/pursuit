@@ -616,7 +616,7 @@ func patchInterview(e *exec, put func(*exec, map[string]any) error) error {
 func cmdTokens() *Command {
 	return &Command{Name: "tokens", Summary: "API tokens", Children: []*Command{
 		{Name: "list", Summary: "list tokens", Run: func(e *exec) error { return e.send("GET", "/v1/tokens", nil, nil, "", false, true) }},
-		{Name: "create", Summary: "create a token", Mutating: true, Example: "pursuit tokens create --name agent --scope read --scope write", Flags: []Flag{{Name: "name", Type: "string", Help: "token name"}, {Name: "scope", Type: "string", Help: "read, write, or approve", Repeatable: true}}, Run: func(e *exec) error {
+		{Name: "create", Summary: "create a token", Mutating: true, Example: "pursuit tokens create --name agent --scope read --scope write", Flags: []Flag{{Name: "name", Type: "string", Help: "token name"}, {Name: "scope", Type: "string", Help: "read, write, or approve; only scopes your own token holds, and approve only from a human token", Repeatable: true}}, Run: func(e *exec) error {
 			body, err := e.jsonBody(map[string]any{"name": e.flag("name"), "scopes": e.flags["scope"]})
 			if err != nil {
 				return err
