@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"strings"
 )
 
 // advisoryLockKey is the Postgres session lock that serializes migrations and bootstrap.
@@ -65,7 +64,7 @@ func applyMigrations(ctx context.Context, conn *sql.Conn, dialect string, perTx 
 		}
 		run := func(exec querier) error {
 			for _, stmt := range m.stmts {
-				if _, err := exec.ExecContext(ctx, migrationStmt(dialect, stmt)); err != nil {
+				if _, err := exec.ExecContext(ctx, stmt); err != nil {
 					return fmt.Errorf("migration %s: %w", m.version, err)
 				}
 			}
@@ -94,16 +93,6 @@ func applyMigrations(ctx context.Context, conn *sql.Conn, dialect string, perTx 
 		}
 	}
 	return nil
-}
-
-// migrationStmt lets a Postgres ADD COLUMN pass when the column is already
-// there, as in a database shared with a build whose schema got ahead of its
-// schema_migrations rows. SQLite has no IF NOT EXISTS for columns.
-func migrationStmt(dialect, stmt string) string {
-	if dialect != "postgres" {
-		return stmt
-	}
-	return strings.Replace(stmt, "ADD COLUMN ", "ADD COLUMN IF NOT EXISTS ", 1)
 }
 
 type migration struct {

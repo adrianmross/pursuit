@@ -169,16 +169,6 @@ func TestSkipLockedClausePresent(t *testing.T) {
 	}
 }
 
-func TestMigrationStmtAddColumn(t *testing.T) {
-	stmt := `ALTER TABLE t ADD COLUMN c TEXT`
-	if got := migrationStmt("postgres", stmt); got != `ALTER TABLE t ADD COLUMN IF NOT EXISTS c TEXT` {
-		t.Fatalf("postgres: %s", got)
-	}
-	if got := migrationStmt("sqlite", stmt); got != stmt {
-		t.Fatalf("sqlite: %s", got)
-	}
-}
-
 func openTest(t *testing.T) *Store {
 	t.Helper()
 	s, err := Open(context.Background(), sqlstoretest.DSN(t))
