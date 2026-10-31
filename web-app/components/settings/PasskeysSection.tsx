@@ -75,7 +75,7 @@ export function PasskeysSection() {
     <FieldSet>
       <FieldLegend variant="label">Passkeys</FieldLegend>
       <FieldDescription>
-        Sign in with your device&apos;s fingerprint, face, or screen lock instead of a password. Your password still works
+        Sign in with your device&apos;s fingerprint, face, or screen lock instead of a password. Your password or API token still works
         if you lose a device.
       </FieldDescription>
       <form onSubmit={add}>
