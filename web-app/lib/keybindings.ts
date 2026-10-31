@@ -24,6 +24,17 @@ export const BINDINGS: Binding[] = [
   { id: "rowStatusPrev", label: "Move the highlighted application to the previous status", group: "Table", combo: "[", when: "app" },
   { id: "rowSelect", label: "Select the highlighted application", group: "Table", combo: "x|Space", when: "app" },
   { id: "rowClear", label: "Clear the selection and highlight", group: "Table", combo: "Escape", when: "app" },
+  { id: "appStatus", label: "Change the status", group: "Application", combo: "s", when: "app" },
+  { id: "appStageNext", label: "Move to the next stage", group: "Application", combo: "]", when: "app" },
+  { id: "appStagePrev", label: "Move to the previous stage", group: "Application", combo: "[", when: "app" },
+  { id: "appOutcome", label: "Set an outcome (then 1-6)", group: "Application", combo: "o", when: "app" },
+  { id: "appRounds", label: "Edit every stage's rounds", group: "Application", combo: "r", when: "app" },
+  { id: "appRoundAdd", label: "Add a round to the current stage", group: "Application", combo: "+|=", when: "app" },
+  { id: "appRoundRemove", label: "Remove the current stage's last round", group: "Application", combo: "-", when: "app" },
+  { id: "appPosting", label: "Open the posting", group: "Application", combo: "p", when: "app" },
+  { id: "appApprove", label: "Approve, when prepared", group: "Application", combo: "y", when: "app" },
+  { id: "appReject", label: "Reject, when prepared", group: "Application", combo: "x", when: "app" },
+  { id: "appArchive", label: "Archive or unarchive", group: "Application", combo: "a", when: "app" },
   { id: "find", label: "Find in the audit log", group: "Settings", combo: "mod+f", when: "dialog" },
   { id: "prevSection", label: "Previous settings section", group: "Settings", combo: "[", when: "dialog" },
   { id: "nextSection", label: "Next settings section", group: "Settings", combo: "]", when: "dialog" },
@@ -72,6 +83,7 @@ export const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(
 // "mod+k" -> ["⌘", "K"]; "g h" -> [["G"], ["H"]] is rendered as steps by the caller.
 const NAMES: Record<string, string> = { Escape: "Esc", ArrowDown: "↓", ArrowUp: "↑", ctrl: "Ctrl", Space: "Space" }
 export function keyLabels(step: string) {
+  if (step === "+") return ["+"]
   return step.split("+").map((k) => (k === "mod" ? (isMac ? "⌘" : "Ctrl") : NAMES[k] || (k.length === 1 ? k.toUpperCase() : k)))
 }
 

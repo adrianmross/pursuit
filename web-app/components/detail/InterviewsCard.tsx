@@ -2,8 +2,9 @@
 
 import { useEffect, useState } from "react"
 import { ChevronDown, Plus, Trash2 } from "lucide-react"
-import { api, ApiError } from "@/lib/api-client"
+import { api } from "@/lib/api-client"
 import { label, ROUND_STAGES, type Interview } from "@/lib/types"
+import { RoundsList, useRounds } from "@/components/Rounds"
 import { InlineSelect, InlineText } from "@/components/InlineEdit"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -153,53 +154,40 @@ export function InterviewsCard({
   writable: boolean
   onChange: () => void
 }) {
-  const [items, setItems] = useState<Interview[]>([])
-  const [error, setError] = useState<string | null>(null)
   const [kind, setKind] = useState("")
+  const [sel, setSel] = useState(Math.max(current, 1) - 1)
   // New rounds join the stage the application is on.
   const [stage, setStage] = useState(STAGES[Math.max(current, 1) - 1][0])
   const base = `/v1/applications/${encodeURIComponent(appId)}/interviews`
-
-  async function load() {
-    try {
-      const page = await api<{ data: Interview[] }>(base)
-      setItems(page.data || [])
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Failed to load interviews")
-    }
-  }
+  // The same rounds the status chooser edits: one list, one set of operations.
+  const rounds = useRounds(appId, current, onChange)
+  const items = rounds.list ?? []
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    void load()
+    rounds.fetchRounds().catch(() => {})
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [appId])
 
-  async function run(request: Promise<unknown>) {
-    setError(null)
-    try {
-      await request
-      await load()
-      onChange()
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Failed to save")
-    }
-  }
-
-  const add = () => run(api(base, { method: "POST", body: { stage, kind } }).then(() => setKind("")))
+  const add = () => rounds.run(() => api(base, { method: "POST", body: { stage, kind } }).then(() => setKind("")))
   const patch = (item: Interview, body: Record<string, unknown>) =>
-    run(api(`/v1/interviews/${encodeURIComponent(item.id)}`, { method: "PATCH", body: { version: item.version, ...body } }))
+    rounds.run(() => api(`/v1/interviews/${encodeURIComponent(item.id)}`, { method: "PATCH", body: { version: item.version, ...body } }))
   const remove = (item: Interview) =>
-    run(api(`/v1/interviews/${encodeURIComponent(item.id)}?version=${item.version}`, { method: "DELETE" }))
+    rounds.run(() => api(`/v1/interviews/${encodeURIComponent(item.id)}?version=${item.version}`, { method: "DELETE" }))
 
   const ordered = STAGES.flatMap(([value]) => items.filter((item) => item.stage === value))
 
   return (
     <Card>
-      <CardHeader>
+      <CardHeader className="flex flex-row items-baseline justify-between">
         <CardTitle className="text-base">Interviews</CardTitle>
+        <span className="text-xs text-muted-foreground">{rounds.summary()}</span>
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
+        {writable && (
+          <div className="max-w-sm">
+            <RoundsList rounds={rounds} stage={current} sel={sel} onSelect={setSel} />
+          </div>
+        )}
         {ordered.length > 0 && (
           <ul className="flex flex-col gap-2">
             {ordered.map((item) => (
@@ -207,7 +195,9 @@ export function InterviewsCard({
             ))}
           </ul>
         )}
-        {ordered.length === 0 && <p className="text-sm text-muted-foreground">No rounds yet. Each one fills part of the mark as you finish it.</p>}
+        {ordered.length === 0 && (
+          <p className="text-sm text-muted-foreground">Each stage is one round until you split it with +. Name a round below to add prep and notes.</p>
+        )}
         {writable && (
           <form
             className="flex flex-wrap items-center gap-2"
@@ -240,7 +230,6 @@ export function InterviewsCard({
             </Button>
           </form>
         )}
-        {error && <p className="text-sm text-destructive">{error}</p>}
       </CardContent>
     </Card>
   )
