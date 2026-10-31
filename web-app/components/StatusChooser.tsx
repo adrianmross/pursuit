@@ -1,6 +1,6 @@
 "use client"
 
-import { useRef, useState, type ReactNode } from "react"
+import { useEffect, useRef, useState, type ReactNode } from "react"
 import { ChevronLeft, ChevronRight, Plus } from "lucide-react"
 import { cn } from "@/lib/utils"
 import {
@@ -14,7 +14,8 @@ import {
   SUB_STEPS,
   type Application,
 } from "@/lib/types"
-import { OutcomeDie } from "@/components/Sketch"
+import { OutcomePiece } from "@/components/Sketch"
+import { Kbd } from "@/components/ui/kbd"
 import { ProgressMark } from "@/components/ProgressMark"
 import { Button } from "@/components/ui/button"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
@@ -152,41 +153,34 @@ export function StageHeading({
   )
 }
 
-// An outcome with its name: a hand-drawn die in the filter, a plain dot as a
-// quick action in the chooser. `dim` greys it out: an outcome the filter
-// hides, or one the application isn't on.
+const HOLD_TONE = "text-amber-600 dark:text-amber-400"
+const STOP_TONE = "text-red-600 dark:text-red-400"
+const toneOf = (status: string) => (outcomeKind(status) === "hold" ? HOLD_TONE : STOP_TONE)
+
+// An outcome's piece with its name, for the pipeline filter. `dim` greys out
+// an outcome the filter hides.
 export function OutcomeChip({
   status,
   pressed,
   dim,
-  die = false,
   onClick,
 }: {
   status: string
   pressed: boolean
   dim?: boolean
-  die?: boolean
   onClick: () => void
 }) {
-  const hold = outcomeKind(status) === "hold"
-  const tone = hold ? "text-amber-600 dark:text-amber-400" : "text-red-600 dark:text-red-400"
   return (
     <button
       type="button"
       aria-pressed={pressed}
       onClick={onClick}
       className={cn(
-        "flex h-7 items-center gap-1.5 rounded-full border pr-2.5 text-xs outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring",
-        die ? "pl-1" : "pl-2",
+        "flex h-7 items-center gap-1.5 rounded-full border pr-2.5 pl-1 text-xs outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring",
         dim ? "border-border bg-muted/50 text-muted-foreground hover:text-foreground" : "border-input bg-card text-foreground",
-        pressed && !dim && "bg-muted",
       )}
     >
-      {die ? (
-        <OutcomeDie status={status} className={cn("size-5", dim ? "text-muted-foreground/60" : tone)} />
-      ) : (
-        <span className={cn("size-1.5 rounded-full", dim ? "bg-muted-foreground/40" : hold ? "bg-amber-500" : "bg-red-500")} />
-      )}
+      <OutcomePiece status={status} className={cn("size-5", dim ? "text-muted-foreground/60" : toneOf(status))} />
       {label(status)}
     </button>
   )
@@ -230,9 +224,32 @@ export function stageTarget(app: Pick<Application, "status" | "outcome">, from: 
   return app.outcome ? app.status : null
 }
 
-// The status chooser for one application: drag or [ ] to move it along the
-// stages, a die to set or clear an outcome, + to add a round to its stage,
-// and the sub text to expand the in-between steps.
+// Order on the outcome page, so 1-6 pick them: the two holds, then the stops.
+const HOLDS = ["waiting", "needs_input"]
+const STOPS = ["failed", "rejected", "ghosted", "withdrawn"]
+const HOLD_NOTE: Record<string, string> = { waiting: "On them", needs_input: "On you" }
+
+type View = "stage" | "outcome" | "steps"
+
+function ViewHeader({ title, sub, onBack }: { title: string; sub: string; onBack: () => void }) {
+  return (
+    <div className="flex items-start justify-between">
+      <Button variant="ghost" size="icon" className="size-7 text-muted-foreground" aria-label="Back to stage" onClick={onBack}>
+        <ChevronLeft className="size-4" />
+      </Button>
+      <div className="flex flex-col items-center">
+        <span className="font-heading text-lg leading-6 font-semibold">{title}</span>
+        <span className="text-[13px] leading-[18px] text-muted-foreground">{sub}</span>
+      </div>
+      <span className="size-7" />
+    </div>
+  )
+}
+
+// The status chooser for one application. Its first view is only the stage:
+// drag or [ ] to move along the pieces, + to add a round. O opens the outcomes
+// (holds as tiles, stops as dice), S the steps between stages, 1-6 picks on
+// either, and Backspace comes back.
 export function StatusChooser({
   app,
   open,
@@ -253,8 +270,13 @@ export function StatusChooser({
   const content = useRef<HTMLDivElement>(null)
   const [pending, setPending] = useState<string | null>(null)
   const [drag, setDrag] = useState<number | null>(null)
-  const [more, setMore] = useState(false)
+  const [view, setView] = useState<View>("stage")
   const [adding, setAdding] = useState(false)
+
+  // Keep keyboard focus inside the popover as the view changes.
+  useEffect(() => {
+    content.current?.querySelector<HTMLElement>(view === "stage" ? "[role=slider]" : "[data-view]")?.focus()
+  }, [view])
 
   const stage = Math.min(6, Math.max(0, app.stage ?? statusPieces(app.status)))
   // While a change is in flight, show where it's going.
@@ -275,6 +297,7 @@ export function StatusChooser({
       setPending(null)
     }
   }
+  const toggleOutcome = (s: string) => set(outcome === s ? app.status : s)
   async function addRound() {
     if (!roundStage || !onAddRound) return
     setAdding(true)
@@ -293,14 +316,30 @@ export function StatusChooser({
         : rounds?.total
           ? `${rounds.done} of ${rounds.total} round${rounds.total === 1 ? "" : "s"} done`
           : SUB_STEPS.includes(current)
-            ? `Step of ${STAGE_STOPS[stage][1]}`
+            ? `${label(current)}, a step of ${STAGE_STOPS[stage][1]}`
             : `Piece ${at} of 6`
+
+  function onKey(e: React.KeyboardEvent) {
+    if (e.metaKey || e.ctrlKey || e.altKey) return
+    const k = e.key.toLowerCase()
+    const n = Number(e.key)
+    if (k === "[" || k === "]") {
+      const to = settled + (k === "]" ? 1 : -1)
+      if (to >= 0 && to <= 6) void set(stageTarget(app, stage, to))
+    } else if (k === "o") setView(view === "outcome" ? "stage" : "outcome")
+    else if (k === "s") setView(view === "steps" ? "stage" : "steps")
+    else if (k === "backspace" && view !== "stage") setView("stage")
+    else if (view === "outcome" && n >= 1 && n <= 6) void toggleOutcome([...HOLDS, ...STOPS][n - 1])
+    else if (view === "steps" && n >= 1 && n <= SUB_STEPS.length) void set(SUB_STEPS[n - 1])
+    else return
+    e.preventDefault()
+  }
 
   return (
     <Popover
       open={open}
       onOpenChange={(next) => {
-        if (!next) setMore(false)
+        if (!next) setView("stage")
         onOpenChange?.(next)
       }}
     >
@@ -314,43 +353,93 @@ export function StatusChooser({
           content.current?.querySelector<HTMLElement>("[role=slider]")?.focus()
         }}
         onCloseAutoFocus={(e) => e.preventDefault()}
-        onKeyDown={(e) => {
-          if (e.key !== "[" && e.key !== "]") return
-          e.preventDefault()
-          const to = settled + (e.key === "]" ? 1 : -1)
-          if (to >= 0 && to <= 6) void set(stageTarget(app, stage, to))
-        }}
+        onKeyDown={onKey}
       >
-        {more ? (
-          <div className="flex flex-col gap-3">
-            <div className="flex items-start justify-between">
-              <Button variant="ghost" size="icon" className="size-7 text-muted-foreground" aria-label="Back to stage" onClick={() => setMore(false)}>
-                <ChevronLeft className="size-4" />
-              </Button>
-              <div className="flex flex-col items-center">
-                <span className="font-heading text-lg leading-6 font-semibold">{outcome ? label(outcome) : "Outcome"}</span>
-                <span className="text-[13px] leading-[18px] text-muted-foreground">at {STAGE_STOPS[stage][1]}</span>
-              </div>
-              <span className="size-7" />
-            </div>
+        {view === "outcome" && (
+          <div data-view tabIndex={-1} className="flex flex-col gap-3 outline-none">
+            <ViewHeader title={outcome ? label(outcome) : "Outcome"} sub={`at ${STAGE_STOPS[stage][1]}`} onBack={() => setView("stage")} />
             <div className="grid grid-cols-2 gap-1.5">
-              {OUTCOMES.map((s) => (
-                <OutcomeChip
-                  key={s}
-                  status={s}
-                  die
-                  pressed={outcome === s}
-                  dim={!!outcome && outcome !== s}
-                  onClick={() => set(outcome === s ? app.status : s)}
-                />
-              ))}
+              {HOLDS.map((s, i) => {
+                const on = outcome === s
+                return (
+                  <button
+                    key={s}
+                    type="button"
+                    aria-pressed={on}
+                    onClick={() => toggleOutcome(s)}
+                    className={cn(
+                      "relative flex items-center gap-2 rounded-xl border border-dashed p-2 text-left outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring",
+                      on ? "border-amber-500 bg-amber-500/10" : "border-input hover:bg-muted",
+                    )}
+                  >
+                    <OutcomePiece status={s} className={cn("size-7 shrink-0", HOLD_TONE)} />
+                    <span className="flex min-w-0 flex-col">
+                      <span className="text-[13px] leading-5 font-medium whitespace-nowrap">{label(s)}</span>
+                      <span className="text-[11px] leading-4 text-muted-foreground">{HOLD_NOTE[s]}</span>
+                    </span>
+                    <Kbd className="absolute top-1.5 right-1.5 h-4 min-w-4 text-[10px]">{i + 1}</Kbd>
+                  </button>
+                )
+              })}
             </div>
-            <div className="flex flex-col gap-1.5 border-t pt-3">
-              <SectionLabel>Steps between</SectionLabel>
-              <SubSteps current={current} onPick={(s) => set(s)} />
+            <div className="grid grid-cols-4 gap-1">
+              {STOPS.map((s, i) => {
+                const on = outcome === s
+                return (
+                  <button
+                    key={s}
+                    type="button"
+                    aria-pressed={on}
+                    onClick={() => toggleOutcome(s)}
+                    className={cn(
+                      "flex flex-col items-center gap-1 rounded-lg py-1.5 outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring",
+                      on ? "bg-red-500/10 ring-1 ring-red-500/50" : "hover:bg-muted",
+                    )}
+                  >
+                    <OutcomePiece status={s} className={cn("size-8", on || !outcome ? STOP_TONE : "text-muted-foreground/60")} />
+                    <span className="text-[11px] leading-4">{label(s)}</span>
+                    <Kbd className="h-4 min-w-4 text-[10px]">{i + 3}</Kbd>
+                  </button>
+                )
+              })}
             </div>
           </div>
-        ) : (
+        )}
+        {view === "steps" && (
+          <div data-view tabIndex={-1} className="flex flex-col gap-3 outline-none">
+            <ViewHeader title="Steps between" sub="the agent's work between stages" onBack={() => setView("stage")} />
+            {/* A short stretch of board: each step a square on one path. */}
+            <ol className="relative flex flex-col">
+              <span aria-hidden className="absolute top-3 bottom-3 left-[13px] w-0.5 bg-border" />
+              {SUB_STEPS.map((s, i) => {
+                const on = current === s
+                const group = STAGE_STOPS[statusPieces(s)][1]
+                const first = i === 0 || statusPieces(SUB_STEPS[i - 1]) !== statusPieces(s)
+                return (
+                  <li key={s}>
+                    <button
+                      type="button"
+                      aria-pressed={on}
+                      onClick={() => set(s)}
+                      className="relative flex w-full items-center gap-3 rounded-lg py-1 pr-1 pl-1.5 text-left outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
+                    >
+                      <span
+                        className={cn(
+                          "size-3.5 shrink-0 rounded-[3px] border-2",
+                          on ? "border-primary bg-primary" : "border-foreground/70 bg-background",
+                        )}
+                      />
+                      <span className={cn("flex-1 text-sm", on && "font-semibold")}>{label(s)}</span>
+                      {first && <span className="text-[11px] text-muted-foreground">{group}</span>}
+                      <Kbd className="h-4 min-w-4 text-[10px]">{i + 1}</Kbd>
+                    </button>
+                  </li>
+                )
+              })}
+            </ol>
+          </div>
+        )}
+        {view === "stage" && (
           <div className="flex flex-col gap-3">
             <div className="flex items-start justify-between">
               {onAddRound ? (
@@ -381,7 +470,8 @@ export function StatusChooser({
                 sub={
                   <button
                     type="button"
-                    onClick={() => setMore(true)}
+                    aria-keyshortcuts="S"
+                    onClick={() => setView("steps")}
                     className="flex items-center gap-0.5 rounded text-[13px] leading-[18px] text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
                   >
                     {sub}
@@ -395,16 +485,16 @@ export function StatusChooser({
                     variant="ghost"
                     size="icon"
                     className="size-7 text-muted-foreground"
-                    aria-label="Outcomes and steps"
-                    onClick={() => setMore(true)}
+                    aria-label="Outcome"
+                    aria-keyshortcuts="O"
+                    onClick={() => setView("outcome")}
                   >
-                    <OutcomeDie
-                      status={outcome || "rejected"}
-                      className={cn("size-5", outcome ? (outcomeKind(outcome) === "hold" ? "text-amber-600 dark:text-amber-400" : "text-red-600 dark:text-red-400") : "")}
-                    />
+                    <OutcomePiece status={outcome || "rejected"} className={cn("size-5", outcome && toneOf(outcome))} />
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent>Outcomes and steps</TooltipContent>
+                <TooltipContent>
+                  Outcome <Kbd>O</Kbd>
+                </TooltipContent>
               </Tooltip>
             </div>
             <StageSlider
