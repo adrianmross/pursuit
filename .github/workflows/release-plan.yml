@@ -82,6 +82,8 @@ jobs:
       # manifest version is the release signal. Works for squash and merge
       # commits alike, and a re-run is a no-op once the tag exists.
       - id: tag
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           version="$(jq -r '."."' .release-please-manifest.json)"
@@ -90,14 +92,14 @@ jobs:
             echo "Nothing to tag (${tag})."
             exit 0
           fi
-          # An annotated tag needs a committer identity; the runner has none.
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           # Tag the commit that bumped the manifest (the merged release PR), not
           # HEAD: later merges may have landed before this run.
           release_sha="$(git log -1 --format=%H -- .release-please-manifest.json)"
-          git tag -a "$tag" -m "pursuit ${tag}" "$release_sha"
-          git push origin "$tag"
+          # Created through the API, not `git push`: GitHub refuses a pushed ref
+          # whose history adds a workflow file unless the token has the
+          # `workflows` permission, which GITHUB_TOKEN can never get (v0.2.1).
+          gh api --method POST "repos/${GITHUB_REPOSITORY}/git/refs" \
+            -f ref="refs/tags/${tag}" -f sha="$release_sha" >/dev/null
           echo "tag=${tag}" >> "$GITHUB_OUTPUT"
 
       - if: steps.tag.outputs.tag != ''
