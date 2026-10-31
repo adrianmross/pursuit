@@ -225,6 +225,7 @@ function FilterSortBar({
                       status={s}
                       pressed={!exclude.includes(s)}
                       dim={exclude.includes(s)}
+                      die
                       onClick={() => toggleOutcome(s)}
                     />
                   ))}

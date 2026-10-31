@@ -152,32 +152,41 @@ export function StageHeading({
   )
 }
 
-// A hand-drawn die for an outcome, with its name. `dim` greys it out: an
-// outcome the filter hides, or one the application isn't on.
+// An outcome with its name: a hand-drawn die in the filter, a plain dot as a
+// quick action in the chooser. `dim` greys it out: an outcome the filter
+// hides, or one the application isn't on.
 export function OutcomeChip({
   status,
   pressed,
   dim,
+  die = false,
   onClick,
 }: {
   status: string
   pressed: boolean
   dim?: boolean
+  die?: boolean
   onClick: () => void
 }) {
-  const tone = outcomeKind(status) === "hold" ? "text-amber-600 dark:text-amber-400" : "text-red-600 dark:text-red-400"
+  const hold = outcomeKind(status) === "hold"
+  const tone = hold ? "text-amber-600 dark:text-amber-400" : "text-red-600 dark:text-red-400"
   return (
     <button
       type="button"
       aria-pressed={pressed}
       onClick={onClick}
       className={cn(
-        "flex h-7 items-center gap-1 rounded-full border pr-2.5 pl-1 text-xs outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring",
+        "flex h-7 items-center gap-1.5 rounded-full border pr-2.5 text-xs outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring",
+        die ? "pl-1" : "pl-2",
         dim ? "border-border bg-muted/50 text-muted-foreground hover:text-foreground" : "border-input bg-card text-foreground",
         pressed && !dim && "bg-muted",
       )}
     >
-      <OutcomeDie status={status} className={cn("size-5", dim ? "text-muted-foreground/60" : tone)} />
+      {die ? (
+        <OutcomeDie status={status} className={cn("size-5", dim ? "text-muted-foreground/60" : tone)} />
+      ) : (
+        <span className={cn("size-1.5 rounded-full", dim ? "bg-muted-foreground/40" : hold ? "bg-amber-500" : "bg-red-500")} />
+      )}
       {label(status)}
     </button>
   )
