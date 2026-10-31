@@ -2,10 +2,11 @@
 
 // Consent screens for `pursuit auth login`: /authorize (browser + PKCE)
 // and /device (device code). Both sign the human in inline, so the query
-// string the CLI built survives sign-in, then ask the server to approve.
-// The server re-checks everything; this page only shows and forwards it.
+// string the CLI built survives sign-in. Everything shown comes from the
+// server (GET /v1/oauth/authorize, GET /v1/oauth/device); this page never
+// parses scopes itself, and the server re-checks on approve.
 
-import { useState, type FormEvent, type ReactNode } from "react"
+import { useEffect, useState, type FormEvent, type ReactNode } from "react"
 import { api, ApiError } from "@/lib/api-client"
 import { useAuth } from "@/lib/auth"
 import { SignInForm } from "@/components/SignInForm"
@@ -18,22 +19,20 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 const SCOPE_HELP: Record<string, string> = {
   read: "See your applications, companies, and settings.",
   write: "Create and change applications. This cannot approve anything.",
-  approve: "Approve prepared applications for submission. Only grant this to a CLI you drive yourself, never to an agent.",
-}
-
-function parseScopes(raw: string): string[] {
-  const set = new Set(raw.split(/[\s,]+/).filter(Boolean))
-  if (set.size === 0) {
-    set.add("read")
-    set.add("write")
-  }
-  if (set.has("write") || set.has("approve")) set.add("read")
-  return ["read", "write", "approve"].filter((s) => set.has(s)).concat([...set].filter((s) => !(s in SCOPE_HELP)))
 }
 
 function errorText(err: unknown) {
   if (err instanceof ApiError) return err.hint ? `${err.message}. ${err.hint}` : err.message
   return err instanceof Error ? err.message : "Request failed"
+}
+
+// "3 minutes ago", from the server's created_at.
+function ago(iso: string) {
+  const seconds = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 1000))
+  if (!Number.isFinite(seconds)) return "at an unknown time"
+  if (seconds < 60) return `${seconds} second${seconds === 1 ? "" : "s"} ago`
+  const minutes = Math.round(seconds / 60)
+  return `${minutes} minute${minutes === 1 ? "" : "s"} ago`
 }
 
 function Shell({ children }: { children: ReactNode }) {
@@ -54,8 +53,8 @@ function ScopeList({ scopes }: { scopes: string[] }) {
     <ul className="flex flex-col gap-2">
       {scopes.map((scope) => (
         <li key={scope} className="flex items-start gap-2 text-sm">
-          <Badge variant={scope === "approve" ? "destructive" : "secondary"}>{scope}</Badge>
-          <span className="text-muted-foreground">{SCOPE_HELP[scope] || "Unknown scope; the server will refuse it."}</span>
+          <Badge variant="secondary">{scope}</Badge>
+          <span className="text-muted-foreground">{SCOPE_HELP[scope] || scope}</span>
         </li>
       ))}
     </ul>
@@ -73,45 +72,82 @@ function Notice({ title, children }: { title: string; children: ReactNode }) {
   )
 }
 
+function ErrorLine({ error }: { error: string | null }) {
+  if (!error) return null
+  return (
+    <p role="alert" className="text-sm text-destructive">
+      {error}
+    </p>
+  )
+}
+
+function Decide({ busy, onDecide }: { busy: boolean; onDecide: (approve: boolean) => void }) {
+  return (
+    <div className="flex gap-2">
+      <Button variant="outline" className="flex-1" disabled={busy} onClick={() => onDecide(false)}>
+        Deny
+      </Button>
+      <Button className="flex-1" disabled={busy} onClick={() => onDecide(true)}>
+        Approve
+      </Button>
+    </div>
+  )
+}
+
 // Signs in inline when needed and refuses sessions that can't approve
 // (agent tokens never carry approve), so a page renders only for a human.
-function useApprover(allowTokenLogin: boolean): ReactNode | null {
+function useApprover(allowTokenLogin: boolean): { gate: ReactNode | null; ready: boolean } {
   const { me, loading, can, isDemo, signOut } = useAuth()
-  if (loading) return <Shell>{null}</Shell>
-  if (!me) return <SignInForm allowTokenLogin={allowTokenLogin} demoAvailable={false} />
+  if (loading) return { gate: <Shell>{null}</Shell>, ready: false }
+  if (!me) return { gate: <SignInForm allowTokenLogin={allowTokenLogin} demoAvailable={false} />, ready: false }
   if (!can("approve") || isDemo) {
-    return (
-      <Shell>
-        <Notice title="This session can't approve a CLI login">
-          You are signed in with a token that lacks the approve scope. Sign out and sign in as yourself.
-        </Notice>
-        <Button variant="outline" onClick={() => void signOut()}>
-          Sign out
-        </Button>
-      </Shell>
-    )
+    return {
+      ready: false,
+      gate: (
+        <Shell>
+          <Notice title="This session can't approve a CLI login">
+            You are signed in with a token that lacks the approve scope. Sign out and sign in as yourself.
+          </Notice>
+          <Button variant="outline" onClick={() => void signOut()}>
+            Sign out
+          </Button>
+        </Shell>
+      ),
+    }
   }
-  return null
+  return { gate: null, ready: true }
 }
+
+type AuthorizeRequest = { client_id: string; scopes: string[]; redirect_uri: string }
 
 export function AuthorizeConsent({ params, allowTokenLogin }: { params: URLSearchParams; allowTokenLogin: boolean }) {
   const { me } = useAuth()
-  const gate = useApprover(allowTokenLogin)
+  const { gate, ready } = useApprover(allowTokenLogin)
+  const [request, setRequest] = useState<AuthorizeRequest | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [done, setDone] = useState<"approved" | "denied" | null>(null)
+  const query = params.toString()
+
+  useEffect(() => {
+    if (!ready) return
+    let cancelled = false
+    api<AuthorizeRequest>("/v1/oauth/authorize?" + query)
+      .then((result) => {
+        if (!cancelled) setRequest(result)
+      })
+      .catch((err) => {
+        if (!cancelled) setError(errorText(err))
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [ready, query])
+
   if (gate) return gate
 
-  const redirectURI = params.get("redirect_uri") || ""
-  const scope = params.get("scope") || ""
-  let target = redirectURI
-  try {
-    target = new URL(redirectURI).host
-  } catch {
-    // shown as-is; the server rejects it
-  }
-
   async function decide(approve: boolean) {
+    if (!request) return
     setBusy(true)
     setError(null)
     try {
@@ -119,11 +155,11 @@ export function AuthorizeConsent({ params, allowTokenLogin }: { params: URLSearc
         method: "POST",
         body: {
           client_id: params.get("client_id") || "",
-          redirect_uri: redirectURI,
+          redirect_uri: params.get("redirect_uri") || "",
           code_challenge: params.get("code_challenge") || "",
           code_challenge_method: params.get("code_challenge_method") || "",
           state: params.get("state") || "",
-          scope,
+          scope: params.get("scope") || "",
           approve,
         },
       })
@@ -145,42 +181,59 @@ export function AuthorizeConsent({ params, allowTokenLogin }: { params: URLSearc
     )
   }
 
+  if (!request) {
+    return (
+      <Shell>
+        {error ? (
+          <Notice title="This login request can't be approved">{error}</Notice>
+        ) : (
+          <Notice title="Checking the request">One moment.</Notice>
+        )}
+      </Shell>
+    )
+  }
+
+  let target = request.redirect_uri
+  try {
+    target = new URL(request.redirect_uri).host
+  } catch {
+    // shown as-is
+  }
+
   return (
     <Shell>
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Sign in the Pursuit CLI?</CardTitle>
           <CardDescription>
-            A <code>pursuit auth login</code> on this computer ({target}) is asking for a token for {me?.user?.email || "your account"}.
-            Only approve if you just ran it.
+            <code>{request.client_id}</code> on this computer ({target}) is asking for a token for{" "}
+            {me?.user?.email || "your account"}. Only approve if you just ran <code>pursuit auth login</code>.
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-4 pt-0">
-          <ScopeList scopes={parseScopes(scope)} />
-          {error && (
-            <p role="alert" className="text-sm text-destructive">
-              {error}
-            </p>
-          )}
-          <div className="flex gap-2">
-            <Button variant="outline" className="flex-1" disabled={busy} onClick={() => void decide(false)}>
-              Deny
-            </Button>
-            <Button className="flex-1" disabled={busy} onClick={() => void decide(true)}>
-              Approve
-            </Button>
-          </div>
+          <ScopeList scopes={request.scopes} />
+          <ErrorLine error={error} />
+          <Decide busy={busy} onDecide={(approve) => void decide(approve)} />
         </CardContent>
       </Card>
     </Shell>
   )
 }
 
-type DeviceRequest = { user_code: string; client_id: string; scopes: string[]; status: string; expires_at: string }
+type DeviceRequest = {
+  user_code: string
+  client_id: string
+  scopes: string[]
+  status: string
+  created_at: string
+  expires_at: string
+}
 
-export function DeviceConsent({ initialCode, allowTokenLogin }: { initialCode: string; allowTokenLogin: boolean }) {
-  const gate = useApprover(allowTokenLogin)
-  const [code, setCode] = useState(initialCode)
+// The code is always typed by the human: a link can't pre-fill it, so a
+// phished "approve this" URL carries nothing.
+export function DeviceConsent({ allowTokenLogin }: { allowTokenLogin: boolean }) {
+  const { gate } = useApprover(allowTokenLogin)
+  const [code, setCode] = useState("")
   const [request, setRequest] = useState<DeviceRequest | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -234,7 +287,7 @@ export function DeviceConsent({ initialCode, allowTokenLogin }: { initialCode: s
           <CardHeader>
             <CardTitle className="text-base">Connect a device</CardTitle>
             <CardDescription>
-              Enter the code <code>pursuit auth login --device</code> printed.
+              Type the code that <code>pursuit auth login --device</code> printed in your own terminal.
             </CardDescription>
           </CardHeader>
           <CardContent className="pt-0">
@@ -252,11 +305,7 @@ export function DeviceConsent({ initialCode, allowTokenLogin }: { initialCode: s
                   onChange={(event) => setCode(event.target.value)}
                 />
               </div>
-              {error && (
-                <p role="alert" className="text-sm text-destructive">
-                  {error}
-                </p>
-              )}
+              <ErrorLine error={error} />
               <Button type="submit" disabled={busy || code.trim() === ""}>
                 Continue
               </Button>
@@ -268,24 +317,14 @@ export function DeviceConsent({ initialCode, allowTokenLogin }: { initialCode: s
           <CardHeader>
             <CardTitle className="text-base">Approve device {request.user_code}?</CardTitle>
             <CardDescription>
-              Only approve if the code matches the one in your terminal. The CLI gets a token with:
+              <code>{request.client_id}</code> asked for this login {ago(request.created_at)}. Only approve if you
+              started it just now and the code matches your terminal. The CLI gets a token with:
             </CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col gap-4 pt-0">
             <ScopeList scopes={request.scopes} />
-            {error && (
-              <p role="alert" className="text-sm text-destructive">
-                {error}
-              </p>
-            )}
-            <div className="flex gap-2">
-              <Button variant="outline" className="flex-1" disabled={busy} onClick={() => void decide(false)}>
-                Deny
-              </Button>
-              <Button className="flex-1" disabled={busy} onClick={() => void decide(true)}>
-                Approve
-              </Button>
-            </div>
+            <ErrorLine error={error} />
+            <Decide busy={busy} onDecide={(approve) => void decide(approve)} />
           </CardContent>
         </Card>
       )}

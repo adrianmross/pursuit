@@ -1,18 +1,8 @@
 "use client"
 
-import { Suspense } from "react"
-import { useSearchParams } from "next/navigation"
 import { DeviceConsent } from "@/components/CliLogin"
 
-function WithParams({ allowTokenLogin }: { allowTokenLogin: boolean }) {
-  const code = useSearchParams().get("user_code") || ""
-  return <DeviceConsent initialCode={code} allowTokenLogin={allowTokenLogin} />
-}
-
+// No query parameters: the code is typed, never taken from the link.
 export function DevicePage({ allowTokenLogin }: { allowTokenLogin: boolean }) {
-  return (
-    <Suspense>
-      <WithParams allowTokenLogin={allowTokenLogin} />
-    </Suspense>
-  )
+  return <DeviceConsent allowTokenLogin={allowTokenLogin} />
 }
