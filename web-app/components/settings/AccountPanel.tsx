@@ -5,6 +5,9 @@ import { useAuth } from "@/lib/auth"
 import { authClient } from "@/lib/betterauth"
 import { api } from "@/lib/api-client"
 import { UserAvatar, avatarDataURL, displayName } from "@/components/UserAvatar"
+import { ButtonGroup } from "@/components/ui/button-group"
+import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
+import { Item, ItemActions, ItemContent, ItemDescription, ItemMedia, ItemTitle } from "@/components/ui/item"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -40,28 +43,35 @@ function ProfileForm() {
       }}
       className="flex flex-col gap-3"
     >
-      <div className="flex items-center gap-3">
-        <UserAvatar me={me} size="lg" />
-        <Button type="button" variant="outline" size="sm" asChild>
-          <label>
-            Upload photo
-            <input type="file" accept="image/*" className="sr-only" onChange={(e) => void pick(e.target.files?.[0])} />
-          </label>
-        </Button>
-        {me?.user?.avatar && (
-          <Button type="button" variant="ghost" size="sm" onClick={() => void patch({ avatar: "" })}>
-            Remove
-          </Button>
-        )}
-      </div>
-      <div className="flex flex-col gap-2">
-        <Label>Email</Label>
-        <Input value={me?.user?.email || ""} disabled />
-      </div>
-      <div className="flex flex-col gap-2">
-        <Label htmlFor="acct-name">Display name</Label>
+      <Item variant="outline">
+        <ItemMedia>
+          <UserAvatar me={me} size="lg" />
+        </ItemMedia>
+        <ItemContent>
+          <ItemTitle>{displayName(me)}</ItemTitle>
+          <ItemDescription>{me?.user?.email}</ItemDescription>
+        </ItemContent>
+        <ItemActions>
+          <ButtonGroup>
+            <Button type="button" variant="outline" size="sm" asChild>
+              <label>
+                {me?.user?.avatar ? "Change photo" : "Upload photo"}
+                <input type="file" accept="image/*" className="sr-only" onChange={(e) => void pick(e.target.files?.[0])} />
+              </label>
+            </Button>
+            {me?.user?.avatar && (
+              <Button type="button" variant="outline" size="sm" onClick={() => void patch({ avatar: "" })}>
+                Remove
+              </Button>
+            )}
+          </ButtonGroup>
+        </ItemActions>
+      </Item>
+      <Field>
+        <FieldLabel htmlFor="acct-name">Display name</FieldLabel>
         <Input id="acct-name" value={name} onChange={(e) => setName(e.target.value)} />
-      </div>
+        <FieldDescription>Shown in the header and recorded on events and the audit log. Your email is your sign-in and can&apos;t be changed here.</FieldDescription>
+      </Field>
       <Msg {...msg} />
       <Button type="submit" disabled={!name.trim()} className="self-start">
         Save

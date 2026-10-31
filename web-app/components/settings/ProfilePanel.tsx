@@ -2,17 +2,22 @@
 
 import { useEffect, useState, type FormEvent } from "react"
 import { usePathname } from "next/navigation"
-import { Download, Trash2, X } from "lucide-react"
-import { api, apiHeaders, apiUrl } from "@/lib/api-client"
+import { Bot, Check, ChevronDown, Copy, Eye, Plus, Sparkles, Trash2, X } from "lucide-react"
+import { api } from "@/lib/api-client"
 import { useAuth } from "@/lib/auth"
+import { cn } from "@/lib/utils"
 import type { Document, Page, StandingAnswer } from "@/lib/types"
+import { Alert, AlertAction, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { CommandBlock } from "@/components/CommandBlock"
-import { Field, FieldDescription, FieldGroup, FieldLabel, FieldLegend, FieldSet } from "@/components/ui/field"
+import { ButtonGroup } from "@/components/ui/button-group"
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
+import { FileDrop } from "@/components/FileDrop"
+import { FileIcon, FilePreview, isTextType } from "@/components/FilePreview"
+import { Field, FieldDescription, FieldGroup, FieldLabel, FieldLegend, FieldSeparator, FieldSet } from "@/components/ui/field"
+import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput, InputGroupTextarea } from "@/components/ui/input-group"
+import { Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemMedia, ItemTitle } from "@/components/ui/item"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
-import { Textarea } from "@/components/ui/textarea"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 // The keys prepare matches by alias (service.matchStanding). Any other key
 // only fills a form question whose normalized wording equals it.
@@ -37,107 +42,76 @@ const GROUPS: Record<string, [key: string, label: string, kind?: Kind][]> = {
 
 const KINDS: Record<string, string> = { base_resume: "Base résumé", cover_letter: "Cover letter", other: "Other" }
 
-function useStanding() {
-  const [rows, setRows] = useState<StandingAnswer[] | null>(null)
-  const load = () => api<Page<StandingAnswer>>("/v1/standing").then((p) => setRows(p.data || []))
+function Status({ ok, text }: { ok: boolean; text: string }) {
+  return text ? <p className={cn("text-sm", ok ? "text-emerald-600 dark:text-emerald-400" : "text-destructive")}>{text}</p> : null
+}
+
+function useList<T>(path: string) {
+  const [rows, setRows] = useState<T[] | null>(null)
+  const load = () => api<Page<T>>(path).then((p) => setRows(p.data || []))
   useEffect(() => {
     void load()
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- path is a constant per caller
   }, [])
   return { rows, load }
 }
 
-function useDocuments() {
-  const [docs, setDocs] = useState<Document[] | null>(null)
-  const load = () => api<Page<Document>>("/v1/documents").then((p) => setDocs(p.data || []))
-  useEffect(() => {
-    void load()
-  }, [])
-  return { docs, load }
-}
-
 function Documents() {
-  const { docs, load } = useDocuments()
-  const [kind, setKind] = useState("base_resume")
-  const [msg, setMsg] = useState("")
-
-  async function upload(file?: File) {
-    if (!file) return
-    const form = new FormData()
-    form.set("kind", kind)
-    form.set("file", file)
-    const res = await fetch(apiUrl("/v1/documents"), { method: "POST", headers: apiHeaders(), body: form })
-    if (!res.ok) {
-      const body = await res.json().catch(() => null)
-      return setMsg(body?.error?.message || "Upload failed")
-    }
-    setMsg("")
-    await load()
-  }
-
-  async function open(id: string) {
-    const d = await api<Document & { body: string }>("/v1/documents/" + id)
-    const text = d.content_type?.startsWith("text/") || d.content_type?.includes("json")
-    const bytes = text ? new TextEncoder().encode(d.body) : Uint8Array.from(atob(d.body), (c) => c.charCodeAt(0))
-    const url = URL.createObjectURL(new Blob([bytes], { type: d.content_type }))
-    const a = Object.assign(document.createElement("a"), { href: url, download: d.filename || "document" })
-    a.click()
-    URL.revokeObjectURL(url)
-  }
+  const { rows: docs, load } = useList<Document>("/v1/documents")
 
   async function remove(id: string) {
     await api("/v1/documents/" + id, { method: "DELETE" })
     await load()
   }
 
+  // Prepare attaches the newest base résumé; flag which one that is.
+  const active = docs?.find((d) => d.kind === "base_resume")?.id
+
   return (
-    <section className="flex flex-col gap-3">
-      <div>
-        <h3 className="text-sm font-medium">Documents</h3>
-        <p className="text-sm text-muted-foreground">
-          The newest base résumé is attached to every application you prepare. Agents can add tailored versions to a
-          single application, which show up on that application.
-        </p>
-      </div>
-      <div className="flex items-center gap-2">
-        <Select value={kind} onValueChange={setKind}>
-          <SelectTrigger className="w-40" aria-label="Document kind">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {Object.entries(KINDS).map(([k, label]) => (
-              <SelectItem key={k} value={k}>
-                {label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Button variant="outline" asChild>
-          <label>
-            Upload file
-            <input type="file" accept=".pdf,.doc,.docx,.txt,.md" className="sr-only" onChange={(e) => void upload(e.target.files?.[0])} />
-          </label>
-        </Button>
-      </div>
-      {msg && <p className="text-sm text-destructive">{msg}</p>}
-      {docs?.length ? (
-        <ul className="flex flex-col divide-y rounded-md border">
+    <FieldSet>
+      <FieldLegend>Documents</FieldLegend>
+      <FieldDescription>
+        The newest base résumé is attached to every application you prepare. Tailored versions for one application go
+        on that application.
+      </FieldDescription>
+      <FileDrop
+        path="/v1/documents"
+        kinds={KINDS}
+        description={'PDF, Word, Markdown, or text, up to 5MB. A LinkedIn "Save to PDF" export works too.'}
+        onUploaded={() => void load()}
+      />
+      {!!docs?.length && (
+        <ItemGroup className="gap-2">
           {docs.map((d) => (
-            <li key={d.id} className="flex items-center gap-2 px-3 py-2 text-sm">
-              <span className="min-w-0 flex-1 truncate">{d.filename || d.id}</span>
-              <span className="text-xs text-muted-foreground">{KINDS[d.kind] || d.kind}</span>
-              <Button size="icon-sm" variant="ghost" aria-label={`Download ${d.filename}`} onClick={() => void open(d.id)}>
-                <Download />
-              </Button>
-              <Button size="icon-sm" variant="ghost" aria-label={`Delete ${d.filename}`} onClick={() => void remove(d.id)}>
-                <Trash2 />
-              </Button>
-            </li>
+            <Item key={d.id} variant="outline" size="sm">
+              <ItemMedia variant="icon">
+                <FileIcon type={d.content_type} name={d.filename} />
+              </ItemMedia>
+              <ItemContent>
+                <ItemTitle>
+                  {d.filename || d.id}
+                  {d.id === active && <Badge variant="secondary">Used by prepare</Badge>}
+                </ItemTitle>
+                <ItemDescription>
+                  {KINDS[d.kind] || d.kind}
+                  {d.created_at && " · " + new Date(d.created_at).toLocaleDateString()}
+                </ItemDescription>
+              </ItemContent>
+              <ItemActions>
+                <FilePreview path={"/v1/documents/" + d.id} base64={(f) => !isTextType(f.content_type)} title={d.filename || "Document"} description={KINDS[d.kind]}>
+                  <Button size="icon-sm" variant="ghost" aria-label={`Preview ${d.filename}`}>
+                    <Eye />
+                  </Button>
+                </FilePreview>
+                <Button size="icon-sm" variant="ghost" aria-label={`Delete ${d.filename}`} onClick={() => void remove(d.id)}>
+                  <Trash2 />
+                </Button>
+              </ItemActions>
+            </Item>
           ))}
-        </ul>
-      ) : (
-        docs && <p className="text-sm text-muted-foreground">No documents yet. Start with your résumé.</p>
+        </ItemGroup>
       )}
-    </section>
+    </FieldSet>
   )
 }
 
@@ -151,18 +125,81 @@ const AGENT_PROMPT = `Fill in my Pursuit profile from my résumé.
 5. Draft a short default cover letter (4-6 sentences, no buzzwords) from my most recent role, show it to me, and save it as cover_letter once I approve.
 6. Finish with \`pursuit list --status needs_input --fields id,company,title\` and ask me the unanswered questions on those applications, saving each answer with the question's wording as the key.`
 
-type Draft = Record<string, string>
+// "open" (default, so a first visit sees the prompt), "closed", or "hidden".
+const PROMPT_STATE = "pursuit.agent-prompt"
 
-function DeleteAnswer({ k, onDelete }: { k: string; onDelete: (k: string) => void }) {
+function readPref(key: string) {
+  try {
+    return localStorage.getItem(key)
+  } catch {
+    return null
+  }
+}
+
+function writePref(key: string, value: string) {
+  try {
+    localStorage.setItem(key, value)
+  } catch {}
+}
+
+function AgentPrompt() {
+  const [state, setState] = useState(() => (typeof window === "undefined" ? "open" : readPref(PROMPT_STATE) || "open"))
+  const [copied, setCopied] = useState(false)
+  const update = (next: string) => {
+    setState(next)
+    writePref(PROMPT_STATE, next)
+  }
+  async function copy() {
+    await navigator.clipboard.writeText(AGENT_PROMPT)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 1500)
+  }
+
+  if (state === "hidden")
+    return (
+      <Button variant="link" size="sm" className="self-start px-0 text-muted-foreground" onClick={() => update("open")}>
+        <Bot /> Show the agent prompt
+      </Button>
+    )
+
+  const open = state === "open"
   return (
-    <Button type="button" size="icon-sm" variant="ghost" aria-label={`Delete saved answer for ${k}`} onClick={() => onDelete(k)}>
-      <Trash2 />
-    </Button>
+    <Collapsible open={open} onOpenChange={(o) => update(o ? "open" : "closed")} asChild>
+      <Item variant="muted" className="flex-wrap">
+        <ItemMedia variant="icon">
+          <Bot />
+        </ItemMedia>
+        <ItemContent>
+          <ItemTitle>Fill this in with an agent</ItemTitle>
+          <ItemDescription>
+            Upload your résumé, then paste this prompt into an agent that has the <code>pursuit</code> CLI and a write token.
+          </ItemDescription>
+        </ItemContent>
+        <ItemActions>
+          <Button size="sm" variant="outline" onClick={() => void copy()}>
+            {copied ? <Check /> : <Copy />} {copied ? "Copied" : "Copy prompt"}
+          </Button>
+          <CollapsibleTrigger asChild>
+            <Button size="icon-sm" variant="ghost" aria-label={open ? "Collapse prompt" : "Expand prompt"}>
+              <ChevronDown className={cn("transition-transform", open && "rotate-180")} />
+            </Button>
+          </CollapsibleTrigger>
+          <Button size="icon-sm" variant="ghost" aria-label="Dismiss agent prompt" onClick={() => update("hidden")}>
+            <X />
+          </Button>
+        </ItemActions>
+        <CollapsibleContent className="basis-full">
+          <pre className="mt-1 max-h-64 overflow-auto rounded-md bg-background p-3 font-mono text-xs whitespace-pre-wrap">{AGENT_PROMPT}</pre>
+        </CollapsibleContent>
+      </Item>
+    </Collapsible>
   )
 }
 
+type Draft = Record<string, string>
+
 function Answers() {
-  const { rows, load } = useStanding()
+  const { rows, load } = useList<StandingAnswer>("/v1/standing")
   const [draft, setDraft] = useState<Draft>({})
   const [custom, setCustom] = useState({ key: "", answer: "" })
   const [msg, setMsg] = useState({ ok: true, text: "" })
@@ -200,79 +237,97 @@ function Answers() {
     }
   }
 
-  const text = (k: string, label: string, kind?: Kind) => (
-    <Field key={k}>
-      <FieldLabel htmlFor={"standing-" + k}>{label}</FieldLabel>
-      {kind === "yesno" ? (
-        <div className="flex items-center gap-2">
-          <RadioGroup value={value(k)} onValueChange={set(k)} className="flex w-auto gap-4" aria-label={label}>
-            {["Yes", "No"].map((opt) => (
-              <Field key={opt} orientation="horizontal" className="w-auto">
-                <RadioGroupItem id={`standing-${k}-${opt}`} value={opt} />
-                <FieldLabel htmlFor={`standing-${k}-${opt}`} className="font-normal">
-                  {opt}
-                </FieldLabel>
-              </Field>
-            ))}
-          </RadioGroup>
-          {k in saved && <DeleteAnswer k={k} onDelete={remove} />}
-        </div>
-      ) : (
-        <div className="flex items-start gap-2">
+  const clear = (k: string, align: "inline-end" | "block-end" = "inline-end") =>
+    k in saved && (
+      <InputGroupAddon align={align}>
+        <InputGroupButton size="icon-xs" aria-label={`Delete saved answer for ${k}`} onClick={() => void remove(k)}>
+          <Trash2 />
+        </InputGroupButton>
+      </InputGroupAddon>
+    )
+
+  const field = (k: string, label: string, kind?: Kind) => {
+    const id = "standing-" + k
+    if (kind === "yesno")
+      return (
+        <Field key={k}>
+          <FieldLabel htmlFor={id + "-Yes"}>{label}</FieldLabel>
+          <div className="flex items-center gap-3">
+            <RadioGroup value={value(k)} onValueChange={set(k)} className="flex w-auto gap-4" aria-label={label}>
+              {["Yes", "No"].map((opt) => (
+                <Field key={opt} orientation="horizontal" className="w-auto">
+                  <RadioGroupItem id={`${id}-${opt}`} value={opt} />
+                  <FieldLabel htmlFor={`${id}-${opt}`} className="font-normal">
+                    {opt}
+                  </FieldLabel>
+                </Field>
+              ))}
+            </RadioGroup>
+            {k in saved && (
+              <Button type="button" size="icon-xs" variant="ghost" aria-label={`Delete saved answer for ${k}`} onClick={() => void remove(k)}>
+                <Trash2 />
+              </Button>
+            )}
+          </div>
+        </Field>
+      )
+    return (
+      <Field key={k}>
+        <FieldLabel htmlFor={id}>{label}</FieldLabel>
+        <InputGroup>
           {kind === "long" ? (
-            <Textarea id={"standing-" + k} rows={6} value={value(k)} onChange={(e) => set(k)(e.target.value)} />
+            <InputGroupTextarea id={id} rows={6} value={value(k)} onChange={(e) => set(k)(e.target.value)} />
           ) : (
-            <Input id={"standing-" + k} type={kind === "url" ? "url" : kind === "email" ? "email" : "text"} value={value(k)} onChange={(e) => set(k)(e.target.value)} />
+            <InputGroupInput id={id} type={kind === "url" ? "url" : kind === "email" ? "email" : "text"} value={value(k)} onChange={(e) => set(k)(e.target.value)} />
           )}
-          {k in saved && <DeleteAnswer k={k} onDelete={remove} />}
-        </div>
-      )}
-    </Field>
-  )
+          {clear(k, kind === "long" ? "block-end" : "inline-end")}
+        </InputGroup>
+      </Field>
+    )
+  }
 
   return (
-    <form onSubmit={save} className="flex flex-col gap-6">
-      <div>
-        <h3 className="text-sm font-medium">Standing answers</h3>
-        <p className="text-sm text-muted-foreground">
-          Prepare fills application forms from these. Answers you give to unanswered questions on an application show
-          up under Other answers.
-        </p>
-      </div>
-      {Object.entries(GROUPS).map(([legend, fields]) => (
-        <FieldSet key={legend}>
-          <FieldLegend>{legend}</FieldLegend>
-          <FieldGroup className={fields.length > 2 ? "grid gap-4 sm:grid-cols-2" : undefined}>{fields.map(([k, label, kind]) => text(k, label, kind))}</FieldGroup>
+    <form onSubmit={save}>
+      <FieldGroup>
+        <FieldSet>
+          <FieldLegend>Standing answers</FieldLegend>
+          <FieldDescription>Prepare fills application forms from these.</FieldDescription>
         </FieldSet>
-      ))}
-      <FieldSet>
-        <FieldLegend>Other answers</FieldLegend>
-        <FieldDescription>Each one fills a form question with the same wording, such as &quot;Why do you want to work here?&quot;</FieldDescription>
-        <FieldGroup>
-          {others.map((r) => text(r.key, r.key.replaceAll("_", " "), r.answer.length > 120 ? "long" : undefined))}
-          <Field orientation="horizontal">
-            <Input aria-label="New question" placeholder="Question" value={custom.key} onChange={(e) => setCustom({ ...custom, key: e.target.value })} />
-            <Input aria-label="Answer" placeholder="Answer" value={custom.answer} onChange={(e) => setCustom({ ...custom, answer: e.target.value })} />
-          </Field>
-        </FieldGroup>
-      </FieldSet>
-      {msg.text && <p className={"text-sm " + (msg.ok ? "text-emerald-600 dark:text-emerald-400" : "text-destructive")}>{msg.text}</p>}
-      <Button type="submit" className="self-start">
-        Save answers
-      </Button>
+        {Object.entries(GROUPS).map(([legend, fields]) => (
+          <FieldSet key={legend}>
+            <FieldLegend variant="label">{legend}</FieldLegend>
+            <FieldGroup className={fields.length > 2 ? "grid gap-4 sm:grid-cols-2" : undefined}>
+              {fields.map(([k, label, kind]) => field(k, label, kind))}
+            </FieldGroup>
+          </FieldSet>
+        ))}
+        <FieldSeparator />
+        <FieldSet>
+          <FieldLegend variant="label">Other answers</FieldLegend>
+          <FieldDescription>
+            Each fills a form question with the same wording. Answers you give on an application land here.
+          </FieldDescription>
+          <FieldGroup>
+            {others.map((r) => field(r.key, r.key.replaceAll("_", " "), r.answer.length > 120 ? "long" : undefined))}
+            <ButtonGroup className="w-full">
+              <InputGroup className="flex-1">
+                <InputGroupInput aria-label="New question" placeholder="Question" value={custom.key} onChange={(e) => setCustom({ ...custom, key: e.target.value })} />
+              </InputGroup>
+              <InputGroup className="flex-[2]">
+                <InputGroupInput aria-label="Answer" placeholder="Answer" value={custom.answer} onChange={(e) => setCustom({ ...custom, answer: e.target.value })} />
+              </InputGroup>
+              <Button type="submit" variant="outline" aria-label="Add answer" disabled={!custom.key.trim() || !custom.answer.trim()}>
+                <Plus />
+              </Button>
+            </ButtonGroup>
+          </FieldGroup>
+        </FieldSet>
+        <Field orientation="horizontal">
+          <Button type="submit">Save answers</Button>
+          <Status {...msg} />
+        </Field>
+      </FieldGroup>
     </form>
-  )
-}
-
-function AgentPrompt() {
-  return (
-    <section className="flex flex-col gap-2">
-      <h3 className="text-sm font-medium">Fill this in with an agent</h3>
-      <p className="text-sm text-muted-foreground">
-        Upload your résumé above, then paste this into an agent that has the <code>pursuit</code> CLI and a write token.
-      </p>
-      <CommandBlock command={AGENT_PROMPT} wrap />
-    </section>
   )
 }
 
@@ -319,14 +374,18 @@ export function ProfileNudge({ onOpen }: { onOpen: () => void }) {
   }
 
   return (
-    <div className="mx-auto mb-4 flex max-w-5xl items-center gap-3 rounded-lg border bg-muted/40 px-4 py-3 text-sm">
-      <p className="flex-1">Add {missing.join(" and ")} so prepared applications fill themselves in.</p>
-      <Button size="sm" onClick={onOpen}>
-        Set up profile
-      </Button>
-      <Button size="icon-sm" variant="ghost" aria-label="Dismiss" onClick={dismiss}>
-        <X />
-      </Button>
-    </div>
+    <Alert className="mx-auto mb-4 max-w-5xl">
+      <Sparkles />
+      <AlertTitle>Finish your profile</AlertTitle>
+      <AlertDescription>Add {missing.join(" and ")} so prepared applications fill themselves in.</AlertDescription>
+      <AlertAction className="flex items-center gap-1">
+        <Button size="sm" onClick={onOpen}>
+          Set up
+        </Button>
+        <Button size="icon-sm" variant="ghost" aria-label="Dismiss" onClick={dismiss}>
+          <X />
+        </Button>
+      </AlertAction>
+    </Alert>
   )
 }

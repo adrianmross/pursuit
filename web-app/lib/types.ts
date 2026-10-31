@@ -75,6 +75,7 @@ export type Artifact = {
   kind?: string
   content_type?: string
   body?: string
+  created_at?: string
 }
 
 export type Event = {
