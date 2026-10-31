@@ -39,6 +39,10 @@ type Config struct {
 	// in) or "multi" (anyone with a verified email from a configured
 	// OIDC provider gets their own tenant).
 	TenantMode       string `json:"tenant_mode,omitempty"`
+	// FaviconService is "on" or "off": whether company icons may fall back to
+	// Google's favicon service. Empty means on in multi-tenant mode, off otherwise.
+	// Users can override it in Settings.
+	FaviconService string `json:"favicon_service,omitempty"`
 	SessionSecret    string `json:"-"`
 	OIDCGoogleID     string `json:"-"`
 	OIDCGoogleSecret string `json:"-"`
@@ -185,6 +189,7 @@ func applyEnv(cfg *Config) {
 	if v := strings.ToLower(strings.TrimSpace(os.Getenv("PURSUIT_TENANT_MODE"))); v != "" {
 		cfg.TenantMode = v
 	}
+	set(&cfg.FaviconService, "PURSUIT_FAVICON_SERVICE")
 	set(&cfg.SessionSecret, "PURSUIT_SESSION_SECRET")
 	set(&cfg.OIDCGoogleID, "PURSUIT_OIDC_GOOGLE_CLIENT_ID")
 	set(&cfg.OIDCGoogleSecret, "PURSUIT_OIDC_GOOGLE_CLIENT_SECRET")

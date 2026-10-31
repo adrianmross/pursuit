@@ -391,6 +391,7 @@ func (s *Service) Me(ctx context.Context) (domain.Me, error) {
 type CompanyInput struct {
 	Name    string `json:"name"`
 	Website string `json:"website"`
+	IconURL string `json:"icon_url"`
 	Notes   string `json:"notes"`
 }
 
@@ -398,6 +399,7 @@ type CompanyPatch struct {
 	Version int     `json:"version"`
 	Name    *string `json:"name"`
 	Website *string `json:"website"`
+	IconURL *string `json:"icon_url"`
 	Notes   *string `json:"notes"`
 }
 
@@ -408,6 +410,9 @@ func (s *Service) CreateCompany(ctx context.Context, in CompanyInput) (domain.Co
 	}
 	c, err := s.newCompany(a, in.Name, in.Website, in.Notes)
 	if err != nil {
+		return domain.Company{}, err
+	}
+	if c.IconURL, err = domain.ParseURL(in.IconURL); err != nil {
 		return domain.Company{}, err
 	}
 	if existing, err := s.DB.GetCompanyByName(ctx, a.UserID, c.Name); err == nil {
@@ -493,6 +498,14 @@ func (s *Service) UpdateCompany(ctx context.Context, id string, p CompanyPatch) 
 				return err
 			}
 			next.Website = w
+			changed = true
+		}
+		if p.IconURL != nil && *p.IconURL != cur.IconURL {
+			u, err := domain.ParseURL(*p.IconURL)
+			if err != nil {
+				return err
+			}
+			next.IconURL = u
 			changed = true
 		}
 		if p.Notes != nil && *p.Notes != cur.Notes {

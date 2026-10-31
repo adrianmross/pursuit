@@ -39,7 +39,7 @@ export type TextSize = "small" | "default" | "large"
 
 const SIZES: Record<TextSize, string> = { small: "14px", default: "16px", large: "18px" }
 
-const DEFAULTS = { density: "comfortable", accent: "neutral", textSize: "default", motion: "full", stripes: "off", searchSyntax: "on" }
+const DEFAULTS = { density: "comfortable", accent: "neutral", textSize: "default", motion: "full", stripes: "off", searchSyntax: "on", faviconService: "default" }
 type Pref = keyof typeof DEFAULTS
 
 function read(key: Pref) {

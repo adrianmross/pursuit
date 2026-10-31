@@ -368,4 +368,9 @@ var migrations = []migration{{
 		)`,
 		`CREATE INDEX IF NOT EXISTS interviews_app_idx ON interviews(application_id, created_at, id)`,
 	},
+}, {
+	version: "007",
+	stmts: []string{
+		`ALTER TABLE companies ADD COLUMN icon_url TEXT NOT NULL DEFAULT ''`,
+	},
 }}
