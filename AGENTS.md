@@ -1,6 +1,6 @@
 # Pursuit for agents
 
-Use the `pursuit` CLI. Do not look for an MCP server. Discover one command with `pursuit schema <command>` or `--help --json`. HTTP shapes are `GET /openapi.json` and [llms.txt](llms.txt).
+Use the `pursuit` CLI. Do not look for an MCP server. Discover one command with `pursuit schema <command>` or `--help --json`. HTTP shapes are `GET /openapi.json` and [internal/spec/llms.txt](internal/spec/llms.txt), served at `GET /llms.txt`.
 
 ```bash
 export PURSUIT_SERVER=http://127.0.0.1:8787

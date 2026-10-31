@@ -8,6 +8,8 @@ import (
 	"github.com/pursuit/pursuit/skills"
 )
 
+// LLMS is the agent guide served at /llms.txt. The root llms.txt points here.
+//
 //go:embed llms.txt
 var LLMS []byte
 
