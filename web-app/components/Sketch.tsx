@@ -131,23 +131,30 @@ export function SnakeEyes({ className, roughness = 2 }: { className?: string; ro
 }
 
 // Every outcome is a die whose face is its number key in the status chooser
-// (1 waiting ... 6 withdrawn), so the die doubles as the shortcut hint.
-// Withdrawn's die lies tipped over.
+// (1 waiting ... 6 withdrawn), so the die doubles as the shortcut hint. These
+// are interface icons, not the error pages' sketches: a clean line on the
+// brand's 24px grid at 1.5px, with only a slight lean so they still read as
+// thrown dice.
 const OUTCOME_DICE: Record<string, { pips: number; tilt: number }> = {
-  waiting: { pips: 1, tilt: -8 },
-  needs_input: { pips: 2, tilt: 6 },
+  waiting: { pips: 1, tilt: -6 },
+  needs_input: { pips: 2, tilt: 5 },
   failed: { pips: 3, tilt: -4 },
-  rejected: { pips: 4, tilt: -14 },
-  ghosted: { pips: 5, tilt: 10 },
-  withdrawn: { pips: 6, tilt: 90 },
+  rejected: { pips: 4, tilt: 6 },
+  ghosted: { pips: 5, tilt: -5 },
+  withdrawn: { pips: 6, tilt: 4 },
 }
 
 export function OutcomePiece({ status, className }: { status: string; className?: string }) {
   const die = OUTCOME_DICE[status] ?? { pips: 1, tilt: 0 }
   return (
-    <Sketch viewBox="-16 -16 32 32" roughness={2} className={className}>
-      <Die x={0} y={0} size={22} tilt={die.tilt} pips={die.pips} />
-    </Sketch>
+    <svg viewBox="0 0 24 24" fill="none" aria-hidden className={className}>
+      <g transform={`rotate(${die.tilt} 12 12)`}>
+        <rect x="4" y="4" width="16" height="16" rx="3.5" className="fill-background" stroke="currentColor" strokeWidth="1.5" />
+        {PIPS[die.pips].map(([px, py]) => (
+          <circle key={`${px},${py}`} cx={12 + px * 4} cy={12 + py * 4} r="1.4" fill="currentColor" />
+        ))}
+      </g>
+    </svg>
   )
 }
 
