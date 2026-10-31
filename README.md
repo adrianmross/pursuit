@@ -165,6 +165,10 @@ Columns: `id`, `company`, `role`, `location`, `salary`, `fit`, `status`, `applie
 
 Without `--database-url`, `pursuit import csv` still posts the file to `PURSUIT_SERVER` and needs a write token. If the database has no token yet, the JSON from `--database-url` includes `bootstrap_token` once. Set `PURSUIT_BOOTSTRAP_TOKEN` first when you want to choose that secret.
 
+### Preview database
+
+Preview deployments should not hold a raw copy of production. Build their database as a Neon anonymized branch of production instead: `python3 scripts/preview-masking-rules.py <production-branch-id> > body.json`, then `POST` it to `/api/v2/projects/<project-id>/branch_anonymized` and point the preview `DATABASE_URL` and `POSTGRES_URL` at the new branch. The rules replace names, emails, company names, URLs, notes, document bodies, token hashes, webhook secrets, and Neon Auth's signing key and provider settings with fake values. To refresh the data, create a new anonymized branch; re-running masking only re-masks the masked copy. A new column that holds personal data needs a rule here.
+
 ## Daemon
 
 `deploy/pursuit.service` is a systemd unit. `deploy/com.pursuit.plist` is a launchd agent. Both run `pursuit serve` with SQLite. `deploy/config.example.json` has no secrets.
