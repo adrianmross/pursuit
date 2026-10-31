@@ -6,8 +6,6 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "changeset": "changeset",
-    "changeset:version": "changeset version",
     "postbuild": "pagefind --site out --output-path out/_pagefind"
   },
   "dependencies": {
@@ -21,7 +19,6 @@
     "react-dom": "19.2.6"
   },
   "devDependencies": {
-    "@changesets/cli": "^2.27.0",
     "@types/node": "^22.0.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",

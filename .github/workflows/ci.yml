@@ -5,6 +5,29 @@ on:
   pull_request:
 
 jobs:
+  # A user-visible PR carries a .changelogs fragment, and its title is the
+  # release subject Release Please reads for the bump. Release Please's own PR
+  # consumes the fragments, so it is exempt.
+  changelog:
+    if: github.event_name == 'pull_request' && !startsWith(github.head_ref, 'release-please--')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: changelogger
+        uses: adrianmross/changelogger@v0.10.0
+      # Title and body go through env, never `args`: PR text is untrusted.
+      - env:
+          CHANGELOGGER: ${{ steps.changelogger.outputs.path }}
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin "+refs/heads/${BASE_REF}:refs/remotes/origin/${BASE_REF}"
+          "$CHANGELOGGER" check --base "origin/${BASE_REF}" --pr --pr-title "$PR_TITLE" --pr-body "$PR_BODY"
+
   go:
     runs-on: ubuntu-latest
     steps:
@@ -35,3 +58,19 @@ jobs:
       - run: npm install
       - run: npm test
       - run: npm run build
+
+  # Build only: the devenv OCI image is not pushed anywhere yet.
+  container:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: cachix/install-nix-action@v31
+      - uses: cachix/cachix-action@v16
+        with:
+          name: devenv
+      # Pinned to the devenv this config is tested with locally.
+      - run: nix profile install --accept-flake-config github:cachix/devenv/v2.3.1
+      # docker-compose.yml is generated from devenv.nix; fail if it drifted.
+      - run: devenv tasks run dev:compose && git diff --exit-code docker-compose.yml
+      - run: devenv shell -- make linux
+      - run: devenv container build serve
