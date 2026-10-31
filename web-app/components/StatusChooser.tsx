@@ -1,7 +1,7 @@
 "use client"
 
 import { useRef, useState, type ReactNode } from "react"
-import { ChevronRight, Plus, RotateCcw } from "lucide-react"
+import { ChevronLeft, ChevronRight, Plus } from "lucide-react"
 import { cn } from "@/lib/utils"
 import {
   label,
@@ -297,12 +297,18 @@ export function StatusChooser({
             : `Piece ${at} of 6`
 
   return (
-    <Popover open={open} onOpenChange={onOpenChange}>
+    <Popover
+      open={open}
+      onOpenChange={(next) => {
+        if (!next) setMore(false)
+        onOpenChange?.(next)
+      }}
+    >
       <PopoverTrigger asChild>{children}</PopoverTrigger>
       <PopoverContent
         ref={content}
         align={align}
-        className="w-[22rem] rounded-2xl p-3"
+        className="w-72 rounded-2xl p-3"
         onOpenAutoFocus={(e) => {
           e.preventDefault()
           content.current?.querySelector<HTMLElement>("[role=slider]")?.focus()
@@ -315,93 +321,101 @@ export function StatusChooser({
           if (to >= 0 && to <= 6) void set(stageTarget(app, stage, to))
         }}
       >
-        <div className="flex flex-col gap-3">
-          <div className="flex items-start justify-between">
-            {onAddRound ? (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="size-7 text-muted-foreground"
-                    aria-label={roundStage ? `Add a round to ${roundStage[1]}` : "Add a round"}
-                    disabled={!roundStage || adding || drag != null}
-                    onClick={addRound}
-                  >
-                    <Plus className="size-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>{roundStage ? `Add a round to ${roundStage[1]}` : "Rounds start at Prepared"}</TooltipContent>
-              </Tooltip>
-            ) : (
+        {more ? (
+          <div className="flex flex-col gap-3">
+            <div className="flex items-start justify-between">
+              <Button variant="ghost" size="icon" className="size-7 text-muted-foreground" aria-label="Back to stage" onClick={() => setMore(false)}>
+                <ChevronLeft className="size-4" />
+              </Button>
+              <div className="flex flex-col items-center">
+                <span className="font-heading text-lg leading-6 font-semibold">{outcome ? label(outcome) : "Outcome"}</span>
+                <span className="text-[13px] leading-[18px] text-muted-foreground">at {STAGE_STOPS[stage][1]}</span>
+              </div>
               <span className="size-7" />
-            )}
-            <StageHeading
-              stage={at}
-              outcome={drag == null ? outcome : undefined}
-              interviews={app.interviews}
-              title={label(status)}
-              gold={status === "offer"}
-              sub={
-                <button
-                  type="button"
-                  aria-expanded={more}
-                  onClick={() => setMore(!more)}
-                  className="flex items-center gap-0.5 rounded text-[13px] leading-[18px] text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
-                >
-                  {sub}
-                  <ChevronRight className={cn("size-3 transition-transform", more && "rotate-90")} />
-                </button>
-              }
-            />
-            {outcome ? (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="size-7 text-muted-foreground"
-                    aria-label={`Clear ${label(outcome)}`}
-                    disabled={!!pending}
-                    onClick={() => set(app.status)}
-                  >
-                    <RotateCcw className="size-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Clear {label(outcome)}</TooltipContent>
-              </Tooltip>
-            ) : (
-              <span className="size-7" />
-            )}
-          </div>
-          <StageSlider
-            stops={STAGE_STOPS}
-            value={settled}
-            label="Stage"
-            onDrag={setDrag}
-            onCommit={(to) => void set(stageTarget(app, stage, to))}
-          />
-          <div className="flex flex-wrap gap-1.5">
-            {OUTCOMES.map((s) => (
-              <OutcomeChip
-                key={s}
-                status={s}
-                pressed={outcome === s}
-                dim={!!outcome && outcome !== s}
-                onClick={() => set(outcome === s ? app.status : s)}
-              />
-            ))}
-          </div>
-          {more && (
+            </div>
+            <div className="grid grid-cols-2 gap-1.5">
+              {OUTCOMES.map((s) => (
+                <OutcomeChip
+                  key={s}
+                  status={s}
+                  die
+                  pressed={outcome === s}
+                  dim={!!outcome && outcome !== s}
+                  onClick={() => set(outcome === s ? app.status : s)}
+                />
+              ))}
+            </div>
             <div className="flex flex-col gap-1.5 border-t pt-3">
               <SectionLabel>Steps between</SectionLabel>
               <SubSteps current={current} onPick={(s) => set(s)} />
             </div>
-          )}
-          <p className="text-center text-[11px] text-muted-foreground">
-            Drag, or press <kbd className="font-mono">[</kbd> <kbd className="font-mono">]</kbd> to step
-          </p>
-        </div>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-3">
+            <div className="flex items-start justify-between">
+              {onAddRound ? (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="size-7 text-muted-foreground"
+                      aria-label={roundStage ? `Add a round to ${roundStage[1]}` : "Add a round"}
+                      disabled={!roundStage || adding || drag != null}
+                      onClick={addRound}
+                    >
+                      <Plus className="size-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>{roundStage ? `Add a round to ${roundStage[1]}` : "Rounds start at Prepared"}</TooltipContent>
+                </Tooltip>
+              ) : (
+                <span className="size-7" />
+              )}
+              <StageHeading
+                stage={at}
+                outcome={drag == null ? outcome : undefined}
+                interviews={app.interviews}
+                title={label(status)}
+                gold={status === "offer"}
+                sub={
+                  <button
+                    type="button"
+                    onClick={() => setMore(true)}
+                    className="flex items-center gap-0.5 rounded text-[13px] leading-[18px] text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    {sub}
+                    <ChevronRight className="size-3" />
+                  </button>
+                }
+              />
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="size-7 text-muted-foreground"
+                    aria-label="Outcomes and steps"
+                    onClick={() => setMore(true)}
+                  >
+                    <OutcomeDie
+                      status={outcome || "rejected"}
+                      className={cn("size-5", outcome ? (outcomeKind(outcome) === "hold" ? "text-amber-600 dark:text-amber-400" : "text-red-600 dark:text-red-400") : "")}
+                    />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Outcomes and steps</TooltipContent>
+              </Tooltip>
+            </div>
+            <StageSlider
+              stops={STAGE_STOPS}
+              value={settled}
+              label="Stage"
+              onDrag={setDrag}
+              onCommit={(to) => void set(stageTarget(app, stage, to))}
+            />
+          </div>
+        )}
       </PopoverContent>
     </Popover>
   )
