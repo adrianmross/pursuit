@@ -10,7 +10,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
-	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -21,6 +20,7 @@ import (
 	"github.com/pursuit/pursuit/internal/links"
 	"github.com/pursuit/pursuit/internal/service"
 	"github.com/pursuit/pursuit/internal/sqlstore"
+	"github.com/pursuit/pursuit/internal/sqlstore/sqlstoretest"
 )
 
 type env struct {
@@ -32,7 +32,7 @@ type env struct {
 
 func newEnv(t *testing.T) *env {
 	t.Helper()
-	db, err := sqlstore.Open(context.Background(), "sqlite://"+filepath.Join(t.TempDir(), "pursuit.db"))
+	db, err := sqlstore.Open(context.Background(), sqlstoretest.DSN(t))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -333,8 +333,7 @@ func TestAuthScopesDryRunIdempotencyAndCursors(t *testing.T) {
 }
 
 func TestTwoReplicasDoNotClobber(t *testing.T) {
-	dir := t.TempDir()
-	dsn := "sqlite://" + filepath.Join(dir, "shared.db")
+	dsn := sqlstoretest.DSN(t)
 	open := func() *env {
 		t.Helper()
 		db, err := sqlstore.Open(context.Background(), dsn)

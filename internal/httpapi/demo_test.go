@@ -7,17 +7,17 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
-	"path/filepath"
 	"testing"
 
 	"github.com/pursuit/pursuit/internal/domain"
 	"github.com/pursuit/pursuit/internal/service"
 	"github.com/pursuit/pursuit/internal/sqlstore"
+	"github.com/pursuit/pursuit/internal/sqlstore/sqlstoretest"
 )
 
 func newDemoEnv(t *testing.T) *httptest.Server {
 	t.Helper()
-	db, err := sqlstore.Open(context.Background(), "sqlite://"+filepath.Join(t.TempDir(), "pursuit.db"))
+	db, err := sqlstore.Open(context.Background(), sqlstoretest.DSN(t))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -75,7 +75,7 @@ func meViaToken(t *testing.T, srv *httptest.Server, token string) domain.Me {
 }
 
 func TestDemoModeDisabledHidesTheEndpoint(t *testing.T) {
-	db, err := sqlstore.Open(context.Background(), "sqlite://"+filepath.Join(t.TempDir(), "pursuit.db"))
+	db, err := sqlstore.Open(context.Background(), sqlstoretest.DSN(t))
 	if err != nil {
 		t.Fatal(err)
 	}
