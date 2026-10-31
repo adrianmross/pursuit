@@ -62,6 +62,9 @@ type Server struct {
 	// dashboard's connect-src so the browser's own client SDK can reach
 	// it directly (sign-up/sign-in, minting a JWT) alongside this origin.
 	BetterAuthOrigin string
+	// WebAnalytics allows Cloudflare Web Analytics' beacon in the dashboard's
+	// CSP. Set when the build embedded one (PURSUIT_CF_BEACON_TOKEN).
+	WebAnalytics bool
 	// HideTokenLogin removes the "paste an API token" option from the
 	// dashboard's sign-in page (production shouldn't invite visitors to
 	// type a raw secret there); the bearer-token API itself is unaffected
@@ -126,25 +129,37 @@ func (s *Server) signupsPaused(err error) error {
 // in multi-tenant mode. Falls back to Pursuit's own check otherwise, so
 // the usual "invalid token" error still comes from one place.
 func (s *Server) authenticate(ctx context.Context, raw string) (domain.Actor, error) {
-	if s.BetterAuth != nil && s.multiTenant() && !strings.HasPrefix(raw, "pst_") && strings.Count(raw, ".") == 2 {
-		identity, err := s.BetterAuth.Verify(ctx, raw)
+	if s.isBetterAuthJWT(raw) {
+		identity, err := s.verifyBetterAuth(ctx, raw)
 		if err != nil {
-			return domain.Actor{}, domain.Unauthorized()
-		}
-		// A JWT signature only proves the caller completed sign-up/sign-in
-		// with this email; it doesn't prove they own the inbox. Without
-		// that, anyone could type a stranger's email, "sign up", and be
-		// matched into that stranger's existing account. Require Better
-		// Auth's own email-verification claim before trusting it either
-		// way: the dashboard's "Create account" step will need Neon's
-		// email-verification plugin enabled before it can issue one.
-		if !identity.EmailVerified {
-			return domain.Actor{}, domain.Unauthorized()
+			return domain.Actor{}, err
 		}
 		actor, err := s.Svc.ResolveTenantUser(ctx, identity.Email, identity.Name, s.signupsOpen())
 		return actor, s.signupsPaused(err)
 	}
 	return s.Svc.Authenticate(ctx, raw)
+}
+
+func (s *Server) isBetterAuthJWT(raw string) bool {
+	return s.BetterAuth != nil && s.multiTenant() && !strings.HasPrefix(raw, "pst_") && strings.Count(raw, ".") == 2
+}
+
+func (s *Server) verifyBetterAuth(ctx context.Context, raw string) (betterauth.Identity, error) {
+	identity, err := s.BetterAuth.Verify(ctx, raw)
+	if err != nil {
+		return betterauth.Identity{}, domain.Unauthorized()
+	}
+	// A JWT signature only proves the caller completed sign-up/sign-in
+	// with this email; it doesn't prove they own the inbox. Without
+	// that, anyone could type a stranger's email, "sign up", and be
+	// matched into that stranger's existing account. Require Better
+	// Auth's own email-verification claim before trusting it either
+	// way: the dashboard's "Create account" step will need Neon's
+	// email-verification plugin enabled before it can issue one.
+	if !identity.EmailVerified {
+		return betterauth.Identity{}, domain.Unauthorized()
+	}
+	return identity, nil
 }
 
 func (s *Server) Handler() http.Handler {
@@ -591,7 +606,14 @@ func (s *Server) dashboard(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", contentType)
-	w.Header().Set("Cache-Control", "no-cache")
+	if strings.Contains(name, "_next/static/") {
+		// Content-hashed build output (dashboard and docs): a new build gets new
+		// names, so cache it for good. s-maxage lets the Vercel CDN keep it too,
+		// instead of every load re-running the function for every chunk.
+		w.Header().Set("Cache-Control", "public, max-age=31536000, s-maxage=31536000, immutable")
+	} else {
+		w.Header().Set("Cache-Control", "no-cache")
+	}
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	if strings.HasPrefix(contentType, "text/html") {
 		// style-src needs 'unsafe-inline': Radix positions popovers/menus with
@@ -605,6 +627,10 @@ func (s *Server) dashboard(w http.ResponseWriter, r *http.Request) {
 		// out a per-request nonce to allow just those, so 'unsafe-inline'
 		// it is for this embed.
 		scriptSrc := "'self' 'unsafe-inline'"
+		if s.WebAnalytics {
+			scriptSrc += " https://static.cloudflareinsights.com"
+			connectSrc += " https://cloudflareinsights.com"
+		}
 		w.Header().Set("Content-Security-Policy", "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src "+scriptSrc+"; connect-src "+connectSrc+"; img-src 'self' data: blob:; frame-src 'self' blob:; font-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'")
 		// Only the dashboard frames itself (blob: document previews); refusing
 		// other sites blocks clickjacking the /authorize and /device buttons.

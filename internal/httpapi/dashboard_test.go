@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"net/http"
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -21,6 +22,19 @@ func TestDashboardAssets(t *testing.T) {
 	}
 	if !strings.Contains(header.Get("Content-Security-Policy"), "script-src 'self' 'unsafe-inline'") {
 		t.Fatalf("csp %q", header.Get("Content-Security-Policy"))
+	}
+	if header.Get("Cache-Control") != "no-cache" {
+		t.Fatalf("index cache-control %q", header.Get("Cache-Control"))
+	}
+
+	// Hashed build output is cached for good; only the HTML revalidates.
+	chunk := regexp.MustCompile(`/_next/static/[^"]+\.js`).FindString(page)
+	if chunk == "" {
+		t.Fatalf("index references no _next/static chunk")
+	}
+	code, _, header = e.do(t, http.MethodGet, chunk, "", nil, nil)
+	if code != 200 || !strings.Contains(header.Get("Cache-Control"), "immutable") {
+		t.Fatalf("chunk %s: %d cache-control %q", chunk, code, header.Get("Cache-Control"))
 	}
 
 	// A path with no file of its own (every real route is its own
@@ -64,5 +78,27 @@ func TestDocsServedAndToggle(t *testing.T) {
 	e.api.NoDocs = true
 	if code, _, _ = e.do(t, http.MethodGet, "/docs/cli", "", nil, nil); code != 404 {
 		t.Fatalf("docs with NoDocs %d", code)
+	}
+}
+
+// /reference sends anyone signed out to sign in. That target has to be a
+// real dashboard route: it once pointed at /login, which is the 404 page.
+// Its Scalar bundle must name an exact version, or jsDelivr serves @latest.
+func TestReferencePage(t *testing.T) {
+	e := newEnv(t)
+	code, body, _ := e.do(t, http.MethodGet, "/reference", "", nil, nil)
+	if code != 200 {
+		t.Fatalf("reference %d", code)
+	}
+	page := string(body)
+	if !regexp.MustCompile(`@scalar/api-reference@\d+\.\d+\.\d+/[^"]+" integrity="sha384-`).MatchString(page) {
+		t.Fatalf("scalar script is not pinned to an exact version with SRI")
+	}
+	m := regexp.MustCompile(`location\.replace\("(/[^"?]*)\?next=`).FindStringSubmatch(page)
+	if m == nil {
+		t.Fatalf("reference page has no sign-in redirect")
+	}
+	if code, _, _ := e.do(t, http.MethodGet, m[1], "", nil, nil); code != 200 {
+		t.Fatalf("sign-in redirect %s answers %d", m[1], code)
 	}
 }

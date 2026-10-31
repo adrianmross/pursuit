@@ -60,19 +60,26 @@
         <a href="https://github.com/adrianmross/pursuit">GitHub</a>
       </nav>
     </footer>
-    <script src="https://cdn.jsdelivr.net/npm/@scalar/api-reference"></script>
+    <!-- Pinned with SRI: the bare package URL follows @latest, so a Scalar release could change this page without a deploy. -->
+    <script src="https://cdn.jsdelivr.net/npm/@scalar/api-reference@1.76.4/dist/browser/standalone.js" integrity="sha384-hwB9WroDTpZaI38gr+u9CXA6ksz5gUYgD2GxXazKl/agT1L2GWUiRFWGJYNiFu4Q" crossorigin="anonymous"></script>
     <script>
-      // The dashboard keeps its API token in localStorage, so a page load can't
-      // carry it as a header; the gate is therefore client-side. Anyone without
-      // a working session is sent to sign in and back. The same token is handed
-      // to Scalar so "Try it" calls this origin as the signed-in user.
+      // The gate is client-side: /v1/me answers from the dashboard's
+      // pursuit_session cookie (or a token an older build left in
+      // localStorage). Anyone without a working session, or whose check
+      // doesn't answer in time, is sent to sign in and back. A stored token
+      // is handed to Scalar so "Try it" calls this origin as that user;
+      // otherwise the cookie rides along on its same-origin requests.
       (async function () {
         var token = "";
         try { token = localStorage.getItem("pursuit.token") || ""; } catch (e) {}
         var headers = token ? { Authorization: "Bearer " + token } : {};
         var ok = false;
-        try { ok = (await fetch("/v1/me", { headers: headers })).ok; } catch (e) {}
-        if (!ok) { location.replace("/login?next=" + encodeURIComponent("/reference")); return; }
+        try { ok = (await fetch("/v1/me", { headers: headers, signal: AbortSignal.timeout(10000) })).ok; } catch (e) {}
+        if (!ok || typeof Scalar === "undefined") {
+          if (!ok) location.replace("/sign-in?next=" + encodeURIComponent("/reference"));
+          else document.getElementById("app").textContent = "The API reference viewer didn't load. The raw spec is at /openapi.json.";
+          return;
+        }
         Scalar.createApiReference("#app", {
           url: "/openapi.json",
           theme: "none",

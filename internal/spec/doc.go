@@ -8,6 +8,8 @@ import (
 	"github.com/pursuit/pursuit/skills"
 )
 
+// LLMS is the agent guide served at /llms.txt. The root llms.txt points here.
+//
 //go:embed llms.txt
 var LLMS []byte
 
@@ -111,14 +113,14 @@ func build() []byte {
 	})
 	add("/v1/oauth/authorize", "get", "validate a loopback request for the dashboard /authorize page without deciding it. query client_id, redirect_uri, code_challenge, code_challenge_method, state, scope (response_type is accepted and ignored). requires the approve scope. returns {client_id, scopes, redirect_uri} as the server normalized them; a scope other than read or write is 400 invalid_scope", false, nil)
 	add("/v1/oauth/authorize", "post", "loopback consent, called by the dashboard /authorize page that pursuit auth login opens. requires a signed-in human session with the approve scope (not the PURSUIT_TRUST_PROXY_AUTH owner), Content-Type application/json, and Sec-Fetch-Site same-origin or an Origin matching the host. writes an oauth.approve or oauth.deny audit entry. body {client_id, redirect_uri, code_challenge, code_challenge_method:S256, state, scope, approve}. redirect_uri must be http://127.0.0.1:<port>/callback or http://[::1]:<port>/callback. returns {redirect_to}: the callback with code and state, or error=access_denied when approve is false", false, nil)
-	add("/v1/oauth/device", "get", "look up a pending device login by user_code (query) so the dashboard can show the requested scopes. requires the approve scope. returns {user_code, client_id, scopes, status, created_at, expires_at}", false, nil)
+	add("/v1/oauth/device", "get", "look up a pending device login by user_code (query) so the dashboard can show the requested scopes. requires the approve scope. returns {user_code, client_id, scopes, status, created_at, expires_at, requested_from} (requested_from is the IP that started the login)", false, nil)
 	add("/v1/oauth/device/approve", "post", "approve or deny a device login from the dashboard /device page. body {user_code, approve}. requires a signed-in human session with the approve scope (not the PURSUIT_TRUST_PROXY_AUTH owner), Content-Type application/json, and Sec-Fetch-Site same-origin or an Origin matching the host; the code alone approves nothing. writes an oauth.approve or oauth.deny audit entry. returns {status: approved|denied}", false, nil)
 	open := map[string]any{"security": []any{}}
 	add("/v1/auth/providers", "get", "sign-in options: tenant_mode, providers, allow_token_login, demo_available", false, open)
 	add("/v1/auth/{provider}/start", "get", "start an OIDC sign-in; redirects to the provider", false, open)
 	add("/v1/auth/{provider}/callback", "get", "OIDC callback; redirects to /#token=<secret>", false, open)
-	add("/v1/auth/session", "post", "dashboard sign-in: verify a token (pst_ or Better Auth JWT) and store it in the httpOnly pursuit_session cookie, then answer like GET /v1/me. requires Content-Type application/json and Sec-Fetch-Site same-origin or a matching Origin. body {token}. agents send Authorization: Bearer instead", false, open)
-	add("/v1/auth/session", "delete", "dashboard sign-out: clear the pursuit_session cookie. the token stays valid; revoke it with POST /v1/auth/revoke. same-origin only; returns 204", false, open)
+	add("/v1/auth/session", "post", "dashboard sign-in: verify a token (pst_, or a Better Auth JWT exchanged for a pst_ login token) and store the pst_ token in the httpOnly pursuit_session cookie, then answer like GET /v1/me. requires Content-Type application/json and Sec-Fetch-Site same-origin or a matching Origin. body {token}. agents send Authorization: Bearer instead", false, open)
+	add("/v1/auth/session", "delete", "dashboard sign-out: clear the pursuit_session cookie and revoke it when sign-in minted it (token name login). any other token stays valid; revoke it with POST /v1/auth/revoke. same-origin only; returns 204", false, open)
 	add("/v1/demo", "post","mint a token for a fresh, isolated demo sandbox when demo mode is on", false, open)
 	add("/v1/me", "get", "current user and token", false, nil)
 	add("/v1/me", "patch", "set display name or avatar (png, jpeg, or webp data URL under 256KB; empty clears it). email is accepted only from the PURSUIT_TRUST_PROXY_AUTH owner (GET /v1/me returns proxy: true)", true, nil)

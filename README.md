@@ -17,7 +17,7 @@ Linux and Windows binaries, and the browser extension zip, are on [GitHub Releas
 
 With no database URL the daemon creates `~/.local/share/pursuit/pursuit.db` and listens on `:8787`. The first start logs a bootstrap token once. Save it. It is not written to disk.
 
-In `devenv shell`, `pursuit-dev` runs it through [portless](https://github.com/portless-dev/portless) instead, giving it a stable `https://pursuit.localhost` URL (`$PORT` overrides the listen address; `PURSUIT_ADDR` still wins if both are set).
+In `devenv shell`, `pursuit-dev` runs it through [portless](https://github.com/portless-dev/portless) instead, giving it a stable `https://pursuit.localhost` URL (`$PORT` overrides the listen address; `PURSUIT_ADDR` still wins if both are set). To work on the dashboard, `pursuit-preview` runs `next dev` with hot reload in front of the Go API instead, at `https://pursuit-<branch>.localhost` for a worktree, so edits show up without rebuilding the embedded export.
 
 ```bash
 export PURSUIT_TOKEN=pst_...
@@ -33,6 +33,8 @@ pursuit auth login --server http://127.0.0.1:8787
 pursuit auth status
 pursuit auth logout
 ```
+
+A Vercel deployment behind Deployment Protection redirects the CLI to Vercel's login before it reaches Pursuit. Create a Protection Bypass for Automation secret (Project Settings, Deployment Protection) and give it to the CLI as `PURSUIT_VERCEL_BYPASS` or `"vercel_bypass"` in `~/.config/pursuit/config.json`. The CLI sends it only alongside a Pursuit token, or on the `/v1/auth/*` calls that mint one, so the secret alone never reaches the dashboard as the `PURSUIT_TRUST_PROXY_AUTH` owner. Every request still needs a token, so it gets that token's scopes.
 
 Applicant answers and the résumé file stay outside the repo:
 
@@ -147,6 +149,7 @@ With Better Auth (Neon Auth, `NEXT_PUBLIC_NEON_AUTH_URL` at build time), the das
 | `PURSUIT_TRUST_PROXY_AUTH` | previews only | `vercel`, set for the Preview environment. A request with no Pursuit token or session is the single owner and has `read`, `write`, and `approve`; its writes must come from the dashboard's own origin. A request that sends `Authorization: Bearer` is still that token, so the CLI and agents keep using scoped tokens. Any other value, and any non-preview deployment, is ignored. |
 | `PURSUIT_SERVER` | no | The public URL, when it isn't the one Vercel reports (see above). Used for OIDC redirect URIs. |
 | `PURSUIT_NO_DOCS` | no | `true` stops serving the embedded docs at `/docs` (the same variable works for `pursuit serve`). |
+| `PURSUIT_CF_BEACON_TOKEN` | no | Cloudflare Web Analytics site token. Read at build time to embed the beacon in the dashboard, and at runtime to allow it in the CSP. Unset means no analytics script. |
 | `CRON_SECRET` | yes, for the daily link check | A long random secret. Vercel Cron sends `GET /v1/cron/links` with `Authorization: Bearer <CRON_SECRET>`. There is no background checker on Vercel. A missing or wrong secret is 401, including when proxy auth is on. |
 
 Optional: `PURSUIT_BOOTSTRAP_TOKEN` chooses the owner token created on the first cold start. `PURSUIT_OWNER_NAME`, `PURSUIT_OWNER_EMAIL`, and `PURSUIT_BOOTSTRAP_NAME` override the owner defaults on that first start. Behind `PURSUIT_TRUST_PROXY_AUTH=vercel`, the owner can change their email later under Settings, Account. If you leave the bootstrap token unset, the generated secret is written once to the function log.
@@ -168,6 +171,10 @@ Columns: `id`, `company`, `role`, `location`, `salary`, `fit`, `status`, `applie
 `Applied` is stored as `applied`. `Prepared` is stored as `awaiting_review`, which is the prepared state (the dashboard label is Prepared). Other statuses match case-insensitively (`Interviewing` becomes `interviewing`). `next_step` and `notes` are stored. The same `posting_url` updates that application instead of inserting another one. A matching `id` still updates that row first.
 
 Without `--database-url`, `pursuit import csv` still posts the file to `PURSUIT_SERVER` and needs a write token. If the database has no token yet, the JSON from `--database-url` includes `bootstrap_token` once. Set `PURSUIT_BOOTSTRAP_TOKEN` first when you want to choose that secret.
+
+### Preview database
+
+Preview deployments should not hold a raw copy of production. Build their database as a Neon anonymized branch of production instead: `python3 scripts/preview-masking-rules.py <production-branch-id> > body.json`, then `POST` it to `/api/v2/projects/<project-id>/branch_anonymized` and point the preview `DATABASE_URL` and `POSTGRES_URL` at the new branch. The rules replace names, emails, company names, URLs, notes, document bodies, token hashes, webhook secrets, and Neon Auth's signing key and provider settings with fake values. To refresh the data, create a new anonymized branch; re-running masking only re-masks the masked copy. A new column that holds personal data needs a rule here.
 
 ## Daemon
 

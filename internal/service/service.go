@@ -159,6 +159,10 @@ func (s *Service) Bootstrap(ctx context.Context, ownerName, ownerEmail, tokenNam
 // boundary (sqlstore already isolates all data by UserID regardless).
 const demoTokenName = "demo"
 
+// LoginTokenName names the token a dashboard sign-in mints (OIDC or Better
+// Auth); sign-out revokes only tokens with this name.
+const LoginTokenName = "login"
+
 // CreateDemoSession provisions a throwaway tenant for the "try it without
 // an account" tutorial: a synthetic, unroutable user plus a token scoped
 // like the owner's, pre-loaded with the example seed data so it isn't
@@ -275,7 +279,7 @@ func (s *Service) LoginIdentity(ctx context.Context, email, name string, allowCr
 			return err
 		}
 		tok := domain.Token{
-			ID: s.NewID(), UserID: user.ID, Name: "login", Hash: hash,
+			ID: s.NewID(), UserID: user.ID, Name: LoginTokenName, Hash: hash,
 			Prefix: prefix, Scopes: scopes, CreatedAt: s.now(),
 		}
 		if err := s.DB.CreateToken(ctx, tok); err != nil {

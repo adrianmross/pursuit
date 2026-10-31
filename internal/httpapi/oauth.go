@@ -66,7 +66,8 @@ func writeOAuthErr(w http.ResponseWriter, err error) {
 }
 
 func (s *Server) oauthDeviceAuthorization(w http.ResponseWriter, r *http.Request) {
-	if !s.deviceLimiterFor().allow(clientIP(r)) {
+	ip := clientIP(r)
+	if !s.deviceLimiterFor().allow(ip) {
 		w.Header().Set("Retry-After", "60")
 		w.Header().Set("Cache-Control", "no-store")
 		writeJSON(w, http.StatusTooManyRequests, &service.OAuthError{Code: "slow_down", Description: "too many device logins from this address; wait a minute"})
@@ -75,7 +76,7 @@ func (s *Server) oauthDeviceAuthorization(w http.ResponseWriter, r *http.Request
 	if !s.oauthForm(w, r) {
 		return
 	}
-	out, err := s.Svc.OAuthDeviceStart(r.Context(), r.PostForm.Get("client_id"), r.PostForm.Get("scope"), publicBase(r))
+	out, err := s.Svc.OAuthDeviceStart(r.Context(), r.PostForm.Get("client_id"), r.PostForm.Get("scope"), publicBase(r), ip)
 	if err != nil {
 		s.logOAuth("device_authorization", err)
 		writeOAuthErr(w, err)
