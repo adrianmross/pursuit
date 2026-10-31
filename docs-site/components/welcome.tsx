@@ -105,7 +105,7 @@ export function Welcome() {
   return (
     <div className="wl">
       <section className="wl-hero">
-        <img className="wl-mark" src="/docs/brand/hire-pursuit-mark.svg" alt="" />
+        <img className="wl-mark" src="/docs/brand/hire-pursuit-app-icon.svg" alt="" />
         <h1>For your higher pursuits.</h1>
         <p>
           Hire Pursuit is a self-hosted job-application tracker for one person. Agents prepare applications through the{" "}
@@ -144,10 +144,10 @@ export function Welcome() {
 
       <section className="wl-steps">
         <h2>Prepare, approve, submit</h2>
-        <div>
-          <p><b>1 · Prepare</b>An agent with a <code>write</code> token takes a role from <code>to_apply</code> to <code>awaiting_review</code>.</p>
-          <p><b>2 · Approve</b>You review in the dashboard or run <code>pursuit approve</code>. It only enqueues the submit.</p>
-          <p><b>3 · Submit</b>A worker claims the queued work and reports <code>submitted</code>, <code>needs_input</code> or <code>failed</code>.</p>
+        <div className="wl-grid">
+          <div><h3>1 · Prepare</h3><p>An agent with a <code>write</code> token takes a role from <code>to_apply</code> to <code>awaiting_review</code>.</p></div>
+          <div><h3>2 · Approve</h3><p>You review in the dashboard or run <code>pursuit approve</code>. It only enqueues the submit.</p></div>
+          <div><h3>3 · Submit</h3><p>A worker claims the queued work and reports <code>submitted</code>, <code>needs_input</code> or <code>failed</code>.</p></div>
         </div>
       </section>
     </div>

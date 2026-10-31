@@ -62,7 +62,7 @@ html.dark .brand-logo-dark { display: block; }
 .wl { max-width: 72rem; margin: 0 auto; padding: 3rem 1.25rem 4rem; }
 .wl h1, .wl h2, .wl h3 { color: inherit; }
 .wl-hero { text-align: center; }
-.wl-mark { height: 72px; margin: 0 auto 1.25rem; }
+.wl-mark { height: 72px; margin: 0 auto 1.25rem; border-radius: 22%; }
 .wl-hero h1 { font-size: clamp(2.25rem, 6vw, 3.75rem); font-weight: 600; line-height: 1.05; }
 .wl-hero > p { max-width: 38rem; margin: 1.25rem auto 0; font-size: 1.125rem; color: var(--ink-muted); }
 .wl-cta { display: flex; gap: .75rem; justify-content: center; flex-wrap: wrap; margin: 2rem 0 3rem; }
@@ -100,9 +100,7 @@ html.dark .wl-btn-primary:hover { background: #fff; }
 
 .wl-steps { margin-top: 4.5rem; }
 .wl-steps h2 { text-align: center; font-size: 1.75rem; font-weight: 600; margin-bottom: 1.5rem; }
-.wl-steps > div { display: grid; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); gap: 1rem; }
-.wl-steps p { margin: 0; padding: 1.25rem; border-left: 2px solid var(--brand-gold); background: rgba(127,127,127,.07); border-radius: 0 10px 10px 0; font-size: .92rem; line-height: 1.55; }
-.wl-steps b { display: block; margin-bottom: .3rem; font-family: "Outfit Variable", system-ui, sans-serif; font-size: 1.05rem; }
+.wl-steps .wl-grid { margin-top: 0; }
 
 /* Site footer, shared with the dashboard and /reference: one row from 768px
    (brand · credit · links), stacked and centred below. Nextra's <Footer> is
