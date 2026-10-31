@@ -154,7 +154,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         )}
       </header>
       <main className="flex-1 p-4">
-        <ProfileNudge onOpen={() => router.push("/profile")} />
+        <ProfileNudge onOpen={(href) => router.push(href)} />
         {children}
       </main>
       <SiteFooter />

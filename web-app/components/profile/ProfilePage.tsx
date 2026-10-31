@@ -226,7 +226,7 @@ const DISMISSED = "pursuit.profile-nudge-dismissed"
 
 // First-run prompt on the home page until there is a résumé and an email
 // on file. Dismissal is per browser.
-export function ProfileNudge({ onOpen }: { onOpen: () => void }) {
+export function ProfileNudge({ onOpen }: { onOpen: (href: string) => void }) {
   const { can } = useAuth()
   const home = usePathname() === "/start"
   const [missing, setMissing] = useState<string[]>([])
@@ -260,7 +260,7 @@ export function ProfileNudge({ onOpen }: { onOpen: () => void }) {
       <AlertTitle>Finish your profile</AlertTitle>
       <AlertDescription>Add {missing.join(" and ")} so prepared applications fill themselves in.</AlertDescription>
       <AlertAction className="flex items-center gap-1">
-        <Button size="sm" onClick={onOpen}>
+        <Button size="sm" onClick={() => onOpen(missing.includes("a résumé") ? "/profile" : "/profile/questions")}>
           Set up
         </Button>
         <Button size="icon-sm" variant="ghost" aria-label="Dismiss" onClick={dismiss}>
