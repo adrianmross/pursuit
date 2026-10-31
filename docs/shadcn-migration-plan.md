@@ -80,7 +80,7 @@ Do them in order; later phases assume earlier ones landed on `main`.
 ### Phase 4 — Queue stays, fast actions, row affordances
 - Queue page ports mostly as-is (it's already the "prepared apps" surface
   the user wants kept) — same card layout, approve/reject buttons.
-- Add a `cmdk` command palette (⌘K) for fast actions: jump to an application
+- Add a `cmdk` command palette (⌘P) for fast actions: jump to an application
   by fuzzy company/title match, approve/reject the currently-open
   application, re-check its link, sign out. This is the "fast actions"
   ask — a command palette is the standard shadcn-ecosystem answer and reuses
