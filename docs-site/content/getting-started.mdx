@@ -25,6 +25,8 @@ pursuit auth status
 pursuit auth logout
 ```
 
+On a deployment with account sign-in (Neon Auth), "Forgot password?" on the sign-in card emails a 6-digit code; enter it with a new password and you are signed in.
+
 To hand Pursuit to a coding agent, open Connect an agent (`/agents`) in the dashboard. It has a prompt to paste (the agent installs the CLI and starts a device login, with no token in the prompt), the Agent Skill (served at `GET /skill.md`; `npx skills add adrianmross/pursuit --skill pursuit`), and a `read,write` token for headless agents.
 
 Agents can also get a `read` or `read,write` token from a human; the server's `GET /auth.md` ([AUTH.md](https://github.com/adrianmross/pursuit/blob/main/internal/spec/auth.md)) explains tokens, scopes, and approval.
