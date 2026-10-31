@@ -58,6 +58,8 @@ type Config struct {
 	// HideTokenLogin removes the "paste an API token" sign-in option
 	// from the dashboard. The bearer-token API itself is unaffected.
 	HideTokenLogin bool `json:"-"`
+	// SignupsClosed pauses account creation (PURSUIT_SIGNUPS=closed).
+	SignupsClosed bool `json:"-"`
 	// NoDocs stops the daemon serving the embedded docs at /docs.
 	NoDocs bool `json:"-"`
 }
@@ -201,6 +203,7 @@ func applyEnv(cfg *Config) {
 	set(&cfg.BetterAuthIssuer, "PURSUIT_BETTERAUTH_ISSUER")
 	set(&cfg.BetterAuthAudience, "PURSUIT_BETTERAUTH_AUDIENCE")
 	cfg.HideTokenLogin = strings.EqualFold(strings.TrimSpace(os.Getenv("PURSUIT_HIDE_TOKEN_LOGIN")), "true")
+	cfg.SignupsClosed = strings.EqualFold(strings.TrimSpace(os.Getenv("PURSUIT_SIGNUPS")), "closed")
 	cfg.NoDocs = strings.EqualFold(strings.TrimSpace(os.Getenv("PURSUIT_NO_DOCS")), "true")
 	if v := strings.TrimSpace(os.Getenv("PURSUIT_CORS_ORIGINS")); v != "" {
 		cfg.CORSOrigins = splitComma(v)
