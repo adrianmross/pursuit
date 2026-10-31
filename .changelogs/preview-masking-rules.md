@@ -1,7 +1,7 @@
 ---
 component: pursuit
 bump: patch
-type: docs
+type: fix
 ---
 
-Document an anonymized Neon preview database and ship its masking rules
+Keep production data out of preview databases with Neon masking rules
