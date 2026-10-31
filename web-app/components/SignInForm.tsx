@@ -12,6 +12,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { CommandBlock } from "@/components/CommandBlock"
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp"
 import { SnakeEyes } from "@/components/Sketch"
+import { ThemeToggle } from "@/components/ThemeToggle"
 import { cn } from "@/lib/utils"
 
 // A failed sign-in step: the message beside a sketched bad roll.
@@ -526,7 +527,8 @@ export function SignInForm({
   }, [])
 
   return (
-    <div className="flex min-h-svh items-center justify-center bg-brand-forest p-4">
+    <div className="relative flex min-h-svh items-center justify-center bg-brand-forest p-4">
+      <ThemeToggle className="absolute top-4 right-4 text-brand-cream/80 hover:bg-white/10 hover:text-brand-cream dark:hover:bg-white/10" />
       <div className="flex w-full max-w-md flex-col gap-4">
         <div className="flex flex-col items-center gap-3 pb-2 text-center">
           <img src="/brand/hire-pursuit-wordmark-reverse.svg" alt="Hire Pursuit" className="h-8 w-auto" />
