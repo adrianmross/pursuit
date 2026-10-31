@@ -385,7 +385,7 @@ export function Landing() {
             For your higher pursuits.
           </h1>
           <p className="mx-auto mt-5 max-w-xl text-lg text-balance text-muted-foreground">
-            Job applications for the modern era: an agent prepares each one, you approve it.
+            Job applications for the modern era.
           </p>
           <Link
             href={entry}
