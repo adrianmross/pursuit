@@ -26,6 +26,13 @@ jobs:
         run: |
           set -euo pipefail
           git fetch --no-tags origin "+refs/heads/${BASE_REF}:refs/remotes/origin/${BASE_REF}"
+          # Fragments merged earlier stay on main until the release PR consumes
+          # them; check only the ones this PR adds, or every PR in between must
+          # reuse an old title. The checkout is disposable.
+          git diff --name-only --diff-filter=A "origin/${BASE_REF}...HEAD" -- .changelogs > "$RUNNER_TEMP/added"
+          for f in .changelogs/*.md; do
+            [ "$f" = .changelogs/README.md ] || grep -qxF "$f" "$RUNNER_TEMP/added" || rm -- "$f"
+          done
           "$CHANGELOGGER" check --base "origin/${BASE_REF}" --pr --pr-title "$PR_TITLE" --pr-body "$PR_BODY"
 
   go:
