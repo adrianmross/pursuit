@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState, type ReactNode } from "react"
+import { useEffect, useRef, useState, type ReactNode } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { ArrowLeft } from "lucide-react"
@@ -56,6 +56,11 @@ export function DetailShell({ id, initial, children }: { id: string; initial: De
   const [application, setApplication] = useState<Application | null>(initial?.application ?? null)
   const [fields, setFields] = useState<CustomField[]>(initial?.fields ?? [])
   const [notFound, setNotFound] = useState(false)
+  // The newest server copy, read by queued saves so each sends the version
+  // the previous one returned.
+  const latest = useRef<Application | null>(application)
+  const queue = useRef<Promise<unknown>>(Promise.resolve())
+  const path = `/v1/applications/${encodeURIComponent(id)}`
   const [fieldError, setFieldError] = useState<string | null>(null)
   const writable = can("write")
 
@@ -68,6 +73,7 @@ export function DetailShell({ id, initial, children }: { id: string; initial: De
     Promise.all([api<Application>(`/v1/applications/${encodeURIComponent(id)}`), api<Page<CustomField>>("/v1/fields?limit=100")])
       .then(([app, fieldsPage]) => {
         if (cancelled) return
+        latest.current = app
         setApplication(app)
         setFields(fieldsPage.data || [])
       })
@@ -86,36 +92,44 @@ export function DetailShell({ id, initial, children }: { id: string; initial: De
   const artifacts = useSection<Page<Artifact>>(`/v1/applications/${encodeURIComponent(id)}/artifacts`, exportMode)
   const questions = useSection<Page<Question>>(`/v1/applications/${encodeURIComponent(id)}/questions`, exportMode)
 
-  async function reload() {
-    const app = await api<Application>(`/v1/applications/${encodeURIComponent(id)}`)
+  function accept(app: Application) {
+    latest.current = app
     setApplication(app)
   }
 
-  async function onSaveField(patch: Record<string, string>) {
-    if (!application) return
-    setFieldError(null)
-    try {
-      const updated = await api<Application>(`/v1/applications/${encodeURIComponent(application.id)}`, {
-        method: "PATCH",
-        body: { version: application.version, ...patch },
-      })
-      setApplication(updated)
-    } catch (err) {
-      setFieldError(err instanceof ApiError ? err.message : "Failed to save")
-    }
+  async function reload() {
+    accept(await api<Application>(path))
   }
 
-  async function onSaveCustomFieldValue(fieldID: string, value: string) {
-    if (!application) return
-    try {
-      const updated = await api<Application>(
-        `/v1/applications/${encodeURIComponent(application.id)}/fields/${encodeURIComponent(fieldID)}`,
-        { method: "POST", body: { value } },
-      )
-      setApplication(updated)
-    } catch (err) {
-      setFieldError(err instanceof ApiError ? err.message : "Failed to save")
-    }
+  // Every write to the record runs through one queue, so overlapping saves
+  // can't send the same version and lose each other. A 409 means someone
+  // else changed it: refetch and apply this field's edit on top, once.
+  function enqueue(send: (version: number) => Promise<Application>) {
+    const run = queue.current.then(async () => {
+      try {
+        accept(await send(latest.current?.version ?? 0))
+      } catch (err) {
+        if (!(err instanceof ApiError && err.status === 409)) throw err
+        await reload()
+        accept(await send(latest.current?.version ?? 0))
+      }
+    })
+    queue.current = run.catch(() => {})
+    return run
+  }
+
+  function patchApp(patch: Record<string, string>) {
+    return enqueue((version) => api<Application>(path, { method: "PATCH", body: { version, ...patch } }))
+  }
+
+  // Status changes from the header keep their visible error.
+  function onSaveField(patch: Record<string, string>) {
+    setFieldError(null)
+    patchApp(patch).catch((err) => setFieldError(err instanceof ApiError ? err.message : "Failed to save"))
+  }
+
+  function onSaveCustomFieldValue(fieldID: string, value: string) {
+    return enqueue(() => api<Application>(`${path}/fields/${encodeURIComponent(fieldID)}`, { method: "POST", body: { value } }))
   }
 
   // Bumped after the header's chooser changes rounds so the rounds card refetches.
@@ -158,15 +172,6 @@ export function DetailShell({ id, initial, children }: { id: string; initial: De
     await reload()
   }
 
-  async function onSaveNotes(notes: string) {
-    if (!application) return
-    const updated = await api<Application>(`/v1/applications/${encodeURIComponent(application.id)}`, {
-      method: "PATCH",
-      body: { version: application.version, notes },
-    })
-    setApplication(updated)
-  }
-
   async function onDelete() {
     if (!application) return
     await api(`/v1/applications/${encodeURIComponent(application.id)}`, { method: "DELETE" })
@@ -193,6 +198,7 @@ export function DetailShell({ id, initial, children }: { id: string; initial: De
             writable={writable}
             canApprove={can("approve")}
             onSaveField={onSaveField}
+            onPatch={patchApp}
             onArchive={onArchive}
             onUnarchive={onUnarchive}
             onDecide={onDecide}
@@ -203,13 +209,13 @@ export function DetailShell({ id, initial, children }: { id: string; initial: De
             application={application}
             fields={fields}
             writable={writable}
-            onSaveField={onSaveField}
+            onSaveField={patchApp}
             onSaveCustomFieldValue={onSaveCustomFieldValue}
             onRecheckLink={onRecheckLink}
             fieldError={fieldError}
           />
           <InterviewsCard key={roundsTick} appId={application.id} current={application.stage ?? 0} writable={writable} onChange={reload} />
-          <DetailNotes notes={application.notes || ""} writable={writable} onSave={onSaveNotes} />
+          <DetailNotes notes={application.notes || ""} writable={writable} onSave={(notes) => patchApp({ notes })} />
         </>
       )}
 

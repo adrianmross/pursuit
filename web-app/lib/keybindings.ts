@@ -108,7 +108,7 @@ export function useShortcuts(handlers: Partial<Record<string, () => void | false
     function onKey(e: KeyboardEvent) {
       if (e.isComposing || e.defaultPrevented || !prefs.master) return
       const target = e.target as HTMLElement
-      const typing = !!target.closest?.("input, textarea, select, [contenteditable='true']")
+      const typing = !!target.isContentEditable || !!target.closest?.("input, textarea, select")
       const dialog = !!document.querySelector('[role="dialog"]')
 
       // One entry per alternative key, so "j|ArrowDown" is two shortcuts.
