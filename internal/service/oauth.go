@@ -278,8 +278,9 @@ type DeviceAuthorization struct {
 }
 
 // OAuthDeviceStart begins a device login. baseURL is the public origin
-// the dashboard is served from; the human opens baseURL/device.
-func (s *Service) OAuthDeviceStart(ctx context.Context, clientID, scope, baseURL string) (DeviceAuthorization, error) {
+// the dashboard is served from; the human opens baseURL/device. ip is
+// the requester's address, shown to the approver.
+func (s *Service) OAuthDeviceStart(ctx context.Context, clientID, scope, baseURL, ip string) (DeviceAuthorization, error) {
 	clientID, ok := normalizeClientID(clientID)
 	if !ok {
 		return DeviceAuthorization{}, oauthErr("invalid_request", "client_id is at most 64 characters")
@@ -301,7 +302,7 @@ func (s *Service) OAuthDeviceStart(ctx context.Context, clientID, scope, baseURL
 	_ = s.DB.DeleteExpiredOAuthGrants(ctx, domain.FormatTime(now.Add(-time.Hour)))
 	if err := s.DB.CreateOAuthGrant(ctx, sqlstore.OAuthGrant{
 		ID: s.NewID(), Kind: "device", CodeHash: auth.Hash(deviceCode), UserCodeHash: auth.Hash(normalizeUserCode(userCode)),
-		ClientID: clientID, Scopes: scopes, Status: "pending", Interval: OAuthDeviceInterval,
+		ClientID: clientID, Scopes: scopes, Status: "pending", Interval: OAuthDeviceInterval, RequestedFrom: ip,
 		ExpiresAt: domain.FormatTime(now.Add(OAuthDeviceTTL)), CreatedAt: domain.FormatTime(now),
 	}); err != nil {
 		return DeviceAuthorization{}, err
@@ -321,6 +322,8 @@ type DeviceRequest struct {
 	Status    string   `json:"status"`
 	CreatedAt string   `json:"created_at"`
 	ExpiresAt string   `json:"expires_at"`
+	// RequestedFrom is the IP that started the login; empty for older grants.
+	RequestedFrom string `json:"requested_from"`
 }
 
 func (s *Service) pendingDevice(ctx context.Context, userCode string) (sqlstore.OAuthGrant, error) {
@@ -343,7 +346,7 @@ func (s *Service) OAuthDeviceLookup(ctx context.Context, userCode string) (Devic
 	if err != nil {
 		return DeviceRequest{}, err
 	}
-	return DeviceRequest{UserCode: formatUserCode(normalizeUserCode(userCode)), ClientID: g.ClientID, Scopes: g.Scopes, Status: g.Status, CreatedAt: g.CreatedAt, ExpiresAt: g.ExpiresAt}, nil
+	return DeviceRequest{UserCode: formatUserCode(normalizeUserCode(userCode)), ClientID: g.ClientID, Scopes: g.Scopes, Status: g.Status, CreatedAt: g.CreatedAt, ExpiresAt: g.ExpiresAt, RequestedFrom: g.RequestedFrom}, nil
 }
 
 // OAuthDeviceDecide approves or denies a device login. It needs both the

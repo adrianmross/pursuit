@@ -102,8 +102,9 @@ export function TokensPanel() {
       <FieldSet>
         <FieldLegend>New token</FieldLegend>
         <FieldDescription>
-          Tokens let the <code>pursuit</code> CLI, agents, and the browser extension call the API as you. Approval stays a
-          human action, so tokens cannot carry the approve scope.
+          Tokens let the <code>pursuit</code> CLI, agents, and the browser extension call the API as you. This form makes
+          read and write tokens. An approve token can only be created through <code>POST /v1/tokens</code> by a signed-in
+          human who holds approve, never by an agent.
         </FieldDescription>
         <FieldGroup>
           <Field>

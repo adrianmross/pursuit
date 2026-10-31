@@ -520,3 +520,18 @@ func TestOAuthRevoke(t *testing.T) {
 		t.Fatal("unknown token revoke should be 200")
 	}
 }
+
+func TestOAuthDeviceLookupShowsRequesterIP(t *testing.T) {
+	t.Setenv("VERCEL", "1")
+	e := newEnv(t)
+	code, b, _ := e.do(t, "POST", "/v1/auth/device_authorization", "", []byte(url.Values{"client_id": {"pursuit-cli"}}.Encode()),
+		map[string]string{"Content-Type": "application/x-www-form-urlencoded", "X-Forwarded-For": "203.0.113.9, 10.0.0.1"})
+	var d map[string]any
+	if err := json.Unmarshal(b, &d); err != nil || code != 200 {
+		t.Fatalf("device_authorization: %d %s", code, b)
+	}
+	code, info := e.json(t, "GET", "/v1/oauth/device?user_code="+url.QueryEscape(d["user_code"].(string)), e.token, nil)
+	if code != 200 || info["requested_from"] != "203.0.113.9" {
+		t.Fatalf("lookup: %d %v", code, info)
+	}
+}
