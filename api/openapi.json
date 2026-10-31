@@ -2857,7 +2857,7 @@
           }
         },
         "security": [],
-        "summary": "dashboard sign-out: clear the pursuit_session cookie. the token stays valid; revoke it with POST /v1/auth/revoke. same-origin only; returns 204"
+        "summary": "dashboard sign-out: clear the pursuit_session cookie and revoke it when sign-in minted it (token name login). any other token stays valid; revoke it with POST /v1/auth/revoke. same-origin only; returns 204"
       },
       "post": {
         "operationId": "post__v1_auth_session",
@@ -2917,7 +2917,7 @@
           }
         },
         "security": [],
-        "summary": "dashboard sign-in: verify a token (pst_ or Better Auth JWT) and store it in the httpOnly pursuit_session cookie, then answer like GET /v1/me. requires Content-Type application/json and Sec-Fetch-Site same-origin or a matching Origin. body {token}. agents send Authorization: Bearer instead"
+        "summary": "dashboard sign-in: verify a token (pst_, or a Better Auth JWT exchanged for a pst_ login token) and store the pst_ token in the httpOnly pursuit_session cookie, then answer like GET /v1/me. requires Content-Type application/json and Sec-Fetch-Site same-origin or a matching Origin. body {token}. agents send Authorization: Bearer instead"
       }
     },
     "/v1/auth/token": {
