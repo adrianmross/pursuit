@@ -135,6 +135,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /openapi.json", s.openapi)
 	mux.HandleFunc("GET /llms.txt", s.llms)
 	mux.HandleFunc("GET /auth.md", s.authDoc)
+	mux.HandleFunc("GET /skill.md", s.skillDoc)
 	mux.HandleFunc("GET /reference", s.reference)
 	mux.HandleFunc("GET /", s.dashboard)
 
@@ -506,6 +507,12 @@ func (s *Server) authDoc(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/markdown; charset=utf-8")
 	w.WriteHeader(200)
 	_, _ = w.Write(spec.Auth)
+}
+
+func (s *Server) skillDoc(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/markdown; charset=utf-8")
+	w.WriteHeader(200)
+	_, _ = w.Write(spec.Skill)
 }
 
 func (s *Server) reference(w http.ResponseWriter, r *http.Request) {
