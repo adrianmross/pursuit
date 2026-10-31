@@ -79,7 +79,7 @@ in
     mkdir -p "$XDG_CACHE_HOME" "$XDG_DATA_HOME" "$XDG_STATE_HOME"
 
     echo "pursuit dev env"
-    echo "  pursuit-run | pursuit-dev (portless) | pursuit-watch"
+    echo "  pursuit-run | pursuit-dev (portless) | pursuit-watch | pursuit-preview (hot reload)"
     echo "  changelogger            # add a release-note fragment"
     echo "  devenv tasks run dev:validate"
   '';
@@ -109,6 +109,8 @@ in
   '';
   # Rebuilds and restarts on every .go change, kept alive at a stable
   # https://<name>.localhost URL by portless.
+  # Hot-reloading preview of this worktree: next dev + Go API, via portless.
+  scripts.pursuit-preview.exec = "bash scripts/preview.sh";
   scripts.pursuit-watch.exec = ''
     export PURSUIT_DATA_DIR="$PWD/.devdata"
     mkdir -p "$PURSUIT_DATA_DIR"
