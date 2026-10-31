@@ -10,6 +10,11 @@ import (
 //go:embed llms.txt
 var LLMS []byte
 
+// Auth is the agent auth guide served at /auth.md. The root AUTH.md points here.
+//
+//go:embed auth.md
+var Auth []byte
+
 // Reference is the standalone Scalar API-reference page served at
 // /reference. It renders the same-origin /openapi.json, so it works
 // identically self-hosted or behind api.<domain> in hosted mode.
@@ -61,7 +66,7 @@ func build() []byte {
 		paths[path] = item
 	}
 	pub := map[string]string{
-		"/healthz": "liveness", "/readyz": "readiness", "/version": "version", "/openapi.json": "this document", "/llms.txt": "short agent guide",
+		"/healthz": "liveness", "/readyz": "readiness", "/version": "version", "/openapi.json": "this document", "/llms.txt": "short agent guide", "/auth.md": "agent auth guide: tokens, scopes, approval",
 	}
 	for p, s := range pub {
 		add(p, "get", s, false, map[string]any{"security": []any{}})

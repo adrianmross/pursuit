@@ -309,6 +309,14 @@ func (s *Service) CreateToken(ctx context.Context, in TokenInput) (domain.Issued
 	if err != nil {
 		return domain.IssuedToken{}, domain.Validation("%s", err.Error()).WithHint("scopes are read and write; write implies read")
 	}
+	// A token never mints more than it holds, and approve additionally needs
+	// a human caller (the same test humanApprover applies to CLI logins), so
+	// a write-scoped agent token cannot mint itself an approve token.
+	for _, sc := range scopes {
+		if !a.Can(sc) || (sc == "approve" && (a.Demo || a.Proxy)) {
+			return domain.IssuedToken{}, domain.Forbidden(sc).WithHint("a token can only create tokens with scopes it already holds; approve tokens are created by a signed-in human")
+		}
+	}
 	secret, prefix, hash, err := auth.Generate()
 	if err != nil {
 		return domain.IssuedToken{}, err

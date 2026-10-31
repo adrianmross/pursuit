@@ -176,6 +176,8 @@ Exit codes: 0 ok, 2 usage, 3 not found, 4 conflict, 5 auth, 6 validation, 1 othe
 
 `pursuit schema` lists commands. `pursuit schema apps list` returns that command only. `GET /openapi.json` is the HTTP document.
 
+Agents: [AUTH.md](AUTH.md) (served at `GET /auth.md`) covers tokens, scopes, approval, and auth errors.
+
 Scopes are `read`, `write`, and `approve`. `write` includes `read`. `approve` includes `read` and does not include `write`. New tokens are read-only unless you pass scopes. The bootstrap token has all three.
 
 `pursuit auth login` (browser, or `--device`), `pursuit auth status`, and `pursuit auth logout` manage a stored per-server token. The OAuth2 endpoints behind it are `POST /v1/auth/device_authorization`, `POST /v1/auth/token`, and `POST /v1/auth/revoke`; the dashboard approves through `/v1/oauth/*` with a session that has `approve` (same-origin JSON only, never the `PURSUIT_TRUST_PROXY_AUTH` owner), and each decision is audited as `oauth.approve` or `oauth.deny`. OAuth grants `read` and `write` only; `approve` is `invalid_scope`.
