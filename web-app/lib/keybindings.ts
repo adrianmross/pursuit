@@ -1,13 +1,14 @@
 import { useEffect, useRef, useSyncExternalStore } from "react"
 
-// combo: "mod+k" (⌘ on Mac, Ctrl elsewhere), a bare key ("/"), or two steps
+// combo: "mod+p" (⌘ on Mac, Ctrl elsewhere), a bare key ("/"), or two steps
 // separated by a space ("g h"). "|" lists alternatives ("j|ArrowDown"), and
 // "ctrl+n" is Control only, where "mod+" is ⌘ on a Mac. when: "app" = no dialog open, "dialog" = a
 // dialog (settings) is open, "any" = always.
 export type Binding = { id: string; label: string; group: string; combo: string; when: "app" | "dialog" | "any" }
 
 export const BINDINGS: Binding[] = [
-  { id: "palette", label: "Open command palette", group: "General", combo: "mod+k", when: "any" },
+  { id: "palette", label: "Open command palette", group: "General", combo: "mod+p", when: "any" },
+  { id: "searchApps", label: "Search applications", group: "General", combo: "mod+k", when: "app" },
   { id: "search", label: "Search what you are looking at", group: "General", combo: "/", when: "any" },
   { id: "settings", label: "Open settings", group: "General", combo: "mod+,", when: "any" },
   { id: "keys", label: "Show keyboard shortcuts", group: "General", combo: "?", when: "any" },
@@ -81,7 +82,7 @@ export function useKeyPrefs() {
 
 export const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform)
 
-// "mod+k" -> ["⌘", "K"]; "g h" -> [["G"], ["H"]] is rendered as steps by the caller.
+// "mod+p" -> ["⌘", "P"]; "g h" -> [["G"], ["H"]] is rendered as steps by the caller.
 const NAMES: Record<string, string> = { Escape: "Esc", ArrowDown: "↓", ArrowUp: "↑", ctrl: "Ctrl", Space: "Space" }
 export function keyLabels(step: string) {
   if (step === "+") return ["+"]
@@ -90,7 +91,8 @@ export function keyLabels(step: string) {
 
 function matches(e: KeyboardEvent, step: string) {
   if (step.startsWith("ctrl+")) return e.ctrlKey && !e.metaKey && e.key.toLowerCase() === step.slice(5)
-  if (step.startsWith("mod+")) return (e.metaKey || e.ctrlKey) && e.key.toLowerCase() === step.slice(4)
+  // ⌘ only on a Mac, so Control+P there stays "previous row".
+  if (step.startsWith("mod+")) return (isMac ? e.metaKey && !e.ctrlKey : e.ctrlKey && !e.metaKey) && e.key.toLowerCase() === step.slice(4)
   return !e.metaKey && !e.ctrlKey && !e.altKey && e.key === (step === "Space" ? " " : step)
 }
 

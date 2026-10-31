@@ -1,9 +1,7 @@
 "use client"
 
 import { useEffect, useState, type ReactNode } from "react"
-import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { ArrowLeft } from "lucide-react"
 import { api, ApiError } from "@/lib/api-client"
 import { useAuth } from "@/lib/auth"
 import type { Application, Artifact, CustomField, Event, Page, Question } from "@/lib/types"
@@ -177,10 +175,6 @@ export function DetailShell({ id, initial, children }: { id: string; initial: De
 
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-4">
-      <Link href="/applications" aria-label="Back to pipeline" className="text-muted-foreground hover:text-foreground">
-        <ArrowLeft className="size-4" />
-      </Link>
-
       {!application ? (
         <>
           <HeaderSkeleton />

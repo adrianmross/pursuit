@@ -84,7 +84,7 @@ function Terminal({ onDone }: { onDone: () => void }) {
   )
 }
 
-// The signed-in app's top bar, shrunk: wordmark, search, ⌘K.
+// The signed-in app's top bar, shrunk: wordmark, search, ⌘P.
 function AppBar() {
   return (
     <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 border-b px-4 py-2">
@@ -95,7 +95,7 @@ function AppBar() {
       <span className="flex h-7 w-40 items-center gap-2 rounded-md border px-2.5 text-xs text-muted-foreground sm:w-72">
         <Search className="size-3.5" /> Search
       </span>
-      <kbd className="justify-self-end rounded border bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">⌘K</kbd>
+      <kbd className="justify-self-end rounded border bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">⌘P</kbd>
     </div>
   )
 }

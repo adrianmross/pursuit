@@ -3,7 +3,7 @@
 import { useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { AlertCircle, ArrowLeft } from "lucide-react"
+import { AlertCircle } from "lucide-react"
 import { api, ApiError } from "@/lib/api-client"
 import { applicationHref } from "@/lib/links"
 import type { Application } from "@/lib/types"
@@ -36,9 +36,6 @@ export function CreateApplicationView() {
 
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-4">
-      <Link href="/applications" aria-label="Back to pipeline" className="text-muted-foreground hover:text-foreground">
-        <ArrowLeft className="size-4" />
-      </Link>
       <h1 className="text-xl font-semibold">Add application</h1>
       <Card>
         <CardContent className="pt-6">
