@@ -3,6 +3,8 @@ import { label } from "@/lib/types"
 import type { Event } from "@/lib/types"
 import { Card, CardContent, CardTitle } from "@/components/ui/card"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
+import { Empty, EmptyHeader, EmptyTitle } from "@/components/ui/empty"
+import { Item, ItemContent, ItemDescription, ItemGroup, ItemTitle } from "@/components/ui/item"
 
 function fmt(value?: string) {
   if (!value) return "—"
@@ -24,25 +26,31 @@ export function EventsHistoryCard({ events }: { events: Event[] }) {
         <CollapsibleContent>
           <CardContent className="pt-0">
             {events.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No history yet.</p>
+              <Empty className="p-4">
+                <EmptyHeader>
+                  <EmptyTitle className="font-normal text-muted-foreground">No history yet.</EmptyTitle>
+                </EmptyHeader>
+              </Empty>
             ) : (
-              <ol className="flex flex-col gap-3">
+              <ItemGroup className="gap-1">
                 {events.map((e, idx) => (
-                  <li key={idx} className="text-sm">
-                    <div className="font-medium">{e.title || e.kind}</div>
-                    <div className="text-muted-foreground">
-                      {fmt(e.occurred_at)}
-                      {e.actor?.name ? ` · ${e.actor.name}` : ""}
-                    </div>
-                    {(e.from_status || e.to_status) && (
-                      <div>
-                        {label(e.from_status)} → {label(e.to_status)}
-                      </div>
-                    )}
-                    {e.body && <div className="text-muted-foreground">{e.body}</div>}
-                  </li>
+                  <Item key={idx} size="sm" role="listitem" className="px-0 py-1.5">
+                    <ItemContent>
+                      <ItemTitle>{e.title || e.kind}</ItemTitle>
+                      <ItemDescription>
+                        {fmt(e.occurred_at)}
+                        {e.actor?.name ? ` · ${e.actor.name}` : ""}
+                      </ItemDescription>
+                      {(e.from_status || e.to_status) && (
+                        <ItemDescription className="text-foreground">
+                          {label(e.from_status)} → {label(e.to_status)}
+                        </ItemDescription>
+                      )}
+                      {e.body && <ItemDescription className="line-clamp-none">{e.body}</ItemDescription>}
+                    </ItemContent>
+                  </Item>
                 ))}
-              </ol>
+              </ItemGroup>
             )}
           </CardContent>
         </CollapsibleContent>

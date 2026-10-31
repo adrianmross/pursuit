@@ -1,12 +1,17 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { Plus, Trash2 } from "lucide-react"
+import { Plus, SlidersHorizontal, Trash2 } from "lucide-react"
 import { api } from "@/lib/api-client"
 import type { CustomField, Page } from "@/lib/types"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { ButtonGroup } from "@/components/ui/button-group"
+import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty"
+import { Field, FieldDescription, FieldError, FieldLegend, FieldSet } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
+import { Item, ItemActions, ItemContent, ItemGroup, ItemTitle } from "@/components/ui/item"
+import { Spinner } from "@/components/ui/spinner"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 const TYPES: [CustomField["type"], string][] = [
@@ -60,45 +65,61 @@ export function CustomFieldsManager({ active }: { active: boolean }) {
   }
 
   return (
-    <div className="flex flex-col gap-2">
-      <Label>Custom fields</Label>
+    <FieldSet>
+      <FieldLegend className="sr-only">Custom fields</FieldLegend>
+      <FieldDescription>Extra attributes you can set on each application.</FieldDescription>
       {fields == null ? (
-        <p className="text-sm text-muted-foreground">Loading…</p>
+        <Spinner className="text-muted-foreground" />
       ) : fields.length === 0 ? (
-        <p className="text-sm text-muted-foreground">None yet — add one below.</p>
+        <Empty className="border p-4">
+          <EmptyHeader>
+            <EmptyMedia variant="icon">
+              <SlidersHorizontal />
+            </EmptyMedia>
+            <EmptyTitle>No custom fields</EmptyTitle>
+            <EmptyDescription>None yet — add one below.</EmptyDescription>
+          </EmptyHeader>
+        </Empty>
       ) : (
-        <div className="flex flex-col gap-1">
+        <ItemGroup className="gap-2">
           {fields.map((f) => (
-            <div key={f.id} className="flex items-center justify-between rounded-md border px-2 py-1.5 text-sm">
-              <span>
-                {f.name} <span className="text-muted-foreground">({f.type})</span>
-              </span>
-              <Button variant="ghost" size="icon" className="size-6" disabled={busy} onClick={() => remove(f.id)}>
-                <Trash2 className="size-3.5" />
-              </Button>
-            </div>
+            <Item key={f.id} variant="outline" size="xs">
+              <ItemContent>
+                <ItemTitle>
+                  {f.name}
+                  <Badge variant="secondary">{f.type}</Badge>
+                </ItemTitle>
+              </ItemContent>
+              <ItemActions>
+                <Button variant="ghost" size="icon-xs" aria-label={`Delete ${f.name}`} disabled={busy} onClick={() => remove(f.id)}>
+                  <Trash2 />
+                </Button>
+              </ItemActions>
+            </Item>
           ))}
-        </div>
+        </ItemGroup>
       )}
-      <div className="flex gap-2">
-        <Input placeholder="Field name" value={name} onChange={(e) => setName(e.target.value)} className="flex-1" />
-        <Select value={type} onValueChange={(v) => setType(v as CustomField["type"])}>
-          <SelectTrigger className="w-28">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {TYPES.map(([value, text]) => (
-              <SelectItem key={value} value={value}>
-                {text}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Button size="icon" disabled={busy || !name.trim()} onClick={create} aria-label="Add field">
-          <Plus />
-        </Button>
-      </div>
-      {error && <p className="text-sm text-destructive">{error}</p>}
-    </div>
+      <Field>
+        <ButtonGroup className="w-full">
+          <Input placeholder="Field name" value={name} onChange={(e) => setName(e.target.value)} className="flex-1" />
+          <Select value={type} onValueChange={(v) => setType(v as CustomField["type"])}>
+            <SelectTrigger className="w-28">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {TYPES.map(([value, text]) => (
+                <SelectItem key={value} value={value}>
+                  {text}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button variant="outline" size="icon" disabled={busy || !name.trim()} onClick={create} aria-label="Add field">
+            <Plus />
+          </Button>
+        </ButtonGroup>
+        {error && <FieldError>{error}</FieldError>}
+      </Field>
+    </FieldSet>
   )
 }

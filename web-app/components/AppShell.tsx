@@ -3,7 +3,7 @@
 import { Suspense, useState, useSyncExternalStore } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { Archive, LogOut, MoreVertical, Search, Settings, User, X } from "lucide-react"
+import { Archive, IdCard, LogOut, Search, Settings, X } from "lucide-react"
 import { useAuth } from "@/lib/auth"
 import { isMac, useShortcuts } from "@/lib/keybindings"
 import { Kbd } from "@/components/ui/kbd"
@@ -11,6 +11,8 @@ import { CommandPalette } from "@/components/CommandPalette"
 import { SettingsDialog } from "@/components/SettingsDialog"
 import { SearchBox } from "@/components/SearchBox"
 import { SiteFooter } from "@/components/SiteFooter"
+import { UserAvatar, displayName } from "@/components/UserAvatar"
+import { ProfileNudge } from "@/components/profile/ProfilePage"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -72,8 +74,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     archived: () => router.push("/applications?archived=1"),
     new: () => router.push("/app/new"),
   })
-  const identity = me?.token.name || "token"
-  const scopes = (me?.token.scopes || []).join(", ")
+  const identity = displayName(me)
 
   return (
     <div className="flex min-h-svh flex-col">
@@ -112,21 +113,26 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <Kbd className="hidden sm:inline-flex">{isMac ? "⌘" : "Ctrl"} K</Kbd>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" aria-label="Account">
-                <MoreVertical />
+              <Button variant="ghost" size="icon" className="rounded-full" aria-label="Account">
+                <UserAvatar me={me} size="sm" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56">
-              <DropdownMenuLabel className="flex items-center gap-2 text-xs text-muted-foreground">
-                <User className="size-3.5" />
-                <span className="truncate">
-                  {identity}
-                  {scopes && <span className="block text-[10px] opacity-75">{scopes}</span>}
+              <DropdownMenuLabel className="flex items-center gap-2">
+                <UserAvatar me={me} />
+                <span className="min-w-0">
+                  <span className="block truncate text-sm">{identity}</span>
+                  {me?.user?.email && me.user.email !== identity && (
+                    <span className="block truncate text-xs font-normal text-muted-foreground">{me.user.email}</span>
+                  )}
                 </span>
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={() => router.push("/applications?archived=1")}>
                 <Archive /> View archived
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => router.push("/profile")}>
+                <IdCard /> Profile
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => openSettings()}>
                 <Settings /> Settings
@@ -141,7 +147,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </>
         )}
       </header>
-      <main className="flex-1 p-4">{children}</main>
+      <main className="flex-1 p-4">
+        <ProfileNudge onOpen={() => router.push("/profile")} />
+        {children}
+      </main>
       <SiteFooter />
       <SettingsDialog key={settingsKey} initial={settingsSection} open={settingsOpen} onOpenChange={setSettingsOpen} />
     </div>

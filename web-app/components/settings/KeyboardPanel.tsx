@@ -1,7 +1,11 @@
 "use client"
 
 import { Fragment } from "react"
+import { Keyboard } from "lucide-react"
 import { BINDINGS, keyLabels, useKeyPrefs } from "@/lib/keybindings"
+import { cn } from "@/lib/utils"
+import { FieldLegend, FieldSet } from "@/components/ui/field"
+import { Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemMedia, ItemSeparator, ItemTitle } from "@/components/ui/item"
 import { Kbd, KbdGroup } from "@/components/ui/kbd"
 import { Switch } from "@/components/ui/switch"
 
@@ -32,28 +36,40 @@ export function KeyboardPanel() {
   const groups = [...new Set(BINDINGS.map((b) => b.group))]
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between gap-4 rounded-md border p-3">
-        <div className="flex flex-col">
-          <span className="text-sm font-medium">Keyboard shortcuts</span>
-          <span className="text-xs text-muted-foreground">
+      <Item variant="outline">
+        <ItemMedia variant="icon">
+          <Keyboard />
+        </ItemMedia>
+        <ItemContent>
+          <ItemTitle>Keyboard shortcuts</ItemTitle>
+          <ItemDescription>
             Turn everything off at once. Single-key shortcuts never fire while you are typing in a field.
-          </span>
-        </div>
-        <Switch checked={master} onCheckedChange={setMaster} aria-label="Enable keyboard shortcuts" />
-      </div>
+          </ItemDescription>
+        </ItemContent>
+        <ItemActions>
+          <Switch checked={master} onCheckedChange={setMaster} aria-label="Enable keyboard shortcuts" />
+        </ItemActions>
+      </Item>
       {groups.map((group) => (
-        <div key={group} className="flex flex-col gap-2">
-          <h3 className="text-sm font-medium">{group}</h3>
-          <div className="divide-y rounded-md border text-sm">
-            {BINDINGS.filter((b) => b.group === group).map((b) => (
-              <div key={b.id} className={"flex items-center gap-4 p-3 " + (master ? "" : "opacity-50")}>
-                <span className="flex-1">{b.label}</span>
-                <Keys combo={b.combo} />
-                <Switch checked={isOn(b.id)} disabled={!master} onCheckedChange={(on) => setOn(b.id, on)} aria-label={`Enable: ${b.label}`} />
-              </div>
+        <FieldSet key={group} className="gap-2">
+          <FieldLegend variant="label">{group}</FieldLegend>
+          <ItemGroup className="gap-0 rounded-lg border">
+            {BINDINGS.filter((b) => b.group === group).map((b, i) => (
+              <Fragment key={b.id}>
+                {i > 0 && <ItemSeparator className="my-0" />}
+                <Item size="sm" className={cn("gap-4", !master && "opacity-50")}>
+                  <ItemContent>
+                    <ItemTitle className="font-normal">{b.label}</ItemTitle>
+                  </ItemContent>
+                  <ItemActions className="gap-4">
+                    <Keys combo={b.combo} />
+                    <Switch checked={isOn(b.id)} disabled={!master} onCheckedChange={(on) => setOn(b.id, on)} aria-label={`Enable: ${b.label}`} />
+                  </ItemActions>
+                </Item>
+              </Fragment>
             ))}
-          </div>
-        </div>
+          </ItemGroup>
+        </FieldSet>
       ))}
     </div>
   )

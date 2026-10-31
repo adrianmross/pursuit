@@ -3,6 +3,7 @@ package httpapi
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"crypto/sha256"
 	"crypto/subtle"
@@ -143,6 +144,7 @@ func (s *Server) Handler() http.Handler {
 	s.registerOAuth(mux)
 
 	mux.HandleFunc("GET /v1/me", s.me)
+	mux.HandleFunc("PATCH /v1/me", s.updateMe)
 	mux.HandleFunc("POST /v1/tokens", s.createToken)
 	mux.HandleFunc("GET /v1/tokens", s.listTokens)
 	mux.HandleFunc("DELETE /v1/tokens/{id}", s.revokeToken)
@@ -197,8 +199,13 @@ func (s *Server) Handler() http.Handler {
 
 	mux.HandleFunc("GET /v1/artifacts/{id}", s.getArtifact)
 	mux.HandleFunc("GET /v1/profile", s.profile)
+	mux.HandleFunc("GET /v1/documents", s.listDocuments)
+	mux.HandleFunc("POST /v1/documents", s.addDocument)
+	mux.HandleFunc("GET /v1/documents/{id}", s.getDocument)
+	mux.HandleFunc("DELETE /v1/documents/{id}", s.deleteDocument)
 	mux.HandleFunc("GET /v1/standing", s.listStanding)
 	mux.HandleFunc("POST /v1/standing", s.setStanding)
+	mux.HandleFunc("DELETE /v1/standing/{key}", s.deleteStanding)
 	mux.HandleFunc("GET /v1/caps", s.caps)
 	mux.HandleFunc("POST /v1/links/check", s.checkAll)
 	mux.HandleFunc("GET /v1/cron/links", s.cronLinks)
@@ -343,7 +350,8 @@ func (s *Server) proxyOwner(ctx context.Context) (domain.Actor, error) {
 	if err != nil {
 		return domain.Actor{}, err
 	}
-	return domain.Actor{UserID: user.ID, Name: "vercel", Scopes: []string{"read", "write", "approve"}, Proxy: true}, nil
+	// Name is who acted in events and the audit log: the owner, not the platform.
+	return domain.Actor{UserID: user.ID, Name: cmp.Or(user.Name, user.Email), Scopes: []string{"read", "write", "approve"}, Proxy: true}, nil
 }
 
 func (s *Server) authProviders(w http.ResponseWriter, r *http.Request) {
@@ -529,10 +537,10 @@ func (s *Server) dashboard(w http.ResponseWriter, r *http.Request) {
 		// out a per-request nonce to allow just those, so 'unsafe-inline'
 		// it is for this embed.
 		scriptSrc := "'self' 'unsafe-inline'"
-		w.Header().Set("Content-Security-Policy", "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src "+scriptSrc+"; connect-src "+connectSrc+"; img-src 'self' data:; font-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'")
-		// Nothing frames the dashboard; refusing it blocks clickjacking the
-		// /authorize and /device consent buttons.
-		w.Header().Set("X-Frame-Options", "DENY")
+		w.Header().Set("Content-Security-Policy", "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src "+scriptSrc+"; connect-src "+connectSrc+"; img-src 'self' data: blob:; frame-src 'self' blob:; font-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'")
+		// Only the dashboard frames itself (blob: document previews); refusing
+		// other sites blocks clickjacking the /authorize and /device buttons.
+		w.Header().Set("X-Frame-Options", "SAMEORIGIN")
 		w.Header().Set("Referrer-Policy", "no-referrer")
 	}
 	w.WriteHeader(status)
@@ -993,6 +1001,16 @@ func (s *Server) me(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeProjected(w, 200, me, fieldsOf(r.URL.Query()))
+}
+
+func (s *Server) updateMe(w http.ResponseWriter, r *http.Request) {
+	s.jsonMut(w, r, 200, nil, func(ctx context.Context, body []byte) (any, error) {
+		var in service.MePatch
+		if err := decode(body, &in); err != nil {
+			return nil, err
+		}
+		return s.Svc.UpdateMe(ctx, in)
+	})
 }
 
 func (s *Server) createToken(w http.ResponseWriter, r *http.Request) {
@@ -2051,41 +2069,105 @@ func (s *Server) addArtifact(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	ct := r.Header.Get("Content-Type")
 	s.mutate(w, r, 201, nil, body, func(ctx context.Context) (any, error) {
-		media, params, err := mime.ParseMediaType(ct)
-		if err == nil && strings.HasPrefix(media, "multipart/") {
-			mr := multipart.NewReader(bytes.NewReader(body), params["boundary"])
-			var kind, filename, contentType string
-			var payload []byte
-			for {
-				part, err := mr.NextPart()
-				if err == io.EOF {
-					break
-				}
-				if err != nil {
-					return nil, domain.Validation("invalid multipart body")
-				}
-				b, _ := io.ReadAll(io.LimitReader(part, 6<<20))
-				switch part.FormName() {
-				case "kind":
-					kind = string(b)
-				case "file":
-					filename = part.FileName()
-					contentType = part.Header.Get("Content-Type")
-					payload = b
-				}
-			}
-			return s.Svc.AddArtifact(ctx, id, kind, filename, contentType, payload)
-		}
-		var in struct {
-			Kind        string `json:"kind"`
-			Filename    string `json:"filename"`
-			ContentType string `json:"content_type"`
-			Body        string `json:"body"`
-		}
-		if err := decode(body, &in); err != nil {
+		up, err := parseUpload(ct, body)
+		if err != nil {
 			return nil, err
 		}
-		return s.Svc.AddArtifact(ctx, id, in.Kind, in.Filename, in.ContentType, []byte(in.Body))
+		return s.Svc.AddArtifact(ctx, id, up.Kind, up.Filename, up.ContentType, up.Body)
+	})
+}
+
+type upload struct {
+	Kind, Filename, ContentType string
+	Body                        []byte
+}
+
+// parseUpload reads a multipart form (kind, file) or a JSON body
+// {kind, filename, content_type, body} where body is text.
+func parseUpload(ct string, body []byte) (upload, error) {
+	media, params, err := mime.ParseMediaType(ct)
+	if err == nil && strings.HasPrefix(media, "multipart/") {
+		mr := multipart.NewReader(bytes.NewReader(body), params["boundary"])
+		var up upload
+		for {
+			part, err := mr.NextPart()
+			if err == io.EOF {
+				break
+			}
+			if err != nil {
+				return upload{}, domain.Validation("invalid multipart body")
+			}
+			b, _ := io.ReadAll(io.LimitReader(part, 6<<20))
+			switch part.FormName() {
+			case "kind":
+				up.Kind = string(b)
+			case "file":
+				up.Filename = part.FileName()
+				up.ContentType = part.Header.Get("Content-Type")
+				up.Body = b
+			}
+		}
+		return up, nil
+	}
+	var in struct {
+		Kind        string `json:"kind"`
+		Filename    string `json:"filename"`
+		ContentType string `json:"content_type"`
+		Body        string `json:"body"`
+	}
+	if err := decode(body, &in); err != nil {
+		return upload{}, err
+	}
+	return upload{in.Kind, in.Filename, in.ContentType, []byte(in.Body)}, nil
+}
+
+func (s *Server) listDocuments(w http.ResponseWriter, r *http.Request) {
+	pageSlice(w, r, nil, s.Svc.ListDocuments)
+}
+
+func (s *Server) addDocument(w http.ResponseWriter, r *http.Request) {
+	if _, err := query(r, "dry_run"); err != nil {
+		writeErr(w, err)
+		return
+	}
+	body, ok := s.read(w, r)
+	if !ok {
+		return
+	}
+	ct := r.Header.Get("Content-Type")
+	s.mutate(w, r, 201, nil, body, func(ctx context.Context) (any, error) {
+		up, err := parseUpload(ct, body)
+		if err != nil {
+			return nil, err
+		}
+		return s.Svc.AddDocument(ctx, up.Kind, up.Filename, up.ContentType, up.Body)
+	})
+}
+
+func (s *Server) getDocument(w http.ResponseWriter, r *http.Request) {
+	if _, err := query(r); err != nil {
+		writeErr(w, err)
+		return
+	}
+	d, err := s.Svc.GetDocument(r.Context(), r.PathValue("id"))
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	writeJSON(w, 200, map[string]any{
+		"id": d.ID, "kind": d.Kind, "filename": d.Filename,
+		"content_type": d.ContentType, "body": d.Body, "created_at": d.CreatedAt,
+	})
+}
+
+func (s *Server) deleteDocument(w http.ResponseWriter, r *http.Request) {
+	if _, err := query(r, "dry_run"); err != nil {
+		writeErr(w, err)
+		return
+	}
+	id := r.PathValue("id")
+	s.mutate(w, r, 200, nil, []byte(id), func(ctx context.Context) (any, error) {
+		return s.Svc.DeleteDocument(ctx, id)
 	})
 }
 
@@ -2125,6 +2207,17 @@ func (s *Server) setStanding(w http.ResponseWriter, r *http.Request) {
 			return nil, err
 		}
 		return s.Svc.SetStanding(ctx, in.Key, in.Answer)
+	})
+}
+
+func (s *Server) deleteStanding(w http.ResponseWriter, r *http.Request) {
+	if _, err := query(r, "dry_run"); err != nil {
+		writeErr(w, err)
+		return
+	}
+	key := r.PathValue("key")
+	s.mutate(w, r, 200, nil, []byte(key), func(ctx context.Context) (any, error) {
+		return s.Svc.DeleteStanding(ctx, key)
 	})
 }
 

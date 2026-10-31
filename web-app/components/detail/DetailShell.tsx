@@ -219,7 +219,7 @@ export function DetailShell({ id, initial, children }: { id: string; initial: De
           ) : artifacts.data == null ? (
             <ArtifactsSkeleton />
           ) : (
-            <ArtifactsCard artifacts={artifacts.data.data || []} />
+            <ArtifactsCard appId={id} artifacts={artifacts.data.data || []} />
           )}
           {events.error ? (
             <SectionError label="history" onRetry={events.retry} />

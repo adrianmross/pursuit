@@ -376,6 +376,23 @@ var migrations = []migration{{
 }, {
 	version: "008",
 	stmts: []string{
+		`ALTER TABLE users ADD COLUMN avatar TEXT NOT NULL DEFAULT ''`,
+		// Documents belong to the user, not an application: the base résumé
+		// prepare attaches, a cover-letter template, a LinkedIn PDF export.
+		`CREATE TABLE IF NOT EXISTS documents (
+			id TEXT PRIMARY KEY,
+			user_id TEXT NOT NULL REFERENCES users(id),
+			kind TEXT NOT NULL,
+			filename TEXT NOT NULL DEFAULT '',
+			content_type TEXT NOT NULL DEFAULT '',
+			body TEXT NOT NULL,
+			created_at TEXT NOT NULL
+		)`,
+		`CREATE INDEX IF NOT EXISTS documents_user_idx ON documents(user_id, kind, created_at)`,
+	},
+}, {
+	version: "009",
+	stmts: []string{
 		// OAuth2 grants for pursuit auth login. kind is code (loopback +
 		// PKCE) or device. Codes are stored as SHA-256 hashes only.
 		`CREATE TABLE IF NOT EXISTS oauth_grants (
@@ -397,7 +414,7 @@ var migrations = []migration{{
 		`CREATE INDEX IF NOT EXISTS oauth_grants_expires_idx ON oauth_grants(expires_at)`,
 	},
 }, {
-	version: "009",
+	version: "010",
 	stmts: []string{
 		// The approving session's token, so the issued CLI token's audit
 		// entry can name who let it in.

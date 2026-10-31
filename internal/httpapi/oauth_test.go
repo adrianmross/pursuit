@@ -502,7 +502,7 @@ func TestOAuthDeviceMisc(t *testing.T) {
 		t.Fatalf("11th start: %d %v", code, doc)
 	}
 	_, _, h := e.do(t, "GET", "/device", "", nil, nil)
-	if !strings.Contains(h.Get("Content-Security-Policy"), "frame-ancestors 'none'") || h.Get("X-Frame-Options") != "DENY" {
+	if !strings.Contains(h.Get("Content-Security-Policy"), "frame-ancestors 'self'") || h.Get("X-Frame-Options") != "SAMEORIGIN" {
 		t.Fatalf("/device framing headers: %q %q", h.Get("Content-Security-Policy"), h.Get("X-Frame-Options"))
 	}
 }

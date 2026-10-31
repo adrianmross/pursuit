@@ -1,15 +1,19 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { ChevronDown, Plus, Trash2 } from "lucide-react"
+import { AlertCircle, CalendarClock, ChevronDown, Plus, Trash2 } from "lucide-react"
 import { api, ApiError } from "@/lib/api-client"
 import { label, type Interview } from "@/lib/types"
 import { InlineSelect, InlineText } from "@/components/InlineEdit"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
+import { ButtonGroup } from "@/components/ui/button-group"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
+import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty"
 import { Input } from "@/components/ui/input"
+import { Item, ItemActions, ItemContent, ItemGroup, ItemMedia } from "@/components/ui/item"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 
@@ -76,14 +80,16 @@ function Row({
   onDelete: (item: Interview) => void
 }) {
   return (
-    <li className="flex flex-col gap-2 rounded-lg border p-3">
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+    <Item variant="outline" size="sm" role="listitem">
+      <ItemMedia>
         <Checkbox
           aria-label="Done"
           checked={!!item.done_at}
           disabled={!writable}
           onCheckedChange={(checked) => onPatch(item, { done: checked === true })}
         />
+      </ItemMedia>
+      <ItemContent className="flex-row flex-wrap items-center gap-x-3 gap-y-1.5">
         <InlineText
           value={item.kind || ""}
           placeholder="Round"
@@ -116,13 +122,15 @@ function Row({
           inputClassName="h-7 text-sm"
           onSave={(v) => onPatch(item, { interviewer: v })}
         />
-        {writable && (
-          <Button variant="ghost" size="icon" className="ml-auto size-6" aria-label="Delete interview" onClick={() => onDelete(item)}>
+      </ItemContent>
+      {writable && (
+        <ItemActions>
+          <Button variant="ghost" size="icon-xs" aria-label="Delete interview" onClick={() => onDelete(item)}>
             <Trash2 className="size-3.5" />
           </Button>
-        )}
-      </div>
-      <Collapsible defaultOpen={!!item.prep && !item.done_at}>
+        </ItemActions>
+      )}
+      <Collapsible className="basis-full" defaultOpen={!!item.prep && !item.done_at}>
         <CollapsibleTrigger className="group flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
           <ChevronDown className="size-3.5 transition-transform group-data-[state=closed]:-rotate-90" />
           Prep and notes
@@ -142,7 +150,7 @@ function Row({
           />
         </CollapsibleContent>
       </Collapsible>
-    </li>
+    </Item>
   )
 }
 
@@ -208,46 +216,62 @@ export function InterviewsCard({
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
         {ordered.length > 0 && (
-          <ul className="flex flex-col gap-2">
+          <ItemGroup className="gap-2">
             {ordered.map((item) => (
               <Row key={item.id} item={item} writable={writable} onPatch={patch} onDelete={remove} />
             ))}
-          </ul>
+          </ItemGroup>
         )}
-        {ordered.length === 0 && <p className="text-sm text-muted-foreground">No rounds yet. Each one fills part of the mark as you finish it.</p>}
+        {ordered.length === 0 && (
+          <Empty className="border p-4">
+            <EmptyHeader>
+              <EmptyMedia variant="icon">
+                <CalendarClock />
+              </EmptyMedia>
+              <EmptyTitle>No rounds yet</EmptyTitle>
+              <EmptyDescription>Each one fills part of the mark as you finish it.</EmptyDescription>
+            </EmptyHeader>
+          </Empty>
+        )}
         {writable && (
           <form
-            className="flex flex-wrap items-center gap-2"
             onSubmit={(e) => {
               e.preventDefault()
               void add()
             }}
           >
-            <Select value={stage} onValueChange={setStage}>
-              <SelectTrigger className="h-8 w-36" aria-label="Stage">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {STAGES.map(([value, text]) => (
-                  <SelectItem key={value} value={value}>
-                    {text}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Input
-              className="h-8 min-w-40 flex-1 text-sm"
-              placeholder="Round, e.g. System design"
-              value={kind}
-              onChange={(e) => setKind(e.target.value)}
-            />
-            <Button type="submit" size="sm" variant="outline">
-              <Plus className="size-3.5" />
-              Add
-            </Button>
+            <ButtonGroup className="w-full">
+              <Select value={stage} onValueChange={setStage}>
+                <SelectTrigger className="w-36" aria-label="Stage">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {STAGES.map(([value, text]) => (
+                    <SelectItem key={value} value={value}>
+                      {text}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Input
+                className="min-w-40 text-sm"
+                placeholder="Round, e.g. System design"
+                value={kind}
+                onChange={(e) => setKind(e.target.value)}
+              />
+              <Button type="submit" variant="outline">
+                <Plus />
+                Add
+              </Button>
+            </ButtonGroup>
           </form>
         )}
-        {error && <p className="text-sm text-destructive">{error}</p>}
+        {error && (
+          <Alert variant="destructive">
+            <AlertCircle />
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
       </CardContent>
     </Card>
   )

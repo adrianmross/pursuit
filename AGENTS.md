@@ -23,6 +23,8 @@ pursuit list --stale --fields id,company,title,link_status
 
 Standing answers (`pursuit standing set`) fill form questions. Unknown required questions become `needs_input`. Company caps return a conflict when exceeded.
 
+The base résumé is a document: `pursuit documents add --kind base_resume --file resume.pdf`. Prepare attaches the newest one (`PURSUIT_RESUME_FILE` is only the fallback, and has no disk on Vercel). Put a tailored résumé or cover letter on one application with `pursuit artifacts add APP_ID --kind resume_pdf --file tailored.pdf`. When the user answers a `needs_input` question, save it with `pursuit standing set` so every later prepare reuses it.
+
 `GET /v1/profile` is those standing answers as one map. `POST /v1/applications/capture` saves a posting the user is viewing as `to_apply` and dedupes on the URL. The browser extension calls those. It is not a dashboard.
 
 Debugging with the audit log. Every successful change records who did what and when, with details in `metadata`.

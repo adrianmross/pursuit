@@ -90,7 +90,13 @@ jobs:
             echo "Nothing to tag (${tag})."
             exit 0
           fi
-          git tag -a "$tag" -m "pursuit ${tag}"
+          # An annotated tag needs a committer identity; the runner has none.
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          # Tag the commit that bumped the manifest (the merged release PR), not
+          # HEAD: later merges may have landed before this run.
+          release_sha="$(git log -1 --format=%H -- .release-please-manifest.json)"
+          git tag -a "$tag" -m "pursuit ${tag}" "$release_sha"
           git push origin "$tag"
           echo "tag=${tag}" >> "$GITHUB_OUTPUT"
 
