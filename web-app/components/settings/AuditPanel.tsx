@@ -1,12 +1,12 @@
 "use client"
 
 import { Fragment, useEffect, useRef, useState } from "react"
-import { Check, ChevronRight, Copy } from "lucide-react"
+import { Check, ChevronRight, Copy, Search } from "lucide-react"
 import { api } from "@/lib/api-client"
 import type { Audit, Page } from "@/lib/types"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
+import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 
@@ -106,19 +106,23 @@ export function AuditPanel() {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center gap-2">
-        <Input
-          data-search="audit"
-          aria-label="Search audit log"
-          placeholder="Search actor, action, entity, summary, or details"
-          className="min-w-56 flex-1"
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key !== "Escape") return
-            if (text) setText("")
-            else e.currentTarget.blur()
-          }}
-        />
+        <InputGroup className="w-auto min-w-56 flex-1">
+          <InputGroupAddon>
+            <Search />
+          </InputGroupAddon>
+          <InputGroupInput
+            data-search="audit"
+            aria-label="Search audit log"
+            placeholder="Search actor, action, entity, summary, or details"
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key !== "Escape") return
+              if (text) setText("")
+              else e.currentTarget.blur()
+            }}
+          />
+        </InputGroup>
         <Select value={range} onValueChange={pickRange}>
           <SelectTrigger className="w-40" aria-label="Time range">
             <SelectValue />
