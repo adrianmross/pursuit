@@ -4,6 +4,7 @@
 package vercelapp
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -77,12 +78,11 @@ func ensure(ctx context.Context) (*runtime, error) {
 	if created && supplied == "" {
 		log.Info("bootstrap token created", "token", secret, "hint", "save this token; it will not be shown again")
 	}
-	trust := strings.TrimSpace(os.Getenv("PURSUIT_TRUST_PROXY_AUTH"))
-	if trust != "" && !strings.EqualFold(trust, "vercel") {
-		log.Warn("PURSUIT_TRUST_PROXY_AUTH ignored", "value", trust)
-		trust = ""
+	trust, why := trustFromEnv(os.Getenv)
+	if why != "" {
+		log.Warn("PURSUIT_TRUST_PROXY_AUTH ignored", "value", os.Getenv("PURSUIT_TRUST_PROXY_AUTH"), "reason", why)
 	}
-	if strings.EqualFold(trust, "vercel") {
+	if trust != "" {
 		log.Warn("proxy auth is on", "hint", "PURSUIT_TRUST_PROXY_AUTH=vercel treats a request with no Pursuit token as the owner. Only use this behind Vercel Authentication.")
 	}
 	tenantMode := strings.ToLower(env("PURSUIT_TENANT_MODE", "single"))
@@ -125,13 +125,47 @@ func buildOIDC(ctx context.Context, log *slog.Logger) (*oidcauth.Manager, error)
 	if secret == "" {
 		return nil, fmt.Errorf("PURSUIT_SESSION_SECRET is required when an OIDC provider is configured")
 	}
-	base := strings.TrimSpace(os.Getenv("PURSUIT_SERVER"))
+	base := publicURL(os.Getenv)
 	if base == "" {
 		return nil, fmt.Errorf("PURSUIT_SERVER (the deployment's public URL) is required when an OIDC provider is configured")
 	}
-	base = strings.TrimRight(base, "/")
 	redirect := func(name string) string { return base + "/v1/auth/" + name + "/callback" }
 	return oidcauth.New(ctx, []byte(secret), specs, redirect)
+}
+
+// trustFromEnv returns "vercel" only on a Vercel preview deployment, where
+// deployment protection gates every request. Production refuses it: there,
+// one unprotected path or a protection setting turned off would make every
+// tokenless request the owner. why says why a set value was ignored.
+func trustFromEnv(getenv func(string) string) (trust, why string) {
+	v := strings.TrimSpace(getenv("PURSUIT_TRUST_PROXY_AUTH"))
+	switch {
+	case v == "":
+		return "", ""
+	case !strings.EqualFold(v, "vercel"):
+		return "", `the only supported value is "vercel"`
+	case getenv("VERCEL_ENV") != "preview":
+		return "", "only honored on Vercel preview deployments (VERCEL_ENV=preview); production needs a real sign-in"
+	}
+	return "vercel", ""
+}
+
+// publicURL is PURSUIT_SERVER, else the URL Vercel says this deployment
+// answers on: the project's production domain (the shortest custom domain
+// once one is added) in production, the deployment's own URL elsewhere.
+// Adding a custom domain therefore needs no env change here.
+func publicURL(getenv func(string) string) string {
+	if v := strings.TrimSpace(getenv("PURSUIT_SERVER")); v != "" {
+		return strings.TrimRight(v, "/")
+	}
+	host := getenv("VERCEL_URL")
+	if getenv("VERCEL_ENV") == "production" {
+		host = cmp.Or(getenv("VERCEL_PROJECT_PRODUCTION_URL"), host)
+	}
+	if host == "" {
+		return ""
+	}
+	return "https://" + host
 }
 
 func postgresURL() (string, error) {

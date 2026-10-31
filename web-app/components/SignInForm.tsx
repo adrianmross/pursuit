@@ -309,6 +309,33 @@ function TryDemo() {
   )
 }
 
+function ContinueAsOwner() {
+  const { continueAsOwner } = useAuth()
+  const [submitting, setSubmitting] = useState(false)
+  const [localError, setLocalError] = useState<string | null>(null)
+
+  async function onClick() {
+    setSubmitting(true)
+    setLocalError(null)
+    try {
+      await continueAsOwner()
+    } catch {
+      setLocalError("Could not sign in as the owner.")
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-2 text-center">
+      {localError && <FailNote className="justify-center">{localError}</FailNote>}
+      <Button type="button" disabled={submitting} onClick={onClick}>
+        {submitting ? "Signing in…" : "Continue as owner"}
+      </Button>
+    </div>
+  )
+}
+
 export function SignInForm({
   allowTokenLogin: initialAllowTokenLogin,
   demoAvailable: initialDemoAvailable,
@@ -318,6 +345,7 @@ export function SignInForm({
 }) {
   const [allowTokenLogin, setAllowTokenLogin] = useState(initialAllowTokenLogin)
   const [demoAvailable, setDemoAvailable] = useState(initialDemoAvailable)
+  const { proxySignedOut } = useAuth()
 
   // Export mode has no server to compute this ahead of time — check client-side.
   useEffect(() => {
@@ -337,6 +365,7 @@ export function SignInForm({
           <img src="/brand/hire-pursuit-wordmark-reverse.svg" alt="Hire Pursuit" className="h-8 w-auto" />
           <p className="text-sm text-brand-cream/80">A job application tracker you drive from the CLI or from here.</p>
         </div>
+        {proxySignedOut && <ContinueAsOwner />}
         {demoAvailable && <TryDemo />}
         {authClient && <AccountSignIn />}
         {allowTokenLogin && <TokenSignIn />}

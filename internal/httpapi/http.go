@@ -142,6 +142,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /v1/auth/providers", s.authProviders)
 	mux.HandleFunc("GET /v1/auth/{provider}/start", s.authStart)
 	mux.HandleFunc("GET /v1/auth/{provider}/callback", s.authCallback)
+	mux.HandleFunc("POST /v1/auth/session", s.createSession)
+	mux.HandleFunc("DELETE /v1/auth/session", s.deleteSession)
 	mux.HandleFunc("POST /v1/demo", s.startDemo)
 	s.registerOAuth(mux)
 
@@ -289,7 +291,27 @@ func (s *Server) wrap(next http.Handler) http.Handler {
 					return
 				}
 				ctx = domain.WithActor(ctx, actor)
+			} else if c, err := r.Cookie(sessionCookie); err == nil && c.Value != "" {
+				// The dashboard's session: a browser credential, so a write
+				// must come from the dashboard's own origin (CSRF).
+				if unsafeMethod(r.Method) && !sameOrigin(r) {
+					writeErr(w, crossSiteRefused())
+					return
+				}
+				actor, err := s.authenticate(ctx, c.Value)
+				if err != nil {
+					clearSessionCookie(w, r)
+					writeErr(w, err)
+					return
+				}
+				ctx = domain.WithActor(ctx, actor)
 			} else if s.trustVercel() {
+				// Deployment protection's cookie rides along on any request
+				// the browser makes, so the same CSRF rule applies.
+				if unsafeMethod(r.Method) && !sameOrigin(r) {
+					writeErr(w, crossSiteRefused())
+					return
+				}
 				actor, err := s.proxyOwner(ctx)
 				if err != nil {
 					writeErr(w, err)
@@ -404,7 +426,8 @@ func (s *Server) authCallback(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, err)
 		return
 	}
-	http.Redirect(w, r, "/#token="+secret, http.StatusFound)
+	setSessionCookie(w, r, secret)
+	http.Redirect(w, r, "/start", http.StatusFound)
 }
 
 func (s *Server) cronSecret() string {

@@ -2540,6 +2540,128 @@
         "summary": "RFC 7009 token revocation. holding the token is the authority; unknown tokens still return 200. pursuit auth logout calls this"
       }
     },
+    "/v1/auth/session": {
+      "delete": {
+        "operationId": "delete__v1_auth_session",
+        "responses": {
+          "200": {
+            "description": "JSON body"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "error"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "error"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "error"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "error"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "error"
+          }
+        },
+        "security": [],
+        "summary": "dashboard sign-out: clear the pursuit_session cookie. the token stays valid; revoke it with POST /v1/auth/revoke. same-origin only; returns 204"
+      },
+      "post": {
+        "operationId": "post__v1_auth_session",
+        "responses": {
+          "200": {
+            "description": "JSON body"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "error"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "error"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "error"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "error"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "error"
+          }
+        },
+        "security": [],
+        "summary": "dashboard sign-in: verify a token (pst_ or Better Auth JWT) and store it in the httpOnly pursuit_session cookie, then answer like GET /v1/me. requires Content-Type application/json and Sec-Fetch-Site same-origin or a matching Origin. body {token}. agents send Authorization: Bearer instead"
+      }
+    },
     "/v1/auth/token": {
       "post": {
         "operationId": "post__v1_auth_token",
