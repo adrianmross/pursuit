@@ -51,9 +51,18 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GORELEASER_CURRENT_TAG: ${{ env.TAG }}
-      # Vercel's production branch is `release`; pointing it at this tag is the
-      # production deploy.
-      - run: git push --force origin "$TAG^{commit}:refs/heads/release"
+      # The production deploy. Not a push to a `release` branch: GitHub refuses
+      # a GITHUB_TOKEN push whose history adds or changes a workflow file
+      # (v0.2.1's tag hit exactly that), and most releases do. Vercel builds
+      # the tag's source remotely, the same as a Git deploy.
+      - name: Deploy to production
+        env:
+          VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          npx --yes vercel@65.8.0 deploy --prod --yes --token="$VERCEL_TOKEN" \
+            --meta githubDeployment=1 --meta githubCommitRef="$TAG"
       # GoReleaser's release is made with GITHUB_TOKEN, so it fires no
       # `release: published` workflow; poke the tap from here instead. Without
       # the TAP_APP_* secrets this skips and the tap's 6h poll picks it up.
