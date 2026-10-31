@@ -1,7 +1,7 @@
 "use client"
 
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react"
-import { api, ApiError, EXPORT_MODE, setToken } from "@/lib/api-client"
+import { api, ApiError, COOKIE_SESSION, EXPORT_MODE, getToken, setToken } from "@/lib/api-client"
 import type { Me } from "@/lib/types"
 
 type AuthState = {
@@ -18,6 +18,12 @@ type AuthState = {
   // the deployment doesn't have demo mode on (see isDemoAvailable below).
   startDemo: () => Promise<void>
   signOut: () => Promise<void>
+  // Export mode behind PURSUIT_TRUST_PROXY_AUTH=vercel: every token-less
+  // request is the owner, so after an explicit sign-out the mount-time
+  // check is skipped (or /sign-in would sign straight back in) and the
+  // sign-in page offers this to go back in as the owner.
+  proxySignedOut: boolean
+  continueAsOwner: () => Promise<void>
   // Re-reads /v1/me after the profile (name, avatar) changes.
   refresh: () => Promise<void>
   can: (scope: string) => boolean
@@ -28,6 +34,20 @@ type AuthState = {
 }
 
 const AuthContext = createContext<AuthState | null>(null)
+
+const PROXY_SIGNED_OUT_KEY = "pursuit_proxy_signed_out"
+
+function readProxySignedOut() {
+  return typeof window !== "undefined" && localStorage.getItem(PROXY_SIGNED_OUT_KEY) === "1"
+}
+
+// Export mode sign-in: same-origin, the server checks the token and keeps
+// it in its httpOnly cookie; split-origin, the browser keeps it.
+async function storeToken(token: string): Promise<Me> {
+  if (COOKIE_SESSION) return api<Me>("/v1/auth/session", { method: "POST", body: { token } })
+  setToken(token)
+  return api<Me>("/v1/me")
+}
 
 // On the hosted build, `me` is fetched server-side (middleware already
 // redirects anonymous requests to /sign-in, and the root layout passes the
@@ -42,24 +62,36 @@ const AuthContext = createContext<AuthState | null>(null)
 // this same state instead of doing its own disconnected check).
 //
 // The check always fires in export mode, even with no stored token — it
-// just 401s harmlessly when there's genuinely nothing stored. Demo mode
+// just 401s harmlessly when there's genuinely nothing stored. A token left
+// in localStorage by an older build is moved into the session cookie here. Demo mode
 // doesn't change this: a demo session is a normal token from
 // POST /v1/demo (see startDemo below), stored exactly like a real one.
 export function AuthProvider({ initialMe, children }: { initialMe: Me | null; children: ReactNode }) {
   const [me, setMe] = useState<Me | null>(initialMe)
   const [loading, setLoading] = useState(EXPORT_MODE && initialMe == null)
   const [error, setError] = useState<string | null>(null)
+  const [proxySignedOut, setProxySignedOut] = useState(false)
+
+  const setProxyMarker = useCallback((on: boolean) => {
+    if (on) localStorage.setItem(PROXY_SIGNED_OUT_KEY, "1")
+    else localStorage.removeItem(PROXY_SIGNED_OUT_KEY)
+    setProxySignedOut(on)
+  }, [])
 
   useEffect(() => {
-    if (!EXPORT_MODE || me != null) {
-      // Nothing to check (hosted, or already resolved) — settles the
-      // one-time mount-time loading state, not a render loop.
+    const skip = EXPORT_MODE && me == null && !getToken() && readProxySignedOut()
+    if (!EXPORT_MODE || me != null || skip) {
+      // Nothing to check (hosted, already resolved, or signed out of the
+      // proxy owner) — settles the one-time mount-time state, not a render loop.
       // eslint-disable-next-line react-hooks/set-state-in-effect
+      setProxySignedOut(skip)
       setLoading(false)
       return
     }
     let cancelled = false
-    api<Me>("/v1/me")
+    const legacy = COOKIE_SESSION ? getToken() : ""
+    const check = legacy ? storeToken(legacy).finally(() => setToken("")) : api<Me>("/v1/me")
+    check
       .then((result) => {
         if (!cancelled) setMe(result)
       })
@@ -79,9 +111,8 @@ export function AuthProvider({ initialMe, children }: { initialMe: Me | null; ch
     setError(null)
     try {
       if (EXPORT_MODE) {
-        setToken(token)
-        const result = await api<Me>("/v1/me")
-        setMe(result)
+        setProxyMarker(false)
+        setMe(await storeToken(token))
       } else {
         const response = await fetch("/api/auth/sign-in", {
           method: "POST",
@@ -97,16 +128,15 @@ export function AuthProvider({ initialMe, children }: { initialMe: Me | null; ch
       setError(err instanceof ApiError || err instanceof Error ? err.message : "Sign-in failed")
       throw err
     }
-  }, [])
+  }, [setProxyMarker])
 
   const startDemo = useCallback(async () => {
     setError(null)
     try {
       if (EXPORT_MODE) {
         const { token } = await api<{ token: string }>("/v1/demo", { method: "POST" })
-        setToken(token)
-        const result = await api<Me>("/v1/me")
-        setMe(result)
+        setProxyMarker(false)
+        setMe(await storeToken(token))
       } else {
         const response = await fetch("/api/auth/demo", { method: "POST" })
         const data = await response.json()
@@ -117,11 +147,19 @@ export function AuthProvider({ initialMe, children }: { initialMe: Me | null; ch
       setError(err instanceof ApiError || err instanceof Error ? err.message : "Could not start the demo.")
       throw err
     }
-  }, [])
+  }, [setProxyMarker])
+
+  const continueAsOwner = useCallback(async () => {
+    setProxyMarker(false)
+    setMe(await api<Me>("/v1/me"))
+  }, [setProxyMarker])
 
   const signOut = useCallback(async () => {
     if (EXPORT_MODE) {
+      // Awaited for the same reason as the hosted branch below.
+      if (COOKIE_SESSION) await api("/v1/auth/session", { method: "DELETE" })
       setToken("")
+      if (me?.proxy) setProxyMarker(true)
     } else {
       // Must await: navigating away can cancel an in-flight fire-and-forget
       // request before the server clears the cookie, leaving the user
@@ -133,7 +171,7 @@ export function AuthProvider({ initialMe, children }: { initialMe: Me | null; ch
     // to be re-fetched so no stale authenticated state can linger client-side.
     // eslint-disable-next-line @next/next/no-location-assign-relative-destination
     window.location.assign("/sign-in")
-  }, [])
+  }, [me, setProxyMarker])
 
   const can = useCallback(
     (scope: string) => {
@@ -147,7 +185,7 @@ export function AuthProvider({ initialMe, children }: { initialMe: Me | null; ch
   const refresh = useCallback(async () => setMe(await api<Me>("/v1/me")), [])
 
   return (
-    <AuthContext.Provider value={{ me, loading, error, signIn, startDemo, signOut, refresh, can, isDemo }}>
+    <AuthContext.Provider value={{ me, loading, error, signIn, startDemo, signOut, proxySignedOut, continueAsOwner, refresh, can, isDemo }}>
       {children}
     </AuthContext.Provider>
   )

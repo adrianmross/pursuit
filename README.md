@@ -120,7 +120,7 @@ Fastest path: `make run` (builds the embedded web assets, then the binary, then 
 
 `pursuit serve` embeds a small web dashboard and serves it at the same address as the API, `http://127.0.0.1:8787/`. The pages are static files in the binary. They call the REST API and do not have a private backend.
 
-Open that URL and paste a token once. The browser keeps it in `localStorage` and sends it as `Authorization: Bearer`. A read token can browse. Approve and Reject need the `approve` scope. Re-checking a posting needs `write`. The bootstrap token has all three. On localhost the page and the API share an origin, so you do not set `PURSUIT_CORS_ORIGINS` for the dashboard.
+Open that URL and paste a token once. The server checks it and keeps it in an httpOnly `pursuit_session` cookie, so page scripts never see it. Writes made with that cookie must come from the dashboard's own origin. A dashboard served from another origin than its API (`NEXT_PUBLIC_PURSUIT_API_URL`) keeps the token in `localStorage` instead and sends it as `Authorization: Bearer`. A read token can browse. Approve and Reject need the `approve` scope. Re-checking a posting needs `write`. The bootstrap token has all three. On localhost the page and the API share an origin, so you do not set `PURSUIT_CORS_ORIGINS` for the dashboard.
 
 The pipeline lists applications with status filters, search, and sorting. An application page shows the posting, notes, history, and prepared artifacts. The approval queue lists `awaiting_review` work. Approve calls `POST /v1/approvals`, which marks the application `approved` and does not submit the form. Reject calls `POST /v1/approvals/reject`, which marks it `withdrawn` and does not submit either. Link health lists postings the checker marked closed and postings whose status changed since the previous check. Re-check calls the existing link endpoints.
 
@@ -130,7 +130,13 @@ The UI is plain HTML, CSS, and JavaScript, with no build step, so those files em
 
 The same dashboard and API can run as one Go function on Vercel, with Neon Postgres from the Vercel Marketplace. This does not change `pursuit serve`. With the variables below unset, the binary still uses its own database URL, still requires a Pursuit token, and still runs the link checker in the daemon.
 
-Turn on Deployment Protection and choose Vercel Authentication so the deployment is private to you. `PURSUIT_TRUST_PROXY_AUTH=vercel` is safe only in that case. It is off unless that exact value is set. Anyone who can open a deployment without protection would be the owner.
+With `PURSUIT_TENANT_MODE=multi`, any verified email that signs in gets its own account. Set `PURSUIT_SIGNUPS=closed` to pause that: existing users still sign in, a new email gets `403 sign-ups are paused`, and the dashboard hides "Create an account". Neon Auth's own switch (`neon neon-auth config email-password update --disable-sign-up true`) stops new email/password accounts at the source; the pursuit toggle also covers social and OIDC sign-ins.
+
+Turn on Deployment Protection and choose Vercel Authentication so preview deployments are private to you. `PURSUIT_TRUST_PROXY_AUTH=vercel` is safe only in that case. It is off unless that exact value is set, and it is honored only on preview deployments (`VERCEL_ENV=preview`). Production ignores it and needs a real sign-in: a token, Google or another OIDC provider, or Better Auth.
+
+Production finds its own public URL. With `PURSUIT_SERVER` unset, it uses `VERCEL_PROJECT_PRODUCTION_URL`, which Vercel sets to the shortest custom domain once you add one. Moving to a new domain needs no Pursuit env change. Outside Pursuit, you still update the OIDC provider's redirect URI (`https://<domain>/v1/auth/<provider>/callback`) and any Better Auth trusted origins, run `pursuit auth login` again (stored logins are per server URL), and point the extension at the new URL.
+
+With Better Auth (Neon Auth, `NEXT_PUBLIC_NEON_AUTH_URL` at build time), the dashboard's sign-in card has email and password, a verification code on first sign-in, and "Forgot password?": it emails a 6-digit code, you set a new password, and you are signed in. Codes work with Neon's shared sender; nothing extra to configure. Passkeys are not available: managed Neon Auth does not expose the passkey plugin.
 
 ### Environment
 
@@ -138,7 +144,8 @@ Turn on Deployment Protection and choose Vercel Authentication so the deployment
 | --- | --- | --- |
 | `DATABASE_URL` | yes, unless `POSTGRES_URL` is set | Neon connection string. Read first. `postgres://` or `postgresql://`. Use `sslmode=require` for Neon. A SQLite URL is rejected. |
 | `POSTGRES_URL` | fallback | Used only when `DATABASE_URL` is empty. The Marketplace usually sets both. |
-| `PURSUIT_TRUST_PROXY_AUTH` | yes, for the private dashboard | `vercel`. A request with no Pursuit token is the single owner and has `read`, `write`, and `approve`. A request that sends `Authorization: Bearer` is still that token, so the CLI and agents keep using scoped tokens. Any other value is ignored. |
+| `PURSUIT_TRUST_PROXY_AUTH` | previews only | `vercel`, set for the Preview environment. A request with no Pursuit token or session is the single owner and has `read`, `write`, and `approve`; its writes must come from the dashboard's own origin. A request that sends `Authorization: Bearer` is still that token, so the CLI and agents keep using scoped tokens. Any other value, and any non-preview deployment, is ignored. |
+| `PURSUIT_SERVER` | no | The public URL, when it isn't the one Vercel reports (see above). Used for OIDC redirect URIs. |
 | `PURSUIT_NO_DOCS` | no | `true` stops serving the embedded docs at `/docs` (the same variable works for `pursuit serve`). |
 | `PURSUIT_CF_BEACON_TOKEN` | no | Cloudflare Web Analytics site token. Read at build time to embed the beacon in the dashboard, and at runtime to allow it in the CSP. Unset means no analytics script. |
 | `CRON_SECRET` | yes, for the daily link check | A long random secret. Vercel Cron sends `GET /v1/cron/links` with `Authorization: Bearer <CRON_SECRET>`. There is no background checker on Vercel. A missing or wrong secret is 401, including when proxy auth is on. |

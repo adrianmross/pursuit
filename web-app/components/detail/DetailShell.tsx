@@ -118,6 +118,13 @@ export function DetailShell({ id, initial, children }: { id: string; initial: De
     }
   }
 
+  // Bumped after the header's chooser changes rounds so the rounds card refetches.
+  const [roundsTick, setRoundsTick] = useState(0)
+  async function onRoundsChange() {
+    setRoundsTick((n) => n + 1)
+    await reload()
+  }
+
   async function onRecheckLink() {
     if (!application) return
     await api(`/v1/applications/${encodeURIComponent(application.id)}/check-link`, { method: "POST", body: {} })
@@ -190,6 +197,7 @@ export function DetailShell({ id, initial, children }: { id: string; initial: De
             onUnarchive={onUnarchive}
             onDecide={onDecide}
             onDelete={onDelete}
+            onRoundsChange={onRoundsChange}
           />
           <DetailAttributes
             application={application}
@@ -200,7 +208,7 @@ export function DetailShell({ id, initial, children }: { id: string; initial: De
             onRecheckLink={onRecheckLink}
             fieldError={fieldError}
           />
-          <InterviewsCard appId={application.id} current={application.stage ?? 0} writable={writable} onChange={reload} />
+          <InterviewsCard key={roundsTick} appId={application.id} current={application.stage ?? 0} writable={writable} onChange={reload} />
           <DetailNotes notes={application.notes || ""} writable={writable} onSave={onSaveNotes} />
         </>
       )}

@@ -69,6 +69,7 @@ export function Four({ x, tilt = 0 }: { x: number; tilt?: number }) {
 }
 
 const PIPS: Record<number, [number, number][]> = {
+  0: [],
   1: [[0, 0]],
   2: [[-1, -1], [1, 1]],
   3: [[-1, -1], [0, 0], [1, 1]],
@@ -125,6 +126,56 @@ export function SnakeEyes({ className, roughness = 2 }: { className?: string; ro
     <Sketch viewBox="0 0 64 40" roughness={roughness} className={className}>
       <Die x={18} y={21} size={22} tilt={-14} pips={1} />
       <Die x={45} y={18} size={22} tilt={11} pips={1} />
+    </Sketch>
+  )
+}
+
+// Every outcome is a die whose face is its number key in the status chooser
+// (1 waiting ... 6 withdrawn), so the die doubles as the shortcut hint. These
+// are interface icons, not the error pages' sketches: a clean line on the
+// brand's 24px grid at 1.5px, with only a slight lean so they still read as
+// thrown dice.
+const OUTCOME_DICE: Record<string, { pips: number; tilt: number }> = {
+  waiting: { pips: 1, tilt: -6 },
+  needs_input: { pips: 2, tilt: 5 },
+  failed: { pips: 3, tilt: -4 },
+  rejected: { pips: 4, tilt: 6 },
+  ghosted: { pips: 5, tilt: -5 },
+  withdrawn: { pips: 6, tilt: 4 },
+}
+
+export function OutcomePiece({ status, className }: { status: string; className?: string }) {
+  const die = OUTCOME_DICE[status] ?? { pips: 1, tilt: 0 }
+  return (
+    <svg viewBox="0 0 24 24" fill="none" aria-hidden className={className}>
+      <g transform={`rotate(${die.tilt} 12 12)`}>
+        <rect x="4" y="4" width="16" height="16" rx="3.5" className="fill-background" stroke="currentColor" strokeWidth="1.5" />
+        {PIPS[die.pips].map(([px, py]) => (
+          <circle key={`${px},${py}`} cx={12 + px * 4} cy={12 + py * 4} r="1.4" fill="currentColor" />
+        ))}
+      </g>
+    </svg>
+  )
+}
+
+// Small marks for whose move a hold is: an hourglass for waiting on them, a
+// card turned up with a question for needs input.
+export function HoldIcon({ status, className }: { status: string; className?: string }) {
+  return (
+    <Sketch viewBox="-14 -14 28 28" roughness={1.5} className={className}>
+      {status === "waiting" ? (
+        <g stroke="currentColor" strokeWidth="2.6">
+          <path d="M-9 -12 H9 M-9 12 H9" />
+          <path d="M-7 -12 C-7 -4 0 -2 0 0 C0 2 -7 4 -7 12 M7 -12 C7 -4 0 -2 0 0 C0 2 7 4 7 12" />
+          <path d="M-4 9 Q0 4 4 9 Z" fill="currentColor" strokeWidth="1.2" />
+        </g>
+      ) : (
+        <g transform="rotate(8)">
+          <rect x="-8.5" y="-12" width="17" height="24" rx="3" stroke="currentColor" strokeWidth="2.6" />
+          <path d="M-3.2 -3.5 A3.4 3.4 0 1 1 1 -0.2 C0 0.4 0 1.2 0 3" stroke="currentColor" strokeWidth="2.4" />
+          <circle cx="0" cy="7" r="1.6" fill="currentColor" />
+        </g>
+      )}
     </Sketch>
   )
 }

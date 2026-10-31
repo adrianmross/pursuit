@@ -1,5 +1,31 @@
 # Changelog
 
+## [0.2.1](https://github.com/adrianmross/pursuit/compare/v0.2.0...v0.2.1) (2026-10-31)
+
+
+### Bug Fixes
+
+* **pursuit:** Deploy Vercel previews only for pull requests labeled preview ([#62](https://github.com/adrianmross/pursuit/issues/62)) ([f70b43d](https://github.com/adrianmross/pursuit/commit/f70b43db6c1fa87111d3a41730ae4713687e8305))
+
+## [0.2.0](https://github.com/adrianmross/pursuit/compare/v0.1.0...v0.2.0) (2026-10-31)
+
+
+### Features
+
+* **pursuit:** Add a Connect an agent page with a setup prompt, skill and token ([#59](https://github.com/adrianmross/pursuit/issues/59)) ([d2ddaaa](https://github.com/adrianmross/pursuit/commit/d2ddaaa45540f9dcda09f3745ca4372e031e3b93))
+* **pursuit:** Add a profile page, user documents with previews, and owner identity with avatars ([84a0a1c](https://github.com/adrianmross/pursuit/commit/84a0a1cf0316e74d93390acbf37629b19dd49b14))
+* **pursuit:** Add a status chooser, rounds as pies, and tasks on every stage ([#58](https://github.com/adrianmross/pursuit/issues/58)) ([db9037c](https://github.com/adrianmross/pursuit/commit/db9037c0e1587b7c786d84ba344b6c5ed047b73e))
+* **pursuit:** Add pursuit auth login with browser and device OAuth2 flows ([#48](https://github.com/adrianmross/pursuit/issues/48)) ([4502fb6](https://github.com/adrianmross/pursuit/commit/4502fb6c1547f7c2ba98cd93b828161d13b6b9df))
+* **pursuit:** Let the owner behind Vercel deployment protection change their email ([#57](https://github.com/adrianmross/pursuit/issues/57)) ([2720c4d](https://github.com/adrianmross/pursuit/commit/2720c4dfba6f937c35551859981cefa93196a28b))
+
+
+### Bug Fixes
+
+* **pursuit:** generate api/openapi.json from the served spec and fail CI on drift ([#52](https://github.com/adrianmross/pursuit/issues/52)) ([a90bd16](https://github.com/adrianmross/pursuit/commit/a90bd162a1adaad02dc78fbaad8d316d21430854))
+* **pursuit:** Restore the shadcn styling on the pipeline, sign-in and audit search ([#55](https://github.com/adrianmross/pursuit/issues/55)) ([3d2ea09](https://github.com/adrianmross/pursuit/commit/3d2ea0916d7ee6fcebce87a739228c56175a7ff7))
+* **pursuit:** Test migrations and the store against Postgres in CI ([#56](https://github.com/adrianmross/pursuit/issues/56)) ([b89be44](https://github.com/adrianmross/pursuit/commit/b89be447369e0724aca75b1a08f4057843fd2813))
+* **pursuit:** Tokens can only mint scopes they already hold ([#54](https://github.com/adrianmross/pursuit/issues/54)) ([f01328c](https://github.com/adrianmross/pursuit/commit/f01328ced149016714b63488c3482ac34aa77c3d))
+
 ## 0.1.0 (2026-10-31)
 
 

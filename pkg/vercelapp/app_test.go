@@ -70,6 +70,43 @@ func TestHandlerRejectsSQLite(t *testing.T) {
 	}
 }
 
+func TestTrustFromEnv(t *testing.T) {
+	for _, c := range []struct {
+		trust, vercelEnv, want string
+		ignored                bool
+	}{
+		{"", "preview", "", false},
+		{"vercel", "preview", "vercel", false},
+		{"VERCEL", "preview", "vercel", false},
+		{"vercel", "production", "", true},
+		{"vercel", "", "", true},
+		{"on", "preview", "", true},
+	} {
+		got, why := trustFromEnv(func(k string) string {
+			return map[string]string{"PURSUIT_TRUST_PROXY_AUTH": c.trust, "VERCEL_ENV": c.vercelEnv}[k]
+		})
+		if got != c.want || (why != "") != c.ignored {
+			t.Errorf("trust=%q env=%q: got %q why %q", c.trust, c.vercelEnv, got, why)
+		}
+	}
+}
+
+func TestPublicURL(t *testing.T) {
+	for _, c := range []struct {
+		env  map[string]string
+		want string
+	}{
+		{map[string]string{"PURSUIT_SERVER": "https://pursuit.example/", "VERCEL_ENV": "production", "VERCEL_PROJECT_PRODUCTION_URL": "x.vercel.app"}, "https://pursuit.example"},
+		{map[string]string{"VERCEL_ENV": "production", "VERCEL_PROJECT_PRODUCTION_URL": "pursuit.example", "VERCEL_URL": "pursuit-abc.vercel.app"}, "https://pursuit.example"},
+		{map[string]string{"VERCEL_ENV": "preview", "VERCEL_PROJECT_PRODUCTION_URL": "pursuit.example", "VERCEL_URL": "pursuit-abc.vercel.app"}, "https://pursuit-abc.vercel.app"},
+		{map[string]string{}, ""},
+	} {
+		if got := publicURL(func(k string) string { return c.env[k] }); got != c.want {
+			t.Errorf("%v: got %q want %q", c.env, got, c.want)
+		}
+	}
+}
+
 func TestOriginalPathHeader(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/api/index.go", nil)
 	req.Header.Set("X-Original-Url", "/v1/applications?status=applied")

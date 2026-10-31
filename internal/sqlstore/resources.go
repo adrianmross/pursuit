@@ -463,18 +463,37 @@ func statusIn(list []string, not bool) (string, []any) {
 
 // attachInterviews fills Interviews with the done/total of each stage that has
 // rounds, keyed by stage number: the segments of the mark that fill partly.
+// It fills Tasks the same way from tasks.
 func (s *Store) attachInterviews(ctx context.Context, apps []domain.Application) error {
 	if len(apps) == 0 {
 		return nil
 	}
+	rounds, err := s.stageCounts(ctx, "interviews", apps)
+	if err != nil {
+		return err
+	}
+	tasks, err := s.stageCounts(ctx, "tasks", apps)
+	if err != nil {
+		return err
+	}
+	for i := range apps {
+		apps[i].Interviews = rounds[apps[i].ID]
+		apps[i].Tasks = tasks[apps[i].ID]
+	}
+	return nil
+}
+
+// stageCounts sums done/total per application and stage number of a table
+// with application_id, stage and done_at columns.
+func (s *Store) stageCounts(ctx context.Context, table string, apps []domain.Application) (map[string]map[int]domain.InterviewCount, error) {
 	ph := strings.TrimRight(strings.Repeat("?,", len(apps)), ",")
 	args := make([]any, len(apps))
 	for i, a := range apps {
 		args[i] = a.ID
 	}
-	rows, err := s.query(ctx, `SELECT application_id, stage, COUNT(*), COUNT(CASE WHEN done_at<>'' THEN 1 END) FROM interviews WHERE application_id IN (`+ph+`) GROUP BY application_id, stage`, args...)
+	rows, err := s.query(ctx, `SELECT application_id, stage, COUNT(*), COUNT(CASE WHEN done_at<>'' THEN 1 END) FROM `+table+` WHERE application_id IN (`+ph+`) GROUP BY application_id, stage`, args...)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer rows.Close()
 	byApp := map[string]map[int]domain.InterviewCount{}
@@ -482,7 +501,7 @@ func (s *Store) attachInterviews(ctx context.Context, apps []domain.Application)
 		var appID, stage string
 		var c domain.InterviewCount
 		if err := rows.Scan(&appID, &stage, &c.Total, &c.Done); err != nil {
-			return err
+			return nil, err
 		}
 		if byApp[appID] == nil {
 			byApp[appID] = map[int]domain.InterviewCount{}
@@ -491,10 +510,7 @@ func (s *Store) attachInterviews(ctx context.Context, apps []domain.Application)
 		sum := byApp[appID][n]
 		byApp[appID][n] = domain.InterviewCount{Done: sum.Done + c.Done, Total: sum.Total + c.Total}
 	}
-	for i := range apps {
-		apps[i].Interviews = byApp[apps[i].ID]
-	}
-	return rows.Err()
+	return byApp, rows.Err()
 }
 
 func appSelect() string {

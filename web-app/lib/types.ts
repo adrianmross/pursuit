@@ -10,6 +10,8 @@ export type Application = {
   stage?: number
   // Rounds per stage number (1-6): done and total.
   interviews?: Record<string, { done: number; total: number }>
+  // Tasks per stage number (0-6): done and total.
+  tasks?: Record<string, { done: number; total: number }>
   link_status?: string
   posting_url?: string
   applied_date?: string
@@ -38,6 +40,23 @@ export type Interview = {
   prep?: string
   notes?: string
   version: number
+}
+
+// A to-do on an application, things waiting on you, optionally on a stage.
+export type Task = {
+  id: string
+  application_id: string
+  stage: string
+  title: string
+  notes?: string
+  due_at?: string
+  done_at?: string
+  version: number
+}
+
+// Open tasks across every stage.
+export function openTasks(app: Pick<Application, "tasks">) {
+  return Object.values(app.tasks ?? {}).reduce((n, c) => n + c.total - c.done, 0)
 }
 
 export type CustomField = {
@@ -175,6 +194,21 @@ export const LABELS: Record<string, string> = {
   withdrawn: "Withdrawn",
   ghosted: "Ghosted",
 }
+
+// The seven stops on the progress mark, piece 0 (To apply) to 6 (Offer).
+// Index = piece, so STAGE_STOPS[app.stage] is the stage an app sits on.
+export const STAGE_STOPS: [string, string][] = ["to_apply", "awaiting_review", "applied", "screening", "interviewing", "final", "offer"].map(
+  (s) => [s, LABELS[s]],
+)
+
+// Rounds attach to pieces 1-6, keyed by the stage's status name.
+export const ROUND_STAGES = STAGE_STOPS.slice(1)
+
+// Mirrors domain.IsOutcome: these overlay a stage instead of replacing it.
+export const OUTCOMES = ["waiting", "needs_input", "failed", "rejected", "ghosted", "withdrawn"]
+
+// Statuses between the stops (agent pipeline steps), offered under "more".
+export const SUB_STEPS = ["saved", "preparing", "approved", "submitting", "submitted", "in_progress"]
 
 // The status an application displays: its outcome when set, else its stage.
 export function shown(app: Pick<Application, "status" | "outcome">) {

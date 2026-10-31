@@ -70,6 +70,9 @@ type Server struct {
 	// type a raw secret there); the bearer-token API itself is unaffected
 	// for CLI/automation use either way.
 	HideTokenLogin bool
+	// SignupsClosed (PURSUIT_SIGNUPS=closed) stops verified identities
+	// without an account from getting one; existing users sign in as before.
+	SignupsClosed bool
 	// NoDocs 404s the embedded docs under /docs.
 	NoDocs bool
 	// DemoMode lets an unauthenticated caller in as a fresh, isolated,
@@ -104,6 +107,22 @@ func (s *Server) multiTenant() bool {
 	return strings.EqualFold(strings.TrimSpace(s.TenantMode), "multi")
 }
 
+// signupsOpen reports whether a verified identity with no Pursuit account
+// gets one. Only multi-tenant mode creates accounts; SignupsClosed pauses
+// that without touching existing users.
+func (s *Server) signupsOpen() bool {
+	return s.multiTenant() && !s.SignupsClosed
+}
+
+// signupsPaused turns "no account for this verified email" into an answer
+// the person can act on while sign-ups are closed.
+func (s *Server) signupsPaused(err error) error {
+	if s.multiTenant() && s.SignupsClosed && domain.IsCode(err, "unauthorized") {
+		return &domain.Error{Code: "forbidden", Message: "sign-ups are paused", Hint: "this email has no account yet; ask the owner for access", Status: 403}
+	}
+	return err
+}
+
 // authenticate dispatches a bearer token to the right verifier: Pursuit's
 // own tokens are prefixed "pst_"; anything else that looks like a JWT
 // (two dots) is checked against Better Auth, when configured and only
@@ -125,7 +144,8 @@ func (s *Server) authenticate(ctx context.Context, raw string) (domain.Actor, er
 		if !identity.EmailVerified {
 			return domain.Actor{}, domain.Unauthorized()
 		}
-		return s.Svc.ResolveTenantUser(ctx, identity.Email, identity.Name, true)
+		actor, err := s.Svc.ResolveTenantUser(ctx, identity.Email, identity.Name, s.signupsOpen())
+		return actor, s.signupsPaused(err)
 	}
 	return s.Svc.Authenticate(ctx, raw)
 }
@@ -145,6 +165,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /v1/auth/providers", s.authProviders)
 	mux.HandleFunc("GET /v1/auth/{provider}/start", s.authStart)
 	mux.HandleFunc("GET /v1/auth/{provider}/callback", s.authCallback)
+	mux.HandleFunc("POST /v1/auth/session", s.createSession)
+	mux.HandleFunc("DELETE /v1/auth/session", s.deleteSession)
 	mux.HandleFunc("POST /v1/demo", s.startDemo)
 	s.registerOAuth(mux)
 
@@ -187,6 +209,17 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /v1/interviews/{id}", s.getInterview)
 	mux.HandleFunc("PATCH /v1/interviews/{id}", s.updateInterview)
 	mux.HandleFunc("DELETE /v1/interviews/{id}", s.deleteInterview)
+	// Rounds are the product's name for interviews; /interviews stays as an alias.
+	mux.HandleFunc("GET /v1/applications/{id}/rounds", s.listInterviews)
+	mux.HandleFunc("POST /v1/applications/{id}/rounds", s.addInterview)
+	mux.HandleFunc("GET /v1/rounds/{id}", s.getInterview)
+	mux.HandleFunc("PATCH /v1/rounds/{id}", s.updateInterview)
+	mux.HandleFunc("DELETE /v1/rounds/{id}", s.deleteInterview)
+	mux.HandleFunc("GET /v1/applications/{id}/tasks", s.listTasks)
+	mux.HandleFunc("POST /v1/applications/{id}/tasks", s.addTask)
+	mux.HandleFunc("GET /v1/tasks/{id}", s.getTask)
+	mux.HandleFunc("PATCH /v1/tasks/{id}", s.updateTask)
+	mux.HandleFunc("DELETE /v1/tasks/{id}", s.deleteTask)
 	mux.HandleFunc("POST /v1/applications/{id}/prepare", s.prepare)
 	mux.HandleFunc("POST /v1/applications/{id}/enqueue", s.enqueue)
 	mux.HandleFunc("GET /v1/applications/{id}/artifacts", s.listArtifacts)
@@ -292,7 +325,27 @@ func (s *Server) wrap(next http.Handler) http.Handler {
 					return
 				}
 				ctx = domain.WithActor(ctx, actor)
+			} else if c, err := r.Cookie(sessionCookie); err == nil && c.Value != "" {
+				// The dashboard's session: a browser credential, so a write
+				// must come from the dashboard's own origin (CSRF).
+				if unsafeMethod(r.Method) && !sameOrigin(r) {
+					writeErr(w, crossSiteRefused())
+					return
+				}
+				actor, err := s.authenticate(ctx, c.Value)
+				if err != nil {
+					clearSessionCookie(w, r)
+					writeErr(w, err)
+					return
+				}
+				ctx = domain.WithActor(ctx, actor)
 			} else if s.trustVercel() {
+				// Deployment protection's cookie rides along on any request
+				// the browser makes, so the same CSRF rule applies.
+				if unsafeMethod(r.Method) && !sameOrigin(r) {
+					writeErr(w, crossSiteRefused())
+					return
+				}
 				actor, err := s.proxyOwner(ctx)
 				if err != nil {
 					writeErr(w, err)
@@ -374,7 +427,7 @@ func (s *Server) authProviders(w http.ResponseWriter, r *http.Request) {
 	if s.multiTenant() {
 		mode = "multi"
 	}
-	writeJSON(w, 200, map[string]any{"tenant_mode": mode, "providers": providers, "allow_token_login": !s.HideTokenLogin, "demo_available": s.DemoMode})
+	writeJSON(w, 200, map[string]any{"tenant_mode": mode, "providers": providers, "allow_token_login": !s.HideTokenLogin, "demo_available": s.DemoMode, "signups_open": s.signupsOpen()})
 }
 
 func (s *Server) authStart(w http.ResponseWriter, r *http.Request) {
@@ -402,12 +455,13 @@ func (s *Server) authCallback(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, domain.Unauthorized())
 		return
 	}
-	secret, err := s.Svc.LoginIdentity(r.Context(), identity.Email, identity.Name, s.multiTenant())
+	secret, err := s.Svc.LoginIdentity(r.Context(), identity.Email, identity.Name, s.signupsOpen())
 	if err != nil {
-		writeErr(w, err)
+		writeErr(w, s.signupsPaused(err))
 		return
 	}
-	http.Redirect(w, r, "/#token="+secret, http.StatusFound)
+	setSessionCookie(w, r, secret)
+	http.Redirect(w, r, "/start", http.StatusFound)
 }
 
 func (s *Server) cronSecret() string {
@@ -1443,6 +1497,46 @@ func (s *Server) updateInterview(w http.ResponseWriter, r *http.Request) {
 func (s *Server) deleteInterview(w http.ResponseWriter, r *http.Request) {
 	s.deleteOne(w, r, func(ctx context.Context, id string, version int) (any, error) {
 		return s.Svc.DeleteInterview(ctx, id, version)
+	})
+}
+
+func (s *Server) listTasks(w http.ResponseWriter, r *http.Request) {
+	pageSlice(w, r, domain.TaskFields, func(ctx context.Context) ([]domain.Task, error) {
+		return s.Svc.ListTasks(ctx, r.PathValue("id"))
+	})
+}
+
+func (s *Server) addTask(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	s.jsonMut(w, r, 201, domain.TaskFields, func(ctx context.Context, body []byte) (any, error) {
+		var in service.TaskInput
+		if err := decode(body, &in); err != nil {
+			return nil, err
+		}
+		return s.Svc.AddTask(ctx, id, in)
+	})
+}
+
+func (s *Server) getTask(w http.ResponseWriter, r *http.Request) {
+	s.getOne(w, r, domain.TaskFields, func(ctx context.Context, id string) (any, error) {
+		return s.Svc.GetTask(ctx, id)
+	})
+}
+
+func (s *Server) updateTask(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	s.jsonMut(w, r, 200, domain.TaskFields, func(ctx context.Context, body []byte) (any, error) {
+		var in service.TaskPatch
+		if err := decode(body, &in); err != nil {
+			return nil, err
+		}
+		return s.Svc.UpdateTask(ctx, id, in)
+	})
+}
+
+func (s *Server) deleteTask(w http.ResponseWriter, r *http.Request) {
+	s.deleteOne(w, r, func(ctx context.Context, id string, version int) (any, error) {
+		return s.Svc.DeleteTask(ctx, id, version)
 	})
 }
 

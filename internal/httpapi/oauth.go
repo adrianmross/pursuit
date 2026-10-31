@@ -138,15 +138,24 @@ func sameOriginJSON(r *http.Request) error {
 	if mt, _, err := mime.ParseMediaType(r.Header.Get("Content-Type")); err != nil || mt != "application/json" {
 		return domain.Validation("Content-Type must be application/json")
 	}
+	if !sameOrigin(r) {
+		return &domain.Error{Code: "forbidden", Message: "cross-origin request refused", Hint: "approve from the dashboard page itself", Status: 403}
+	}
+	return nil
+}
+
+// sameOrigin reports whether a browser sent r from this origin. Requests
+// without either header (curl, the CLI) are not same-origin.
+func sameOrigin(r *http.Request) bool {
 	if r.Header.Get("Sec-Fetch-Site") == "same-origin" {
-		return nil
+		return true
 	}
 	if o := r.Header.Get("Origin"); o != "" {
 		if u, err := url.Parse(o); err == nil && strings.EqualFold(u.Host, r.Host) {
-			return nil
+			return true
 		}
 	}
-	return &domain.Error{Code: "forbidden", Message: "cross-origin request refused", Hint: "approve from the dashboard page itself", Status: 403}
+	return false
 }
 
 func (s *Server) oauthAuthorizeCheck(w http.ResponseWriter, r *http.Request) {
