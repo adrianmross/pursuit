@@ -246,31 +246,48 @@ type View = "stage" | "outcome" | "steps" | "rounds"
 // A round carrying anything typed into it takes a second click to delete.
 const hasDetails = (r: Interview) => !!(r.kind || r.interviewer || r.scheduled_at || r.prep || r.notes)
 
+// Every stage is at least one round, as on the progress mark, where a stage
+// with none stored fills as one whole piece. That implied round is done once
+// the application has reached the stage.
+const shownRounds = (stored: Interview[]) => Math.max(1, stored.length)
+
 // One stage's rounds: a pill per round (filled when done, click to toggle),
-// then remove-last and add.
+// then remove-last (never below one) and add.
 function RoundRow({
   name,
   current,
+  selected,
+  reached,
   rounds,
   armed,
   busy,
+  onSelect,
   onToggle,
   onRemove,
   onAdd,
 }: {
   name: string
   current: boolean
+  selected: boolean
+  reached: boolean
   rounds: Interview[]
   armed: boolean
   busy: boolean
+  onSelect: () => void
   onToggle: (r: Interview) => void
   onRemove: () => void
   onAdd: () => void
 }) {
   return (
-    <li className={cn("flex h-8 items-center gap-2 rounded-lg px-1.5", current && "bg-muted")}>
+    <li className={cn("flex h-8 items-center gap-2 rounded-lg px-1.5", selected && "bg-muted")} onMouseEnter={onSelect}>
       <span className={cn("w-[5.5rem] shrink-0 truncate text-[13px]", current ? "font-semibold" : "text-muted-foreground")}>{name}</span>
       <span className="flex min-w-0 flex-1 flex-wrap items-center gap-1">
+        {rounds.length === 0 && (
+          <span
+            title="The stage itself; + splits it into rounds"
+            className={cn("h-2.5 w-5 rounded-full border-[1.5px]", reached ? "border-primary bg-primary" : "border-foreground/50")}
+          />
+        )}
         {rounds.map((r, i) => (
           <button
             key={r.id}
@@ -292,7 +309,7 @@ function RoundRow({
         size="icon"
         className={cn("size-6", armed ? "text-destructive hover:text-destructive" : "text-muted-foreground")}
         aria-label={armed ? `Confirm deleting the last ${name} round` : `Remove the last ${name} round`}
-        disabled={!rounds.length || busy}
+        disabled={shownRounds(rounds) <= 1 || busy}
         onClick={onRemove}
       >
         <Minus className="size-3.5" />
@@ -307,9 +324,16 @@ function RoundRow({
 function ViewHeader({ title, sub, onBack }: { title: string; sub: string; onBack: () => void }) {
   return (
     <div className="flex items-start justify-between">
-      <Button variant="ghost" size="icon" className="size-7 text-muted-foreground" aria-label="Back to stage" onClick={onBack}>
-        <ChevronLeft className="size-4" />
-      </Button>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button variant="ghost" size="icon" className="size-7 text-muted-foreground" aria-label="Back to stage" aria-keyshortcuts="Escape" onClick={onBack}>
+            <ChevronLeft className="size-4" />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>
+          Back <Kbd>Esc</Kbd>
+        </TooltipContent>
+      </Tooltip>
       <div className="flex flex-col items-center">
         <span className="font-heading text-lg leading-6 font-semibold">{title}</span>
         <span className="text-[13px] leading-[18px] text-muted-foreground">{sub}</span>
@@ -357,16 +381,23 @@ export function StatusChooser({
     content.current?.querySelector<HTMLElement>(view === "stage" ? "[role=slider]" : "[data-view]")?.focus()
   }, [view])
 
-  async function loadRounds() {
+  async function fetchRounds() {
     const page = await api<{ data: Interview[] }>(base)
-    setList(page.data || [])
+    const data = page.data || []
+    setList(data)
+    return data
   }
   useEffect(() => {
     if (view !== "rounds") return
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    loadRounds().catch(() => setRoundError("Couldn't load the rounds"))
+    fetchRounds().catch(() => setRoundError("Couldn't load the rounds"))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [view, app.id])
+
+  const stage = Math.min(6, Math.max(0, app.stage ?? statusPieces(app.status)))
+  // The row the + and - keys act on in the rounds view.
+  const [sel, setSel] = useState(0)
+  const storedFor = (all: Interview[] | null, key: string) => (all ?? []).filter((r) => r.stage === key)
 
   async function roundOp(request: () => Promise<unknown>) {
     if (busy) return
@@ -376,24 +407,48 @@ export function StatusChooser({
     try {
       await request()
       await onRoundsChange?.()
-      if (view === "rounds") await loadRounds()
+      await fetchRounds()
     } catch (err) {
       setRoundError(err instanceof ApiError ? err.message : "Couldn't save the round")
     } finally {
       setBusy(false)
     }
   }
-  const addRoundTo = (stageKey: string) => roundOp(() => api(base, { method: "POST", body: { stage: stageKey } }))
+  // Going from one round to two splits the stage: its implied round is stored
+  // first (done if the stage is reached), then the new one.
+  const addRoundTo = (key: string, piece: number) =>
+    roundOp(async () => {
+      if (storedFor(list ?? (await fetchRounds()), key).length === 0) {
+        const first = await api<Interview>(base, { method: "POST", body: { stage: key } })
+        if (piece <= stage)
+          await api(`/v1/interviews/${encodeURIComponent(first.id)}`, { method: "PATCH", body: { version: first.version, done: true } })
+      }
+      await api(base, { method: "POST", body: { stage: key } })
+    })
   const toggleRound = (r: Interview) =>
     roundOp(() => api(`/v1/interviews/${encodeURIComponent(r.id)}`, { method: "PATCH", body: { version: r.version, done: !r.done_at } }))
-  function removeLast(rounds: Interview[]) {
-    const r = rounds[rounds.length - 1]
-    if (!r) return
+  async function removeLast(key: string) {
+    const stored = storedFor(list ?? (await fetchRounds().catch(() => [])), key)
+    if (shownRounds(stored) <= 1) return
+    const r = stored[stored.length - 1]
     if (hasDetails(r) && armed !== r.id) return setArmed(r.id)
     void roundOp(() => api(`/v1/interviews/${encodeURIComponent(r.id)}?version=${r.version}`, { method: "DELETE" }))
   }
-
-  const stage = Math.min(6, Math.max(0, app.stage ?? statusPieces(app.status)))
+  // Done out of shown, counting each stage's implied round.
+  function roundsSummary(all: Interview[]) {
+    let done = 0
+    let total = 0
+    ROUND_STAGES.forEach(([key], i) => {
+      const stored = storedFor(all, key)
+      total += shownRounds(stored)
+      done += stored.length ? stored.filter((r) => r.done_at).length : i + 1 <= stage ? 1 : 0
+    })
+    return `${done} of ${total} rounds done`
+  }
+  function openRounds() {
+    setSel(Math.max(0, stage - 1))
+    setView("rounds")
+  }
   // While a change is in flight, show where it's going.
   const outcome = pending ? (OUTCOMES.includes(pending) ? pending : "") : app.outcome || ""
   const current = pending ?? shown(app)
@@ -435,8 +490,21 @@ export function StatusChooser({
       if (to >= 0 && to <= 6) void set(stageTarget(app, stage, to))
     } else if (k === "o") setView(view === "outcome" ? "stage" : "outcome")
     else if (k === "s") setView(view === "steps" ? "stage" : "steps")
-    else if (k === "r" && onRoundsChange) setView(view === "rounds" ? "stage" : "rounds")
-    else if (k === "backspace" && view !== "stage") setView("stage")
+    else if (k === "r" && onRoundsChange) {
+      if (view === "rounds") setView("stage")
+      else openRounds()
+    }
+    else if ((k === "backspace" || k === "arrowleft") && view !== "stage") setView("stage")
+    // + and - add or remove a round: on the selected row in the rounds view,
+    // else on the stage the application is on.
+    else if ((k === "+" || k === "=" || k === "-" || k === "_") && onRoundsChange && (view === "rounds" || view === "stage")) {
+      const piece = view === "rounds" ? sel + 1 : settled
+      if (piece < 1) return
+      const key = ROUND_STAGES[piece - 1][0]
+      if (k === "-" || k === "_") void removeLast(key)
+      else void addRoundTo(key, piece)
+    } else if (view === "rounds" && (k === "arrowdown" || k === "arrowup"))
+      setSel(Math.min(ROUND_STAGES.length - 1, Math.max(0, sel + (k === "arrowdown" ? 1 : -1))))
     else if (view === "outcome" && n >= 1 && n <= 6) void toggleOutcome([...HOLDS, ...STOPS][n - 1])
     else if (view === "steps" && n >= 1 && n <= SUB_STEPS.length) void set(SUB_STEPS[n - 1])
     else return
@@ -461,6 +529,12 @@ export function StatusChooser({
           content.current?.querySelector<HTMLElement>("[role=slider]")?.focus()
         }}
         onCloseAutoFocus={(e) => e.preventDefault()}
+        // Esc on a sub-view steps back to the stage; on the stage it closes.
+        onEscapeKeyDown={(e) => {
+          if (view === "stage") return
+          e.preventDefault()
+          setView("stage")
+        }}
         onKeyDown={onKey}
       >
         {view === "outcome" && (
@@ -552,31 +626,33 @@ export function StatusChooser({
           <div data-view tabIndex={-1} className="flex flex-col gap-3 outline-none">
             <ViewHeader
               title="Rounds"
-              sub={
-                list
-                  ? `${list.filter((r) => r.done_at).length} of ${list.length} done`
-                  : "Loading…"
-              }
+              sub={list ? roundsSummary(list) : "Loading…"}
               onBack={() => setView("stage")}
             />
             <ul className="flex flex-col gap-0.5">
               {ROUND_STAGES.map(([key, name], i) => {
-                const rounds = (list ?? []).filter((r) => r.stage === key)
+                const rounds = storedFor(list, key)
                 return (
                   <RoundRow
                     key={key}
                     name={name}
                     current={i + 1 === stage}
+                    selected={i === sel}
+                    reached={i + 1 <= stage}
                     rounds={rounds}
                     armed={!!armed && rounds.some((r) => r.id === armed)}
                     busy={busy || !list}
+                    onSelect={() => setSel(i)}
                     onToggle={toggleRound}
-                    onRemove={() => removeLast(rounds)}
-                    onAdd={() => addRoundTo(key)}
+                    onRemove={() => removeLast(key)}
+                    onAdd={() => addRoundTo(key, i + 1)}
                   />
                 )
               })}
             </ul>
+            <p className="text-center text-[11px] text-muted-foreground">
+              <Kbd>+</Kbd> <Kbd>−</Kbd> rounds · <Kbd>↑</Kbd> <Kbd>↓</Kbd> stage · <Kbd>Esc</Kbd> back
+            </p>
             {armedRound && (
               <p className="text-[12px] text-destructive">
                 “{armedRound.kind || "This round"}” has details. Press − again to delete it.
@@ -597,7 +673,7 @@ export function StatusChooser({
                       className="size-7 text-muted-foreground"
                       aria-label={roundStage ? `Add a round to ${roundStage[1]}` : "Add a round"}
                       disabled={!roundStage || busy || drag != null}
-                      onClick={() => roundStage && addRoundTo(roundStage[0])}
+                      onClick={() => roundStage && addRoundTo(roundStage[0], at)}
                     >
                       <Plus className="size-4" />
                     </Button>
