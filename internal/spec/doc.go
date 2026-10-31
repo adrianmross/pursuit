@@ -3,6 +3,8 @@ package spec
 import (
 	_ "embed"
 	"encoding/json"
+
+	"github.com/pursuit/pursuit/internal/version"
 )
 
 //go:embed llms.txt
@@ -129,7 +131,7 @@ func build() []byte {
 	add("/v1/tags", "get", "list tags", false, nil)
 	add("/v1/tags", "post", "create a tag", true, nil)
 	add("/v1/tags/{id}", "delete", "delete a tag", true, nil)
-	add("/v1/audit", "get", "audit log, including actor_name", false, nil)
+	add("/v1/audit", "get", "audit log, including actor_name and metadata. filter with q (summary, action, entity, actor, metadata), since and until (date or RFC 3339), actor, action, entity_type, entity_id. sort=created_at for oldest first", false, nil)
 	add("/v1/import/csv", "post", "import the tracker CSV. Prepared maps to awaiting_review. Applied stays applied. The same posting_url updates the existing application", true, nil)
 	add("/v1/import/json", "post", "import a JSON array of postings", true, nil)
 	add("/v1/import/markdown", "post", "import markdown tables of roles as to_apply, deduped by URL", true, nil)
@@ -141,7 +143,7 @@ func build() []byte {
 		"openapi": "3.0.3",
 		"info": map[string]any{
 			"title":       "Pursuit",
-			"version":     "0.1.0",
+			"version":     version.Version,
 			"description": "Job-application tracker. Agents should prefer the pursuit CLI. Fetch this document when you need the HTTP shape; use `pursuit schema <command>` for one CLI command.",
 		},
 		"servers":  []any{map[string]any{"url": "/"}},

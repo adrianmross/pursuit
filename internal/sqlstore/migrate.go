@@ -371,6 +371,11 @@ var migrations = []migration{{
 }, {
 	version: "007",
 	stmts: []string{
+		`ALTER TABLE companies ADD COLUMN icon_url TEXT NOT NULL DEFAULT ''`,
+	},
+}, {
+	version: "008",
+	stmts: []string{
 		`ALTER TABLE users ADD COLUMN avatar TEXT NOT NULL DEFAULT ''`,
 		// Documents belong to the user, not an application: the base résumé
 		// prepare attaches, a cover-letter template, a LinkedIn PDF export.

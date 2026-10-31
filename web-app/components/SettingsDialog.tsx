@@ -1,7 +1,7 @@
 "use client"
 
-import { useMemo, useState, type KeyboardEvent, type ReactNode } from "react"
-import { Database, Download, History, Info, Keyboard, KeyRound, Palette, Rows3, Search, SlidersHorizontal, User } from "lucide-react"
+import { useEffect, useMemo, useState, type KeyboardEvent, type ReactNode } from "react"
+import { Database, Download, History, Info, Keyboard, KeyRound, ScanSearch, Palette, Rows3, Search, SlidersHorizontal, User } from "lucide-react"
 import { FILTERS, MORE, SORTS } from "@/lib/types"
 import { getDefaultSort, getDefaultStatus, ACCENTS, getPref, setPref, setDefaultSort, setDefaultStatus, type Accent, type Density, type TextSize } from "@/lib/settings"
 import { useShortcuts } from "@/lib/keybindings"
@@ -9,6 +9,7 @@ import { useTheme } from "next-themes"
 import { api } from "@/lib/api-client"
 import { cn } from "@/lib/utils"
 import { CustomFieldsManager } from "@/components/CustomFieldsManager"
+import { SearchPanel } from "@/components/settings/SearchPanel"
 import { KeyboardPanel } from "@/components/settings/KeyboardPanel"
 import { AuditPanel } from "@/components/settings/AuditPanel"
 import { AboutPanel } from "@/components/settings/AboutPanel"
@@ -139,6 +140,21 @@ function AccentPicker() {
   )
 }
 
+function FaviconService() {
+  const [serverDefault, setServerDefault] = useState("")
+  useEffect(() => {
+    api<{ favicon_service?: string }>("/version").then((v) => setServerDefault(v.favicon_service || "")).catch(() => {})
+  }, [])
+  return (
+    <Row
+      label="Company icons"
+      hint={`When a site has no usable icon of its own, fall back to Google's favicon service. That tells Google which company domains you track. Off shows the company's initial instead. Default follows this server${serverDefault ? ` (${serverDefault})` : ""}. Changes apply after a reload.`}
+    >
+      <Choice pref="faviconService" options={[["default", "Default"], ["on", "On"], ["off", "Off"]]} />
+    </Row>
+  )
+}
+
 function Appearance() {
   const { theme, setTheme } = useTheme()
   return (
@@ -156,6 +172,7 @@ function Appearance() {
       <Row label="Text size" hint="Scales the whole interface.">
         <Choice<TextSize> pref="textSize" options={[["small", "Small"], ["default", "Default"], ["large", "Large"]]} />
       </Row>
+      <FaviconService />
       <Row label="Motion" hint="Reduced turns off transitions and animations.">
         <Choice pref="motion" options={[["full", "Full"], ["reduced", "Reduced"]]} />
       </Row>
@@ -263,7 +280,7 @@ function DataPanel() {
   )
 }
 
-type Section = { id: string; label: string; icon: ReactNode; render: () => ReactNode }
+type Section = { id: string; label: string; icon: ReactNode; render: (close: () => void) => ReactNode }
 
 // `items` feed the settings search: each is a setting label plus synonyms.
 const SECTIONS: (Section & { items: [string, string][] })[] = [
@@ -272,6 +289,7 @@ const SECTIONS: (Section & { items: [string, string][] })[] = [
       ["Accent color", "primary highlight brand"],
       ["Text size", "font zoom larger smaller"],
       ["Motion", "animations reduce accessibility"],
+      ["Company icons", "favicon logo google service privacy fallback"],
     ] },
   {
     id: "table",
@@ -313,6 +331,16 @@ const SECTIONS: (Section & { items: [string, string][] })[] = [
       ["Sign out other sessions", "revoke devices security"],
       ["Display name", "profile email avatar photo picture"],
       ["Sign out", "logout session"],
+    ],
+  },
+  {
+    id: "search",
+    label: "Search",
+    icon: <ScanSearch />,
+    render: (close) => <SearchPanel close={close} />,
+    items: [
+      ["Search syntax", "qualifiers status tag company title applied operators filter query enable disable"],
+      ["Test a search", "try example parse"],
     ],
   },
   {
@@ -484,7 +512,7 @@ export function SettingsDialog({
             ) : (
               <>
                 <h2 className="mb-4 text-base font-medium">{current.label}</h2>
-                {current.render()}
+                {current.render(() => onOpenChange(false))}
               </>
             )}
           </section>

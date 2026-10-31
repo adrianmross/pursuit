@@ -12,6 +12,7 @@ import { Button, buttonVariants } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { cn } from "@/lib/utils"
+import { useAuth } from "@/lib/auth"
 
 // Everything in the hero is scripted, not real daemon data. The terminal run
 // stops at `approved` because this build enqueues submit work but never clicks Submit.
@@ -352,6 +353,9 @@ const DOCS = [
 const link = "text-sm font-medium text-foreground/70 transition-colors hover:text-foreground"
 
 export function Landing() {
+  // Signed-in visitors skip /sign-in and go straight to their start page.
+  const { me } = useAuth()
+  const entry = me ? "/start" : "/sign-in"
   return (
     <div className="min-h-svh overflow-x-clip bg-background text-foreground">
       <header className="sticky top-0 z-20 border-b border-transparent bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -370,8 +374,8 @@ export function Landing() {
             <a href="https://github.com/adrianmross/pursuit" className={cn(link, "hidden sm:inline")}>
               GitHub
             </a>
-            <Link href="/sign-in" className={buttonVariants({ size: "sm" })}>
-              Log in
+            <Link href={entry} className={buttonVariants({ size: "sm" })}>
+              {me ? "Open app" : "Log in"}
             </Link>
           </nav>
         </div>
@@ -388,7 +392,7 @@ export function Landing() {
             Every application, from first look to offer.
           </p>
           <div className="mb-12 mt-8 flex flex-wrap justify-center gap-3">
-            <Link href="/sign-in" className={buttonVariants({ size: "lg" })}>
+            <Link href={entry} className={buttonVariants({ size: "lg" })}>
               Get started <ArrowRight />
             </Link>
             <a href="/docs/" className={buttonVariants({ size: "lg", variant: "outline" })}>

@@ -18,6 +18,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -50,6 +51,8 @@ type Server struct {
 	// TenantMode is "single" (default) or "multi". It gates whether a
 	// first-time OIDC login provisions a new tenant.
 	TenantMode string
+	// FaviconService is "on" or "off"; empty follows TenantMode (on when multi).
+	FaviconService string
 	// OIDC is nil when no social/OIDC login provider is configured.
 	OIDC *oidcauth.Manager
 	// BetterAuth is nil when no Neon Auth (Better Auth) JWT verifier is
@@ -454,8 +457,24 @@ func (s *Server) ready(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, map[string]string{"status": "ready"})
 }
 
+// faviconServiceDefault is the deployment's default for the third-party icon
+// fallback; a user's own setting overrides it per request.
+func (s *Server) faviconServiceDefault() bool {
+	switch strings.ToLower(strings.TrimSpace(s.FaviconService)) {
+	case "on", "true":
+		return true
+	case "off", "false":
+		return false
+	}
+	return s.multiTenant()
+}
+
 func (s *Server) version(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, 200, map[string]string{"version": version.Version})
+	svc := "off"
+	if s.faviconServiceDefault() {
+		svc = "on"
+	}
+	writeJSON(w, 200, map[string]string{"version": version.Version, "favicon_service": svc})
 }
 
 func (s *Server) openapi(w http.ResponseWriter, r *http.Request) {
@@ -486,7 +505,7 @@ func (s *Server) dashboard(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	body, contentType, err := dashboard.Open(name)
+	body, contentType, status, err := dashboard.Open(name)
 	if err != nil {
 		http.NotFound(w, r)
 		return
@@ -509,7 +528,7 @@ func (s *Server) dashboard(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Security-Policy", "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src "+scriptSrc+"; connect-src "+connectSrc+"; img-src 'self' data: blob:; frame-src 'self' blob:; font-src 'self'; base-uri 'self'; form-action 'self'")
 		w.Header().Set("Referrer-Policy", "no-referrer")
 	}
-	w.WriteHeader(http.StatusOK)
+	w.WriteHeader(status)
 	_, _ = w.Write(body)
 }
 
@@ -548,6 +567,19 @@ func fieldsOf(q map[string][]string) []string {
 	return out
 }
 
+// auditTime turns a date or RFC 3339 time into the stored fixed-width form.
+func auditTime(raw, name string) (string, error) {
+	if raw == "" {
+		return "", nil
+	}
+	for _, layout := range []string{time.RFC3339, "2006-01-02"} {
+		if t, err := time.Parse(layout, raw); err == nil {
+			return domain.FormatTime(t), nil
+		}
+	}
+	return "", domain.Validation("invalid %s", name).WithHint(name + " is a date (2026-10-30) or an RFC 3339 time")
+}
+
 func listQuery(q map[string][]string) (domain.ListQuery, error) {
 	var out domain.ListQuery
 	if v := first(q, "limit"); v != "" {
@@ -576,6 +608,13 @@ func listQuery(q map[string][]string) (domain.ListQuery, error) {
 	out.Action = first(q, "action")
 	out.EntityType = first(q, "entity_type")
 	out.EntityID = first(q, "entity_id")
+	var terr error
+	if out.Since, terr = auditTime(first(q, "since"), "since"); terr != nil {
+		return out, terr
+	}
+	if out.Until, terr = auditTime(first(q, "until"), "until"); terr != nil {
+		return out, terr
+	}
 	out.AfterID = first(q, "after")
 	for _, raw := range q["status"] {
 		for _, part := range strings.Split(raw, ",") {
@@ -1117,7 +1156,7 @@ func (s *Server) getCompanyFavicon(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	host := faviconHost(c.Website)
-	if host == "" {
+	if host == "" && c.IconURL == "" {
 		writeErr(w, domain.NotFound("favicon"))
 		return
 	}
@@ -1125,28 +1164,130 @@ func (s *Server) getCompanyFavicon(w http.ResponseWriter, r *http.Request) {
 	if client == nil {
 		client = faviconClient
 	}
-	resp, err := client.Get("https://" + host + "/favicon.ico")
-	if err != nil || resp.StatusCode != http.StatusOK {
-		if resp != nil {
-			_ = resp.Body.Close()
-		}
+	body, contentType := findFavicon(r.Context(), client, host, c.IconURL, s.useFaviconService(r.URL.Query().Get("service")))
+	if body == nil {
 		writeErr(w, domain.NotFound("favicon"))
 		return
-	}
-	defer resp.Body.Close()
-	body, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
-	if err != nil {
-		writeErr(w, domain.NotFound("favicon"))
-		return
-	}
-	contentType := resp.Header.Get("Content-Type")
-	if contentType == "" {
-		contentType = "image/x-icon"
 	}
 	w.Header().Set("Content-Type", contentType)
-	w.Header().Set("Cache-Control", "public, max-age=86400")
+	w.Header().Set("Cache-Control", "public, max-age=3600")
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(body)
+}
+
+// useFaviconService reads the caller's ?service=1|0 choice, falling back to the deployment default.
+func (s *Server) useFaviconService(param string) bool {
+	switch param {
+	case "1":
+		return true
+	case "0":
+		return false
+	}
+	return s.faviconServiceDefault()
+}
+
+var iconLinkRE = regexp.MustCompile(`(?is)<link\b[^>]*>`)
+var iconAttrRE = regexp.MustCompile(`(?is)\b(rel|href)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))`)
+
+// findFavicon returns the first usable image: the company's icon_url override,
+// then icons the homepage declares, then the conventional paths. Plenty of
+// sites answer a bot with 200 and an HTML challenge page, so every candidate
+// is sniffed rather than trusted on status or Content-Type.
+// ponytail: at most 7 fetches per miss, and no server-side cache — the browser's
+// Cache-Control covers repeat views.
+func findFavicon(ctx context.Context, client *http.Client, host, override string, service bool) ([]byte, string) {
+	var candidates []string
+	if override != "" {
+		candidates = append(candidates, override)
+	}
+	if host != "" {
+		base := "https://" + host
+		if page, ok := fetchLimited(ctx, client, base+"/", 256<<10); ok {
+			candidates = append(candidates, declaredIcons(base+"/", page)...)
+		}
+		candidates = append(candidates, base+"/favicon.ico", base+"/apple-touch-icon.png")
+		if service {
+			// Last resort, opt-out in Settings: it tells Google which company domain was looked up.
+			candidates = append(candidates, "https://www.google.com/s2/favicons?sz=64&domain="+url.QueryEscape(strings.Split(host, ":")[0]))
+		}
+	}
+	for i, u := range candidates {
+		if i >= 7 {
+			break
+		}
+		body, ok := fetchLimited(ctx, client, u, 1<<20)
+		if !ok {
+			continue
+		}
+		if ct := sniffImage(body); ct != "" {
+			return body, ct
+		}
+	}
+	return nil, ""
+}
+
+func fetchLimited(ctx context.Context, client *http.Client, u string, max int64) ([]byte, bool) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
+	if err != nil {
+		return nil, false
+	}
+	req.Header.Set("User-Agent", "Mozilla/5.0 (compatible; PursuitFavicon/1.0)")
+	req.Header.Set("Accept", "image/*,text/html;q=0.8,*/*;q=0.5")
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, false
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, false
+	}
+	body, err := io.ReadAll(io.LimitReader(resp.Body, max))
+	return body, err == nil && len(body) > 0
+}
+
+// declaredIcons returns absolute URLs of <link rel="...icon..."> targets,
+// resolved against the page URL.
+func declaredIcons(pageURL string, page []byte) []string {
+	base, err := url.Parse(pageURL)
+	if err != nil {
+		return nil
+	}
+	var out []string
+	for _, tag := range iconLinkRE.FindAll(page, -1) {
+		var rel, href string
+		for _, m := range iconAttrRE.FindAllSubmatch(tag, -1) {
+			v := string(m[2]) + string(m[3]) + string(m[4])
+			if strings.EqualFold(string(m[1]), "rel") {
+				rel = strings.ToLower(v)
+			} else {
+				href = strings.TrimSpace(v)
+			}
+		}
+		if href == "" || !strings.Contains(rel, "icon") {
+			continue
+		}
+		if ref, err := base.Parse(href); err == nil && (ref.Scheme == "http" || ref.Scheme == "https") {
+			out = append(out, ref.String())
+		}
+	}
+	return out
+}
+
+// sniffImage returns the image content type of body, or "" when it is not an
+// image a browser can show in an <img>.
+func sniffImage(body []byte) string {
+	ct := http.DetectContentType(body)
+	if strings.HasPrefix(ct, "image/") {
+		return ct
+	}
+	head := body
+	if len(head) > 512 {
+		head = head[:512]
+	}
+	if bytes.Contains(bytes.ToLower(head), []byte("<svg")) {
+		return "image/svg+xml"
+	}
+	return ""
 }
 
 // faviconHost extracts a bare host from a company website value that may or
@@ -1514,7 +1655,7 @@ func (s *Server) listEvents(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) listAudit(w http.ResponseWriter, r *http.Request) {
-	s.page(w, r, []string{"limit", "cursor", "sort", "actor", "action", "entity_type", "entity_id", "fields"}, domain.AuditFields, func(ctx context.Context, q domain.ListQuery) (any, error) {
+	s.page(w, r, []string{"limit", "cursor", "sort", "q", "since", "until", "actor", "action", "entity_type", "entity_id", "fields"}, domain.AuditFields, func(ctx context.Context, q domain.ListQuery) (any, error) {
 		return s.Svc.ListAudit(ctx, q)
 	})
 }

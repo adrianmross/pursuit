@@ -1169,13 +1169,20 @@ func TestArchiveAndUnarchive(t *testing.T) {
 
 func TestCompanyFavicon(t *testing.T) {
 	e := newEnv(t)
+	png := "\x89PNG\r\n\x1a\nlogo"
 	gh := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/favicon.ico" {
+		switch r.URL.Path {
+		case "/":
+			_, _ = w.Write([]byte(`<html><head><link rel="shortcut icon" href="/static/logo.png"></head></html>`))
+		case "/static/logo.png", "/custom.png":
+			w.Header().Set("Content-Type", "image/png")
+			_, _ = w.Write([]byte(png))
+		case "/favicon.ico":
+			// A bot challenge: 200, but HTML.
+			_, _ = w.Write([]byte("<html>just a moment</html>"))
+		default:
 			http.NotFound(w, r)
-			return
 		}
-		w.Header().Set("Content-Type", "image/x-icon")
-		_, _ = w.Write([]byte("icon-bytes"))
 	}))
 	defer gh.Close()
 	e.svc.HTTP = &http.Client{Transport: rewriteTransport(gh.URL)}
@@ -1188,9 +1195,30 @@ func TestCompanyFavicon(t *testing.T) {
 	}
 	id := company["id"].(string)
 
+	// The HTML decoy at /favicon.ico is skipped; the page-declared icon wins.
 	code, body, _ := e.do(t, http.MethodGet, "/v1/companies/"+id+"/favicon", e.token, nil, nil)
-	if code != 200 || string(body) != "icon-bytes" {
+	if code != 200 || string(body) != png {
 		t.Fatalf("favicon: %d %q", code, body)
+	}
+
+	// An icon_url override is tried first, and rejects a non-url.
+	code, bad := e.json(t, http.MethodPatch, "/v1/companies/"+id, e.token, map[string]any{"version": 1, "icon_url": "nope"})
+	if code != 400 {
+		t.Fatalf("bad icon_url: %d %#v", code, bad)
+	}
+	code, updated := e.json(t, http.MethodPatch, "/v1/companies/"+id, e.token, map[string]any{"version": 1, "icon_url": "https://cdn.example.com/custom.png"})
+	if code != 200 || updated["icon_url"] != "https://cdn.example.com/custom.png" {
+		t.Fatalf("set icon_url: %d %#v", code, updated)
+	}
+	code, body, _ = e.do(t, http.MethodGet, "/v1/companies/"+id+"/favicon", e.token, nil, nil)
+	if code != 200 || string(body) != png {
+		t.Fatalf("override favicon: %d %q", code, body)
+	}
+
+	// service=1 only adds a last-resort candidate; it never replaces a working icon.
+	code, body, _ = e.do(t, http.MethodGet, "/v1/companies/"+id+"/favicon?service=1", e.token, nil, nil)
+	if code != 200 || string(body) != png {
+		t.Fatalf("service favicon: %d %q", code, body)
 	}
 
 	code, noWebsite := e.json(t, http.MethodPost, "/v1/companies", e.token, map[string]any{"name": "NoSite"})
@@ -1200,6 +1228,25 @@ func TestCompanyFavicon(t *testing.T) {
 	code, _, _ = e.do(t, http.MethodGet, "/v1/companies/"+noWebsite["id"].(string)+"/favicon", e.token, nil, nil)
 	if code != 404 {
 		t.Fatalf("favicon without website should 404: %d", code)
+	}
+}
+
+func TestFaviconServiceDefault(t *testing.T) {
+	for _, c := range []struct {
+		tenant, cfg, param string
+		want               bool
+	}{
+		{"single", "", "", false},
+		{"multi", "", "", true},
+		{"multi", "off", "", false},
+		{"single", "on", "", true},
+		{"multi", "", "0", false},
+		{"single", "", "1", true},
+	} {
+		s := &Server{TenantMode: c.tenant, FaviconService: c.cfg}
+		if got := s.useFaviconService(c.param); got != c.want {
+			t.Errorf("%+v: got %v", c, got)
+		}
 	}
 }
 
@@ -1340,5 +1387,43 @@ func TestDeleteStanding(t *testing.T) {
 	}
 	if code, _ := e.json(t, http.MethodDelete, "/v1/standing/why_us", e.token, nil); code != 404 {
 		t.Fatalf("second delete %d", code)
+	}
+}
+
+func TestAuditSearchAndTimeFilters(t *testing.T) {
+	e := newEnv(t)
+	code, app := e.json(t, http.MethodPost, "/v1/applications", e.token, map[string]any{
+		"company": "TraceCo", "title": "Traced role", "status": "to_apply",
+	})
+	if code != 201 {
+		t.Fatal(app)
+	}
+	id := app["id"].(string)
+
+	count := func(query string) int {
+		t.Helper()
+		code, page := e.json(t, http.MethodGet, "/v1/audit?"+query, e.token, nil)
+		if code != 200 {
+			t.Fatalf("%s: %d %#v", query, code, page)
+		}
+		return len(page["data"].([]any))
+	}
+	if count("q=traceco") == 0 || count("q=TRACED") == 0 {
+		t.Fatal("q should match the summary and metadata case-insensitively")
+	}
+	if count("q=no-such-text") != 0 {
+		t.Fatal("q with no match should return nothing")
+	}
+	if count("entity_id="+id) == 0 {
+		t.Fatal("entity_id should trace one application")
+	}
+	if count("since=2999-01-01") != 0 || count("until=2000-01-01") != 0 {
+		t.Fatal("time bounds should exclude everything")
+	}
+	if count("since=2000-01-01&until=2999-01-01") == 0 {
+		t.Fatal("wide time bounds should include everything")
+	}
+	if code, bad := e.json(t, http.MethodGet, "/v1/audit?since=yesterday", e.token, nil); code != 400 || errCode(bad) != "validation" {
+		t.Fatalf("bad since %d %#v", code, bad)
 	}
 }

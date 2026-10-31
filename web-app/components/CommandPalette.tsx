@@ -52,7 +52,7 @@ export function CommandPalette({ onOpenSettings }: { onOpenSettings: (section: s
           <CommandItem onSelect={() => go(() => router.push("/app/new"))}>
             <Plus /> Add application
           </CommandItem>
-          <CommandItem onSelect={() => go(() => router.push("/?archived=1"))}>
+          <CommandItem onSelect={() => go(() => router.push("/applications?archived=1"))}>
             <Archive /> View archived
           </CommandItem>
           <CommandItem onSelect={() => go(() => void goThroughPending())}>

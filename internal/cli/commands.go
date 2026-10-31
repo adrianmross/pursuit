@@ -355,14 +355,14 @@ func cmdCompanies() *Command {
 		{Name: "get", Summary: "get a company", Args: []Arg{{Name: "id", Required: true}}, Run: func(e *exec) error {
 			return e.send("GET", "/v1/companies/"+url.PathEscape(e.args[0]), nil, nil, "", false, true)
 		}},
-		{Name: "create", Summary: "create a company", Mutating: true, Flags: []Flag{{Name: "name", Type: "string", Help: "name"}, {Name: "website", Type: "string", Help: "website"}, {Name: "notes", Type: "string", Help: "notes"}}, Run: func(e *exec) error {
-			body, err := e.jsonBody(map[string]string{"name": e.flag("name"), "website": e.flag("website"), "notes": e.flag("notes")})
+		{Name: "create", Summary: "create a company", Mutating: true, Flags: []Flag{{Name: "name", Type: "string", Help: "name"}, {Name: "website", Type: "string", Help: "website"}, {Name: "icon-url", Type: "string", Help: "favicon override url"}, {Name: "notes", Type: "string", Help: "notes"}}, Run: func(e *exec) error {
+			body, err := e.jsonBody(map[string]string{"name": e.flag("name"), "website": e.flag("website"), "icon_url": e.flag("icon-url"), "notes": e.flag("notes")})
 			if err != nil {
 				return err
 			}
 			return e.send("POST", "/v1/companies", nil, body, "application/json", true, true)
 		}},
-		{Name: "update", Summary: "update a company", Mutating: true, Args: []Arg{{Name: "id", Required: true}}, Flags: []Flag{{Name: "version", Type: "string", Help: "version"}, {Name: "name", Type: "string", Help: "name"}, {Name: "website", Type: "string", Help: "website"}, {Name: "notes", Type: "string", Help: "notes"}}, Run: func(e *exec) error {
+		{Name: "update", Summary: "update a company", Mutating: true, Args: []Arg{{Name: "id", Required: true}}, Flags: []Flag{{Name: "version", Type: "string", Help: "version"}, {Name: "name", Type: "string", Help: "name"}, {Name: "website", Type: "string", Help: "website"}, {Name: "icon-url", Type: "string", Help: "favicon override url"}, {Name: "notes", Type: "string", Help: "notes"}}, Run: func(e *exec) error {
 			ver, err := e.ensureVersion("/v1/companies/" + url.PathEscape(e.args[0]))
 			if err != nil {
 				return err
@@ -373,6 +373,9 @@ func cmdCompanies() *Command {
 			}
 			if _, ok := e.flags["website"]; ok {
 				payload["website"] = e.flag("website")
+			}
+			if _, ok := e.flags["icon-url"]; ok {
+				payload["icon_url"] = e.flag("icon-url")
 			}
 			if _, ok := e.flags["notes"]; ok {
 				payload["notes"] = e.flag("notes")
@@ -434,7 +437,7 @@ func cmdRoles() *Command {
 
 func listQ(e *exec) url.Values {
 	q := url.Values{}
-	for _, k := range []string{"q", "company", "fit", "source", "limit", "cursor", "sort", "actor", "action"} {
+	for _, k := range []string{"q", "company", "fit", "source", "limit", "cursor", "sort", "actor", "action", "since", "until"} {
 		if v := e.flag(k); v != "" {
 			q.Set(k, v)
 		}
@@ -627,7 +630,7 @@ func cmdTokens() *Command {
 
 func cmdAudit() *Command {
 	return &Command{Name: "audit", Summary: "audit log", Children: []*Command{
-		{Name: "list", Summary: "list audit entries", Flags: []Flag{{Name: "actor", Type: "string", Help: "actor name"}, {Name: "action", Type: "string", Help: "action"}, {Name: "entity-type", Type: "string", Help: "entity type"}, {Name: "entity-id", Type: "string", Help: "entity id"}, {Name: "limit", Type: "string", Help: "page size"}, {Name: "cursor", Type: "string", Help: "cursor"}}, Run: func(e *exec) error {
+		{Name: "list", Summary: "list audit entries", Flags: []Flag{{Name: "actor", Type: "string", Help: "actor name"}, {Name: "action", Type: "string", Help: "action"}, {Name: "entity-type", Type: "string", Help: "entity type"}, {Name: "entity-id", Type: "string", Help: "entity id, for example an application id to trace its history"}, {Name: "q", Type: "string", Help: "text in the summary, action, entity, actor, or metadata"}, {Name: "since", Type: "string", Help: "entries at or after this date or RFC 3339 time"}, {Name: "until", Type: "string", Help: "entries at or before this date or RFC 3339 time"}, {Name: "sort", Type: "string", Help: "created_at or -created_at (default newest first)"}, {Name: "limit", Type: "string", Help: "page size"}, {Name: "cursor", Type: "string", Help: "cursor"}}, Run: func(e *exec) error {
 			return e.send("GET", "/v1/audit", listQ(e), nil, "", false, true)
 		}},
 	}}

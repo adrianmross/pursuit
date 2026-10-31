@@ -447,7 +447,7 @@ const DISMISSED = "pursuit.profile-nudge-dismissed"
 // on file. Dismissal is per browser.
 export function ProfileNudge({ onOpen }: { onOpen: () => void }) {
   const { can } = useAuth()
-  const home = usePathname() === "/"
+  const home = usePathname() === "/start"
   const [missing, setMissing] = useState<string[]>([])
   useEffect(() => {
     let dismissed = false

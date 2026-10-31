@@ -20,8 +20,9 @@
       .pursuit-footer-credit > span:first-child { display: inline-flex; align-items: center; gap: 0.375rem; }
       .pursuit-footer-credit > a { flex-basis: 100%; }
       .pursuit-footer-dot { display: none; }
-      .pursuit-heart { width: 14px; height: 14px; fill: #ef4444; stroke: #ef4444; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
-      @media (prefers-reduced-motion: no-preference) { .pursuit-heart { animation: pursuit-heartbeat 1.4s ease-in-out infinite; } }
+      .pursuit-heart { width: 14px; height: 14px; fill: currentColor; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; transition: fill .15s, stroke .15s; }
+      .pursuit-heart:hover { fill: #ef4444; stroke: #ef4444; }
+      @media (prefers-reduced-motion: no-preference) { .pursuit-heart:hover { animation: pursuit-heartbeat 1.4s ease-in-out infinite; } }
       @keyframes pursuit-heartbeat { 0%, 40%, 100% { transform: scale(1); } 10%, 30% { transform: scale(1.25); } 20% { transform: scale(1.05); } }
       @media (min-width: 640px) {
         .pursuit-footer-credit > a { flex-basis: auto; }
@@ -43,7 +44,7 @@
     </nav>
     <div id="app"></div>
     <footer class="pursuit-footer">
-      <span class="pursuit-footer-brand"><img src="/brand/hire-pursuit-mark-reverse.svg" alt="" height="20" /> Hire Pursuit</span>
+      <a href="/" class="pursuit-footer-brand"><img src="/brand/hire-pursuit-mark-reverse.svg" alt="" height="20" /> Hire Pursuit</a>
       <p class="pursuit-footer-credit">
         <span>
           Built with

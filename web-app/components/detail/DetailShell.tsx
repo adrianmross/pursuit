@@ -163,14 +163,14 @@ export function DetailShell({ id, initial, children }: { id: string; initial: De
   async function onDelete() {
     if (!application) return
     await api(`/v1/applications/${encodeURIComponent(application.id)}`, { method: "DELETE" })
-    router.push("/pipeline")
+    router.push("/applications")
   }
 
   if (notFound) return <p className="text-sm text-destructive">That application doesn&apos;t exist.</p>
 
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-4">
-      <Link href="/pipeline" aria-label="Back to pipeline" className="text-muted-foreground hover:text-foreground">
+      <Link href="/applications" aria-label="Back to pipeline" className="text-muted-foreground hover:text-foreground">
         <ArrowLeft className="size-4" />
       </Link>
 

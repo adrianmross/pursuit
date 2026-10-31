@@ -183,13 +183,13 @@ func (s *Store) TouchToken(ctx context.Context, id, at, staleBefore string) erro
 }
 
 func (s *Store) CreateCompany(ctx context.Context, c domain.Company) error {
-	_, err := s.exec(ctx, `INSERT INTO companies (id, user_id, name, website, notes, version, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-		c.ID, c.UserID, c.Name, c.Website, c.Notes, c.Version, formatTime(c.CreatedAt), formatTime(c.UpdatedAt))
+	_, err := s.exec(ctx, `INSERT INTO companies (id, user_id, name, website, icon_url, notes, version, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		c.ID, c.UserID, c.Name, c.Website, c.IconURL, c.Notes, c.Version, formatTime(c.CreatedAt), formatTime(c.UpdatedAt))
 	return mapWriteErr(err)
 }
 
 func (s *Store) GetCompany(ctx context.Context, userID, id string) (domain.Company, error) {
-	c, err := scanCompany(s.queryRow(ctx, `SELECT id, user_id, name, website, notes, version, created_at, updated_at FROM companies WHERE user_id=? AND id=?`, userID, id))
+	c, err := scanCompany(s.queryRow(ctx, `SELECT id, user_id, name, website, icon_url, notes, version, created_at, updated_at FROM companies WHERE user_id=? AND id=?`, userID, id))
 	if err == sql.ErrNoRows {
 		return domain.Company{}, domain.NotFound("company")
 	}
@@ -197,7 +197,7 @@ func (s *Store) GetCompany(ctx context.Context, userID, id string) (domain.Compa
 }
 
 func (s *Store) GetCompanyByName(ctx context.Context, userID, name string) (domain.Company, error) {
-	c, err := scanCompany(s.queryRow(ctx, `SELECT id, user_id, name, website, notes, version, created_at, updated_at FROM companies WHERE user_id=? AND lower(name)=lower(?)`, userID, name))
+	c, err := scanCompany(s.queryRow(ctx, `SELECT id, user_id, name, website, icon_url, notes, version, created_at, updated_at FROM companies WHERE user_id=? AND lower(name)=lower(?)`, userID, name))
 	if err == sql.ErrNoRows {
 		return domain.Company{}, domain.NotFound("company")
 	}
@@ -207,7 +207,7 @@ func (s *Store) GetCompanyByName(ctx context.Context, userID, name string) (doma
 func scanCompany(row scanner) (domain.Company, error) {
 	var c domain.Company
 	var created, updated string
-	err := row.Scan(&c.ID, &c.UserID, &c.Name, &c.Website, &c.Notes, &c.Version, &created, &updated)
+	err := row.Scan(&c.ID, &c.UserID, &c.Name, &c.Website, &c.IconURL, &c.Notes, &c.Version, &created, &updated)
 	if err != nil {
 		return domain.Company{}, err
 	}
@@ -240,7 +240,7 @@ func (s *Store) ListCompanies(ctx context.Context, userID string, q domain.ListQ
 	if limit <= 0 {
 		limit = 51
 	}
-	rows, err := s.query(ctx, `SELECT id, user_id, name, website, notes, version, created_at, updated_at FROM companies `+w.sql()+` `+orderSQL(expr, "id", desc)+` LIMIT ?`, append(w.args, limit)...)
+	rows, err := s.query(ctx, `SELECT id, user_id, name, website, icon_url, notes, version, created_at, updated_at FROM companies `+w.sql()+` `+orderSQL(expr, "id", desc)+` LIMIT ?`, append(w.args, limit)...)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -267,8 +267,8 @@ func (s *Store) ListCompanies(ctx context.Context, userID string, q domain.ListQ
 }
 
 func (s *Store) UpdateCompany(ctx context.Context, c domain.Company) error {
-	res, err := s.exec(ctx, `UPDATE companies SET name=?, website=?, notes=?, version=version+1, updated_at=? WHERE id=? AND user_id=? AND version=?`,
-		c.Name, c.Website, c.Notes, formatTime(c.UpdatedAt), c.ID, c.UserID, c.Version)
+	res, err := s.exec(ctx, `UPDATE companies SET name=?, website=?, icon_url=?, notes=?, version=version+1, updated_at=? WHERE id=? AND user_id=? AND version=?`,
+		c.Name, c.Website, c.IconURL, c.Notes, formatTime(c.UpdatedAt), c.ID, c.UserID, c.Version)
 	if err != nil {
 		return mapWriteErr(err)
 	}
@@ -1278,6 +1278,16 @@ func (s *Store) ListAudit(ctx context.Context, userID string, q domain.ListQuery
 	}
 	if q.EntityID != "" {
 		w.add("entity_id=?", q.EntityID)
+	}
+	if q.Since != "" {
+		w.add("created_at>=?", q.Since)
+	}
+	if q.Until != "" {
+		w.add("created_at<=?", q.Until)
+	}
+	if q.Q != "" {
+		p := likeContains(q.Q)
+		w.add(`(lower(summary) LIKE ? ESCAPE '\' OR lower(action) LIKE ? ESCAPE '\' OR lower(entity_type) LIKE ? ESCAPE '\' OR lower(entity_id) LIKE ? ESCAPE '\' OR lower(actor_name) LIKE ? ESCAPE '\' OR lower(metadata) LIKE ? ESCAPE '\')`, p, p, p, p, p, p)
 	}
 	countWhere := w.sql()
 	countArgs := append([]any{}, w.args...)

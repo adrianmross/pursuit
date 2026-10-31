@@ -27,11 +27,12 @@ var extraTypes = map[string]string{
 	".wasm":  "application/wasm",
 }
 
-// Open returns an embedded asset. Any path without its own file falls back
-// to index.html so client-side routes (e.g. /app/:id) render the SPA shell.
-func Open(name string) ([]byte, string, error) {
+// Open returns an embedded asset and the status to serve it with. Every real
+// dashboard route is its own prerendered file, so a page path without one
+// gets the exported 404.html with a 404 status.
+func Open(name string) ([]byte, string, int, error) {
 	if distErr != nil {
-		return nil, "", distErr
+		return nil, "", 0, distErr
 	}
 	clean := path.Clean("/" + name)[1:]
 	if clean == "" {
@@ -40,24 +41,24 @@ func Open(name string) ([]byte, string, error) {
 	body, err := fs.ReadFile(dist, clean)
 	if err != nil {
 		if path.Ext(clean) != "" {
-			return nil, "", err
+			return nil, "", 0, err
 		}
 		// The static docs export (/docs/*) is plain files: /docs/cli is cli.html.
 		for _, alt := range []string{clean + ".html", clean + "/index.html"} {
 			if b, e := fs.ReadFile(dist, alt); e == nil {
-				return b, contentType(alt), nil
+				return b, contentType(alt), 200, nil
 			}
 		}
 		if clean == "docs" || strings.HasPrefix(clean, "docs/") {
-			return nil, "", err
+			return nil, "", 0, err
 		}
-		clean = "index.html"
-		body, err = fs.ReadFile(dist, clean)
+		body, err = fs.ReadFile(dist, "404.html")
 		if err != nil {
-			return nil, "", err
+			return nil, "", 0, err
 		}
+		return body, contentType("404.html"), 404, nil
 	}
-	return body, contentType(clean), nil
+	return body, contentType(clean), 200, nil
 }
 
 func contentType(name string) string {

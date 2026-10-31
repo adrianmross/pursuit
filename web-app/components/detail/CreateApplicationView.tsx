@@ -36,7 +36,7 @@ export function CreateApplicationView() {
 
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-4">
-      <Link href="/pipeline" aria-label="Back to pipeline" className="text-muted-foreground hover:text-foreground">
+      <Link href="/applications" aria-label="Back to pipeline" className="text-muted-foreground hover:text-foreground">
         <ArrowLeft className="size-4" />
       </Link>
       <h1 className="text-xl font-semibold">Add application</h1>
@@ -70,7 +70,7 @@ export function CreateApplicationView() {
           Add application
         </Button>
         <Button variant="outline" asChild>
-          <Link href="/pipeline">Cancel</Link>
+          <Link href="/applications">Cancel</Link>
         </Button>
       </div>
     </div>
