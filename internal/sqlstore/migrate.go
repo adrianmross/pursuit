@@ -368,4 +368,22 @@ var migrations = []migration{{
 		)`,
 		`CREATE INDEX IF NOT EXISTS interviews_app_idx ON interviews(application_id, created_at, id)`,
 	},
+}, {
+	version: "007",
+	stmts: []string{
+		`CREATE TABLE IF NOT EXISTS tasks (
+			id TEXT PRIMARY KEY,
+			user_id TEXT NOT NULL,
+			application_id TEXT NOT NULL REFERENCES applications(id) ON DELETE CASCADE,
+			stage TEXT NOT NULL,
+			title TEXT NOT NULL,
+			notes TEXT NOT NULL DEFAULT '',
+			due_at TEXT NOT NULL DEFAULT '',
+			done_at TEXT NOT NULL DEFAULT '',
+			version BIGINT NOT NULL DEFAULT 1,
+			created_at TEXT NOT NULL,
+			updated_at TEXT NOT NULL
+		)`,
+		`CREATE INDEX IF NOT EXISTS tasks_app_idx ON tasks(application_id, created_at, id)`,
+	},
 }}

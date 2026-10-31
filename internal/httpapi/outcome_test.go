@@ -98,3 +98,110 @@ func TestInterviews(t *testing.T) {
 		t.Fatalf("after delete: %d %#v", code, got)
 	}
 }
+
+func TestTasks(t *testing.T) {
+	e := newEnv(t)
+	code, app := e.json(t, http.MethodPost, "/v1/applications", e.token, map[string]any{"company": "Example", "title": "Engineer"})
+	if code != 201 || app["stage"].(float64) != 0 {
+		t.Fatal(app)
+	}
+	id := app["id"].(string)
+
+	code, first := e.json(t, http.MethodPost, "/v1/applications/"+id+"/tasks", e.token, map[string]any{"title": "Tailor resume", "due_at": "2026-11-05"})
+	if code != 201 || first["stage"] != "to_apply" || first["due_at"] == nil || first["version"].(float64) != 1 {
+		t.Fatalf("stage 0 defaults to to_apply: %d %#v", code, first)
+	}
+	if code, bad := e.json(t, http.MethodPost, "/v1/applications/"+id+"/tasks", e.token, map[string]any{"title": "  "}); code != 400 {
+		t.Fatalf("title is required: %d %#v", code, bad)
+	}
+	if code, bad := e.json(t, http.MethodPost, "/v1/applications/"+id+"/tasks", e.token, map[string]any{"title": "x", "stage": "rejected"}); code != 400 {
+		t.Fatalf("an outcome is not a stage: %d %#v", code, bad)
+	}
+	code, second := e.json(t, http.MethodPost, "/v1/applications/"+id+"/tasks", e.token, map[string]any{"title": "Send references", "stage": "Prepared"})
+	if code != 201 || second["stage"] != "awaiting_review" {
+		t.Fatalf("prepared task: %d %#v", code, second)
+	}
+
+	code, list := e.json(t, http.MethodGet, "/v1/applications/"+id+"/tasks", e.token, nil)
+	if code != 200 || len(list["data"].([]any)) != 2 {
+		t.Fatalf("list: %d %#v", code, list)
+	}
+
+	tid := "/v1/tasks/" + first["id"].(string)
+	code, done := e.json(t, http.MethodPatch, tid, e.token, map[string]any{"version": 1, "done": true})
+	if code != 200 || done["done_at"] == nil || done["version"].(float64) != 2 {
+		t.Fatalf("done: %d %#v", code, done)
+	}
+	if code, stale := e.json(t, http.MethodPatch, tid, e.token, map[string]any{"version": 1, "done": false}); code != 409 {
+		t.Fatalf("stale version: %d %#v", code, stale)
+	}
+
+	code, got := e.json(t, http.MethodGet, "/v1/applications/"+id, e.token, nil)
+	counts := got["tasks"].(map[string]any)
+	apply, prepared := counts["0"].(map[string]any), counts["1"].(map[string]any)
+	if code != 200 || apply["done"].(float64) != 1 || apply["total"].(float64) != 1 || prepared["done"].(float64) != 0 || prepared["total"].(float64) != 1 {
+		t.Fatalf("per-stage tasks: %d %#v", code, got)
+	}
+
+	code, undone := e.json(t, http.MethodPatch, tid, e.token, map[string]any{"version": 2, "done": false})
+	if code != 200 || undone["done_at"] != nil {
+		t.Fatalf("undone: %d %#v", code, undone)
+	}
+	if code, stale := e.json(t, http.MethodDelete, tid+"?version=1", e.token, nil); code != 409 {
+		t.Fatalf("stale delete: %d %#v", code, stale)
+	}
+	code, del := e.json(t, http.MethodDelete, tid+"?version=3", e.token, nil)
+	if code != 200 || del["deleted"] != true {
+		t.Fatalf("delete: %d %#v", code, del)
+	}
+	if code, _ := e.json(t, http.MethodGet, tid, e.token, nil); code != 404 {
+		t.Fatalf("deleted task still there: %d", code)
+	}
+
+	// A task joins the application's current stage by default.
+	code, moved := e.json(t, http.MethodPost, "/v1/applications", e.token, map[string]any{"company": "Example", "title": "Staff", "status": "screening"})
+	if code != 201 {
+		t.Fatal(moved)
+	}
+	code, cur := e.json(t, http.MethodPost, "/v1/applications/"+moved["id"].(string)+"/tasks", e.token, map[string]any{"title": "Prep call"})
+	if code != 201 || cur["stage"] != "screening" {
+		t.Fatalf("default stage: %d %#v", code, cur)
+	}
+}
+
+func TestRoundsAliasInterviews(t *testing.T) {
+	e := newEnv(t)
+	code, app := e.json(t, http.MethodPost, "/v1/applications", e.token, map[string]any{"company": "Example", "title": "Engineer", "status": "screening"})
+	if code != 201 {
+		t.Fatal(app)
+	}
+	id := app["id"].(string)
+	code, round := e.json(t, http.MethodPost, "/v1/applications/"+id+"/rounds", e.token, map[string]any{"kind": "Recruiter call"})
+	if code != 201 || round["stage"] != "screening" {
+		t.Fatalf("add round: %d %#v", code, round)
+	}
+	rid := round["id"].(string)
+	// Both names reach the same rows.
+	for _, path := range []string{"/v1/applications/" + id + "/rounds", "/v1/applications/" + id + "/interviews"} {
+		if code, list := e.json(t, http.MethodGet, path, e.token, nil); code != 200 || len(list["data"].([]any)) != 1 {
+			t.Fatalf("%s: %d %#v", path, code, list)
+		}
+	}
+	if code, got := e.json(t, http.MethodGet, "/v1/interviews/"+rid, e.token, nil); code != 200 || got["kind"] != "Recruiter call" {
+		t.Fatalf("interviews alias get: %d %#v", code, got)
+	}
+	code, done := e.json(t, http.MethodPatch, "/v1/rounds/"+rid, e.token, map[string]any{"version": 1, "done": true})
+	if code != 200 || done["done_at"] == nil {
+		t.Fatalf("patch round: %d %#v", code, done)
+	}
+	code, got := e.json(t, http.MethodGet, "/v1/applications/"+id, e.token, nil)
+	if code != 200 || got["interviews"].(map[string]any)["3"].(map[string]any)["done"].(float64) != 1 {
+		t.Fatalf("counts stay under interviews: %d %#v", code, got)
+	}
+	if code, del := e.json(t, http.MethodDelete, "/v1/rounds/"+rid+"?version=2", e.token, nil); code != 200 || del["deleted"] != true {
+		t.Fatalf("delete round: %d %#v", code, del)
+	}
+	if code, _ := e.json(t, http.MethodGet, "/v1/rounds/"+rid, e.token, nil); code != 404 {
+		t.Fatalf("deleted round still there: %d", code)
+	}
+}

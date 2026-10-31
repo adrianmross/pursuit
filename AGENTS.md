@@ -19,6 +19,8 @@ pursuit events --follow --timeout 25s
 pursuit list --stale --fields id,company,title,link_status
 ```
 
+`pursuit rounds` (`/v1/applications/{id}/rounds`, `/v1/rounds/{id}`) tracks interview rounds per stage; `pursuit interviews` and `/interviews` are old aliases. `pursuit tasks` (`/v1/applications/{id}/tasks`, `/v1/tasks/{id}`) tracks to-dos per stage. Both add with `add APP_ID`, change with `set ID --done`, and report per-stage `{done, total}` on the application as `interviews` and `tasks`.
+
 Standing answers (`pursuit standing set`) fill form questions. Unknown required questions become `needs_input`. Company caps return a conflict when exceeded.
 
 `GET /v1/profile` is those standing answers as one map. `POST /v1/applications/capture` saves a posting the user is viewing as `to_apply` and dedupes on the URL. The browser extension calls those. It is not a dashboard.

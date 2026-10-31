@@ -165,6 +165,17 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /v1/interviews/{id}", s.getInterview)
 	mux.HandleFunc("PATCH /v1/interviews/{id}", s.updateInterview)
 	mux.HandleFunc("DELETE /v1/interviews/{id}", s.deleteInterview)
+	// Rounds are the product's name for interviews; /interviews stays as an alias.
+	mux.HandleFunc("GET /v1/applications/{id}/rounds", s.listInterviews)
+	mux.HandleFunc("POST /v1/applications/{id}/rounds", s.addInterview)
+	mux.HandleFunc("GET /v1/rounds/{id}", s.getInterview)
+	mux.HandleFunc("PATCH /v1/rounds/{id}", s.updateInterview)
+	mux.HandleFunc("DELETE /v1/rounds/{id}", s.deleteInterview)
+	mux.HandleFunc("GET /v1/applications/{id}/tasks", s.listTasks)
+	mux.HandleFunc("POST /v1/applications/{id}/tasks", s.addTask)
+	mux.HandleFunc("GET /v1/tasks/{id}", s.getTask)
+	mux.HandleFunc("PATCH /v1/tasks/{id}", s.updateTask)
+	mux.HandleFunc("DELETE /v1/tasks/{id}", s.deleteTask)
 	mux.HandleFunc("POST /v1/applications/{id}/prepare", s.prepare)
 	mux.HandleFunc("POST /v1/applications/{id}/enqueue", s.enqueue)
 	mux.HandleFunc("GET /v1/applications/{id}/artifacts", s.listArtifacts)
@@ -1261,6 +1272,46 @@ func (s *Server) updateInterview(w http.ResponseWriter, r *http.Request) {
 func (s *Server) deleteInterview(w http.ResponseWriter, r *http.Request) {
 	s.deleteOne(w, r, func(ctx context.Context, id string, version int) (any, error) {
 		return s.Svc.DeleteInterview(ctx, id, version)
+	})
+}
+
+func (s *Server) listTasks(w http.ResponseWriter, r *http.Request) {
+	pageSlice(w, r, domain.TaskFields, func(ctx context.Context) ([]domain.Task, error) {
+		return s.Svc.ListTasks(ctx, r.PathValue("id"))
+	})
+}
+
+func (s *Server) addTask(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	s.jsonMut(w, r, 201, domain.TaskFields, func(ctx context.Context, body []byte) (any, error) {
+		var in service.TaskInput
+		if err := decode(body, &in); err != nil {
+			return nil, err
+		}
+		return s.Svc.AddTask(ctx, id, in)
+	})
+}
+
+func (s *Server) getTask(w http.ResponseWriter, r *http.Request) {
+	s.getOne(w, r, domain.TaskFields, func(ctx context.Context, id string) (any, error) {
+		return s.Svc.GetTask(ctx, id)
+	})
+}
+
+func (s *Server) updateTask(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	s.jsonMut(w, r, 200, domain.TaskFields, func(ctx context.Context, body []byte) (any, error) {
+		var in service.TaskPatch
+		if err := decode(body, &in); err != nil {
+			return nil, err
+		}
+		return s.Svc.UpdateTask(ctx, id, in)
+	})
+}
+
+func (s *Server) deleteTask(w http.ResponseWriter, r *http.Request) {
+	s.deleteOne(w, r, func(ctx context.Context, id string, version int) (any, error) {
+		return s.Svc.DeleteTask(ctx, id, version)
 	})
 }
 
