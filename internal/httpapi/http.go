@@ -126,25 +126,37 @@ func (s *Server) signupsPaused(err error) error {
 // in multi-tenant mode. Falls back to Pursuit's own check otherwise, so
 // the usual "invalid token" error still comes from one place.
 func (s *Server) authenticate(ctx context.Context, raw string) (domain.Actor, error) {
-	if s.BetterAuth != nil && s.multiTenant() && !strings.HasPrefix(raw, "pst_") && strings.Count(raw, ".") == 2 {
-		identity, err := s.BetterAuth.Verify(ctx, raw)
+	if s.isBetterAuthJWT(raw) {
+		identity, err := s.verifyBetterAuth(ctx, raw)
 		if err != nil {
-			return domain.Actor{}, domain.Unauthorized()
-		}
-		// A JWT signature only proves the caller completed sign-up/sign-in
-		// with this email; it doesn't prove they own the inbox. Without
-		// that, anyone could type a stranger's email, "sign up", and be
-		// matched into that stranger's existing account. Require Better
-		// Auth's own email-verification claim before trusting it either
-		// way: the dashboard's "Create account" step will need Neon's
-		// email-verification plugin enabled before it can issue one.
-		if !identity.EmailVerified {
-			return domain.Actor{}, domain.Unauthorized()
+			return domain.Actor{}, err
 		}
 		actor, err := s.Svc.ResolveTenantUser(ctx, identity.Email, identity.Name, s.signupsOpen())
 		return actor, s.signupsPaused(err)
 	}
 	return s.Svc.Authenticate(ctx, raw)
+}
+
+func (s *Server) isBetterAuthJWT(raw string) bool {
+	return s.BetterAuth != nil && s.multiTenant() && !strings.HasPrefix(raw, "pst_") && strings.Count(raw, ".") == 2
+}
+
+func (s *Server) verifyBetterAuth(ctx context.Context, raw string) (betterauth.Identity, error) {
+	identity, err := s.BetterAuth.Verify(ctx, raw)
+	if err != nil {
+		return betterauth.Identity{}, domain.Unauthorized()
+	}
+	// A JWT signature only proves the caller completed sign-up/sign-in
+	// with this email; it doesn't prove they own the inbox. Without
+	// that, anyone could type a stranger's email, "sign up", and be
+	// matched into that stranger's existing account. Require Better
+	// Auth's own email-verification claim before trusting it either
+	// way: the dashboard's "Create account" step will need Neon's
+	// email-verification plugin enabled before it can issue one.
+	if !identity.EmailVerified {
+		return betterauth.Identity{}, domain.Unauthorized()
+	}
+	return identity, nil
 }
 
 func (s *Server) Handler() http.Handler {
