@@ -62,6 +62,7 @@ type ApplicationPatch struct {
 	ResumeVersion *string  `json:"resume_version"`
 	ResumeFileRef *string  `json:"resume_file_ref"`
 	ContactEmail  *string  `json:"contact_email"`
+	Company       *string  `json:"company"`
 	Title         *string  `json:"title"`
 	Location      *string  `json:"location"`
 	Salary        *string  `json:"salary"`
@@ -470,7 +471,7 @@ func (s *Service) UpdateApplication(ctx context.Context, id string, p Applicatio
 
 func (s *Service) patchLinkedRole(ctx context.Context, a domain.Actor, app *domain.Application, p ApplicationPatch) (bool, error) {
 	rp := RolePatch{Title: p.Title, Location: p.Location, Salary: p.Salary, Fit: p.Fit, PostingURL: p.PostingURL, Source: p.Source, JobType: p.JobType}
-	if rp.Title == nil && rp.Location == nil && rp.Salary == nil && rp.Fit == nil && rp.PostingURL == nil && rp.Source == nil && rp.JobType == nil {
+	if p.Company == nil && rp.Title == nil && rp.Location == nil && rp.Salary == nil && rp.Fit == nil && rp.PostingURL == nil && rp.Source == nil && rp.JobType == nil {
 		return false, nil
 	}
 	role, err := s.DB.GetRole(ctx, a.UserID, app.RoleID)
@@ -478,8 +479,23 @@ func (s *Service) patchLinkedRole(ctx context.Context, a domain.Actor, app *doma
 		return false, err
 	}
 	next, changed, err := applyRolePatch(role, rp)
-	if err != nil || !changed {
+	if err != nil {
 		return false, err
+	}
+	// Company lives on the role, so this moves the role (and any other
+	// application sharing it) to the named company, creating it if needed.
+	if p.Company != nil && !strings.EqualFold(strings.TrimSpace(*p.Company), role.Company) {
+		company, _, err := s.ensureCompany(ctx, a, "", *p.Company, "")
+		if err != nil {
+			return false, err
+		}
+		if company.ID != role.CompanyID {
+			next.CompanyID, next.Company = company.ID, company.Name
+			changed = true
+		}
+	}
+	if !changed {
+		return false, nil
 	}
 	next.UpdatedAt = s.now()
 	if err := s.DB.UpdateRole(ctx, next); err != nil {

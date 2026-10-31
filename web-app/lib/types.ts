@@ -23,6 +23,9 @@ export type Application = {
   salary?: string
   fit?: string
   source?: string
+  job_type?: string
+  contact_email?: string
+  resume_version?: string
   next_step?: string
   archived_at?: string
   custom_fields?: Record<string, string>

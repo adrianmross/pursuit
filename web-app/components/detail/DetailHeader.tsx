@@ -83,6 +83,7 @@ export function DetailHeader({
   writable,
   canApprove,
   onSaveField,
+  onPatch,
   onArchive,
   onUnarchive,
   onDecide,
@@ -93,6 +94,7 @@ export function DetailHeader({
   writable: boolean
   canApprove: boolean
   onSaveField: (patch: Record<string, string>) => void
+  onPatch: (patch: Record<string, string>) => Promise<unknown>
   onArchive: () => void
   onUnarchive: () => void
   onDecide: (kind: "approve" | "reject", note: string) => Promise<void>
@@ -151,16 +153,23 @@ export function DetailHeader({
           ) : (
             <CompanyAvatar company={application.company} companyId={application.company_id} className="mt-1 size-9 text-sm" />
           )}
-          <div>
+          <div className="min-w-0">
             <InlineText
               value={application.title || ""}
               placeholder="Untitled"
+              label="Title"
               disabled={!writable}
               className="text-xl font-semibold"
-              inputClassName="h-9 text-xl font-semibold"
-              onSave={(v) => onSaveField({ title: v })}
+              onSave={(v) => onPatch({ title: v })}
             />
-            <p className="text-sm text-muted-foreground">{application.company || "Unknown company"}</p>
+            <InlineText
+              value={application.company || ""}
+              placeholder="Unknown company"
+              label="Company"
+              disabled={!writable}
+              className="text-sm text-muted-foreground"
+              onSave={(v) => onPatch({ company: v })}
+            />
           </div>
         </div>
         <div className="flex items-center gap-1">

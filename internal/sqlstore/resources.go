@@ -405,8 +405,8 @@ func (s *Store) ListRoles(ctx context.Context, userID string, q domain.ListQuery
 }
 
 func (s *Store) UpdateRole(ctx context.Context, r domain.Role) error {
-	res, err := s.exec(ctx, `UPDATE roles SET title=?, location=?, salary_text=?, salary_min_cents=?, salary_max_cents=?, fit=?, posting_url=?, source=?, job_type=?, version=version+1, updated_at=? WHERE id=? AND user_id=? AND version=?`,
-		r.Title, r.Location, r.Salary, nullInt(r.SalaryMinCents), nullInt(r.SalaryMaxCents), r.Fit, r.PostingURL, r.Source, r.JobType, formatTime(r.UpdatedAt), r.ID, r.UserID, r.Version)
+	res, err := s.exec(ctx, `UPDATE roles SET company_id=?, title=?, location=?, salary_text=?, salary_min_cents=?, salary_max_cents=?, fit=?, posting_url=?, source=?, job_type=?, version=version+1, updated_at=? WHERE id=? AND user_id=? AND version=?`,
+		r.CompanyID, r.Title, r.Location, r.Salary, nullInt(r.SalaryMinCents), nullInt(r.SalaryMaxCents), r.Fit, r.PostingURL, r.Source, r.JobType, formatTime(r.UpdatedAt), r.ID, r.UserID, r.Version)
 	if err != nil {
 		return mapWriteErr(err)
 	}

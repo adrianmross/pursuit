@@ -200,6 +200,7 @@ func cmdApps() *Command {
 				{Name: "next-step", Type: "string", Help: "next step"},
 				{Name: "notes", Type: "string", Help: "notes"},
 				{Name: "applied-date", Type: "string", Help: "YYYY-MM-DD, or null to clear"},
+				{Name: "company", Type: "string", Help: "company name; moves the role, creating the company if new"},
 				{Name: "title", Type: "string", Help: "role title"},
 				{Name: "location", Type: "string", Help: "location"},
 				{Name: "salary", Type: "string", Help: "salary text"},
@@ -313,6 +314,7 @@ func runAppUpdate(e *exec) error {
 	put("status", "status")
 	put("next_step", "next-step")
 	put("notes", "notes")
+	put("company", "company")
 	put("title", "title")
 	put("location", "location")
 	put("salary", "salary")
