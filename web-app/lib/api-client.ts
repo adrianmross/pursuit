@@ -81,6 +81,12 @@ export async function api<T>(path: string, options: ApiOptions = {}): Promise<T>
   return data as T
 }
 
+// The server URL an agent or the CLI should use. Client-only: the dashboard
+// and API share an origin unless NEXT_PUBLIC_PURSUIT_API_URL says otherwise.
+export function serverUrl(): string {
+  return PURSUIT_API_URL || window.location.origin
+}
+
 // For calls that can't go through api<T>() (binary responses, e.g. a
 // favicon image) — same proxy-vs-direct branching, caller does its own fetch.
 export function apiUrl(path: string): string {
