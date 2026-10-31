@@ -62,6 +62,9 @@ type Server struct {
 	// dashboard's connect-src so the browser's own client SDK can reach
 	// it directly (sign-up/sign-in, minting a JWT) alongside this origin.
 	BetterAuthOrigin string
+	// WebAnalytics allows Cloudflare Web Analytics' beacon in the dashboard's
+	// CSP. Set when the build embedded one (PURSUIT_CF_BEACON_TOKEN).
+	WebAnalytics bool
 	// HideTokenLogin removes the "paste an API token" option from the
 	// dashboard's sign-in page (production shouldn't invite visitors to
 	// type a raw secret there); the bearer-token API itself is unaffected
@@ -591,7 +594,14 @@ func (s *Server) dashboard(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", contentType)
-	w.Header().Set("Cache-Control", "no-cache")
+	if strings.Contains(name, "_next/static/") {
+		// Content-hashed build output (dashboard and docs): a new build gets new
+		// names, so cache it for good. s-maxage lets the Vercel CDN keep it too,
+		// instead of every load re-running the function for every chunk.
+		w.Header().Set("Cache-Control", "public, max-age=31536000, s-maxage=31536000, immutable")
+	} else {
+		w.Header().Set("Cache-Control", "no-cache")
+	}
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	if strings.HasPrefix(contentType, "text/html") {
 		// style-src needs 'unsafe-inline': Radix positions popovers/menus with
@@ -605,6 +615,10 @@ func (s *Server) dashboard(w http.ResponseWriter, r *http.Request) {
 		// out a per-request nonce to allow just those, so 'unsafe-inline'
 		// it is for this embed.
 		scriptSrc := "'self' 'unsafe-inline'"
+		if s.WebAnalytics {
+			scriptSrc += " https://static.cloudflareinsights.com"
+			connectSrc += " https://cloudflareinsights.com"
+		}
 		w.Header().Set("Content-Security-Policy", "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src "+scriptSrc+"; connect-src "+connectSrc+"; img-src 'self' data: blob:; frame-src 'self' blob:; font-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'")
 		// Only the dashboard frames itself (blob: document previews); refusing
 		// other sites blocks clickjacking the /authorize and /device buttons.

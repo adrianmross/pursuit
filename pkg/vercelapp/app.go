@@ -103,7 +103,7 @@ func ensure(ctx context.Context) (*runtime, error) {
 	if demoMode {
 		log.Warn("demo mode is on", "hint", "every unauthenticated caller gets a fresh throwaway tenant; never set PURSUIT_DEMO_MODE on a real-data deployment")
 	}
-	api := &httpapi.Server{Svc: svc, Log: log, TrustProxyAuth: trust, TenantMode: tenantMode, OIDC: oidcMgr, BetterAuth: betterAuthVerifier, BetterAuthOrigin: betterAuthOrigin, HideTokenLogin: hideTokenLogin, SignupsClosed: strings.EqualFold(strings.TrimSpace(os.Getenv("PURSUIT_SIGNUPS")), "closed"), DemoMode: demoMode, NoDocs: strings.EqualFold(strings.TrimSpace(os.Getenv("PURSUIT_NO_DOCS")), "true")}
+	api := &httpapi.Server{Svc: svc, Log: log, TrustProxyAuth: trust, TenantMode: tenantMode, OIDC: oidcMgr, BetterAuth: betterAuthVerifier, BetterAuthOrigin: betterAuthOrigin, HideTokenLogin: hideTokenLogin, WebAnalytics: strings.TrimSpace(os.Getenv("PURSUIT_CF_BEACON_TOKEN")) != "", SignupsClosed: strings.EqualFold(strings.TrimSpace(os.Getenv("PURSUIT_SIGNUPS")), "closed"), DemoMode: demoMode, NoDocs: strings.EqualFold(strings.TrimSpace(os.Getenv("PURSUIT_NO_DOCS")), "true")}
 	api.Ready.Store(true)
 	booted = &runtime{handler: api.Handler()}
 	return booted, nil
