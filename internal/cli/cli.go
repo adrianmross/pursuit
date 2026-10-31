@@ -186,7 +186,7 @@ func Run(args []string, stdout, stderr io.Writer) int {
 	e := &exec{
 		cmd: cmd, args: parsed.args, flags: parsed.flags, g: g, json: jsonOut,
 		stdout: stdout, stderr: stderr,
-		client:      &apiclient.Client{BaseURL: cfg.ServerURL, Token: cfg.Token},
+		client:      &apiclient.Client{BaseURL: cfg.ServerURL, Token: cfg.Token, Bypass: cfg.VercelBypass},
 		tokenSource: source,
 	}
 	e.cfg = cfg

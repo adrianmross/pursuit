@@ -34,6 +34,8 @@ pursuit auth status
 pursuit auth logout
 ```
 
+A Vercel deployment behind Deployment Protection redirects the CLI to Vercel's login before it reaches Pursuit. Create a Protection Bypass for Automation secret (Project Settings, Deployment Protection) and give it to the CLI as `PURSUIT_VERCEL_BYPASS` or `"vercel_bypass"` in `~/.config/pursuit/config.json`. The CLI sends it only alongside a Pursuit token, or on the `/v1/auth/*` calls that mint one, so the secret alone never reaches the dashboard as the `PURSUIT_TRUST_PROXY_AUTH` owner. Every request still needs a token, so it gets that token's scopes.
+
 Applicant answers and the résumé file stay outside the repo:
 
 ```bash

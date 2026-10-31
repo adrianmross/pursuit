@@ -173,7 +173,7 @@ func TestAuthLoginPrecedenceAndFileMode(t *testing.T) {
 	if _, ok, _ := config.LoadCredential(a.srv.URL); ok {
 		t.Fatal("credential still stored after logout")
 	}
-	if me, err := whoami(a.srv.URL, stored.Token); err == nil {
+	if me, err := whoami("", a.srv.URL, stored.Token); err == nil {
 		t.Fatalf("revoked token still works: %+v", me)
 	}
 	if code, _, _ = a.run(t, "auth", "status"); code != 5 {
