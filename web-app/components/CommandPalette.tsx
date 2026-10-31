@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
-import { Archive, Bot, IdCard, ListChecks, LogOut, Plus } from "lucide-react"
+import { Archive, Bot, IdCard, ListChecks, LogOut, MessageSquareText, Plus } from "lucide-react"
 import { SECTION_LINKS } from "@/components/SettingsDialog"
 import { api } from "@/lib/api-client"
 import { useAuth } from "@/lib/auth"
@@ -48,6 +48,9 @@ export function CommandPalette({ onOpenSettings }: { onOpenSettings: (section: s
         <CommandGroup heading="Actions">
           <CommandItem onSelect={() => go(() => router.push("/profile"))}>
             <IdCard /> Profile
+          </CommandItem>
+          <CommandItem value="Questions standing answers" onSelect={() => go(() => router.push("/profile/questions"))}>
+            <MessageSquareText /> Questions
           </CommandItem>
           <CommandItem onSelect={() => go(() => router.push("/agents"))}>
             <Bot /> Connect an agent
