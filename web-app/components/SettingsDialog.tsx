@@ -330,9 +330,9 @@ const SECTIONS: (Section & { items: [string, string][] })[] = [
     icon: <User />,
     render: () => <AccountPanel />,
     items: [
-      ["Password", "change security"],
-      ["Email", "change address"],
-      ["Sign out other sessions", "revoke devices security"],
+      ["Change password", "security current new"],
+      ["Email", "address sign-in"],
+      ["Sessions", "sign out other sessions revoke devices browsers security"],
       ["Display name", "profile email avatar photo picture"],
       ["Sign out", "logout session"],
     ],
