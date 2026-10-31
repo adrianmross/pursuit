@@ -16,6 +16,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/go-webauthn/webauthn/webauthn"
+
 	"github.com/pursuit/pursuit/internal/betterauth"
 	"github.com/pursuit/pursuit/internal/httpapi"
 	"github.com/pursuit/pursuit/internal/links"
@@ -64,6 +66,11 @@ func ensure(ctx context.Context) (*runtime, error) {
 	svc := service.New(store)
 	svc.HTTP = &http.Client{Timeout: 20 * time.Second}
 	svc.Links = &links.Client{HTTP: svc.HTTP, Now: svc.Now}
+	if svc.WebAuthn, err = webAuthnFromEnv(os.Getenv); err != nil {
+		store.Close()
+		slog.Error("passkeys", "err", err.Error())
+		return nil, fmt.Errorf("passkey configuration failed")
+	}
 	owner := env("PURSUIT_OWNER_NAME", "Adrian")
 	email := env("PURSUIT_OWNER_EMAIL", "adrian@localhost")
 	tokenName := env("PURSUIT_BOOTSTRAP_NAME", "owner")
@@ -131,6 +138,21 @@ func buildOIDC(ctx context.Context, log *slog.Logger) (*oidcauth.Manager, error)
 	}
 	redirect := func(name string) string { return base + "/v1/auth/" + name + "/callback" }
 	return oidcauth.New(ctx, []byte(secret), specs, redirect)
+}
+
+// webAuthnFromEnv is nil (passkeys off) unless PURSUIT_WEBAUTHN_RP_ID is
+// set. Origins default to the deployment's public URL.
+func webAuthnFromEnv(getenv func(string) string) (*webauthn.WebAuthn, error) {
+	var origins []string
+	for _, o := range strings.Split(getenv("PURSUIT_WEBAUTHN_ORIGINS"), ",") {
+		if o = strings.TrimSpace(o); o != "" {
+			origins = append(origins, o)
+		}
+	}
+	if len(origins) == 0 {
+		origins = []string{publicURL(getenv)}
+	}
+	return service.NewWebAuthn(getenv("PURSUIT_WEBAUTHN_RP_ID"), origins)
 }
 
 // trustFromEnv returns "vercel" only on a Vercel preview deployment, where

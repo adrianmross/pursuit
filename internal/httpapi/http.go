@@ -87,6 +87,9 @@ type Server struct {
 	deviceLimiterOnce sync.Once
 	deviceLimiterVal  *demoLimiter
 
+	passkeyLimiterOnce sync.Once
+	passkeyLimiterVal  *demoLimiter
+
 	mux *http.ServeMux
 }
 
@@ -181,6 +184,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("DELETE /v1/auth/session", s.deleteSession)
 	mux.HandleFunc("POST /v1/demo", s.startDemo)
 	s.registerOAuth(mux)
+	s.registerPasskeys(mux)
 
 	mux.HandleFunc("GET /v1/me", s.me)
 	mux.HandleFunc("PATCH /v1/me", s.updateMe)
@@ -439,7 +443,7 @@ func (s *Server) authProviders(w http.ResponseWriter, r *http.Request) {
 	if s.multiTenant() {
 		mode = "multi"
 	}
-	writeJSON(w, 200, map[string]any{"tenant_mode": mode, "providers": providers, "allow_token_login": !s.HideTokenLogin, "demo_available": s.DemoMode, "signups_open": s.signupsOpen()})
+	writeJSON(w, 200, map[string]any{"tenant_mode": mode, "providers": providers, "allow_token_login": !s.HideTokenLogin, "demo_available": s.DemoMode, "signups_open": s.signupsOpen(), "passkeys": s.Svc.WebAuthn != nil})
 }
 
 func (s *Server) authStart(w http.ResponseWriter, r *http.Request) {

@@ -445,4 +445,35 @@ var migrations = []migration{{
 		// The address a device login was started from, shown on /device.
 		`ALTER TABLE oauth_grants ADD COLUMN requested_from TEXT NOT NULL DEFAULT ''`,
 	},
+}, {
+	version: "013",
+	stmts: []string{
+		// Passkeys. The WebAuthn user handle is random, not the email or
+		// users.id, so an authenticator holds nothing that names the person.
+		`ALTER TABLE users ADD COLUMN webauthn_user_handle TEXT NOT NULL DEFAULT ''`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS users_webauthn_handle_uidx ON users(webauthn_user_handle) WHERE webauthn_user_handle <> ''`,
+		// id is the credential ID (base64url). credential is go-webauthn's
+		// whole Credential record as JSON: public key, sign count, flags,
+		// AAGUID, transports, attestation.
+		`CREATE TABLE IF NOT EXISTS webauthn_credentials (
+			id TEXT PRIMARY KEY,
+			user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+			name TEXT NOT NULL,
+			credential TEXT NOT NULL,
+			created_at TEXT NOT NULL,
+			last_used_at TEXT NOT NULL DEFAULT ''
+		)`,
+		`CREATE INDEX IF NOT EXISTS webauthn_credentials_user_idx ON webauthn_credentials(user_id, created_at)`,
+		// One row per begin, keyed by the challenge. Single use (used_at)
+		// and short-lived (expires_at), like oauth_grants.
+		`CREATE TABLE IF NOT EXISTS webauthn_challenges (
+			id TEXT PRIMARY KEY,
+			kind TEXT NOT NULL,
+			user_id TEXT NOT NULL DEFAULT '',
+			session TEXT NOT NULL,
+			expires_at TEXT NOT NULL,
+			used_at TEXT NOT NULL DEFAULT ''
+		)`,
+		`CREATE INDEX IF NOT EXISTS webauthn_challenges_expires_idx ON webauthn_challenges(expires_at)`,
+	},
 }}

@@ -61,6 +61,17 @@ func Run(ctx context.Context, cfg config.Config) error {
 		go svc.DeliverWebhooks(context.Background(), userID, ev)
 	}
 
+	origins := cfg.WebAuthnOrigins
+	if len(origins) == 0 {
+		origins = []string{strings.TrimRight(cfg.ServerURL, "/")}
+	}
+	if svc.WebAuthn, err = service.NewWebAuthn(cfg.WebAuthnRPID, origins); err != nil {
+		return fmt.Errorf("passkeys: %w", err)
+	}
+	if svc.WebAuthn != nil {
+		log.Info("passkeys on", "rp_id", cfg.WebAuthnRPID, "origins", origins)
+	}
+
 	secret, created, err := svc.Bootstrap(ctx, cfg.OwnerName, cfg.OwnerEmail, cfg.BootstrapName, cfg.BootstrapToken)
 	if err != nil {
 		return err

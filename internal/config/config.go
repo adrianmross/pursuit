@@ -63,6 +63,13 @@ type Config struct {
 	SignupsClosed bool `json:"-"`
 	// NoDocs stops the daemon serving the embedded docs at /docs.
 	NoDocs bool `json:"-"`
+	// WebAuthnRPID turns passkeys on (PURSUIT_WEBAUTHN_RP_ID), e.g.
+	// hirepursuit.app or localhost. A passkey only ever works for the RP ID
+	// it was made under.
+	WebAuthnRPID string `json:"webauthn_rp_id,omitempty"`
+	// WebAuthnOrigins are the origins a passkey ceremony may come from
+	// (PURSUIT_WEBAUTHN_ORIGINS, comma-separated). Empty means ServerURL.
+	WebAuthnOrigins []string `json:"webauthn_origins,omitempty"`
 }
 
 func Defaults() Config {
@@ -207,6 +214,10 @@ func applyEnv(cfg *Config) {
 	cfg.HideTokenLogin = strings.EqualFold(strings.TrimSpace(os.Getenv("PURSUIT_HIDE_TOKEN_LOGIN")), "true")
 	cfg.SignupsClosed = strings.EqualFold(strings.TrimSpace(os.Getenv("PURSUIT_SIGNUPS")), "closed")
 	cfg.NoDocs = strings.EqualFold(strings.TrimSpace(os.Getenv("PURSUIT_NO_DOCS")), "true")
+	set(&cfg.WebAuthnRPID, "PURSUIT_WEBAUTHN_RP_ID")
+	if v := strings.TrimSpace(os.Getenv("PURSUIT_WEBAUTHN_ORIGINS")); v != "" {
+		cfg.WebAuthnOrigins = splitComma(v)
+	}
 	if v := strings.TrimSpace(os.Getenv("PURSUIT_CORS_ORIGINS")); v != "" {
 		cfg.CORSOrigins = splitComma(v)
 	}
