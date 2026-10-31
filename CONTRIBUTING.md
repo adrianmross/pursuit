@@ -28,4 +28,4 @@ After merge, Release Please opens a `chore(release): pursuit vX.Y.Z` PR that bum
 
 ## Previews
 
-Vercel deploys `main` to production automatically. No other branch deploys on push (`git.deploymentEnabled` in `vercel.json`), which keeps bot branches and work-in-progress pushes from burning the daily deployment limit. To get a preview, add the `preview` label to the pull request: `.github/workflows/preview.yml` deploys it, comments the URL, and redeploys on each later push while the label stays on.
+Production deploys a release, not every merge to `main`. Vercel's production branch is `release`, and `.github/workflows/release.yml` points it at each new tag once the release builds. To roll back, use Instant Rollback in the Vercel dashboard. No other branch deploys on push (`git.deploymentEnabled` in `vercel.json`), which keeps bot branches and work-in-progress pushes from burning the daily deployment limit. To get a preview, add the `preview` label to the pull request: `.github/workflows/preview.yml` deploys it, comments the URL, and redeploys on each later push while the label stays on.
