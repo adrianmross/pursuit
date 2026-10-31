@@ -66,7 +66,7 @@ func build() []byte {
 		paths[path] = item
 	}
 	pub := map[string]string{
-		"/healthz": "liveness", "/readyz": "readiness", "/version": "version", "/openapi.json": "this document", "/llms.txt": "short agent guide", "/auth.md": "agent auth guide: tokens, scopes, approval",
+		"/healthz": "liveness", "/readyz": "readiness", "/version": "version", "/openapi.json": "this document", "/llms.txt": "short agent guide", "/auth.md": "agent auth guide: tokens, scopes, approval", "/reference": "interactive API reference page (HTML)",
 	}
 	for p, s := range pub {
 		add(p, "get", s, false, map[string]any{"security": []any{}})
@@ -108,6 +108,11 @@ func build() []byte {
 	add("/v1/oauth/authorize", "post", "loopback consent, called by the dashboard /authorize page that pursuit auth login opens. requires a signed-in human session with the approve scope (not the PURSUIT_TRUST_PROXY_AUTH owner), Content-Type application/json, and Sec-Fetch-Site same-origin or an Origin matching the host. writes an oauth.approve or oauth.deny audit entry. body {client_id, redirect_uri, code_challenge, code_challenge_method:S256, state, scope, approve}. redirect_uri must be http://127.0.0.1:<port>/callback or http://[::1]:<port>/callback. returns {redirect_to}: the callback with code and state, or error=access_denied when approve is false", false, nil)
 	add("/v1/oauth/device", "get", "look up a pending device login by user_code (query) so the dashboard can show the requested scopes. requires the approve scope. returns {user_code, client_id, scopes, status, created_at, expires_at}", false, nil)
 	add("/v1/oauth/device/approve", "post", "approve or deny a device login from the dashboard /device page. body {user_code, approve}. requires a signed-in human session with the approve scope (not the PURSUIT_TRUST_PROXY_AUTH owner), Content-Type application/json, and Sec-Fetch-Site same-origin or an Origin matching the host; the code alone approves nothing. writes an oauth.approve or oauth.deny audit entry. returns {status: approved|denied}", false, nil)
+	open := map[string]any{"security": []any{}}
+	add("/v1/auth/providers", "get", "sign-in options: tenant_mode, providers, allow_token_login, demo_available", false, open)
+	add("/v1/auth/{provider}/start", "get", "start an OIDC sign-in; redirects to the provider", false, open)
+	add("/v1/auth/{provider}/callback", "get", "OIDC callback; redirects to /#token=<secret>", false, open)
+	add("/v1/demo", "post", "mint a token for a fresh, isolated demo sandbox when demo mode is on", false, open)
 	add("/v1/me", "get", "current user and token", false, nil)
 	add("/v1/me", "patch", "set display name or avatar (png, jpeg, or webp data URL under 256KB; empty clears it)", true, nil)
 	add("/v1/tokens", "get", "list tokens", false, nil)
@@ -116,6 +121,7 @@ func build() []byte {
 	add("/v1/companies", "get", "list companies", false, nil)
 	add("/v1/companies", "post", "create a company", true, nil)
 	add("/v1/companies/{id}", "get", "get a company", false, nil)
+	add("/v1/companies/{id}/favicon", "get", "company favicon image", false, nil)
 	add("/v1/companies/{id}", "patch", "update a company; body.version is required", true, nil)
 	add("/v1/companies/{id}", "delete", "delete a company; version query or If-Match", true, nil)
 	add("/v1/roles", "get", "list roles", false, nil)
@@ -131,6 +137,8 @@ func build() []byte {
 	add("/v1/applications/{id}", "patch", "update an application. status changes obey the approval rule", true, nil)
 	add("/v1/applications/{id}", "delete", "delete an application", true, nil)
 	add("/v1/applications/{id}/transition", "post", "change status. a stage replaces the status and clears any outcome; waiting, needs_input, failed, rejected, withdrawn and ghosted are outcomes that keep the stage. approved requires the approve scope. submitting requires a stored approval", true, nil)
+	add("/v1/applications/{id}/archive", "post", "archive an application; body.version is required", true, nil)
+	add("/v1/applications/{id}/unarchive", "post", "unarchive an application; body.version is required", true, nil)
 	add("/v1/applications/{id}/events", "get", "list events for an application", false, nil)
 	add("/v1/applications/{id}/events", "post", "append email_received, interview_scheduled, or note", true, nil)
 	add("/v1/applications/{id}/interviews", "get", "list interview rounds for an application. limit, cursor, fields; no limit returns all", false, nil)
@@ -140,6 +148,7 @@ func build() []byte {
 	add("/v1/interviews/{id}", "delete", "delete an interview round; version query or If-Match", true, nil)
 	add("/v1/applications/{id}/tags", "post", "attach a tag by name or tag_id", true, nil)
 	add("/v1/applications/{id}/tags/{tagID}", "delete", "detach a tag", true, nil)
+	add("/v1/applications/{id}/fields/{fieldID}", "post", "set a custom field value on an application", true, nil)
 	add("/v1/applications/{id}/prepare", "post", "one-step prepare: pull questions, draft answers, stop at awaiting_review or needs_input", true, nil)
 	add("/v1/applications/{id}/enqueue", "post", "enqueue prepare or submit work", true, nil)
 	add("/v1/applications/{id}/artifacts", "get", "list artifact metadata. limit, cursor; no limit returns all", false, nil)
@@ -173,6 +182,9 @@ func build() []byte {
 	add("/v1/tags", "get", "list tags", false, nil)
 	add("/v1/tags", "post", "create a tag", true, nil)
 	add("/v1/tags/{id}", "delete", "delete a tag", true, nil)
+	add("/v1/fields", "get", "list custom fields. limit, cursor, sort, q, fields", false, nil)
+	add("/v1/fields", "post", "create a custom field", true, nil)
+	add("/v1/fields/{id}", "delete", "delete a custom field. dry_run query is also accepted", true, nil)
 	add("/v1/audit", "get", "audit log, including actor_name and metadata. filter with q (summary, action, entity, actor, metadata), since and until (date or RFC 3339), actor, action, entity_type, entity_id. sort=created_at for oldest first", false, nil)
 	add("/v1/import/csv", "post", "import the tracker CSV. Prepared maps to awaiting_review. Applied stays applied. The same posting_url updates the existing application", true, nil)
 	add("/v1/import/json", "post", "import a JSON array of postings", true, nil)
