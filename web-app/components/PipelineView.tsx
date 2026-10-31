@@ -13,12 +13,14 @@ import {
   Check,
   ChevronDown,
   ChevronRight,
+  CircleAlert,
   ExternalLink,
   ListChecks,
   MoreHorizontal,
   Plus,
   RefreshCw,
   RotateCcw,
+  SearchX,
   SlidersHorizontal,
   Trash2,
   X,
@@ -54,8 +56,11 @@ import { StatusBadge } from "@/components/StatusBadge"
 import { TaskIcon } from "@/components/Rounds"
 import { OutcomeChip, SectionLabel, StageHeading, StageSlider, stageTarget, StatusChooser, SubSteps } from "@/components/StatusChooser"
 import { STATUS_OPTIONS } from "@/components/AttributesForm"
+import { Alert, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
+import { ButtonGroup } from "@/components/ui/button-group"
 import { Checkbox } from "@/components/ui/checkbox"
+import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -68,6 +73,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Spinner } from "@/components/ui/spinner"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 
@@ -862,78 +868,81 @@ export function PipelineView({ initial }: { initial: PipelineInitial | null }) {
         </p>
         {selected.size > 0 ? (
           // Same row as the count, so selecting never pushes the table down.
-          <div className="flex gap-2">
-            <DropdownMenu open={bulkMenu} onOpenChange={setBulkMenu}>
-              <DropdownMenuTrigger asChild>
-                <Button size="sm" variant="outline" disabled={bulkBusy}>
-                  Actions <ChevronDown className="size-3.5" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent
-                align="end"
-                className="min-w-56"
-                onCloseAutoFocus={(e) => e.preventDefault()}
-                // y approve, r reject, a archive, d delete, c clear.
-                onKeyDown={(e) => {
-                  if (e.ctrlKey || e.metaKey || e.altKey) return
-                  const k = e.key.toLowerCase()
-                  if (canBulkApprove && k === "y") void bulkDecide("approve")
-                  else if (canBulkApprove && k === "r") void bulkDecide("reject")
-                  else if (k === "a") {
-                    if (archivedView) void bulkUnarchive()
-                    else setBulkConfirm("archive")
-                  }
-                  else if (k === "d" || k === "delete" || k === "backspace") setBulkConfirm("delete")
-                  else if (k === "c") setSelected(new Set())
-                  else return
-                  e.preventDefault()
-                  setBulkMenu(false)
-                }}
-              >
-                {canBulkApprove && (
-                  <>
-                    <DropdownMenuItem onClick={() => bulkDecide("approve")}>
-                      <Check /> Approve {selected.size} <Kbd className="ml-auto">Y</Kbd>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => bulkDecide("reject")}>
-                      <X /> Reject {selected.size} <Kbd className="ml-auto">R</Kbd>
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                  </>
-                )}
-                <DropdownMenuSub>
-                  <DropdownMenuSubTrigger>
-                    <ListChecks /> Change status
-                  </DropdownMenuSubTrigger>
-                  <DropdownMenuSubContent className="max-h-80">
-                    {STATUS_OPTIONS.map(([v, text]) => (
-                      <DropdownMenuItem key={v} onSelect={() => void bulkStatus(v)}>
-                        {text}
+          <div className="flex items-center gap-2">
+            {bulkBusy && <Spinner className="text-muted-foreground" />}
+            <ButtonGroup>
+              <DropdownMenu open={bulkMenu} onOpenChange={setBulkMenu}>
+                <DropdownMenuTrigger asChild>
+                  <Button size="sm" variant="outline" disabled={bulkBusy}>
+                    Actions <ChevronDown className="size-3.5" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent
+                  align="end"
+                  className="min-w-56"
+                  onCloseAutoFocus={(e) => e.preventDefault()}
+                  // y approve, r reject, a archive, d delete, c clear.
+                  onKeyDown={(e) => {
+                    if (e.ctrlKey || e.metaKey || e.altKey) return
+                    const k = e.key.toLowerCase()
+                    if (canBulkApprove && k === "y") void bulkDecide("approve")
+                    else if (canBulkApprove && k === "r") void bulkDecide("reject")
+                    else if (k === "a") {
+                      if (archivedView) void bulkUnarchive()
+                      else setBulkConfirm("archive")
+                    }
+                    else if (k === "d" || k === "delete" || k === "backspace") setBulkConfirm("delete")
+                    else if (k === "c") setSelected(new Set())
+                    else return
+                    e.preventDefault()
+                    setBulkMenu(false)
+                  }}
+                >
+                  {canBulkApprove && (
+                    <>
+                      <DropdownMenuItem onClick={() => bulkDecide("approve")}>
+                        <Check /> Approve {selected.size} <Kbd className="ml-auto">Y</Kbd>
                       </DropdownMenuItem>
-                    ))}
-                  </DropdownMenuSubContent>
-                </DropdownMenuSub>
-                {archivedView ? (
-                  <DropdownMenuItem onClick={bulkUnarchive}>
-                    <ArchiveRestore /> Unarchive <Kbd className="ml-auto">A</Kbd>
+                      <DropdownMenuItem onClick={() => bulkDecide("reject")}>
+                        <X /> Reject {selected.size} <Kbd className="ml-auto">R</Kbd>
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                    </>
+                  )}
+                  <DropdownMenuSub>
+                    <DropdownMenuSubTrigger>
+                      <ListChecks /> Change status
+                    </DropdownMenuSubTrigger>
+                    <DropdownMenuSubContent className="max-h-80">
+                      {STATUS_OPTIONS.map(([v, text]) => (
+                        <DropdownMenuItem key={v} onSelect={() => void bulkStatus(v)}>
+                          {text}
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuSubContent>
+                  </DropdownMenuSub>
+                  {archivedView ? (
+                    <DropdownMenuItem onClick={bulkUnarchive}>
+                      <ArchiveRestore /> Unarchive <Kbd className="ml-auto">A</Kbd>
+                    </DropdownMenuItem>
+                  ) : (
+                    <DropdownMenuItem onClick={() => setBulkConfirm("archive")}>
+                      <Archive /> Archive <Kbd className="ml-auto">A</Kbd>
+                    </DropdownMenuItem>
+                  )}
+                  <DropdownMenuItem onClick={() => setBulkConfirm("delete")} variant="destructive">
+                    <Trash2 /> Delete <Kbd className="ml-auto">D</Kbd>
                   </DropdownMenuItem>
-                ) : (
-                  <DropdownMenuItem onClick={() => setBulkConfirm("archive")}>
-                    <Archive /> Archive <Kbd className="ml-auto">A</Kbd>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => setSelected(new Set())}>
+                    <X /> Clear selection <Kbd className="ml-auto">C</Kbd>
                   </DropdownMenuItem>
-                )}
-                <DropdownMenuItem onClick={() => setBulkConfirm("delete")} variant="destructive">
-                  <Trash2 /> Delete <Kbd className="ml-auto">D</Kbd>
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => setSelected(new Set())}>
-                  <X /> Clear selection <Kbd className="ml-auto">C</Kbd>
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-            <Button size="sm" variant="ghost" onClick={() => setSelected(new Set())}>
-              Clear
-            </Button>
+                </DropdownMenuContent>
+              </DropdownMenu>
+              <Button size="sm" variant="outline" onClick={() => setSelected(new Set())}>
+                <X /> Clear
+              </Button>
+            </ButtonGroup>
           </div>
         ) : (
         <div className="flex gap-2">
@@ -954,7 +963,12 @@ export function PipelineView({ initial }: { initial: PipelineInitial | null }) {
         )}
       </div>
 
-      {error && <p className="text-sm text-destructive">{error}</p>}
+      {error && (
+        <Alert variant="destructive">
+          <CircleAlert />
+          <AlertTitle>{error}</AlertTitle>
+        </Alert>
+      )}
 
       {funnel && !archivedView && <StageFunnel status={status} refresh={rows} onPick={(s) => patch({ status: s, category: "" })} />}
 
@@ -1022,10 +1036,25 @@ export function PipelineView({ initial }: { initial: PipelineInitial | null }) {
             </TableRow>
           </TableHeader>
           <TableBody>
+            {visibleRows.length === 0 && loading && (
+              <TableRow className="hover:bg-transparent">
+                <TableCell colSpan={columnCount}>
+                  <Spinner className="mx-auto my-6 text-muted-foreground" />
+                </TableCell>
+              </TableRow>
+            )}
             {visibleRows.length === 0 && !loading && (
-              <TableRow>
-                <TableCell colSpan={columnCount} className="text-center text-muted-foreground">
-                  No applications match.
+              <TableRow className="hover:bg-transparent">
+                <TableCell colSpan={columnCount} className="whitespace-normal">
+                  <Empty className="py-8">
+                    <EmptyHeader>
+                      <EmptyMedia variant="icon">
+                        <SearchX />
+                      </EmptyMedia>
+                      <EmptyTitle>No applications match.</EmptyTitle>
+                      <EmptyDescription>Try a different search, or loosen the filters.</EmptyDescription>
+                    </EmptyHeader>
+                  </Empty>
                 </TableCell>
               </TableRow>
             )}
@@ -1137,6 +1166,7 @@ export function PipelineView({ initial }: { initial: PipelineInitial | null }) {
 
       {nextCursor && (
         <Button variant="outline" onClick={() => load(nextCursor)} disabled={loading}>
+          {loading && <Spinner />}
           Load more
         </Button>
       )}

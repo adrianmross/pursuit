@@ -12,7 +12,7 @@ func TestMigrateOutcomeBackfill(t *testing.T) {
 	ctx := context.Background()
 	exec := func(q string, args ...any) {
 		t.Helper()
-		if _, err := s.db.ExecContext(ctx, q, args...); err != nil {
+		if _, err := s.db.ExecContext(ctx, rebind(s.dialect, q), args...); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -28,7 +28,7 @@ func TestMigrateOutcomeBackfill(t *testing.T) {
 	exec(migrations[5].stmts[1])
 	for id, want := range map[string][2]string{"a1": {"interviewing", "rejected"}, "a2": {"applied", "ghosted"}} {
 		var status, outcome string
-		if err := s.db.QueryRowContext(ctx, `SELECT status, outcome FROM applications WHERE id=?`, id).Scan(&status, &outcome); err != nil {
+		if err := s.db.QueryRowContext(ctx, rebind(s.dialect, `SELECT status, outcome FROM applications WHERE id=?`), id).Scan(&status, &outcome); err != nil {
 			t.Fatal(err)
 		}
 		if status != want[0] || outcome != want[1] {

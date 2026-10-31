@@ -9,6 +9,8 @@ export default function proxy(request: NextRequest) {
   const isPublic =
     pathname === "/" ||
     pathname === "/sign-in" ||
+    pathname === "/device" ||
+    pathname === "/authorize" ||
     pathname.startsWith("/api/auth/") ||
     pathname.startsWith("/_next/") ||
     pathname.startsWith("/brand/") ||

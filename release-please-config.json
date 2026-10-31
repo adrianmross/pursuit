@@ -1,0 +1,22 @@
+{
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
+  "bootstrap-sha": "8ed7fc4ddbfcc8cd3164f4fff5eaf4ca259be1e2",
+  "packages": {
+    ".": {
+      "release-type": "go",
+      "package-name": "pursuit",
+      "include-component-in-tag": false,
+      "exclude-paths": [".github"],
+      "initial-version": "0.1.0",
+      "bump-minor-pre-major": true,
+      "pull-request-title-pattern": "chore(release): pursuit v${version}",
+      "extra-files": [
+        "internal/version/version.go",
+        { "type": "json", "path": "api/openapi.json", "jsonpath": "$.info.version" },
+        { "type": "json", "path": "extension/manifest.json", "jsonpath": "$.version" },
+        { "type": "json", "path": "web-app/package.json", "jsonpath": "$.version" },
+        { "type": "json", "path": "docs-site/package.json", "jsonpath": "$.version" }
+      ]
+    }
+  }
+}

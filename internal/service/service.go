@@ -309,6 +309,14 @@ func (s *Service) CreateToken(ctx context.Context, in TokenInput) (domain.Issued
 	if err != nil {
 		return domain.IssuedToken{}, domain.Validation("%s", err.Error()).WithHint("scopes are read and write; write implies read")
 	}
+	// A token never mints more than it holds, and approve additionally needs
+	// a human caller (the same test humanApprover applies to CLI logins), so
+	// a write-scoped agent token cannot mint itself an approve token.
+	for _, sc := range scopes {
+		if !a.Can(sc) || (sc == "approve" && (a.Demo || a.Proxy)) {
+			return domain.IssuedToken{}, domain.Forbidden(sc).WithHint("a token can only create tokens with scopes it already holds; approve tokens are created by a signed-in human")
+		}
+	}
 	secret, prefix, hash, err := auth.Generate()
 	if err != nil {
 		return domain.IssuedToken{}, err
@@ -391,6 +399,7 @@ func (s *Service) Me(ctx context.Context) (domain.Me, error) {
 type CompanyInput struct {
 	Name    string `json:"name"`
 	Website string `json:"website"`
+	IconURL string `json:"icon_url"`
 	Notes   string `json:"notes"`
 }
 
@@ -398,6 +407,7 @@ type CompanyPatch struct {
 	Version int     `json:"version"`
 	Name    *string `json:"name"`
 	Website *string `json:"website"`
+	IconURL *string `json:"icon_url"`
 	Notes   *string `json:"notes"`
 }
 
@@ -408,6 +418,9 @@ func (s *Service) CreateCompany(ctx context.Context, in CompanyInput) (domain.Co
 	}
 	c, err := s.newCompany(a, in.Name, in.Website, in.Notes)
 	if err != nil {
+		return domain.Company{}, err
+	}
+	if c.IconURL, err = domain.ParseURL(in.IconURL); err != nil {
 		return domain.Company{}, err
 	}
 	if existing, err := s.DB.GetCompanyByName(ctx, a.UserID, c.Name); err == nil {
@@ -493,6 +506,14 @@ func (s *Service) UpdateCompany(ctx context.Context, id string, p CompanyPatch) 
 				return err
 			}
 			next.Website = w
+			changed = true
+		}
+		if p.IconURL != nil && *p.IconURL != cur.IconURL {
+			u, err := domain.ParseURL(*p.IconURL)
+			if err != nil {
+				return err
+			}
+			next.IconURL = u
 			changed = true
 		}
 		if p.Notes != nil && *p.Notes != cur.Notes {

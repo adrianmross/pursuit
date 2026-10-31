@@ -3,10 +3,17 @@ package spec
 import (
 	_ "embed"
 	"encoding/json"
+
+	"github.com/pursuit/pursuit/internal/version"
 )
 
 //go:embed llms.txt
 var LLMS []byte
+
+// Auth is the agent auth guide served at /auth.md. The root AUTH.md points here.
+//
+//go:embed auth.md
+var Auth []byte
 
 // Reference is the standalone Scalar API-reference page served at
 // /reference. It renders the same-origin /openapi.json, so it works
@@ -59,18 +66,62 @@ func build() []byte {
 		paths[path] = item
 	}
 	pub := map[string]string{
-		"/healthz": "liveness", "/readyz": "readiness", "/version": "version", "/openapi.json": "this document", "/llms.txt": "short agent guide",
+		"/healthz": "liveness", "/readyz": "readiness", "/version": "version", "/openapi.json": "this document", "/llms.txt": "short agent guide", "/auth.md": "agent auth guide: tokens, scopes, approval", "/reference": "interactive API reference page (HTML)",
 	}
 	for p, s := range pub {
 		add(p, "get", s, false, map[string]any{"security": []any{}})
 	}
+	form := func(props map[string]any, required ...string) map[string]any {
+		return map[string]any{"required": true, "content": map[string]any{"application/x-www-form-urlencoded": map[string]any{
+			"schema": map[string]any{"type": "object", "properties": props, "required": required},
+		}}}
+	}
+	str := map[string]any{"type": "string"}
+	oauthResp := func(desc string, props map[string]any) map[string]any {
+		return map[string]any{
+			"200": map[string]any{"description": desc, "content": map[string]any{"application/json": map[string]any{"schema": map[string]any{"type": "object", "properties": props}}}},
+			"400": map[string]any{"description": "RFC 6749 error", "content": map[string]any{"application/json": map[string]any{"schema": map[string]any{"$ref": "#/components/schemas/OAuthError"}}}},
+		}
+	}
+	add("/v1/auth/device_authorization", "post", "RFC 8628 device authorization for pursuit auth login --device. scope is space or comma separated, each exactly read or write, default read write; anything else (approve, APPROVE, Read) is invalid_scope: OAuth never grants approve. client_id is at most 64 characters. limited to 10 starts a minute per client IP (429 slow_down). device codes last 10 minutes; poll /v1/auth/token no faster than interval. there is no verification_uri_complete: the human types the code", false, map[string]any{
+		"security":    []any{},
+		"requestBody": form(map[string]any{"client_id": str, "scope": str}),
+		"responses": oauthResp("device authorization", map[string]any{
+			"device_code": str, "user_code": str, "verification_uri": str,
+			"expires_in": map[string]any{"type": "integer"}, "interval": map[string]any{"type": "integer"},
+		}),
+	})
+	add("/v1/auth/token", "post", "OAuth2 token endpoint. grant_type=authorization_code takes code, code_verifier (PKCE S256), redirect_uri, client_id; codes are single-use and last 60 seconds. grant_type=urn:ietf:params:oauth:grant-type:device_code takes device_code, client_id and answers authorization_pending, slow_down, expired_token, or access_denied until approved. The access_token is a normal pst_ API token", false, map[string]any{
+		"security": []any{},
+		"requestBody": form(map[string]any{
+			"grant_type": map[string]any{"type": "string", "enum": []string{"authorization_code", "urn:ietf:params:oauth:grant-type:device_code"}},
+			"code":       str, "code_verifier": str, "redirect_uri": str, "device_code": str, "client_id": str,
+		}, "grant_type"),
+		"responses": oauthResp("token", map[string]any{"access_token": str, "token_type": str, "scope": str}),
+	})
+	add("/v1/auth/revoke", "post", "RFC 7009 token revocation. holding the token is the authority; unknown tokens still return 200. pursuit auth logout calls this", false, map[string]any{
+		"security":    []any{},
+		"requestBody": form(map[string]any{"token": str}, "token"),
+		"responses":   oauthResp("revoked", map[string]any{"revoked": map[string]any{"type": "boolean"}}),
+	})
+	add("/v1/oauth/authorize", "get", "validate a loopback request for the dashboard /authorize page without deciding it. query client_id, redirect_uri, code_challenge, code_challenge_method, state, scope (response_type is accepted and ignored). requires the approve scope. returns {client_id, scopes, redirect_uri} as the server normalized them; a scope other than read or write is 400 invalid_scope", false, nil)
+	add("/v1/oauth/authorize", "post", "loopback consent, called by the dashboard /authorize page that pursuit auth login opens. requires a signed-in human session with the approve scope (not the PURSUIT_TRUST_PROXY_AUTH owner), Content-Type application/json, and Sec-Fetch-Site same-origin or an Origin matching the host. writes an oauth.approve or oauth.deny audit entry. body {client_id, redirect_uri, code_challenge, code_challenge_method:S256, state, scope, approve}. redirect_uri must be http://127.0.0.1:<port>/callback or http://[::1]:<port>/callback. returns {redirect_to}: the callback with code and state, or error=access_denied when approve is false", false, nil)
+	add("/v1/oauth/device", "get", "look up a pending device login by user_code (query) so the dashboard can show the requested scopes. requires the approve scope. returns {user_code, client_id, scopes, status, created_at, expires_at}", false, nil)
+	add("/v1/oauth/device/approve", "post", "approve or deny a device login from the dashboard /device page. body {user_code, approve}. requires a signed-in human session with the approve scope (not the PURSUIT_TRUST_PROXY_AUTH owner), Content-Type application/json, and Sec-Fetch-Site same-origin or an Origin matching the host; the code alone approves nothing. writes an oauth.approve or oauth.deny audit entry. returns {status: approved|denied}", false, nil)
+	open := map[string]any{"security": []any{}}
+	add("/v1/auth/providers", "get", "sign-in options: tenant_mode, providers, allow_token_login, demo_available", false, open)
+	add("/v1/auth/{provider}/start", "get", "start an OIDC sign-in; redirects to the provider", false, open)
+	add("/v1/auth/{provider}/callback", "get", "OIDC callback; redirects to /#token=<secret>", false, open)
+	add("/v1/demo", "post", "mint a token for a fresh, isolated demo sandbox when demo mode is on", false, open)
 	add("/v1/me", "get", "current user and token", false, nil)
+	add("/v1/me", "patch", "set display name or avatar (png, jpeg, or webp data URL under 256KB; empty clears it)", true, nil)
 	add("/v1/tokens", "get", "list tokens", false, nil)
 	add("/v1/tokens", "post", "create a token; secret is returned once", true, nil)
 	add("/v1/tokens/{id}", "delete", "revoke a token", true, nil)
 	add("/v1/companies", "get", "list companies", false, nil)
 	add("/v1/companies", "post", "create a company", true, nil)
 	add("/v1/companies/{id}", "get", "get a company", false, nil)
+	add("/v1/companies/{id}/favicon", "get", "company favicon image", false, nil)
 	add("/v1/companies/{id}", "patch", "update a company; body.version is required", true, nil)
 	add("/v1/companies/{id}", "delete", "delete a company; version query or If-Match", true, nil)
 	add("/v1/roles", "get", "list roles", false, nil)
@@ -86,6 +137,8 @@ func build() []byte {
 	add("/v1/applications/{id}", "patch", "update an application. status changes obey the approval rule", true, nil)
 	add("/v1/applications/{id}", "delete", "delete an application", true, nil)
 	add("/v1/applications/{id}/transition", "post", "change status. a stage replaces the status and clears any outcome; waiting, needs_input, failed, rejected, withdrawn and ghosted are outcomes that keep the stage. approved requires the approve scope. submitting requires a stored approval", true, nil)
+	add("/v1/applications/{id}/archive", "post", "archive an application; body.version is required", true, nil)
+	add("/v1/applications/{id}/unarchive", "post", "unarchive an application; body.version is required", true, nil)
 	add("/v1/applications/{id}/events", "get", "list events for an application", false, nil)
 	add("/v1/applications/{id}/events", "post", "append email_received, interview_scheduled, or note", true, nil)
 	add("/v1/applications/{id}/rounds", "get", "list rounds for an application. limit, cursor, fields; no limit returns all", false, nil)
@@ -106,6 +159,7 @@ func build() []byte {
 	add("/v1/tasks/{id}", "delete", "delete a task; version query or If-Match", true, nil)
 	add("/v1/applications/{id}/tags", "post", "attach a tag by name or tag_id", true, nil)
 	add("/v1/applications/{id}/tags/{tagID}", "delete", "detach a tag", true, nil)
+	add("/v1/applications/{id}/fields/{fieldID}", "post", "set a custom field value on an application", true, nil)
 	add("/v1/applications/{id}/prepare", "post", "one-step prepare: pull questions, draft answers, stop at awaiting_review or needs_input", true, nil)
 	add("/v1/applications/{id}/enqueue", "post", "enqueue prepare or submit work", true, nil)
 	add("/v1/applications/{id}/artifacts", "get", "list artifact metadata. limit, cursor; no limit returns all", false, nil)
@@ -122,8 +176,13 @@ func build() []byte {
 	add("/v1/queue/{id}/complete", "post", "finish leased work and set the resulting status", true, nil)
 	add("/v1/artifacts/{id}", "get", "fetch an artifact body", false, nil)
 	add("/v1/profile", "get", "applicant profile: standing answers as a map, for the browser extension", false, nil)
+	add("/v1/documents", "get", "list user documents: base_resume, cover_letter, other. limit, cursor; no limit returns all", false, nil)
+	add("/v1/documents", "post", "upload a document as multipart (kind, file) or JSON text. prepare attaches the newest base_resume", true, nil)
+	add("/v1/documents/{id}", "get", "document with body; binary bodies are base64", false, nil)
+	add("/v1/documents/{id}", "delete", "delete a document", true, nil)
 	add("/v1/standing", "get", "list standing answers. limit, cursor; no limit returns all", false, nil)
 	add("/v1/standing", "post", "set a standing answer. profile values also load from PURSUIT_PROFILE", true, nil)
+	add("/v1/standing/{key}", "delete", "delete a standing answer. a PURSUIT_PROFILE value for the same key still applies", true, nil)
 	add("/v1/caps", "get", "per-company application caps", false, nil)
 	add("/v1/links/check", "post", "sweep postings. one replica holds the advisory lock", true, nil)
 	add("/v1/cron/links", "get", "daily link sweep for Vercel Cron. requires Authorization Bearer CRON_SECRET, not a Pursuit token", false, nil)
@@ -134,6 +193,9 @@ func build() []byte {
 	add("/v1/tags", "get", "list tags", false, nil)
 	add("/v1/tags", "post", "create a tag", true, nil)
 	add("/v1/tags/{id}", "delete", "delete a tag", true, nil)
+	add("/v1/fields", "get", "list custom fields. limit, cursor, sort, q, fields", false, nil)
+	add("/v1/fields", "post", "create a custom field", true, nil)
+	add("/v1/fields/{id}", "delete", "delete a custom field. dry_run query is also accepted", true, nil)
 	add("/v1/audit", "get", "audit log, including actor_name and metadata. filter with q (summary, action, entity, actor, metadata), since and until (date or RFC 3339), actor, action, entity_type, entity_id. sort=created_at for oldest first", false, nil)
 	add("/v1/import/csv", "post", "import the tracker CSV. Prepared maps to awaiting_review. Applied stays applied. The same posting_url updates the existing application", true, nil)
 	add("/v1/import/json", "post", "import a JSON array of postings", true, nil)
@@ -146,7 +208,7 @@ func build() []byte {
 		"openapi": "3.0.3",
 		"info": map[string]any{
 			"title":       "Pursuit",
-			"version":     "0.1.0",
+			"version":     version.Version,
 			"description": "Job-application tracker. Agents should prefer the pursuit CLI. Fetch this document when you need the HTTP shape; use `pursuit schema <command>` for one CLI command.",
 		},
 		"servers":  []any{map[string]any{"url": "/"}},
@@ -161,6 +223,13 @@ func build() []byte {
 				"DryRun":         map[string]any{"name": "X-Dry-Run", "in": "header", "schema": map[string]any{"type": "string", "enum": []string{"true"}}},
 			},
 			"schemas": map[string]any{
+				"OAuthError": map[string]any{
+					"type": "object",
+					"properties": map[string]any{
+						"error":             map[string]any{"type": "string", "enum": []string{"invalid_request", "invalid_grant", "invalid_scope", "unsupported_grant_type", "authorization_pending", "slow_down", "expired_token", "access_denied", "server_error"}},
+						"error_description": map[string]any{"type": "string"},
+					},
+				},
 				"Error": map[string]any{
 					"type": "object",
 					"properties": map[string]any{

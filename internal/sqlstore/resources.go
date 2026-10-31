@@ -25,7 +25,7 @@ func (s *Store) CreateUser(ctx context.Context, u domain.User) error {
 func (s *Store) FirstUser(ctx context.Context) (domain.User, error) {
 	var u domain.User
 	var created string
-	err := s.queryRow(ctx, `SELECT id, name, email, created_at FROM users ORDER BY created_at LIMIT 1`).Scan(&u.ID, &u.Name, &u.Email, &created)
+	err := s.queryRow(ctx, `SELECT id, name, email, avatar, created_at FROM users ORDER BY created_at LIMIT 1`).Scan(&u.ID, &u.Name, &u.Email, &u.Avatar, &created)
 	if err == sql.ErrNoRows {
 		return domain.User{}, domain.NotFound("user")
 	}
@@ -39,8 +39,8 @@ func (s *Store) FirstUser(ctx context.Context) (domain.User, error) {
 func (s *Store) FindUserByEmail(ctx context.Context, email string) (domain.User, error) {
 	var u domain.User
 	var created string
-	err := s.queryRow(ctx, `SELECT id, name, email, created_at FROM users WHERE lower(email)=lower(?)`, email).
-		Scan(&u.ID, &u.Name, &u.Email, &created)
+	err := s.queryRow(ctx, `SELECT id, name, email, avatar, created_at FROM users WHERE lower(email)=lower(?)`, email).
+		Scan(&u.ID, &u.Name, &u.Email, &u.Avatar, &created)
 	if err == sql.ErrNoRows {
 		return domain.User{}, domain.NotFound("user")
 	}
@@ -54,8 +54,8 @@ func (s *Store) FindUserByEmail(ctx context.Context, email string) (domain.User,
 func (s *Store) GetUser(ctx context.Context, id string) (domain.User, error) {
 	var u domain.User
 	var created string
-	err := s.queryRow(ctx, `SELECT id, name, email, created_at FROM users WHERE id=?`, id).
-		Scan(&u.ID, &u.Name, &u.Email, &created)
+	err := s.queryRow(ctx, `SELECT id, name, email, avatar, created_at FROM users WHERE id=?`, id).
+		Scan(&u.ID, &u.Name, &u.Email, &u.Avatar, &created)
 	if err == sql.ErrNoRows {
 		return domain.User{}, domain.NotFound("user")
 	}
@@ -64,6 +64,11 @@ func (s *Store) GetUser(ctx context.Context, id string) (domain.User, error) {
 	}
 	u.CreatedAt, err = parseTime(created)
 	return u, err
+}
+
+func (s *Store) UpdateUserProfile(ctx context.Context, u domain.User) error {
+	_, err := s.exec(ctx, `UPDATE users SET name=?, avatar=? WHERE id=?`, u.Name, u.Avatar, u.ID)
+	return err
 }
 
 func (s *Store) CountTokens(ctx context.Context) (int, error) {
@@ -178,13 +183,13 @@ func (s *Store) TouchToken(ctx context.Context, id, at, staleBefore string) erro
 }
 
 func (s *Store) CreateCompany(ctx context.Context, c domain.Company) error {
-	_, err := s.exec(ctx, `INSERT INTO companies (id, user_id, name, website, notes, version, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-		c.ID, c.UserID, c.Name, c.Website, c.Notes, c.Version, formatTime(c.CreatedAt), formatTime(c.UpdatedAt))
+	_, err := s.exec(ctx, `INSERT INTO companies (id, user_id, name, website, icon_url, notes, version, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		c.ID, c.UserID, c.Name, c.Website, c.IconURL, c.Notes, c.Version, formatTime(c.CreatedAt), formatTime(c.UpdatedAt))
 	return mapWriteErr(err)
 }
 
 func (s *Store) GetCompany(ctx context.Context, userID, id string) (domain.Company, error) {
-	c, err := scanCompany(s.queryRow(ctx, `SELECT id, user_id, name, website, notes, version, created_at, updated_at FROM companies WHERE user_id=? AND id=?`, userID, id))
+	c, err := scanCompany(s.queryRow(ctx, `SELECT id, user_id, name, website, icon_url, notes, version, created_at, updated_at FROM companies WHERE user_id=? AND id=?`, userID, id))
 	if err == sql.ErrNoRows {
 		return domain.Company{}, domain.NotFound("company")
 	}
@@ -192,7 +197,7 @@ func (s *Store) GetCompany(ctx context.Context, userID, id string) (domain.Compa
 }
 
 func (s *Store) GetCompanyByName(ctx context.Context, userID, name string) (domain.Company, error) {
-	c, err := scanCompany(s.queryRow(ctx, `SELECT id, user_id, name, website, notes, version, created_at, updated_at FROM companies WHERE user_id=? AND lower(name)=lower(?)`, userID, name))
+	c, err := scanCompany(s.queryRow(ctx, `SELECT id, user_id, name, website, icon_url, notes, version, created_at, updated_at FROM companies WHERE user_id=? AND lower(name)=lower(?)`, userID, name))
 	if err == sql.ErrNoRows {
 		return domain.Company{}, domain.NotFound("company")
 	}
@@ -202,7 +207,7 @@ func (s *Store) GetCompanyByName(ctx context.Context, userID, name string) (doma
 func scanCompany(row scanner) (domain.Company, error) {
 	var c domain.Company
 	var created, updated string
-	err := row.Scan(&c.ID, &c.UserID, &c.Name, &c.Website, &c.Notes, &c.Version, &created, &updated)
+	err := row.Scan(&c.ID, &c.UserID, &c.Name, &c.Website, &c.IconURL, &c.Notes, &c.Version, &created, &updated)
 	if err != nil {
 		return domain.Company{}, err
 	}
@@ -235,7 +240,7 @@ func (s *Store) ListCompanies(ctx context.Context, userID string, q domain.ListQ
 	if limit <= 0 {
 		limit = 51
 	}
-	rows, err := s.query(ctx, `SELECT id, user_id, name, website, notes, version, created_at, updated_at FROM companies `+w.sql()+` `+orderSQL(expr, "id", desc)+` LIMIT ?`, append(w.args, limit)...)
+	rows, err := s.query(ctx, `SELECT id, user_id, name, website, icon_url, notes, version, created_at, updated_at FROM companies `+w.sql()+` `+orderSQL(expr, "id", desc)+` LIMIT ?`, append(w.args, limit)...)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -262,8 +267,8 @@ func (s *Store) ListCompanies(ctx context.Context, userID string, q domain.ListQ
 }
 
 func (s *Store) UpdateCompany(ctx context.Context, c domain.Company) error {
-	res, err := s.exec(ctx, `UPDATE companies SET name=?, website=?, notes=?, version=version+1, updated_at=? WHERE id=? AND user_id=? AND version=?`,
-		c.Name, c.Website, c.Notes, formatTime(c.UpdatedAt), c.ID, c.UserID, c.Version)
+	res, err := s.exec(ctx, `UPDATE companies SET name=?, website=?, icon_url=?, notes=?, version=version+1, updated_at=? WHERE id=? AND user_id=? AND version=?`,
+		c.Name, c.Website, c.IconURL, c.Notes, formatTime(c.UpdatedAt), c.ID, c.UserID, c.Version)
 	if err != nil {
 		return mapWriteErr(err)
 	}

@@ -1,0 +1,31 @@
+version: 2
+
+project_name: pursuit
+
+builds:
+  - main: ./cmd/pursuit
+    binary: pursuit
+    env:
+      - CGO_ENABLED=0
+    goos: [linux, darwin, windows]
+    goarch: [amd64, arm64]
+
+archives:
+  - formats: [tar.gz]
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+
+checksum:
+  name_template: checksums.txt
+
+changelog:
+  disable: true
+
+release:
+  # 0.x is the pre-release signal. Only -rc style tags are GitHub
+  # pre-releases, because the Homebrew tap ignores those.
+  prerelease: auto
+  extra_files:
+    - glob: "{{ .Env.RUNNER_TEMP }}/pursuit-extension_*.zip"

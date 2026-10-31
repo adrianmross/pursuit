@@ -1,37 +1,59 @@
+# Generated from devenv.nix by: devenv tasks run dev:compose
+%YAML 1.1
+---
 services:
   postgres:
-    image: postgres:16-alpine
     environment:
-      POSTGRES_USER: pursuit
-      POSTGRES_PASSWORD: pursuit
       POSTGRES_DB: pursuit
+      POSTGRES_PASSWORD: pursuit
+      POSTGRES_USER: pursuit
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U pursuit"]
       interval: 5s
-      timeout: 3s
       retries: 10
+      test:
+      - CMD-SHELL
+      - pg_isready -U pursuit
+      timeout: 3s
+    image: postgres:18-alpine
   pursuit-a:
     build: .
-    environment:
-      PURSUIT_DATABASE_URL: postgres://pursuit:pursuit@postgres:5432/pursuit?sslmode=disable
-      PURSUIT_ADDR: ":8787"
-    ports:
-      - "8787:8787"
     depends_on:
       postgres:
         condition: service_healthy
+    environment:
+      PURSUIT_ADDR: :8787
+      PURSUIT_DATABASE_URL: 
+        postgres://pursuit:pursuit@postgres:5432/pursuit?sslmode=disable
     healthcheck:
-      test: ["CMD", "/pursuit", "ready", "--server", "http://127.0.0.1:8787"]
       interval: 5s
-      timeout: 3s
       retries: 10
+      test:
+      - CMD
+      - /pursuit
+      - ready
+      - --server
+      - http://127.0.0.1:8787
+      timeout: 3s
+    ports:
+    - 8787:8787
   pursuit-b:
     build: .
-    environment:
-      PURSUIT_DATABASE_URL: postgres://pursuit:pursuit@postgres:5432/pursuit?sslmode=disable
-      PURSUIT_ADDR: ":8787"
-    ports:
-      - "8788:8787"
     depends_on:
       postgres:
         condition: service_healthy
+    environment:
+      PURSUIT_ADDR: :8787
+      PURSUIT_DATABASE_URL: 
+        postgres://pursuit:pursuit@postgres:5432/pursuit?sslmode=disable
+    healthcheck:
+      interval: 5s
+      retries: 10
+      test:
+      - CMD
+      - /pursuit
+      - ready
+      - --server
+      - http://127.0.0.1:8787
+      timeout: 3s
+    ports:
+    - 8788:8787

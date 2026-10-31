@@ -3,6 +3,7 @@ package httpapi
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"crypto/sha256"
 	"crypto/subtle"
@@ -17,6 +18,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -49,6 +51,8 @@ type Server struct {
 	// TenantMode is "single" (default) or "multi". It gates whether a
 	// first-time OIDC login provisions a new tenant.
 	TenantMode string
+	// FaviconService is "on" or "off"; empty follows TenantMode (on when multi).
+	FaviconService string
 	// OIDC is nil when no social/OIDC login provider is configured.
 	OIDC *oidcauth.Manager
 	// BetterAuth is nil when no Neon Auth (Better Auth) JWT verifier is
@@ -74,7 +78,18 @@ type Server struct {
 	demoLimiterOnce sync.Once
 	demoLimiterVal  *demoLimiter
 
+	deviceLimiterOnce sync.Once
+	deviceLimiterVal  *demoLimiter
+
 	mux *http.ServeMux
+}
+
+// deviceLimiterFor caps device_authorization starts per client IP.
+func (s *Server) deviceLimiterFor() *demoLimiter {
+	s.deviceLimiterOnce.Do(func() {
+		s.deviceLimiterVal = &demoLimiter{window: time.Minute, limit: 10, seen: map[string][]time.Time{}}
+	})
+	return s.deviceLimiterVal
 }
 
 func (s *Server) demoLimiterFor() *demoLimiter {
@@ -119,6 +134,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /version", s.version)
 	mux.HandleFunc("GET /openapi.json", s.openapi)
 	mux.HandleFunc("GET /llms.txt", s.llms)
+	mux.HandleFunc("GET /auth.md", s.authDoc)
 	mux.HandleFunc("GET /reference", s.reference)
 	mux.HandleFunc("GET /", s.dashboard)
 
@@ -126,8 +142,10 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /v1/auth/{provider}/start", s.authStart)
 	mux.HandleFunc("GET /v1/auth/{provider}/callback", s.authCallback)
 	mux.HandleFunc("POST /v1/demo", s.startDemo)
+	s.registerOAuth(mux)
 
 	mux.HandleFunc("GET /v1/me", s.me)
+	mux.HandleFunc("PATCH /v1/me", s.updateMe)
 	mux.HandleFunc("POST /v1/tokens", s.createToken)
 	mux.HandleFunc("GET /v1/tokens", s.listTokens)
 	mux.HandleFunc("DELETE /v1/tokens/{id}", s.revokeToken)
@@ -193,8 +211,13 @@ func (s *Server) Handler() http.Handler {
 
 	mux.HandleFunc("GET /v1/artifacts/{id}", s.getArtifact)
 	mux.HandleFunc("GET /v1/profile", s.profile)
+	mux.HandleFunc("GET /v1/documents", s.listDocuments)
+	mux.HandleFunc("POST /v1/documents", s.addDocument)
+	mux.HandleFunc("GET /v1/documents/{id}", s.getDocument)
+	mux.HandleFunc("DELETE /v1/documents/{id}", s.deleteDocument)
 	mux.HandleFunc("GET /v1/standing", s.listStanding)
 	mux.HandleFunc("POST /v1/standing", s.setStanding)
+	mux.HandleFunc("DELETE /v1/standing/{key}", s.deleteStanding)
 	mux.HandleFunc("GET /v1/caps", s.caps)
 	mux.HandleFunc("POST /v1/links/check", s.checkAll)
 	mux.HandleFunc("GET /v1/cron/links", s.cronLinks)
@@ -339,7 +362,8 @@ func (s *Server) proxyOwner(ctx context.Context) (domain.Actor, error) {
 	if err != nil {
 		return domain.Actor{}, err
 	}
-	return domain.Actor{UserID: user.ID, Name: "vercel", Scopes: []string{"read", "write", "approve"}}, nil
+	// Name is who acted in events and the audit log: the owner, not the platform.
+	return domain.Actor{UserID: user.ID, Name: cmp.Or(user.Name, user.Email), Scopes: []string{"read", "write", "approve"}, Proxy: true}, nil
 }
 
 func (s *Server) authProviders(w http.ResponseWriter, r *http.Request) {
@@ -457,8 +481,24 @@ func (s *Server) ready(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, map[string]string{"status": "ready"})
 }
 
+// faviconServiceDefault is the deployment's default for the third-party icon
+// fallback; a user's own setting overrides it per request.
+func (s *Server) faviconServiceDefault() bool {
+	switch strings.ToLower(strings.TrimSpace(s.FaviconService)) {
+	case "on", "true":
+		return true
+	case "off", "false":
+		return false
+	}
+	return s.multiTenant()
+}
+
 func (s *Server) version(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, 200, map[string]string{"version": version.Version})
+	svc := "off"
+	if s.faviconServiceDefault() {
+		svc = "on"
+	}
+	writeJSON(w, 200, map[string]string{"version": version.Version, "favicon_service": svc})
 }
 
 func (s *Server) openapi(w http.ResponseWriter, r *http.Request) {
@@ -471,6 +511,12 @@ func (s *Server) llms(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.WriteHeader(200)
 	_, _ = w.Write(spec.LLMS)
+}
+
+func (s *Server) authDoc(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/markdown; charset=utf-8")
+	w.WriteHeader(200)
+	_, _ = w.Write(spec.Auth)
 }
 
 func (s *Server) reference(w http.ResponseWriter, r *http.Request) {
@@ -509,7 +555,10 @@ func (s *Server) dashboard(w http.ResponseWriter, r *http.Request) {
 		// out a per-request nonce to allow just those, so 'unsafe-inline'
 		// it is for this embed.
 		scriptSrc := "'self' 'unsafe-inline'"
-		w.Header().Set("Content-Security-Policy", "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src "+scriptSrc+"; connect-src "+connectSrc+"; img-src 'self' data:; font-src 'self'; base-uri 'self'; form-action 'self'")
+		w.Header().Set("Content-Security-Policy", "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src "+scriptSrc+"; connect-src "+connectSrc+"; img-src 'self' data: blob:; frame-src 'self' blob:; font-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'")
+		// Only the dashboard frames itself (blob: document previews); refusing
+		// other sites blocks clickjacking the /authorize and /device buttons.
+		w.Header().Set("X-Frame-Options", "SAMEORIGIN")
 		w.Header().Set("Referrer-Policy", "no-referrer")
 	}
 	w.WriteHeader(status)
@@ -972,6 +1021,16 @@ func (s *Server) me(w http.ResponseWriter, r *http.Request) {
 	writeProjected(w, 200, me, fieldsOf(r.URL.Query()))
 }
 
+func (s *Server) updateMe(w http.ResponseWriter, r *http.Request) {
+	s.jsonMut(w, r, 200, nil, func(ctx context.Context, body []byte) (any, error) {
+		var in service.MePatch
+		if err := decode(body, &in); err != nil {
+			return nil, err
+		}
+		return s.Svc.UpdateMe(ctx, in)
+	})
+}
+
 func (s *Server) createToken(w http.ResponseWriter, r *http.Request) {
 	if _, err := query(r, "dry_run", "fields"); err != nil {
 		writeErr(w, err)
@@ -1130,7 +1189,7 @@ func (s *Server) getCompanyFavicon(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	host := faviconHost(c.Website)
-	if host == "" {
+	if host == "" && c.IconURL == "" {
 		writeErr(w, domain.NotFound("favicon"))
 		return
 	}
@@ -1138,28 +1197,130 @@ func (s *Server) getCompanyFavicon(w http.ResponseWriter, r *http.Request) {
 	if client == nil {
 		client = faviconClient
 	}
-	resp, err := client.Get("https://" + host + "/favicon.ico")
-	if err != nil || resp.StatusCode != http.StatusOK {
-		if resp != nil {
-			_ = resp.Body.Close()
-		}
+	body, contentType := findFavicon(r.Context(), client, host, c.IconURL, s.useFaviconService(r.URL.Query().Get("service")))
+	if body == nil {
 		writeErr(w, domain.NotFound("favicon"))
 		return
-	}
-	defer resp.Body.Close()
-	body, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
-	if err != nil {
-		writeErr(w, domain.NotFound("favicon"))
-		return
-	}
-	contentType := resp.Header.Get("Content-Type")
-	if contentType == "" {
-		contentType = "image/x-icon"
 	}
 	w.Header().Set("Content-Type", contentType)
-	w.Header().Set("Cache-Control", "public, max-age=86400")
+	w.Header().Set("Cache-Control", "public, max-age=3600")
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(body)
+}
+
+// useFaviconService reads the caller's ?service=1|0 choice, falling back to the deployment default.
+func (s *Server) useFaviconService(param string) bool {
+	switch param {
+	case "1":
+		return true
+	case "0":
+		return false
+	}
+	return s.faviconServiceDefault()
+}
+
+var iconLinkRE = regexp.MustCompile(`(?is)<link\b[^>]*>`)
+var iconAttrRE = regexp.MustCompile(`(?is)\b(rel|href)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))`)
+
+// findFavicon returns the first usable image: the company's icon_url override,
+// then icons the homepage declares, then the conventional paths. Plenty of
+// sites answer a bot with 200 and an HTML challenge page, so every candidate
+// is sniffed rather than trusted on status or Content-Type.
+// ponytail: at most 7 fetches per miss, and no server-side cache — the browser's
+// Cache-Control covers repeat views.
+func findFavicon(ctx context.Context, client *http.Client, host, override string, service bool) ([]byte, string) {
+	var candidates []string
+	if override != "" {
+		candidates = append(candidates, override)
+	}
+	if host != "" {
+		base := "https://" + host
+		if page, ok := fetchLimited(ctx, client, base+"/", 256<<10); ok {
+			candidates = append(candidates, declaredIcons(base+"/", page)...)
+		}
+		candidates = append(candidates, base+"/favicon.ico", base+"/apple-touch-icon.png")
+		if service {
+			// Last resort, opt-out in Settings: it tells Google which company domain was looked up.
+			candidates = append(candidates, "https://www.google.com/s2/favicons?sz=64&domain="+url.QueryEscape(strings.Split(host, ":")[0]))
+		}
+	}
+	for i, u := range candidates {
+		if i >= 7 {
+			break
+		}
+		body, ok := fetchLimited(ctx, client, u, 1<<20)
+		if !ok {
+			continue
+		}
+		if ct := sniffImage(body); ct != "" {
+			return body, ct
+		}
+	}
+	return nil, ""
+}
+
+func fetchLimited(ctx context.Context, client *http.Client, u string, max int64) ([]byte, bool) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
+	if err != nil {
+		return nil, false
+	}
+	req.Header.Set("User-Agent", "Mozilla/5.0 (compatible; PursuitFavicon/1.0)")
+	req.Header.Set("Accept", "image/*,text/html;q=0.8,*/*;q=0.5")
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, false
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, false
+	}
+	body, err := io.ReadAll(io.LimitReader(resp.Body, max))
+	return body, err == nil && len(body) > 0
+}
+
+// declaredIcons returns absolute URLs of <link rel="...icon..."> targets,
+// resolved against the page URL.
+func declaredIcons(pageURL string, page []byte) []string {
+	base, err := url.Parse(pageURL)
+	if err != nil {
+		return nil
+	}
+	var out []string
+	for _, tag := range iconLinkRE.FindAll(page, -1) {
+		var rel, href string
+		for _, m := range iconAttrRE.FindAllSubmatch(tag, -1) {
+			v := string(m[2]) + string(m[3]) + string(m[4])
+			if strings.EqualFold(string(m[1]), "rel") {
+				rel = strings.ToLower(v)
+			} else {
+				href = strings.TrimSpace(v)
+			}
+		}
+		if href == "" || !strings.Contains(rel, "icon") {
+			continue
+		}
+		if ref, err := base.Parse(href); err == nil && (ref.Scheme == "http" || ref.Scheme == "https") {
+			out = append(out, ref.String())
+		}
+	}
+	return out
+}
+
+// sniffImage returns the image content type of body, or "" when it is not an
+// image a browser can show in an <img>.
+func sniffImage(body []byte) string {
+	ct := http.DetectContentType(body)
+	if strings.HasPrefix(ct, "image/") {
+		return ct
+	}
+	head := body
+	if len(head) > 512 {
+		head = head[:512]
+	}
+	if bytes.Contains(bytes.ToLower(head), []byte("<svg")) {
+		return "image/svg+xml"
+	}
+	return ""
 }
 
 // faviconHost extracts a bare host from a company website value that may or
@@ -1966,41 +2127,105 @@ func (s *Server) addArtifact(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	ct := r.Header.Get("Content-Type")
 	s.mutate(w, r, 201, nil, body, func(ctx context.Context) (any, error) {
-		media, params, err := mime.ParseMediaType(ct)
-		if err == nil && strings.HasPrefix(media, "multipart/") {
-			mr := multipart.NewReader(bytes.NewReader(body), params["boundary"])
-			var kind, filename, contentType string
-			var payload []byte
-			for {
-				part, err := mr.NextPart()
-				if err == io.EOF {
-					break
-				}
-				if err != nil {
-					return nil, domain.Validation("invalid multipart body")
-				}
-				b, _ := io.ReadAll(io.LimitReader(part, 6<<20))
-				switch part.FormName() {
-				case "kind":
-					kind = string(b)
-				case "file":
-					filename = part.FileName()
-					contentType = part.Header.Get("Content-Type")
-					payload = b
-				}
-			}
-			return s.Svc.AddArtifact(ctx, id, kind, filename, contentType, payload)
-		}
-		var in struct {
-			Kind        string `json:"kind"`
-			Filename    string `json:"filename"`
-			ContentType string `json:"content_type"`
-			Body        string `json:"body"`
-		}
-		if err := decode(body, &in); err != nil {
+		up, err := parseUpload(ct, body)
+		if err != nil {
 			return nil, err
 		}
-		return s.Svc.AddArtifact(ctx, id, in.Kind, in.Filename, in.ContentType, []byte(in.Body))
+		return s.Svc.AddArtifact(ctx, id, up.Kind, up.Filename, up.ContentType, up.Body)
+	})
+}
+
+type upload struct {
+	Kind, Filename, ContentType string
+	Body                        []byte
+}
+
+// parseUpload reads a multipart form (kind, file) or a JSON body
+// {kind, filename, content_type, body} where body is text.
+func parseUpload(ct string, body []byte) (upload, error) {
+	media, params, err := mime.ParseMediaType(ct)
+	if err == nil && strings.HasPrefix(media, "multipart/") {
+		mr := multipart.NewReader(bytes.NewReader(body), params["boundary"])
+		var up upload
+		for {
+			part, err := mr.NextPart()
+			if err == io.EOF {
+				break
+			}
+			if err != nil {
+				return upload{}, domain.Validation("invalid multipart body")
+			}
+			b, _ := io.ReadAll(io.LimitReader(part, 6<<20))
+			switch part.FormName() {
+			case "kind":
+				up.Kind = string(b)
+			case "file":
+				up.Filename = part.FileName()
+				up.ContentType = part.Header.Get("Content-Type")
+				up.Body = b
+			}
+		}
+		return up, nil
+	}
+	var in struct {
+		Kind        string `json:"kind"`
+		Filename    string `json:"filename"`
+		ContentType string `json:"content_type"`
+		Body        string `json:"body"`
+	}
+	if err := decode(body, &in); err != nil {
+		return upload{}, err
+	}
+	return upload{in.Kind, in.Filename, in.ContentType, []byte(in.Body)}, nil
+}
+
+func (s *Server) listDocuments(w http.ResponseWriter, r *http.Request) {
+	pageSlice(w, r, nil, s.Svc.ListDocuments)
+}
+
+func (s *Server) addDocument(w http.ResponseWriter, r *http.Request) {
+	if _, err := query(r, "dry_run"); err != nil {
+		writeErr(w, err)
+		return
+	}
+	body, ok := s.read(w, r)
+	if !ok {
+		return
+	}
+	ct := r.Header.Get("Content-Type")
+	s.mutate(w, r, 201, nil, body, func(ctx context.Context) (any, error) {
+		up, err := parseUpload(ct, body)
+		if err != nil {
+			return nil, err
+		}
+		return s.Svc.AddDocument(ctx, up.Kind, up.Filename, up.ContentType, up.Body)
+	})
+}
+
+func (s *Server) getDocument(w http.ResponseWriter, r *http.Request) {
+	if _, err := query(r); err != nil {
+		writeErr(w, err)
+		return
+	}
+	d, err := s.Svc.GetDocument(r.Context(), r.PathValue("id"))
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	writeJSON(w, 200, map[string]any{
+		"id": d.ID, "kind": d.Kind, "filename": d.Filename,
+		"content_type": d.ContentType, "body": d.Body, "created_at": d.CreatedAt,
+	})
+}
+
+func (s *Server) deleteDocument(w http.ResponseWriter, r *http.Request) {
+	if _, err := query(r, "dry_run"); err != nil {
+		writeErr(w, err)
+		return
+	}
+	id := r.PathValue("id")
+	s.mutate(w, r, 200, nil, []byte(id), func(ctx context.Context) (any, error) {
+		return s.Svc.DeleteDocument(ctx, id)
 	})
 }
 
@@ -2040,6 +2265,17 @@ func (s *Server) setStanding(w http.ResponseWriter, r *http.Request) {
 			return nil, err
 		}
 		return s.Svc.SetStanding(ctx, in.Key, in.Answer)
+	})
+}
+
+func (s *Server) deleteStanding(w http.ResponseWriter, r *http.Request) {
+	if _, err := query(r, "dry_run"); err != nil {
+		writeErr(w, err)
+		return
+	}
+	key := r.PathValue("key")
+	s.mutate(w, r, 200, nil, []byte(key), func(ctx context.Context) (any, error) {
+		return s.Svc.DeleteStanding(ctx, key)
 	})
 }
 

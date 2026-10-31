@@ -3,13 +3,15 @@
 import { useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { ArrowLeft } from "lucide-react"
+import { AlertCircle, ArrowLeft } from "lucide-react"
 import { api, ApiError } from "@/lib/api-client"
 import { applicationHref } from "@/lib/links"
 import type { Application } from "@/lib/types"
 import { AttributesForm, EMPTY_ATTRIBUTES, type AttributesFormState } from "@/components/AttributesForm"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Spinner } from "@/components/ui/spinner"
 import { Textarea } from "@/components/ui/textarea"
 
 export function CreateApplicationView() {
@@ -56,9 +58,15 @@ export function CreateApplicationView() {
           />
         </CardContent>
       </Card>
-      {error && <p className="text-sm text-destructive">{error}</p>}
+      {error && (
+        <Alert variant="destructive">
+          <AlertCircle />
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
       <div className="flex gap-2">
         <Button onClick={create} disabled={busy || !attrs.company.trim()}>
+          {busy && <Spinner data-icon="inline-start" />}
           Add application
         </Button>
         <Button variant="outline" asChild>

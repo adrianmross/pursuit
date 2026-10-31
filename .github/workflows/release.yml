@@ -1,0 +1,72 @@
+name: release
+
+# Builds a tag into a GitHub release: CLI/server binaries via GoReleaser plus
+# the browser extension zip. Dispatched by release-plan.yml; a hand-pushed tag
+# works too.
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Tag to release (e.g. v0.1.0)
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    env:
+      TAG: ${{ inputs.tag || github.ref_name }}
+      TAP_APP_ID: ${{ secrets.TAP_APP_ID }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+          fetch-depth: 0
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      # The binary go:embeds the dashboard and docs build.
+      - run: sh scripts/vercel-build.sh
+      - run: go test ./...
+      - working-directory: extension
+        run: |
+          npm install
+          npm run build
+          (cd dist && zip -qr "$RUNNER_TEMP/pursuit-extension_${TAG#v}.zip" .)
+      # This tag's CHANGELOG.md section becomes the release notes.
+      - run: awk '/^## /{if (n++) exit} n' CHANGELOG.md > "$RUNNER_TEMP/notes.md"
+      - uses: goreleaser/goreleaser-action@v6
+        with:
+          version: "~> v2"
+          # skip=validate: the web builds above leave npm lockfile churn behind.
+          args: release --clean --skip=validate --release-notes ${{ runner.temp }}/notes.md
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GORELEASER_CURRENT_TAG: ${{ env.TAG }}
+      # GoReleaser's release is made with GITHUB_TOKEN, so it fires no
+      # `release: published` workflow; poke the tap from here instead. Without
+      # the TAP_APP_* secrets this skips and the tap's 6h poll picks it up.
+      - id: tap-token
+        if: env.TAP_APP_ID != ''
+        uses: actions/create-github-app-token@v2.1.4
+        with:
+          app-id: ${{ secrets.TAP_APP_ID }}
+          private-key: ${{ secrets.TAP_APP_PRIVATE_KEY }}
+          owner: adrianmross
+          repositories: homebrew-tap
+      - if: steps.tap-token.outputs.token != ''
+        env:
+          GH_TOKEN: ${{ steps.tap-token.outputs.token }}
+        run: |
+          gh api --method POST /repos/adrianmross/homebrew-tap/dispatches \
+            -f event_type=formula-bump \
+            -F "client_payload[repo]=${GITHUB_REPOSITORY}" \
+            -F "client_payload[tag]=${TAG}"

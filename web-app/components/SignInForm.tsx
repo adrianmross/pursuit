@@ -4,9 +4,10 @@ import { useEffect, useState, type FormEvent } from "react"
 import { api, EXPORT_MODE } from "@/lib/api-client"
 import { useAuth } from "@/lib/auth"
 import { authClient } from "@/lib/betterauth"
+import { Alert, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
+import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { CommandBlock } from "@/components/CommandBlock"
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp"
@@ -16,10 +17,11 @@ import { cn } from "@/lib/utils"
 // A failed sign-in step: the message beside a sketched bad roll.
 function FailNote({ className, children }: { className?: string; children: React.ReactNode }) {
   return (
-    <p role="alert" className={cn("flex items-center gap-2 text-sm text-destructive", className)}>
-      <SnakeEyes className="w-11 shrink-0" />
-      {children}
-    </p>
+    <Alert variant="destructive" className={cn("items-center", className)}>
+      {/* size-auto opts out of the Alert's size-4 icon rule so the sketch keeps its width. */}
+      <SnakeEyes className="size-auto w-11 shrink-0" />
+      <AlertTitle>{children}</AlertTitle>
+    </Alert>
   )
 }
 
@@ -179,45 +181,47 @@ function AccountSignIn() {
       </CardHeader>
       <CardContent className="pt-0">
         {(localError || error) && <FailNote className="mb-3">{localError || error}</FailNote>}
-        <form onSubmit={onSubmit} className="flex flex-col gap-4">
-          {mode === "sign-up" && (
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="name">Name</Label>
-              <Input id="name" autoComplete="name" value={name} onChange={(event) => setName(event.target.value)} />
-            </div>
-          )}
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="email">Email</Label>
-            <Input
-              id="email"
-              type="email"
-              autoComplete="email"
-              required
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-            />
-          </div>
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="password">Password</Label>
-            <Input
-              id="password"
-              type="password"
-              autoComplete={mode === "sign-up" ? "new-password" : "current-password"}
-              required
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-            />
-          </div>
-          <Button type="submit" disabled={submitting}>
-            {mode === "sign-up" ? "Create account" : "Sign in"}
-          </Button>
-          <button
-            type="button"
-            className="text-sm text-muted-foreground underline-offset-4 hover:underline"
-            onClick={() => setMode(mode === "sign-up" ? "sign-in" : "sign-up")}
-          >
-            {mode === "sign-up" ? "Already have an account? Sign in" : "New here? Create an account"}
-          </button>
+        <form onSubmit={onSubmit}>
+          <FieldGroup className="gap-4">
+            {mode === "sign-up" && (
+              <Field>
+                <FieldLabel htmlFor="name">Name</FieldLabel>
+                <Input id="name" autoComplete="name" value={name} onChange={(event) => setName(event.target.value)} />
+              </Field>
+            )}
+            <Field>
+              <FieldLabel htmlFor="email">Email</FieldLabel>
+              <Input
+                id="email"
+                type="email"
+                autoComplete="email"
+                required
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+              />
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="password">Password</FieldLabel>
+              <Input
+                id="password"
+                type="password"
+                autoComplete={mode === "sign-up" ? "new-password" : "current-password"}
+                required
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+              />
+            </Field>
+            <Button type="submit" disabled={submitting}>
+              {mode === "sign-up" ? "Create account" : "Sign in"}
+            </Button>
+            <button
+              type="button"
+              className="text-sm text-muted-foreground underline-offset-4 hover:underline"
+              onClick={() => setMode(mode === "sign-up" ? "sign-in" : "sign-up")}
+            >
+              {mode === "sign-up" ? "Already have an account? Sign in" : "New here? Create an account"}
+            </button>
+          </FieldGroup>
         </form>
       </CardContent>
     </Card>
@@ -252,21 +256,23 @@ function TokenSignIn() {
       <CardContent className="flex flex-col gap-4 pt-0">
         <CommandBlock command={"pursuit serve\npursuit tokens create"} />
         {(localError || error) && <FailNote>{localError || error}</FailNote>}
-        <form onSubmit={onSubmit} className="flex flex-col gap-4">
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="token">API token</Label>
-            <Input
-              id="token"
-              type="password"
-              autoComplete="off"
-              required
-              value={token}
-              onChange={(event) => setTokenValue(event.target.value)}
-            />
-          </div>
-          <Button type="submit" variant="secondary" disabled={submitting}>
-            Continue
-          </Button>
+        <form onSubmit={onSubmit}>
+          <FieldGroup className="gap-4">
+            <Field>
+              <FieldLabel htmlFor="token">API token</FieldLabel>
+              <Input
+                id="token"
+                type="password"
+                autoComplete="off"
+                required
+                value={token}
+                onChange={(event) => setTokenValue(event.target.value)}
+              />
+            </Field>
+            <Button type="submit" variant="secondary" disabled={submitting}>
+              Continue
+            </Button>
+          </FieldGroup>
         </form>
       </CardContent>
     </Card>

@@ -2,10 +2,11 @@
 
 import { useState } from "react"
 import { Check, MoreHorizontal, X } from "lucide-react"
+import { api } from "@/lib/api-client"
 import { useShortcuts } from "@/lib/keybindings"
 import { markOf, ROUND_STAGES, shown, type Application } from "@/lib/types"
 import { useRounds } from "@/components/Rounds"
-import { CompanyAvatar } from "@/components/CompanyAvatar"
+import { CompanyAvatar, forgetFavicon } from "@/components/CompanyAvatar"
 import { ConfirmDialog } from "@/components/ConfirmDialog"
 import { InlineText } from "@/components/InlineEdit"
 import { ProgressMark } from "@/components/ProgressMark"
@@ -15,8 +16,67 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+
+function IconEditor({ application }: { application: Application }) {
+  const [open, setOpen] = useState(false)
+  const [value, setValue] = useState("")
+  const [error, setError] = useState("")
+  const [shownKey, setShownKey] = useState(0)
+  const companyId = application.company_id
+
+  async function openDialog() {
+    if (!companyId) return
+    setError("")
+    setValue("")
+    setOpen(true)
+    try {
+      const company = await api<{ icon_url?: string }>(`/v1/companies/${encodeURIComponent(companyId)}`)
+      setValue(company.icon_url || "")
+    } catch {}
+  }
+
+  async function save() {
+    if (!companyId) return
+    try {
+      const company = await api<{ version: number }>(`/v1/companies/${encodeURIComponent(companyId)}`)
+      await api(`/v1/companies/${encodeURIComponent(companyId)}`, { method: "PATCH", body: { version: company.version, icon_url: value.trim() } })
+      forgetFavicon(companyId)
+      setShownKey((k) => k + 1)
+      setOpen(false)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not save")
+    }
+  }
+
+  return (
+    <>
+      <button type="button" className="mt-1 rounded-full" aria-label="Change company icon" onClick={openDialog} disabled={!companyId}>
+        <CompanyAvatar key={shownKey} company={application.company} companyId={companyId} className="size-9 text-sm" />
+      </button>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Company icon</DialogTitle>
+            <DialogDescription>
+              Paste an image URL to use for {application.company || "this company"}. Leave it empty to use the site&apos;s own favicon. It applies to every listing at this company.
+            </DialogDescription>
+          </DialogHeader>
+          <Input placeholder="https://example.com/logo.png" value={value} onChange={(event) => setValue(event.target.value)} />
+          {error && <p className="text-sm text-destructive">{error}</p>}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={save}>Save</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  )
+}
 
 export function DetailHeader({
   application,
@@ -86,7 +146,11 @@ export function DetailHeader({
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex items-start gap-3">
           <ProgressMark {...markOf(application)} size={40} />
-          <CompanyAvatar company={application.company} companyId={application.company_id} className="mt-1 size-9 text-sm" />
+          {writable ? (
+            <IconEditor application={application} />
+          ) : (
+            <CompanyAvatar company={application.company} companyId={application.company_id} className="mt-1 size-9 text-sm" />
+          )}
           <div>
             <InlineText
               value={application.title || ""}

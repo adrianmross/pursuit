@@ -336,6 +336,17 @@ func (s *Store) UpsertStanding(ctx context.Context, a StandingAnswer) error {
 	return err
 }
 
+func (s *Store) DeleteStanding(ctx context.Context, userID, key string) error {
+	res, err := s.exec(ctx, `DELETE FROM standing_answers WHERE user_id=? AND answer_key=?`, userID, key)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return domain.NotFound("standing answer")
+	}
+	return nil
+}
+
 func (s *Store) ListStanding(ctx context.Context, userID string) ([]StandingAnswer, error) {
 	rows, err := s.query(ctx, `SELECT id, user_id, answer_key, answer, updated_at FROM standing_answers WHERE user_id=? ORDER BY answer_key`, userID)
 	if err != nil {

@@ -11,5 +11,5 @@ export async function ArtifactsSection({ id }: { id: string }) {
     // fall through — page stays null
   }
   if (page == null) return <SectionError label="artifacts" />
-  return <ArtifactsCard artifacts={page.data || []} />
+  return <ArtifactsCard appId={id} artifacts={page.data || []} />
 }

@@ -371,6 +371,59 @@ var migrations = []migration{{
 }, {
 	version: "007",
 	stmts: []string{
+		`ALTER TABLE companies ADD COLUMN icon_url TEXT NOT NULL DEFAULT ''`,
+	},
+}, {
+	version: "008",
+	stmts: []string{
+		`ALTER TABLE users ADD COLUMN avatar TEXT NOT NULL DEFAULT ''`,
+		// Documents belong to the user, not an application: the base résumé
+		// prepare attaches, a cover-letter template, a LinkedIn PDF export.
+		`CREATE TABLE IF NOT EXISTS documents (
+			id TEXT PRIMARY KEY,
+			user_id TEXT NOT NULL REFERENCES users(id),
+			kind TEXT NOT NULL,
+			filename TEXT NOT NULL DEFAULT '',
+			content_type TEXT NOT NULL DEFAULT '',
+			body TEXT NOT NULL,
+			created_at TEXT NOT NULL
+		)`,
+		`CREATE INDEX IF NOT EXISTS documents_user_idx ON documents(user_id, kind, created_at)`,
+	},
+}, {
+	version: "009",
+	stmts: []string{
+		// OAuth2 grants for pursuit auth login. kind is code (loopback +
+		// PKCE) or device. Codes are stored as SHA-256 hashes only.
+		`CREATE TABLE IF NOT EXISTS oauth_grants (
+			id TEXT PRIMARY KEY,
+			kind TEXT NOT NULL,
+			code_hash TEXT NOT NULL UNIQUE,
+			user_code_hash TEXT UNIQUE,
+			client_id TEXT NOT NULL,
+			scopes TEXT NOT NULL,
+			redirect_uri TEXT NOT NULL DEFAULT '',
+			code_challenge TEXT NOT NULL DEFAULT '',
+			user_id TEXT REFERENCES users(id),
+			status TEXT NOT NULL,
+			interval_seconds BIGINT NOT NULL DEFAULT 0,
+			last_polled_at TEXT NOT NULL DEFAULT '',
+			expires_at TEXT NOT NULL,
+			created_at TEXT NOT NULL
+		)`,
+		`CREATE INDEX IF NOT EXISTS oauth_grants_expires_idx ON oauth_grants(expires_at)`,
+	},
+}, {
+	version: "010",
+	stmts: []string{
+		// The approving session's token, so the issued CLI token's audit
+		// entry can name who let it in.
+		`ALTER TABLE oauth_grants ADD COLUMN approver_token_id TEXT NOT NULL DEFAULT ''`,
+	},
+}, {
+	version: "011",
+	stmts: []string{
+		// Tasks: the small things waiting on you, on any stage of an application.
 		`CREATE TABLE IF NOT EXISTS tasks (
 			id TEXT PRIMARY KEY,
 			user_id TEXT NOT NULL,

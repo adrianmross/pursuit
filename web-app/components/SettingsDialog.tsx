@@ -1,7 +1,7 @@
 "use client"
 
-import { useMemo, useState, type KeyboardEvent, type ReactNode } from "react"
-import { Database, History, Info, Keyboard, KeyRound, ScanSearch, Palette, Rows3, Search, SlidersHorizontal, User } from "lucide-react"
+import { useEffect, useMemo, useState, type KeyboardEvent, type ReactNode } from "react"
+import { Database, Download, History, Info, Keyboard, KeyRound, ScanSearch, Palette, Rows3, Search, SlidersHorizontal, User } from "lucide-react"
 import { FILTERS, MORE, SORTS } from "@/lib/types"
 import { getDefaultSort, getDefaultStatus, ACCENTS, getPref, setPref, setDefaultSort, setDefaultStatus, type Accent, type Density, type TextSize } from "@/lib/settings"
 import { useShortcuts } from "@/lib/keybindings"
@@ -17,8 +17,9 @@ import { AccountPanel } from "@/components/settings/AccountPanel"
 import { TokensPanel } from "@/components/settings/TokensPanel"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog"
+import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
+import { Spinner } from "@/components/ui/spinner"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
@@ -77,11 +78,11 @@ function ThemeCard({ value, current, onPick }: { value: Theme; current: Theme; o
 
 function Row({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) {
   return (
-    <div className="flex flex-col gap-2">
-      <Label>{label}</Label>
-      {children}
-      {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
-    </div>
+    <Field>
+      <FieldLabel>{label}</FieldLabel>
+      <div className="flex flex-col">{children}</div>
+      {hint && <FieldDescription>{hint}</FieldDescription>}
+    </Field>
   )
 }
 
@@ -139,10 +140,25 @@ function AccentPicker() {
   )
 }
 
+function FaviconService() {
+  const [serverDefault, setServerDefault] = useState("")
+  useEffect(() => {
+    api<{ favicon_service?: string }>("/version").then((v) => setServerDefault(v.favicon_service || "")).catch(() => {})
+  }, [])
+  return (
+    <Row
+      label="Company icons"
+      hint={`When a site has no usable icon of its own, fall back to Google's favicon service. That tells Google which company domains you track. Off shows the company's initial instead. Default follows this server${serverDefault ? ` (${serverDefault})` : ""}. Changes apply after a reload.`}
+    >
+      <Choice pref="faviconService" options={[["default", "Default"], ["on", "On"], ["off", "Off"]]} />
+    </Row>
+  )
+}
+
 function Appearance() {
   const { theme, setTheme } = useTheme()
   return (
-    <div className="flex flex-col gap-6">
+    <FieldGroup>
       <Row label="Theme" hint="System follows your operating system and switches automatically.">
         <div className="flex flex-wrap gap-3">
           {(["light", "dark", "system"] as const).map((t) => (
@@ -156,10 +172,11 @@ function Appearance() {
       <Row label="Text size" hint="Scales the whole interface.">
         <Choice<TextSize> pref="textSize" options={[["small", "Small"], ["default", "Default"], ["large", "Large"]]} />
       </Row>
+      <FaviconService />
       <Row label="Motion" hint="Reduced turns off transitions and animations.">
         <Choice pref="motion" options={[["full", "Full"], ["reduced", "Reduced"]]} />
       </Row>
-    </div>
+    </FieldGroup>
   )
 }
 
@@ -168,7 +185,7 @@ function TableDefaults() {
   const [sort, setSort] = useState(getDefaultSort())
   const [density, setDensityState] = useState(getPref<Density>("density"))
   return (
-    <div className="flex flex-col gap-4">
+    <FieldGroup>
       <Row label="Row density" hint="Compact fits more rows on screen.">
         <ToggleGroup
           type="single"
@@ -236,7 +253,7 @@ function TableDefaults() {
           </SelectContent>
         </Select>
       </Row>
-    </div>
+    </FieldGroup>
   )
 }
 
@@ -259,6 +276,7 @@ function DataPanel() {
   return (
     <Row label="Export" hint="Everything in your pipeline as one JSON file, re-importable with pursuit import.">
       <Button variant="outline" onClick={exportJSON} disabled={busy} className="self-start">
+        {busy ? <Spinner /> : <Download />}
         {busy ? "Exporting…" : "Download JSON"}
       </Button>
     </Row>
@@ -274,6 +292,7 @@ const SECTIONS: (Section & { items: [string, string][] })[] = [
       ["Accent color", "primary highlight brand"],
       ["Text size", "font zoom larger smaller"],
       ["Motion", "animations reduce accessibility"],
+      ["Company icons", "favicon logo google service privacy fallback"],
     ] },
   {
     id: "table",
@@ -314,7 +333,7 @@ const SECTIONS: (Section & { items: [string, string][] })[] = [
       ["Password", "change security"],
       ["Email", "change address"],
       ["Sign out other sessions", "revoke devices security"],
-      ["Display name", "profile email"],
+      ["Display name", "profile email avatar photo picture"],
       ["Sign out", "logout session"],
     ],
   },
