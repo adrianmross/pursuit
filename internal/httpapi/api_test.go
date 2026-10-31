@@ -87,7 +87,9 @@ func (e *env) json(t *testing.T, method, path, token string, body any) (int, map
 			t.Fatal(err)
 		}
 	}
-	headers := map[string]string{}
+	// Same-origin, like the dashboard: tokenless proxy-owner writes need it.
+	// session_test.go covers what happens without it.
+	headers := map[string]string{"Sec-Fetch-Site": "same-origin"}
 	if body != nil {
 		headers["Content-Type"] = "application/json"
 	}

@@ -15,6 +15,11 @@ const EXPORT_MODE = process.env.NEXT_PUBLIC_EXPORT_MODE === "1"
 // deployed separately from the API it talks to.
 const PURSUIT_API_URL = process.env.NEXT_PUBLIC_PURSUIT_API_URL || ""
 const TOKEN_KEY = "pursuit.token"
+// Same-origin export mode keeps the token in the Go server's httpOnly
+// pursuit_session cookie (POST /v1/auth/session), out of reach of page
+// scripts. Only a dashboard on another origin than its API still holds a
+// bearer token in localStorage, since the cookie can't follow it there.
+export const COOKIE_SESSION = EXPORT_MODE && !PURSUIT_API_URL
 
 export class ApiError extends Error {
   status: number
@@ -58,7 +63,7 @@ export async function api<T>(path: string, options: ApiOptions = {}): Promise<T>
   let url: string
   if (EXPORT_MODE) {
     url = PURSUIT_API_URL + path
-    const token = getToken()
+    const token = COOKIE_SESSION ? "" : getToken()
     if (token) headers.Authorization = "Bearer " + token
   } else {
     url = "/api/proxy" + path
@@ -94,7 +99,7 @@ export function apiUrl(path: string): string {
 }
 
 export function apiHeaders(): Record<string, string> {
-  if (!EXPORT_MODE) return {}
+  if (!EXPORT_MODE || COOKIE_SESSION) return {}
   const token = getToken()
   return token ? { Authorization: "Bearer " + token } : {}
 }
