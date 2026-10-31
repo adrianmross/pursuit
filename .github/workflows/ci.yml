@@ -70,5 +70,7 @@ jobs:
           name: devenv
       # Pinned to the devenv this config is tested with locally.
       - run: nix profile install --accept-flake-config github:cachix/devenv/v2.3.1
+      # docker-compose.yml is generated from devenv.nix; fail if it drifted.
+      - run: devenv tasks run dev:compose && git diff --exit-code docker-compose.yml
       - run: devenv shell -- make linux
       - run: devenv container build serve

@@ -1,0 +1,59 @@
+# Generated from devenv.nix by: devenv tasks run dev:compose
+%YAML 1.1
+---
+services:
+  postgres:
+    environment:
+      POSTGRES_DB: pursuit
+      POSTGRES_PASSWORD: pursuit
+      POSTGRES_USER: pursuit
+    healthcheck:
+      interval: 5s
+      retries: 10
+      test:
+      - CMD-SHELL
+      - pg_isready -U pursuit
+      timeout: 3s
+    image: postgres:18-alpine
+  pursuit-a:
+    build: .
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PURSUIT_ADDR: :8787
+      PURSUIT_DATABASE_URL: 
+        postgres://pursuit:pursuit@postgres:5432/pursuit?sslmode=disable
+    healthcheck:
+      interval: 5s
+      retries: 10
+      test:
+      - CMD
+      - /pursuit
+      - ready
+      - --server
+      - http://127.0.0.1:8787
+      timeout: 3s
+    ports:
+    - 8787:8787
+  pursuit-b:
+    build: .
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PURSUIT_ADDR: :8787
+      PURSUIT_DATABASE_URL: 
+        postgres://pursuit:pursuit@postgres:5432/pursuit?sslmode=disable
+    healthcheck:
+      interval: 5s
+      retries: 10
+      test:
+      - CMD
+      - /pursuit
+      - ready
+      - --server
+      - http://127.0.0.1:8787
+      timeout: 3s
+    ports:
+    - 8788:8787

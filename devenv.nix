@@ -3,6 +3,38 @@
 let
   # Container builds carry only the prebuilt binary, not the dev toolchain.
   dev = !config.container.isBuilding;
+
+  # One description of the local stack, run two ways: devenv processes
+  # (profiles.postgres) and docker-compose.yml (generated, see dev:compose).
+  db = { name = "pursuit"; user = "pursuit"; pass = "pursuit"; };
+  dbUrl = host: "postgres://${db.user}:${db.pass}@${host}:5432/${db.name}?sslmode=disable";
+  replicas = { pursuit-a = 8787; pursuit-b = 8788; };
+
+  compose = (pkgs.formats.yaml { }).generate "docker-compose.yml" {
+    services = {
+      postgres = {
+        image = "postgres:${lib.versions.major config.services.postgres.package.version}-alpine";
+        environment = { POSTGRES_USER = db.user; POSTGRES_PASSWORD = db.pass; POSTGRES_DB = db.name; };
+        healthcheck = {
+          test = [ "CMD-SHELL" "pg_isready -U ${db.user}" ];
+          interval = "5s";
+          timeout = "3s";
+          retries = 10;
+        };
+      };
+    } // lib.mapAttrs (name: port: {
+      build = ".";
+      environment = { PURSUIT_DATABASE_URL = dbUrl "postgres"; PURSUIT_ADDR = ":8787"; };
+      ports = [ "${toString port}:8787" ];
+      depends_on.postgres.condition = "service_healthy";
+      healthcheck = {
+        test = [ "CMD" "/pursuit" "ready" "--server" "http://127.0.0.1:8787" ];
+        interval = "5s";
+        timeout = "3s";
+        retries = 10;
+      };
+    }) replicas;
+  };
 in
 {
   # go.mod needs go 1.26; track pkgs.go rather than a pinned go_1_xx.
@@ -93,6 +125,7 @@ in
     "dev:extension".exec = "pursuit-extension-test";
     "dev:release-check".exec = "goreleaser check && actionlint && changelogger check --base origin/main";
     "dev:validate".exec = "make test && go vet ./... && pursuit-extension-test && goreleaser check && actionlint";
+    "dev:compose".exec = "{ echo '# Generated from devenv.nix by: devenv tasks run dev:compose'; cat ${compose}; } > docker-compose.yml";
   };
 
   enterTest = ''
@@ -115,23 +148,18 @@ in
   # devenv up --profile postgres. Postgres alone: add `postgres` at the end.
   profiles.postgres.module = {
     tasks."pursuit:build".exec = "make build";
-    processes.pursuit-a = {
+    processes = lib.mapAttrs (name: port: {
       exec = "./bin/pursuit serve";
-      env.PURSUIT_ADDR = ":8787";
+      env.PURSUIT_ADDR = ":${toString port}";
       after = [ "pursuit:build" "devenv:processes:postgres" ];
-    };
-    processes.pursuit-b = {
-      exec = "./bin/pursuit serve";
-      env.PURSUIT_ADDR = ":8788";
-      after = [ "pursuit:build" "devenv:processes:postgres" ];
-    };
+    }) replicas;
     services.postgres = {
       enable = true;
       # devenv's superuser is the OS user, so give pursuit its own role.
-      initialDatabases = [{ name = "pursuit"; user = "pursuit"; pass = "pursuit"; }];
+      initialDatabases = [ db ];
       listen_addresses = "127.0.0.1";
     };
-    env.PURSUIT_DATABASE_URL = "postgres://pursuit:pursuit@127.0.0.1:5432/pursuit?sslmode=disable";
+    env.PURSUIT_DATABASE_URL = dbUrl "127.0.0.1";
   };
 
   # Existing Neon database: devenv shell --profile neon, with
