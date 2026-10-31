@@ -630,7 +630,25 @@ func (s *Service) standingMap(ctx context.Context, userID string) (map[string]st
 	return out, nil
 }
 
+// attachResume copies the newest base_resume document onto the application,
+// falling back to PURSUIT_RESUME_FILE. Serverless deployments have no disk,
+// so the document is the only route there.
 func (s *Service) attachResume(ctx context.Context, userID, appID, now string) error {
+	doc, err := s.DB.LatestDocument(ctx, userID, "base_resume")
+	if err == nil {
+		body := doc.Body
+		if isText(doc.ContentType) {
+			// resume_pdf artifacts are always base64, whatever the source.
+			body = base64.StdEncoding.EncodeToString([]byte(body))
+		}
+		return s.DB.CreateArtifact(ctx, sqlstore.Artifact{
+			ID: s.NewID(), UserID: userID, ApplicationID: appID, Kind: "resume_pdf",
+			Filename: doc.Filename, ContentType: doc.ContentType, Body: body, CreatedAt: now,
+		})
+	}
+	if !domain.IsCode(err, "not_found") {
+		return err
+	}
 	path := strings.TrimSpace(s.ResumeFile)
 	if path == "" {
 		return nil
@@ -897,6 +915,26 @@ func (s *Service) SetStanding(ctx context.Context, key, answer string) (sqlstore
 		return sqlstore.StandingAnswer{}, err
 	}
 	return row, nil
+}
+
+// DeleteStanding removes one answer. A PURSUIT_PROFILE value for the same
+// key still applies afterwards; that file belongs to the operator.
+func (s *Service) DeleteStanding(ctx context.Context, key string) (domain.Deleted, error) {
+	a, err := s.actor(ctx, true)
+	if err != nil {
+		return domain.Deleted{}, err
+	}
+	key = impex.NormalizeKey(key)
+	err = s.DB.WithTx(ctx, func(ctx context.Context) error {
+		if err := s.DB.DeleteStanding(ctx, a.UserID, key); err != nil {
+			return err
+		}
+		return s.audit(ctx, a, "standing.delete", "standing", key, "deleted standing answer", nil)
+	})
+	if err != nil {
+		return domain.Deleted{}, err
+	}
+	return domain.Deleted{ID: key, Deleted: true}, nil
 }
 
 func (s *Service) ListStanding(ctx context.Context) ([]sqlstore.StandingAnswer, error) {

@@ -3,8 +3,9 @@
 import { useState } from "react"
 import { Copy, Check } from "lucide-react"
 
-// A copyable `pursuit` CLI command, for help text and empty states.
-export function CommandBlock({ command }: { command: string }) {
+// A copyable `pursuit` CLI command, for help text and empty states. `wrap`
+// is for prose such as an agent prompt.
+export function CommandBlock({ command, wrap }: { command: string; wrap?: boolean }) {
   const [copied, setCopied] = useState(false)
 
   async function onCopy() {
@@ -15,11 +16,11 @@ export function CommandBlock({ command }: { command: string }) {
 
   return (
     <div className="flex items-start gap-3 rounded-md bg-foreground px-4 py-3 font-mono text-xs text-background">
-      <pre className="flex-1 overflow-x-auto whitespace-pre">{command}</pre>
+      <pre className={"flex-1 overflow-x-auto " + (wrap ? "whitespace-pre-wrap" : "whitespace-pre")}>{command}</pre>
       <button
         type="button"
         onClick={onCopy}
-        aria-label="Copy command"
+        aria-label={wrap ? "Copy" : "Copy command"}
         className="shrink-0 rounded-sm border border-background/40 px-1.5 py-0.5 text-[11px] text-background hover:bg-background/10"
       >
         {copied ? <Check className="size-3" /> : <Copy className="size-3" />}

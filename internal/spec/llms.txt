@@ -28,6 +28,8 @@ Bulk: `POST /v1/batch` (`pursuit batch <file|->`) runs up to 100 requests, each 
 OpenAPI: GET /openapi.json. One command's flags: `pursuit schema <command>`.
 SQLite is the default database. Postgres is for more than one replica.
 
+`pursuit documents add --kind base_resume --file resume.pdf` stores the base résumé; prepare attaches the newest one before falling back to PURSUIT_RESUME_FILE. Tailored files go on one application with `pursuit artifacts add`. Save the user's answer to a `needs_input` question with `pursuit standing set` so later prepares reuse it.
+
 The browser extension uses GET /v1/profile, GET /v1/applications/by-url?url=, and POST /v1/applications/capture. It needs a write token and PURSUIT_CORS_ORIGINS. It does not approve or submit.
 
 The dashboard at `/` is for a person. Agents keep using the CLI. `POST /v1/approvals/reject` declines `awaiting_review` work (approve scope) and does not submit. `GET /v1/links?attention=true` lists closed or changed postings. On Vercel, `GET /v1/cron/links` is the daily link check and it requires `Authorization: Bearer $CRON_SECRET`. `PURSUIT_TRUST_PROXY_AUTH=vercel` is for a human behind deployment protection. Agents still send a Pursuit token.

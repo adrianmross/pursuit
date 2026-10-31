@@ -1,8 +1,17 @@
-import { Download, BookOpen } from "lucide-react"
+import { BookOpen, Download, Puzzle, Terminal } from "lucide-react"
 import { EXPORT_MODE, pursuitApiAuthed } from "@/lib/pursuit-api"
 import type { Application, Page } from "@/lib/types"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import {
+  Item,
+  ItemActions,
+  ItemContent,
+  ItemDescription,
+  ItemFooter,
+  ItemGroup,
+  ItemMedia,
+  ItemTitle,
+} from "@/components/ui/item"
 import { CommandBlock } from "@/components/CommandBlock"
 import { HomeCta } from "@/components/HomeCta"
 import { HomeCtaClient } from "@/components/HomeCtaClient"
@@ -26,46 +35,56 @@ export default async function Home() {
         {cta}
       </div>
 
-      <Card size="sm">
-        <CardHeader>
-          <CardTitle>Prefer the terminal?</CardTitle>
-          <CardDescription>
-            Everything here is also a <code className="font-mono text-foreground">pursuit</code> command.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-3">
-          <CommandBlock command="pursuit list --stale" />
-          <Button variant="outline" size="sm" asChild className="self-start">
-            <a href="https://hire-pursuit.app/docs" target="_blank" rel="noopener noreferrer">
-              <BookOpen className="size-3.5" /> Read the docs
-            </a>
-          </Button>
-        </CardContent>
-      </Card>
+      <ItemGroup>
+        <Item variant="outline">
+          <ItemMedia variant="icon">
+            <Terminal />
+          </ItemMedia>
+          <ItemContent>
+            <ItemTitle>Prefer the terminal?</ItemTitle>
+            <ItemDescription>
+              Everything here is also a <code className="font-mono text-foreground">pursuit</code> command.
+            </ItemDescription>
+          </ItemContent>
+          <ItemActions>
+            <Button variant="outline" size="sm" asChild>
+              <a href="https://hire-pursuit.app/docs" target="_blank" rel="noopener noreferrer">
+                <BookOpen /> Read the docs
+              </a>
+            </Button>
+          </ItemActions>
+          <ItemFooter className="block">
+            <CommandBlock command="pursuit list --stale" />
+          </ItemFooter>
+        </Item>
 
-      <Card size="sm">
-        <CardHeader>
-          <CardTitle>Browser extension</CardTitle>
-          <CardDescription>
-            Save the posting you have open and autofill Greenhouse, Ashby, and Lever application forms from this server.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Button variant="outline" size="sm" asChild>
-            <a href="https://github.com/adrianmross/pursuit#browser-extension" target="_blank" rel="noopener noreferrer">
-              <Download className="size-3.5" /> Get the extension
-            </a>
-          </Button>
-        </CardContent>
-      </Card>
+        <Item variant="outline">
+          <ItemMedia variant="icon">
+            <Puzzle />
+          </ItemMedia>
+          <ItemContent>
+            <ItemTitle>Browser extension</ItemTitle>
+            <ItemDescription>
+              Save the posting you have open and autofill Greenhouse, Ashby, and Lever application forms from this server.
+            </ItemDescription>
+          </ItemContent>
+          <ItemActions>
+            <Button variant="outline" size="sm" asChild>
+              <a href="https://github.com/adrianmross/pursuit#browser-extension" target="_blank" rel="noopener noreferrer">
+                <Download /> Get the extension
+              </a>
+            </Button>
+          </ItemActions>
+        </Item>
+      </ItemGroup>
 
       <div className="flex flex-col gap-3">
         <h2 className="text-sm font-medium text-muted-foreground">Import existing data</h2>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <ItemGroup className="gap-2">
           {IMPORTERS.map((importer) => (
             <ImportCard key={importer.key} importer={importer} />
           ))}
-        </div>
+        </ItemGroup>
       </div>
     </div>
   )

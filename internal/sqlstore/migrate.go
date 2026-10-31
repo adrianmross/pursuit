@@ -373,4 +373,21 @@ var migrations = []migration{{
 	stmts: []string{
 		`ALTER TABLE companies ADD COLUMN icon_url TEXT NOT NULL DEFAULT ''`,
 	},
+}, {
+	version: "008",
+	stmts: []string{
+		`ALTER TABLE users ADD COLUMN avatar TEXT NOT NULL DEFAULT ''`,
+		// Documents belong to the user, not an application: the base résumé
+		// prepare attaches, a cover-letter template, a LinkedIn PDF export.
+		`CREATE TABLE IF NOT EXISTS documents (
+			id TEXT PRIMARY KEY,
+			user_id TEXT NOT NULL REFERENCES users(id),
+			kind TEXT NOT NULL,
+			filename TEXT NOT NULL DEFAULT '',
+			content_type TEXT NOT NULL DEFAULT '',
+			body TEXT NOT NULL,
+			created_at TEXT NOT NULL
+		)`,
+		`CREATE INDEX IF NOT EXISTS documents_user_idx ON documents(user_id, kind, created_at)`,
+	},
 }}

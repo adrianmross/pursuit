@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Textarea } from "@/components/ui/textarea"
 import { Button } from "@/components/ui/button"
+import { Spinner } from "@/components/ui/spinner"
 
 export function DetailNotes({
   notes,
@@ -47,6 +48,7 @@ export function DetailNotes({
         {dirty && writable && (
           <div className="flex gap-2">
             <Button size="sm" onClick={save} disabled={busy}>
+              {busy && <Spinner data-icon="inline-start" />}
               Save notes
             </Button>
             <Button size="sm" variant="ghost" onClick={() => setDraft(notes)}>

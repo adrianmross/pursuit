@@ -1,8 +1,9 @@
 "use client"
 
+import { useId } from "react"
 import { FILTERS, MORE } from "@/lib/types"
+import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 export const STATUS_OPTIONS = FILTERS.concat(MORE).filter(([value]) => value)
@@ -37,34 +38,35 @@ export function AttributesForm({
   onChange: (next: AttributesFormState) => void
   showCompany?: boolean
 }) {
+  const id = useId()
   function set<K extends keyof AttributesFormState>(key: K, v: AttributesFormState[K]) {
     onChange({ ...value, [key]: v })
   }
 
   return (
-    <div className="grid grid-cols-2 gap-3">
+    <FieldGroup className="grid grid-cols-2 gap-4">
       {showCompany && (
-        <div className="col-span-2 flex flex-col gap-1.5">
-          <Label>Company</Label>
-          <Input value={value.company} onChange={(e) => set("company", e.target.value)} required />
-        </div>
+        <Field className="col-span-2">
+          <FieldLabel htmlFor={`${id}-company`}>Company</FieldLabel>
+          <Input id={`${id}-company`} value={value.company} onChange={(e) => set("company", e.target.value)} required />
+        </Field>
       )}
-      <div className="col-span-2 flex flex-col gap-1.5">
-        <Label>Title</Label>
-        <Input value={value.title} onChange={(e) => set("title", e.target.value)} />
-      </div>
-      <div className="flex flex-col gap-1.5">
-        <Label>Location</Label>
-        <Input value={value.location} onChange={(e) => set("location", e.target.value)} />
-      </div>
-      <div className="flex flex-col gap-1.5">
-        <Label>Salary</Label>
-        <Input value={value.salary} onChange={(e) => set("salary", e.target.value)} />
-      </div>
-      <div className="flex flex-col gap-1.5">
-        <Label>Fit</Label>
+      <Field className="col-span-2">
+        <FieldLabel htmlFor={`${id}-title`}>Title</FieldLabel>
+        <Input id={`${id}-title`} value={value.title} onChange={(e) => set("title", e.target.value)} />
+      </Field>
+      <Field>
+        <FieldLabel htmlFor={`${id}-location`}>Location</FieldLabel>
+        <Input id={`${id}-location`} value={value.location} onChange={(e) => set("location", e.target.value)} />
+      </Field>
+      <Field>
+        <FieldLabel htmlFor={`${id}-salary`}>Salary</FieldLabel>
+        <Input id={`${id}-salary`} value={value.salary} onChange={(e) => set("salary", e.target.value)} />
+      </Field>
+      <Field>
+        <FieldLabel htmlFor={`${id}-fit`}>Fit</FieldLabel>
         <Select value={value.fit || "__none"} onValueChange={(v) => set("fit", v === "__none" ? "" : v)}>
-          <SelectTrigger className="w-full">
+          <SelectTrigger id={`${id}-fit`} className="w-full">
             <SelectValue placeholder="—" />
           </SelectTrigger>
           <SelectContent>
@@ -76,11 +78,11 @@ export function AttributesForm({
             ))}
           </SelectContent>
         </Select>
-      </div>
-      <div className="flex flex-col gap-1.5">
-        <Label>Status</Label>
+      </Field>
+      <Field>
+        <FieldLabel htmlFor={`${id}-status`}>Status</FieldLabel>
         <Select value={value.status} onValueChange={(v) => set("status", v)}>
-          <SelectTrigger className="w-full">
+          <SelectTrigger id={`${id}-status`} className="w-full">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -91,11 +93,11 @@ export function AttributesForm({
             ))}
           </SelectContent>
         </Select>
-      </div>
-      <div className="col-span-2 flex flex-col gap-1.5">
-        <Label>Posting URL</Label>
-        <Input value={value.posting_url} onChange={(e) => set("posting_url", e.target.value)} />
-      </div>
-    </div>
+      </Field>
+      <Field className="col-span-2">
+        <FieldLabel htmlFor={`${id}-posting`}>Posting URL</FieldLabel>
+        <Input id={`${id}-posting`} value={value.posting_url} onChange={(e) => set("posting_url", e.target.value)} />
+      </Field>
+    </FieldGroup>
   )
 }

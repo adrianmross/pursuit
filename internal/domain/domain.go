@@ -553,6 +553,8 @@ type User struct {
 	ID        string    `json:"id"`
 	Name      string    `json:"name"`
 	Email     string    `json:"email"`
+	// Avatar is a small data: URL the dashboard resizes before upload, or "".
+	Avatar    string    `json:"avatar"`
 	CreatedAt time.Time `json:"created_at"`
 }
 
