@@ -29,6 +29,7 @@ export const BINDINGS: Binding[] = [
   { id: "appStagePrev", label: "Move to the previous stage", group: "Application", combo: "[", when: "app" },
   { id: "appOutcome", label: "Set an outcome (then 1-6)", group: "Application", combo: "o", when: "app" },
   { id: "appRounds", label: "Edit every stage's rounds", group: "Application", combo: "r", when: "app" },
+  { id: "appTasks", label: "Add or tick off tasks on the current stage", group: "Application", combo: "t", when: "app" },
   { id: "appRoundAdd", label: "Add a round to the current stage", group: "Application", combo: "+|=", when: "app" },
   { id: "appRoundRemove", label: "Remove the current stage's last round", group: "Application", combo: "-", when: "app" },
   { id: "appPosting", label: "Open the posting", group: "Application", combo: "p", when: "app" },

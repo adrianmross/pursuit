@@ -63,6 +63,7 @@ export function DetailHeader({
     appStatus: write(() => setChooser("stage")),
     appOutcome: write(() => setChooser("outcome")),
     appRounds: write(() => setChooser("rounds")),
+    appTasks: write(() => setChooser("tasks")),
     appStageNext: step(1),
     appStagePrev: step(-1),
     appRoundAdd: write(() => (roundKey ? void rounds.add(roundKey, stage) : false)),

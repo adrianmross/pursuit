@@ -4,7 +4,7 @@ import { useEffect, useState } from "react"
 import { ChevronDown, Plus, Trash2 } from "lucide-react"
 import { api } from "@/lib/api-client"
 import { label, ROUND_STAGES, type Interview } from "@/lib/types"
-import { hasDetails, RoundsList, useRounds } from "@/components/Rounds"
+import { hasDetails, RoundsList, useRounds, useTasks } from "@/components/Rounds"
 import { InlineSelect, InlineText } from "@/components/InlineEdit"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -182,16 +182,19 @@ export function InterviewsCard({
   onChange: () => void
 }) {
   const [kind, setKind] = useState("")
-  const [sel, setSel] = useState(Math.max(current, 1) - 1)
+  const [sel, setSel] = useState(current)
+  const [expanded, setExpanded] = useState<number | null>(null)
   // New rounds join the stage the application is on.
   const [stage, setStage] = useState(STAGES[Math.max(current, 1) - 1][0])
   const base = `/v1/applications/${encodeURIComponent(appId)}/interviews`
   // The same rounds the status chooser edits: one list, one set of operations.
   const rounds = useRounds(appId, current, onChange)
+  const tasks = useTasks(appId, current, onChange)
   const items = rounds.list ?? []
 
   useEffect(() => {
     rounds.fetchRounds().catch(() => {})
+    tasks.fetchTasks().catch(() => {})
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [appId])
 
@@ -206,13 +209,13 @@ export function InterviewsCard({
   return (
     <Card>
       <CardHeader className="flex flex-row items-baseline justify-between">
-        <CardTitle className="text-base">Rounds</CardTitle>
+        <CardTitle className="text-base">Rounds and tasks</CardTitle>
         <span className="text-xs text-muted-foreground">{rounds.summary()}</span>
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
         {writable && (
           <div className="max-w-sm">
-            <RoundsList rounds={rounds} stage={current} sel={sel} onSelect={setSel} />
+            <RoundsList rounds={rounds} tasks={tasks} stage={current} sel={sel} onSelect={setSel} expanded={expanded} onExpand={setExpanded} />
           </div>
         )}
         {ordered.length > 0 && (

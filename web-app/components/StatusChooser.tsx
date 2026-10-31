@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils"
 import {
   label,
   OUTCOMES,
+  openTasks,
   outcomeKind,
   ROUND_STAGES,
   shown,
@@ -17,7 +18,7 @@ import {
 import { HoldIcon, OutcomePiece } from "@/components/Sketch"
 import { Kbd } from "@/components/ui/kbd"
 import { ProgressMark } from "@/components/ProgressMark"
-import { AddRoundIcon, RoundsList, useRounds } from "@/components/Rounds"
+import { AddRoundIcon, RoundsList, useRounds, useTasks } from "@/components/Rounds"
 import { Button } from "@/components/ui/button"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
@@ -240,8 +241,9 @@ const HOLDS = ["waiting", "needs_input"]
 const STOPS = ["failed", "rejected", "ghosted", "withdrawn"]
 const HOLD_NOTE: Record<string, string> = { waiting: "On them", needs_input: "On you" }
 
-export type ChooserView = "stage" | "outcome" | "steps" | "rounds"
-type View = ChooserView
+// "tasks" opens the rounds view with the current stage's tasks open.
+export type ChooserView = "stage" | "outcome" | "steps" | "rounds" | "tasks"
+type View = Exclude<ChooserView, "tasks">
 
 // Outcome, steps and rounds share one height so the popover doesn't jump
 // between them; the slider view stays small.
@@ -291,7 +293,7 @@ export function StatusChooser({
   // Without it the chooser offers no rounds.
   onRoundsChange?: () => Promise<unknown> | void
   // The view to open on, for a page shortcut straight to outcome or rounds.
-  startView?: View
+  startView?: ChooserView
   align?: "start" | "center" | "end"
   children: ReactNode
 }) {
@@ -301,9 +303,17 @@ export function StatusChooser({
   const [view, setView] = useState<View>("stage")
   // Opening resets to the start view (adjusting state on a prop change, not in an effect).
   const [wasOpen, setWasOpen] = useState(open)
+  // The row the + and - keys act on in the rounds view, and the row whose tasks are open.
+  const [sel, setSel] = useState(0)
+  const [expanded, setExpanded] = useState<number | null>(null)
+  const stage = Math.min(6, Math.max(0, app.stage ?? statusPieces(app.status)))
   if (open !== wasOpen) {
     setWasOpen(open)
-    if (open) setView(startView)
+    if (open) {
+      setView(startView === "tasks" ? "rounds" : startView)
+      setSel(stage)
+      setExpanded(startView === "tasks" ? stage : null)
+    }
   }
 
   // Keep keyboard focus inside the popover as the view changes.
@@ -311,18 +321,18 @@ export function StatusChooser({
     content.current?.querySelector<HTMLElement>(view === "stage" ? "[role=slider]" : "[data-view]")?.focus()
   }, [view])
 
-  const stage = Math.min(6, Math.max(0, app.stage ?? statusPieces(app.status)))
   const rounds = useRounds(app.id, stage, onRoundsChange)
-  // The row the + and - keys act on in the rounds view.
-  const [sel, setSel] = useState(0)
+  const tasks = useTasks(app.id, stage, onRoundsChange)
   useEffect(() => {
     if (view !== "rounds") return
     rounds.fetchRounds().catch(() => {})
+    tasks.fetchTasks().catch(() => {})
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [view, app.id])
 
-  function openRounds() {
-    setSel(Math.max(0, stage - 1))
+  function openRounds(withTasks = false) {
+    setSel(stage)
+    setExpanded(withTasks ? stage : null)
     setView("rounds")
   }
   // While a change is in flight, show where it's going.
@@ -358,6 +368,8 @@ export function StatusChooser({
 
   function onKey(e: React.KeyboardEvent) {
     if (e.metaKey || e.ctrlKey || e.altKey) return
+    // While typing a task the keys are the input's (Escape still steps back).
+    if ((e.target as HTMLElement).closest?.("input, textarea")) return
     const k = e.key.toLowerCase()
     const n = Number(e.key)
     if (k === "[" || k === "]") {
@@ -373,13 +385,18 @@ export function StatusChooser({
     // + and - add or remove a round: on the selected row in the rounds view,
     // else on the stage the application is on.
     else if ((k === "+" || k === "=" || k === "-" || k === "_") && onRoundsChange && (view === "rounds" || view === "stage")) {
-      const piece = view === "rounds" ? sel + 1 : settled
+      const piece = view === "rounds" ? sel : settled
       if (piece < 1) return
       const key = ROUND_STAGES[piece - 1][0]
       if (k === "-" || k === "_") void rounds.remove(key)
       else void rounds.add(key, piece)
     } else if (view === "rounds" && (k === "arrowdown" || k === "arrowup"))
-      setSel(Math.min(ROUND_STAGES.length - 1, Math.max(0, sel + (k === "arrowdown" ? 1 : -1))))
+      setSel(Math.min(6, Math.max(0, sel + (k === "arrowdown" ? 1 : -1))))
+    // T opens the tasks of the highlighted stage (or, from the slider, the current one).
+    else if (k === "t" && onRoundsChange) {
+      if (view === "rounds") setExpanded(expanded === sel ? null : sel)
+      else openRounds(true)
+    }
     else if (view === "outcome" && n >= 1 && n <= 6) void toggleOutcome([...HOLDS, ...STOPS][n - 1])
     else if (view === "steps" && n >= 1 && n <= SUB_STEPS.length) void set(SUB_STEPS[n - 1])
     else return
@@ -435,6 +452,7 @@ export function StatusChooser({
                       <span className="flex items-center gap-1 text-[11px] leading-4 text-muted-foreground">
                         <HoldIcon status={s} className="size-3" />
                         {HOLD_NOTE[s]}
+                        {s === "needs_input" && openTasks(app) > 0 && ` · ${openTasks(app)} task${openTasks(app) === 1 ? "" : "s"}`}
                       </span>
                     </span>
                   </button>
@@ -500,7 +518,7 @@ export function StatusChooser({
         {view === "rounds" && (
           <div data-view tabIndex={-1} className={SUB_VIEW}>
             <ViewHeader title="Rounds" sub={rounds.summary()} onBack={() => setView("stage")} />
-            <RoundsList rounds={rounds} stage={stage} sel={sel} onSelect={setSel} />
+            <RoundsList rounds={rounds} tasks={tasks} stage={stage} sel={sel} onSelect={setSel} expanded={expanded} onExpand={setExpanded} />
             <p className="mt-auto text-center text-[11px] text-muted-foreground">
               <Kbd>+</Kbd> <Kbd>−</Kbd> rounds · <Kbd>↑</Kbd> <Kbd>↓</Kbd> stage · <Kbd>Esc</Kbd> back
             </p>

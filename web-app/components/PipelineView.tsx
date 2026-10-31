@@ -35,6 +35,7 @@ import {
   CATEGORY_ORDER,
   label,
   OUTCOMES,
+  openTasks,
   SORTS,
   STAGE_STOPS,
   sourceLabel,
@@ -50,6 +51,7 @@ import { CompanyAvatar } from "@/components/CompanyAvatar"
 import { ConfirmDialog } from "@/components/ConfirmDialog"
 import { ProgressMark } from "@/components/ProgressMark"
 import { StatusBadge } from "@/components/StatusBadge"
+import { TaskIcon } from "@/components/Rounds"
 import { OutcomeChip, SectionLabel, StageHeading, StageSlider, stageTarget, StatusChooser, SubSteps } from "@/components/StatusChooser"
 import { STATUS_OPTIONS } from "@/components/AttributesForm"
 import { Button } from "@/components/ui/button"
@@ -1068,6 +1070,15 @@ export function PipelineView({ initial }: { initial: PipelineInitial | null }) {
                           </StatusChooser>
                         ) : (
                           <StatusBadge status={shown(row)} />
+                        )}
+                        {openTasks(row) > 0 && (
+                          <span
+                            className="flex items-center gap-0.5 text-[11px] tabular-nums text-muted-foreground"
+                            title={`${openTasks(row)} open task${openTasks(row) === 1 ? "" : "s"}`}
+                          >
+                            <TaskIcon done={false} className="size-3.5" />
+                            {openTasks(row)}
+                          </span>
                         )}
                         {(row.tags || []).map((tag) => (
                           <span key={tag} className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">

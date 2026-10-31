@@ -10,6 +10,8 @@ export type Application = {
   stage?: number
   // Rounds per stage number (1-6): done and total.
   interviews?: Record<string, { done: number; total: number }>
+  // Tasks per stage number (0-6): done and total.
+  tasks?: Record<string, { done: number; total: number }>
   link_status?: string
   posting_url?: string
   applied_date?: string
@@ -38,6 +40,23 @@ export type Interview = {
   prep?: string
   notes?: string
   version: number
+}
+
+// A to-do on an application, things waiting on you, optionally on a stage.
+export type Task = {
+  id: string
+  application_id: string
+  stage: string
+  title: string
+  notes?: string
+  due_at?: string
+  done_at?: string
+  version: number
+}
+
+// Open tasks across every stage.
+export function openTasks(app: Pick<Application, "tasks">) {
+  return Object.values(app.tasks ?? {}).reduce((n, c) => n + c.total - c.done, 0)
 }
 
 export type CustomField = {
