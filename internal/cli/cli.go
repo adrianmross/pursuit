@@ -68,6 +68,9 @@ type exec struct {
 	stderr io.Writer
 	client *apiclient.Client
 	cfg    config.Config
+	// tokenSource is flag, env, config, a credential storage name
+	// (file, macos-keychain, secret-service), or none.
+	tokenSource string
 }
 
 type exitError struct {
@@ -158,6 +161,14 @@ func Run(args []string, stdout, stderr io.Writer) int {
 	if g.Token != "" {
 		cfg.Token = g.Token
 	}
+	// --token, PURSUIT_TOKEN, and a config-file token always beat a stored
+	// `pursuit auth login` credential, so agent workflows are unchanged.
+	source := tokenSource(g, cfg)
+	if cfg.Token == "" && cmd.Name != "serve" {
+		if c, ok, err := config.LoadCredential(cfg.ServerURL); err == nil && ok {
+			cfg.Token, source = c.Token, c.Storage
+		}
+	}
 	jsonOut := g.JSON || !isTTY(stdout)
 	if g.Text {
 		jsonOut = false
@@ -168,7 +179,8 @@ func Run(args []string, stdout, stderr io.Writer) int {
 	e := &exec{
 		cmd: cmd, args: parsed.args, flags: parsed.flags, g: g, json: jsonOut,
 		stdout: stdout, stderr: stderr,
-		client: &apiclient.Client{BaseURL: cfg.ServerURL, Token: cfg.Token},
+		client:      &apiclient.Client{BaseURL: cfg.ServerURL, Token: cfg.Token},
+		tokenSource: source,
 	}
 	e.cfg = cfg
 	if err := cmd.Run(e); err != nil {
