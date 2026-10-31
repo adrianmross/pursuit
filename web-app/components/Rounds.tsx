@@ -28,18 +28,18 @@ export function RoundPie({ total, done, className }: { total: number; done: numb
   return (
     <svg viewBox="0 0 24 24" aria-hidden className={cn("size-5", className)}>
       {total === 1 ? (
-        <circle cx="12" cy="12" r={r} className={done ? "fill-foreground" : "fill-foreground/15"} />
+        <circle cx="12" cy="12" r={r} className={done ? "fill-piece" : "fill-piece/20"} />
       ) : (
         Array.from({ length: total }, (_, k) => (
           <path
             key={k}
             d={`M12 12 L${at(k)} A${r} ${r} 0 ${total === 2 ? 1 : 0} 1 ${at(k + 1)} Z`}
             strokeWidth="1.25"
-            className={cn("stroke-background transition-[fill]", k < done ? "fill-foreground" : "fill-foreground/15")}
+            className={cn("stroke-background transition-[fill]", k < done ? "fill-piece" : "fill-piece/20")}
           />
         ))
       )}
-      <circle cx="12" cy="12" r={r} fill="none" strokeWidth="1.25" className="stroke-foreground/40" />
+      <circle cx="12" cy="12" r={r} fill="none" strokeWidth="1.25" className="stroke-piece/40" />
     </svg>
   )
 }
