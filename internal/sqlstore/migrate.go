@@ -439,4 +439,10 @@ var migrations = []migration{{
 		)`,
 		`CREATE INDEX IF NOT EXISTS tasks_app_idx ON tasks(application_id, created_at, id)`,
 	},
+}, {
+	version: "012",
+	stmts: []string{
+		// The address a device login was started from, shown on /device.
+		`ALTER TABLE oauth_grants ADD COLUMN requested_from TEXT NOT NULL DEFAULT ''`,
+	},
 }}
