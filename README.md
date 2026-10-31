@@ -8,12 +8,12 @@ Licensed under MIT. Copyright Adrian Ross. See [LICENSE](LICENSE). Commit messag
 
 ## Quick start
 
-Requires Go 1.22.
-
 ```bash
-go build -o bin/pursuit ./cmd/pursuit
-./bin/pursuit serve
+brew install adrianmross/tap/pursuit
+pursuit serve
 ```
+
+Linux and Windows binaries, and the browser extension zip, are on [GitHub Releases](https://github.com/adrianmross/pursuit/releases). To build from source you need Go 1.26 and Node 22: `make build` builds the embedded dashboard and docs, then `bin/pursuit`.
 
 With no database URL the daemon creates `~/.local/share/pursuit/pursuit.db` and listens on `:8787`. The first start logs a bootstrap token once. Save it. It is not written to disk.
 
@@ -22,8 +22,8 @@ In `devenv shell`, `pursuit-dev` runs it through [portless](https://github.com/p
 ```bash
 export PURSUIT_TOKEN=pst_...
 export PURSUIT_SERVER=http://127.0.0.1:8787
-./bin/pursuit import seed
-./bin/pursuit list --status to_apply --fields id,company,title,status
+pursuit import seed
+pursuit list --status to_apply --fields id,company,title,status
 ```
 
 Applicant answers and the résumé file stay outside the repo:
@@ -57,7 +57,7 @@ The daemon only answers the extension when the origin is allowed:
 
 ```bash
 export PURSUIT_CORS_ORIGINS='chrome-extension://*,moz-extension://*'
-./bin/pursuit serve
+pursuit serve
 ```
 
 Use the extension's real id (`chrome-extension://<id>`) instead of the wildcard if you want a tighter list. Save job creates a `to_apply` application and dedupes on the posting URL. Autofill uses `GET /v1/profile` plus that application's prepared answers. A résumé file is not uploaded; the popup downloads the `resume_pdf` artifact when one exists.
@@ -68,12 +68,12 @@ What the extension copies from other trackers, and what it skips, is in [docs/in
 
 ```bash
 export PURSUIT_DATABASE_URL='postgres://pursuit:pursuit@127.0.0.1:5432/pursuit?sslmode=disable'
-./bin/pursuit serve
+pursuit serve
 ```
 
 Use `sslmode=require` for Neon. Two replicas can share one Postgres database. Queue claims use `SELECT ... FOR UPDATE SKIP LOCKED`. The link sweep takes a Postgres advisory lock so only one replica checks postings.
 
-`devenv up --profile postgres` starts Postgres and two replicas on ports 8787 and 8788.
+`devenv up --profile postgres` starts Postgres and two replicas on ports 8787 and 8788. `docker compose up --build` runs the same stack in Docker; `docker-compose.yml` is generated from `devenv.nix` (`devenv tasks run dev:compose`).
 
 ## Dev environment (devenv)
 
@@ -132,7 +132,7 @@ Optional: `PURSUIT_BOOTSTRAP_TOKEN` chooses the owner token created on the first
 
 The function opens Postgres on cold start and runs the same migrations the daemon runs. They are safe to run again.
 
-`vercel.json` sends every path to `api/index.go` and schedules the link check daily at 08:00 UTC. That file only calls `pkg/vercelapp`, which opens Postgres, runs migrations, and serves the embedded dashboard. Vercel compiles `api/index.go` outside this module, so it cannot import `internal/`. The dashboard files are already embedded, so the Vercel build does not need Node. `go.mod` selects Go 1.22.
+`vercel.json` sends every path to `api/index.go` and schedules the link check daily at 08:00 UTC. That file only calls `pkg/vercelapp`, which opens Postgres, runs migrations, and serves the embedded dashboard. Vercel compiles `api/index.go` outside this module, so it cannot import `internal/`. The dashboard files are already embedded, so the Vercel build does not need Node. `go.mod` selects Go 1.26.
 
 ### Seed
 
