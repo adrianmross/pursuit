@@ -90,6 +90,9 @@ jobs:
             echo "Nothing to tag (${tag})."
             exit 0
           fi
+          # An annotated tag needs a committer identity; the runner has none.
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git tag -a "$tag" -m "pursuit ${tag}"
           git push origin "$tag"
           echo "tag=${tag}" >> "$GITHUB_OUTPUT"
