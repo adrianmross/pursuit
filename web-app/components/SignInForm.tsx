@@ -120,9 +120,139 @@ function VerifyStep({
   )
 }
 
+// Forgot password: a code by email (Neon's shared sender delivers codes, not
+// links), then a new password, then a normal sign-in.
+function ResetStep({
+  initialEmail,
+  onBack,
+  onReset,
+}: {
+  initialEmail: string
+  onBack: () => void
+  onReset: (email: string, password: string) => Promise<void>
+}) {
+  const [email, setEmail] = useState(initialEmail)
+  const [sent, setSent] = useState(false)
+  const [otp, setOtp] = useState("")
+  const [password, setPassword] = useState("")
+  const [submitting, setSubmitting] = useState(false)
+  const [localError, setLocalError] = useState<string | null>(null)
+
+  async function sendCode(event?: FormEvent) {
+    event?.preventDefault()
+    if (!authClient) return
+    setSubmitting(true)
+    setLocalError(null)
+    const { error: sendError } = await authClient.emailOtp.requestPasswordReset({ email })
+    if (sendError) setLocalError(sendError.message || "Could not send the code")
+    else setSent(true)
+    setSubmitting(false)
+  }
+
+  async function onSubmit(event: FormEvent) {
+    event.preventDefault()
+    if (!authClient) return
+    setSubmitting(true)
+    setLocalError(null)
+    try {
+      const { error: resetError } = await authClient.emailOtp.resetPassword({ email, otp, password })
+      if (resetError) throw new Error(resetError.message || "That code didn't work")
+      // Resetting doesn't start a session; sign in with the new password.
+      await onReset(email, password)
+    } catch (err) {
+      setLocalError(err instanceof Error ? err.message : "That code didn't work")
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">Reset your password</CardTitle>
+        <CardDescription>
+          {sent ? `If ${email} has an account, a code is on its way.` : "We'll email you a code."}
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="pt-0">
+        {localError && <FailNote className="mb-3">{localError}</FailNote>}
+        {!sent ? (
+          <form onSubmit={sendCode}>
+            <FieldGroup className="gap-4">
+              <Field>
+                <FieldLabel htmlFor="reset-email">Email</FieldLabel>
+                <Input
+                  id="reset-email"
+                  type="email"
+                  autoComplete="email"
+                  required
+                  autoFocus
+                  value={email}
+                  onChange={(event) => setEmail(event.target.value)}
+                />
+              </Field>
+              <div className="flex w-full gap-2">
+                <Button type="button" variant="outline" onClick={onBack} className="flex-1">
+                  Back
+                </Button>
+                <Button type="submit" disabled={submitting} className="flex-1">
+                  {submitting ? "Sending…" : "Send code"}
+                </Button>
+              </div>
+            </FieldGroup>
+          </form>
+        ) : (
+          <form onSubmit={onSubmit}>
+            <FieldGroup className="gap-4">
+              <Field>
+                <FieldLabel>Code</FieldLabel>
+                <InputOTP maxLength={6} value={otp} onChange={setOtp} autoFocus>
+                  <InputOTPGroup>
+                    {Array.from({ length: 6 }, (_, i) => (
+                      <InputOTPSlot key={i} index={i} />
+                    ))}
+                  </InputOTPGroup>
+                </InputOTP>
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="new-password">New password</FieldLabel>
+                <Input
+                  id="new-password"
+                  type="password"
+                  autoComplete="new-password"
+                  required
+                  minLength={8}
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                />
+              </Field>
+              <div className="flex w-full gap-2">
+                <Button type="button" variant="outline" onClick={() => setSent(false)} className="flex-1">
+                  Back
+                </Button>
+                <Button type="submit" disabled={submitting || otp.length < 6} className="flex-1">
+                  {submitting ? "Resetting…" : "Reset and sign in"}
+                </Button>
+              </div>
+              <button
+                type="button"
+                className="text-sm text-muted-foreground underline-offset-4 hover:underline disabled:opacity-50"
+                disabled={submitting}
+                onClick={() => void sendCode()}
+              >
+                Resend code
+              </button>
+            </FieldGroup>
+          </form>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+
 function AccountSignIn() {
   const { signIn, error } = useAuth()
-  const [step, setStep] = useState<"credentials" | "verify">("credentials")
+  const [step, setStep] = useState<"credentials" | "verify" | "reset">("credentials")
   const [mode, setMode] = useState<"sign-in" | "sign-up">("sign-in")
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
@@ -172,6 +302,21 @@ function AccountSignIn() {
     }
   }
 
+  if (step === "reset") {
+    return (
+      <ResetStep
+        initialEmail={email}
+        onBack={() => setStep("credentials")}
+        onReset={async (resetEmail, newPassword) => {
+          if (!authClient) return
+          const result = await authClient.signIn.email({ email: resetEmail, password: newPassword })
+          if (result.error) throw new Error(result.error.message || "Sign-in failed")
+          await finishSignIn()
+        }}
+      />
+    )
+  }
+
   if (step === "verify") {
     return (
       <VerifyStep
@@ -210,7 +355,18 @@ function AccountSignIn() {
               />
             </Field>
             <Field>
-              <FieldLabel htmlFor="password">Password</FieldLabel>
+              <div className="flex items-center justify-between">
+                <FieldLabel htmlFor="password">Password</FieldLabel>
+                {mode === "sign-in" && (
+                  <button
+                    type="button"
+                    className="text-sm text-muted-foreground underline-offset-4 hover:underline"
+                    onClick={() => setStep("reset")}
+                  >
+                    Forgot password?
+                  </button>
+                )}
+              </div>
               <Input
                 id="password"
                 type="password"

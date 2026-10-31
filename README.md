@@ -136,6 +136,8 @@ Turn on Deployment Protection and choose Vercel Authentication so preview deploy
 
 Production finds its own public URL. With `PURSUIT_SERVER` unset, it uses `VERCEL_PROJECT_PRODUCTION_URL`, which Vercel sets to the shortest custom domain once you add one. Moving to a new domain needs no Pursuit env change. Outside Pursuit, you still update the OIDC provider's redirect URI (`https://<domain>/v1/auth/<provider>/callback`) and any Better Auth trusted origins, run `pursuit auth login` again (stored logins are per server URL), and point the extension at the new URL.
 
+With Better Auth (Neon Auth, `NEXT_PUBLIC_NEON_AUTH_URL` at build time), the dashboard's sign-in card has email and password, a verification code on first sign-in, and "Forgot password?": it emails a 6-digit code, you set a new password, and you are signed in. Codes work with Neon's shared sender; nothing extra to configure. Passkeys are not available: managed Neon Auth does not expose the passkey plugin.
+
 ### Environment
 
 | Name | Required | Value |
