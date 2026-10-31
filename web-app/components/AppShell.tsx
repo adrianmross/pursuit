@@ -11,7 +11,7 @@ import { CommandPalette } from "@/components/CommandPalette"
 import { SettingsDialog } from "@/components/SettingsDialog"
 import { SiteFooter } from "@/components/SiteFooter"
 import { UserAvatar, displayName } from "@/components/UserAvatar"
-import { ProfileNudge } from "@/components/settings/ProfilePanel"
+import { ProfileNudge } from "@/components/profile/ProfilePage"
 import { Button } from "@/components/ui/button"
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group"
 import {
@@ -131,8 +131,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               <DropdownMenuItem onClick={() => router.push("/?archived=1")}>
                 <Archive /> View archived
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => openSettings("profile")}>
-                <IdCard /> Profile &amp; documents
+              <DropdownMenuItem onClick={() => router.push("/profile")}>
+                <IdCard /> Profile
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => openSettings()}>
                 <Settings /> Settings
@@ -146,7 +146,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </div>
       </header>
       <main className="flex-1 p-4">
-        <ProfileNudge onOpen={() => openSettings("profile")} />
+        <ProfileNudge onOpen={() => router.push("/profile")} />
         {children}
       </main>
       <SiteFooter />

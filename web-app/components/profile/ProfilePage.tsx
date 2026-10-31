@@ -1,8 +1,8 @@
 "use client"
 
-import { useEffect, useState, type FormEvent } from "react"
+import { useEffect, useState, type FormEvent, type ReactNode } from "react"
 import { usePathname } from "next/navigation"
-import { Bot, Check, ChevronDown, Copy, Eye, Plus, Sparkles, Trash2, X } from "lucide-react"
+import { Bot, Check, ChevronDown, Copy, Eye, Link2, Plus, Sparkles, Trash2, X } from "lucide-react"
 import { api } from "@/lib/api-client"
 import { useAuth } from "@/lib/auth"
 import { cn } from "@/lib/utils"
@@ -10,41 +10,47 @@ import type { Document, Page, StandingAnswer } from "@/lib/types"
 import { Alert, AlertAction, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Spinner } from "@/components/ui/spinner"
 import { ButtonGroup } from "@/components/ui/button-group"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { FileDrop } from "@/components/FileDrop"
 import { FileIcon, FilePreview, isTextType } from "@/components/FilePreview"
-import { Field, FieldDescription, FieldGroup, FieldLabel, FieldLegend, FieldSeparator, FieldSet } from "@/components/ui/field"
+import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput, InputGroupTextarea } from "@/components/ui/input-group"
 import { Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemMedia, ItemTitle } from "@/components/ui/item"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 
-// The keys prepare matches by alias (service.matchStanding). Any other key
-// only fills a form question whose normalized wording equals it.
-type Kind = "email" | "url" | "yesno" | "long"
-const GROUPS: Record<string, [key: string, label: string, kind?: Kind][]> = {
-  Contact: [
+// Keys prepare fills: the exact normalized wording of a form question, or
+// one of service.matchStanding's aliases (email, phone, linkedin, ...).
+type Kind = "email" | "yesno" | "long"
+const FIELDS: Record<"contact" | "eligibility" | "letter", [key: string, label: string, kind?: Kind][]> = {
+  contact: [
+    ["first_name", "First name"],
+    ["last_name", "Last name"],
     ["email", "Email", "email"],
     ["phone", "Phone"],
+    ["location", "Location"],
     ["pronouns", "Pronouns"],
   ],
-  Links: [
-    ["linkedin", "LinkedIn", "url"],
-    ["github", "GitHub", "url"],
-    ["website", "Website", "url"],
-  ],
-  Eligibility: [
+  eligibility: [
     ["work_authorization", "Are you authorized to work in the country of the role?", "yesno"],
     ["visa_sponsorship", "Will you now or in the future require visa sponsorship?", "yesno"],
   ],
-  "Cover letter": [["cover_letter", "Default cover letter", "long"]],
+  letter: [["cover_letter", "Default cover letter", "long"]],
 }
+
+// Answers shown under Links: these keys, plus any answer that is a URL.
+const LINK_KEYS = new Set(["linkedin", "github", "gitlab", "website", "portfolio", "x", "twitter", "dribbble", "behance", "medium", "stackoverflow"])
+const LINK_SUGGESTIONS: [key: string, label: string][] = [
+  ["linkedin", "LinkedIn"],
+  ["github", "GitHub"],
+  ["website", "Website"],
+  ["portfolio", "Portfolio"],
+  ["twitter", "Twitter"],
+]
 
 const KINDS: Record<string, string> = { base_resume: "Base résumé", cover_letter: "Cover letter", other: "Other" }
-
-function Status({ ok, text }: { ok: boolean; text: string }) {
-  return text ? <p className={cn("text-sm", ok ? "text-emerald-600 dark:text-emerald-400" : "text-destructive")}>{text}</p> : null
-}
 
 function useList<T>(path: string) {
   const [rows, setRows] = useState<T[] | null>(null)
@@ -68,12 +74,11 @@ function Documents() {
   const active = docs?.find((d) => d.kind === "base_resume")?.id
 
   return (
-    <FieldSet>
-      <FieldLegend>Documents</FieldLegend>
-      <FieldDescription>
+    <div className="flex flex-col gap-3">
+      <p className="text-sm text-muted-foreground">
         The newest base résumé is attached to every application you prepare. Tailored versions for one application go
         on that application.
-      </FieldDescription>
+      </p>
       <FileDrop
         path="/v1/documents"
         kinds={KINDS}
@@ -111,7 +116,7 @@ function Documents() {
           ))}
         </ItemGroup>
       )}
-    </FieldSet>
+    </div>
   )
 }
 
@@ -120,7 +125,7 @@ const AGENT_PROMPT = `Fill in my Pursuit profile from my résumé.
 1. Run \`pursuit standing list\` to see what is already saved. Don't overwrite an answer without asking me.
 2. Get my résumé: \`pursuit documents list\`, then \`pursuit documents get <id>\` for the newest base_resume (the body is base64).
 3. Save what the résumé states with \`pursuit standing set --key <key> --value <answer>\` for these keys:
-   email, phone, linkedin, github, website, pronouns
+   first_name, last_name, email, phone, location, pronouns, linkedin, github, website (plus any other profile links, keyed by their name, e.g. portfolio)
 4. Ask me, don't infer, for: work_authorization (Yes/No), visa_sponsorship (Yes/No), and anything about salary or start date.
 5. Draft a short default cover letter (4-6 sentences, no buzzwords) from my most recent role, show it to me, and save it as cover_letter once I approve.
 6. Finish with \`pursuit list --status needs_input --fields id,company,title\` and ask me the unanswered questions on those applications, saving each answer with the question's wording as the key.`
@@ -198,18 +203,43 @@ function AgentPrompt() {
 
 type Draft = Record<string, string>
 
-function Answers() {
+const isLink = (key: string, value: string) => LINK_KEYS.has(key) || /^https?:\/\//i.test(value.trim())
+
+const LINK_NAMES: Record<string, string> = { linkedin: "LinkedIn", github: "GitHub", gitlab: "GitLab", x: "X", twitter: "X / Twitter" }
+const linkName = (key: string) => LINK_NAMES[key] || key.replaceAll("_", " ").replace(/^./, (c) => c.toUpperCase())
+
+function Section({ id, title, description, children }: { id: string; title: string; description?: ReactNode; children: ReactNode }) {
+  return (
+    <Card id={id} className="scroll-mt-20">
+      <CardHeader>
+        <CardTitle className="text-base">{title}</CardTitle>
+        {description && <CardDescription>{description}</CardDescription>}
+      </CardHeader>
+      <CardContent>{children}</CardContent>
+    </Card>
+  )
+}
+
+function ProfileForm() {
   const { rows, load } = useList<StandingAnswer>("/v1/standing")
   const [draft, setDraft] = useState<Draft>({})
+  const [newLink, setNewLink] = useState({ label: "", url: "" })
   const [custom, setCustom] = useState({ key: "", answer: "" })
   const [msg, setMsg] = useState({ ok: true, text: "" })
+  const [saving, setSaving] = useState(false)
   if (!rows) return null
 
   const saved: Draft = Object.fromEntries(rows.map((r) => [r.key, r.answer]))
   const value = (k: string) => draft[k] ?? saved[k] ?? ""
   const set = (k: string) => (v: string) => setDraft({ ...draft, [k]: v })
-  const known = new Set(Object.values(GROUPS).flat().map(([k]) => k))
-  const others = rows.filter((r) => !known.has(r.key))
+  const fixed = new Set(Object.values(FIELDS).flat().map(([k]) => k))
+  const links = rows.filter((r) => !fixed.has(r.key) && isLink(r.key, r.answer))
+  const others = rows.filter((r) => !fixed.has(r.key) && !isLink(r.key, r.answer))
+  const suggestions = LINK_SUGGESTIONS.filter(([k]) => !(k in saved))
+
+  const pending = Object.entries(draft).filter(([k, v]) => v.trim() && v !== saved[k])
+  if (newLink.label.trim() && newLink.url.trim()) pending.push([newLink.label, newLink.url])
+  if (custom.key.trim() && custom.answer.trim()) pending.push([custom.key, custom.answer])
 
   async function remove(key: string) {
     try {
@@ -222,25 +252,27 @@ function Answers() {
     }
   }
 
-  async function save(event: FormEvent) {
-    event.preventDefault()
-    const changed = Object.entries(draft).filter(([k, v]) => v.trim() && v !== saved[k])
-    if (custom.key.trim() && custom.answer.trim()) changed.push([custom.key, custom.answer])
+  async function save(event?: FormEvent) {
+    event?.preventDefault()
+    setSaving(true)
     try {
-      for (const [key, answer] of changed) await api("/v1/standing", { method: "POST", body: { key, answer } })
+      for (const [key, answer] of pending) await api("/v1/standing", { method: "POST", body: { key, answer } })
       setDraft({})
+      setNewLink({ label: "", url: "" })
       setCustom({ key: "", answer: "" })
       await load()
-      setMsg({ ok: true, text: changed.length ? "Saved." : "Nothing changed." })
+      setMsg({ ok: true, text: "Saved." })
     } catch (err) {
       setMsg({ ok: false, text: err instanceof Error ? err.message : "Could not save" })
+    } finally {
+      setSaving(false)
     }
   }
 
-  const clear = (k: string, align: "inline-end" | "block-end" = "inline-end") =>
+  const trash = (k: string, label: string) =>
     k in saved && (
-      <InputGroupAddon align={align}>
-        <InputGroupButton size="icon-xs" aria-label={`Delete saved answer for ${k}`} onClick={() => void remove(k)}>
+      <InputGroupAddon align="inline-end">
+        <InputGroupButton size="icon-xs" aria-label={`Delete ${label}`} onClick={() => void remove(k)}>
           <Trash2 />
         </InputGroupButton>
       </InputGroupAddon>
@@ -264,7 +296,7 @@ function Answers() {
               ))}
             </RadioGroup>
             {k in saved && (
-              <Button type="button" size="icon-xs" variant="ghost" aria-label={`Delete saved answer for ${k}`} onClick={() => void remove(k)}>
+              <Button type="button" size="icon-xs" variant="ghost" aria-label={`Delete ${label}`} onClick={() => void remove(k)}>
                 <Trash2 />
               </Button>
             )}
@@ -276,67 +308,135 @@ function Answers() {
         <FieldLabel htmlFor={id}>{label}</FieldLabel>
         <InputGroup>
           {kind === "long" ? (
-            <InputGroupTextarea id={id} rows={6} value={value(k)} onChange={(e) => set(k)(e.target.value)} />
+            <InputGroupTextarea id={id} rows={8} value={value(k)} onChange={(e) => set(k)(e.target.value)} />
           ) : (
-            <InputGroupInput id={id} type={kind === "url" ? "url" : kind === "email" ? "email" : "text"} value={value(k)} onChange={(e) => set(k)(e.target.value)} />
+            <InputGroupInput id={id} type={kind === "email" ? "email" : "text"} value={value(k)} onChange={(e) => set(k)(e.target.value)} />
           )}
-          {clear(k, kind === "long" ? "block-end" : "inline-end")}
+          {trash(k, label)}
         </InputGroup>
       </Field>
     )
   }
 
   return (
-    <form onSubmit={save}>
-      <FieldGroup>
-        <FieldSet>
-          <FieldLegend>Standing answers</FieldLegend>
-          <FieldDescription>Prepare fills application forms from these.</FieldDescription>
-        </FieldSet>
-        {Object.entries(GROUPS).map(([legend, fields]) => (
-          <FieldSet key={legend}>
-            <FieldLegend variant="label">{legend}</FieldLegend>
-            <FieldGroup className={fields.length > 2 ? "grid gap-4 sm:grid-cols-2" : undefined}>
-              {fields.map(([k, label, kind]) => field(k, label, kind))}
-            </FieldGroup>
-          </FieldSet>
-        ))}
-        <FieldSeparator />
-        <FieldSet>
-          <FieldLegend variant="label">Other answers</FieldLegend>
-          <FieldDescription>
-            Each fills a form question with the same wording. Answers you give on an application land here.
-          </FieldDescription>
-          <FieldGroup>
-            {others.map((r) => field(r.key, r.key.replaceAll("_", " "), r.answer.length > 120 ? "long" : undefined))}
+    <form onSubmit={save} className="flex flex-col gap-4">
+      <Section id="contact" title="Personal details" description="Name and contact details forms ask for first.">
+        <FieldGroup>{FIELDS.contact.map(([k, label, kind]) => field(k, label, kind))}</FieldGroup>
+      </Section>
+
+      <Section id="links" title="Links" description="Any profile or site. Each fills a form question with the same name, so a link labelled Portfolio answers “Portfolio”.">
+        <FieldGroup>
+          {links.length > 0 && (
+            <ItemGroup className="gap-2">
+              {links.map((r) => (
+                <Field key={r.key}>
+                  <FieldLabel htmlFor={"standing-" + r.key}>{linkName(r.key)}</FieldLabel>
+                  <InputGroup>
+                    <InputGroupAddon>
+                      <Link2 />
+                    </InputGroupAddon>
+                    <InputGroupInput id={"standing-" + r.key} type="url" value={value(r.key)} onChange={(e) => set(r.key)(e.target.value)} />
+                    {trash(r.key, linkName(r.key))}
+                  </InputGroup>
+                </Field>
+              ))}
+            </ItemGroup>
+          )}
+          <Field>
+            <FieldLabel htmlFor="new-link-label">Add a link</FieldLabel>
             <ButtonGroup className="w-full">
+              <InputGroup className="w-40 shrink-0">
+                <InputGroupInput id="new-link-label" placeholder="Label" value={newLink.label} onChange={(e) => setNewLink({ ...newLink, label: e.target.value })} />
+              </InputGroup>
               <InputGroup className="flex-1">
-                <InputGroupInput aria-label="New question" placeholder="Question" value={custom.key} onChange={(e) => setCustom({ ...custom, key: e.target.value })} />
+                <InputGroupInput aria-label="URL" type="url" placeholder="https://" value={newLink.url} onChange={(e) => setNewLink({ ...newLink, url: e.target.value })} />
               </InputGroup>
-              <InputGroup className="flex-[2]">
-                <InputGroupInput aria-label="Answer" placeholder="Answer" value={custom.answer} onChange={(e) => setCustom({ ...custom, answer: e.target.value })} />
-              </InputGroup>
-              <Button type="submit" variant="outline" aria-label="Add answer" disabled={!custom.key.trim() || !custom.answer.trim()}>
+              <Button type="submit" variant="outline" aria-label="Add link" disabled={!newLink.label.trim() || !newLink.url.trim()}>
                 <Plus />
               </Button>
             </ButtonGroup>
-          </FieldGroup>
-        </FieldSet>
-        <Field orientation="horizontal">
-          <Button type="submit">Save answers</Button>
-          <Status {...msg} />
-        </Field>
-      </FieldGroup>
+            {suggestions.length > 0 && (
+              <div className="flex flex-wrap gap-1.5">
+                {suggestions.map(([k, label]) => (
+                  <Button key={k} type="button" size="xs" variant="outline" onClick={() => setNewLink({ label, url: newLink.url })}>
+                    <Plus /> {label}
+                  </Button>
+                ))}
+              </div>
+            )}
+          </Field>
+        </FieldGroup>
+      </Section>
+
+      <Section id="eligibility" title="Work eligibility">
+        <FieldGroup>{FIELDS.eligibility.map(([k, label, kind]) => field(k, label, kind))}</FieldGroup>
+      </Section>
+
+      <Section id="cover-letter" title="Cover letter" description="Attached when a form asks for one and no tailored letter is on the application.">
+        <FieldGroup>{FIELDS.letter.map(([k, label, kind]) => field(k, label, kind))}</FieldGroup>
+      </Section>
+
+      <Section id="answers" title="Other answers" description="Each fills a form question with the same wording. Answers you give on an application land here.">
+        <FieldGroup>
+          {others.map((r) => field(r.key, r.key.replaceAll("_", " ").replace(/^./, (c) => c.toUpperCase()), r.answer.length > 120 ? "long" : undefined))}
+          <Field>
+            <FieldLabel htmlFor="new-question">Add an answer</FieldLabel>
+            <FieldGroup className="gap-2">
+              <InputGroup>
+                <InputGroupInput id="new-question" placeholder="Question, e.g. Why do you want to work here?" value={custom.key} onChange={(e) => setCustom({ ...custom, key: e.target.value })} />
+              </InputGroup>
+              <InputGroup>
+                <InputGroupTextarea aria-label="Answer" rows={3} placeholder="Answer" value={custom.answer} onChange={(e) => setCustom({ ...custom, answer: e.target.value })} />
+              </InputGroup>
+            </FieldGroup>
+          </Field>
+        </FieldGroup>
+      </Section>
+
+      {(pending.length > 0 || msg.text) && (
+        <div className="sticky bottom-4 z-10 flex items-center gap-3 rounded-lg border bg-background/95 px-4 py-2 shadow-sm backdrop-blur">
+          <p className={cn("flex-1 text-sm", !msg.ok && "text-destructive")}>
+            {pending.length ? `${pending.length} unsaved ${pending.length === 1 ? "change" : "changes"}` : msg.text}
+          </p>
+          {pending.length > 0 && (
+            <>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setDraft({})
+                  setNewLink({ label: "", url: "" })
+                  setCustom({ key: "", answer: "" })
+                }}
+              >
+                Discard
+              </Button>
+              <Button type="submit" size="sm" disabled={saving}>
+                {saving && <Spinner />} Save
+              </Button>
+            </>
+          )}
+        </div>
+      )}
     </form>
   )
 }
 
-export function ProfilePanel() {
+export function ProfilePage() {
   return (
-    <div className="flex flex-col gap-8">
-      <Documents />
+    <div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
+      <div>
+        <h1 className="text-xl font-semibold">Profile</h1>
+        <p className="text-sm text-muted-foreground">
+          What prepare uses to fill in applications. Your name, photo, and sign-in live under Settings → Account.
+        </p>
+      </div>
       <AgentPrompt />
-      <Answers />
+      <Section id="documents" title="Documents">
+        <Documents />
+      </Section>
+      <ProfileForm />
     </div>
   )
 }

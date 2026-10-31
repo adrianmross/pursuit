@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
-import { Archive, ListChecks, LogOut, Plus } from "lucide-react"
+import { Archive, IdCard, ListChecks, LogOut, Plus } from "lucide-react"
 import { SECTION_LINKS } from "@/components/SettingsDialog"
 import { api } from "@/lib/api-client"
 import { useAuth } from "@/lib/auth"
@@ -46,6 +46,9 @@ export function CommandPalette({ onOpenSettings }: { onOpenSettings: (section: s
       <CommandList>
         <CommandEmpty>No matches.</CommandEmpty>
         <CommandGroup heading="Actions">
+          <CommandItem onSelect={() => go(() => router.push("/profile"))}>
+            <IdCard /> Profile
+          </CommandItem>
           <CommandItem onSelect={() => go(() => router.push("/app/new"))}>
             <Plus /> Add application
           </CommandItem>

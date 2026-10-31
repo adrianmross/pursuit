@@ -36,7 +36,7 @@ export PURSUIT_CONTACT_EMAIL=you@example.com
 
 `profile.json` is `{"answers": {"email": "...", "work_authorization": "..."}}`. Keys match form questions after lowercasing and turning other characters into underscores (`why_us`, `cover_letter`).
 
-On a server with no local disk (Vercel), upload the résumé instead. Prepare attaches the newest `base_resume` document and only falls back to `PURSUIT_RESUME_FILE`. The dashboard does the same under Settings → Profile.
+On a server with no local disk (Vercel), upload the résumé instead. Prepare attaches the newest `base_resume` document and only falls back to `PURSUIT_RESUME_FILE`. The dashboard does the same on its Profile page.
 
 ```bash
 pursuit documents add --kind base_resume --file resume.pdf
