@@ -27,6 +27,8 @@ pursuit auth logout
 
 On a deployment with account sign-in (Neon Auth), "Forgot password?" on the sign-in card emails a 6-digit code; enter it with a new password and you are signed in.
 
+Passkeys are off until the server sets `PURSUIT_WEBAUTHN_RP_ID` (the domain, `localhost` for a local `pursuit serve`) and, if the dashboard is not at `PURSUIT_SERVER`, `PURSUIT_WEBAUTHN_ORIGINS` (for example `http://localhost:8787`). Then add one while signed in under Settings, Account, Passkeys, and use "Sign in with a passkey" next time. A passkey signs in an account that already exists; your password or token stays the way back in if you lose the device.
+
 To hand Pursuit to a coding agent, open Connect an agent (`/agents`) in the dashboard. It has a prompt to paste (the agent installs the CLI and starts a device login, with no token in the prompt), the Agent Skill (served at `GET /skill.md`; `npx skills add adrianmross/pursuit --skill pursuit`), and a `read,write` token for headless agents.
 
 Agents can also get a `read` or `read,write` token from a human; the server's `GET /auth.md` ([AUTH.md](https://github.com/adrianmross/pursuit/blob/main/internal/spec/auth.md)) explains tokens, scopes, and approval.

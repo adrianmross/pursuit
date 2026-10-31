@@ -1,6 +1,8 @@
 # Passkeys plan: passkey sign-in for the hosted dashboard
 
-Plan only. Nothing here is built. Today the dashboard at `https://hirepursuit.app` signs in through Neon's Managed Better Auth (Neon Auth, project `broad-poetry-45560961`) with email and password, email OTP verification, and password reset by code. Managed Neon Auth does not offer passkeys, so passkeys need either a different auth server, pursuit's own WebAuthn, or waiting.
+**Status: built (option b).** Native WebAuthn in the Go server with `go-webauthn` v0.18.2, decisions D1 to D7 taken as recommended, with these differences from the plan below: registration and management live under `/v1/passkeys` (`/v1/auth/*` is unauthenticated), the challenge row is keyed by the challenge itself, the credential is stored as go-webauthn's JSON record rather than one column per field, a passkey login token is named `login` (so sign-out revokes it; the audit entry records `via: passkey`), and rename, conditional UI and "sign out other pursuit sessions" are not built yet. Owner recovery SQL is in `internal/spec/auth.md`.
+
+The original plan follows. Before this, the dashboard at `https://hirepursuit.app` signs in through Neon's Managed Better Auth (Neon Auth, project `broad-poetry-45560961`) with email and password, email OTP verification, and password reset by code. Managed Neon Auth does not offer passkeys, so passkeys need either a different auth server, pursuit's own WebAuthn, or waiting.
 
 Facts about Neon, Better Auth and the Go library were checked on 2026-10-31. Each one has a link. These change often, so re-check before building a phase.
 

@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/go-webauthn/webauthn/webauthn"
 	"github.com/google/uuid"
 
 	"github.com/pursuit/pursuit/internal/auth"
@@ -27,6 +28,8 @@ type Service struct {
 	ResumeFile string
 	// Hooks is invoked after an event is stored. It must not block the caller for long.
 	Hooks func(userID string, ev domain.Event)
+	// WebAuthn is nil unless passkeys are configured (NewWebAuthn).
+	WebAuthn *webauthn.WebAuthn
 }
 
 func New(db *sqlstore.Store) *Service {
@@ -270,29 +273,40 @@ func (s *Service) LoginIdentity(ctx context.Context, email, name string, allowCr
 		} else if err != nil {
 			return err
 		}
-		scopes, err := auth.NormalizeScopes([]string{"read", "write", "approve"})
-		if err != nil {
-			return err
-		}
-		raw, prefix, hash, err := auth.Generate()
-		if err != nil {
-			return err
-		}
-		tok := domain.Token{
-			ID: s.NewID(), UserID: user.ID, Name: LoginTokenName, Hash: hash,
-			Prefix: prefix, Scopes: scopes, CreatedAt: s.now(),
-		}
-		if err := s.DB.CreateToken(ctx, tok); err != nil {
-			return err
-		}
-		actor := domain.Actor{UserID: user.ID, TokenID: tok.ID, Name: tok.Name, Scopes: scopes}
-		if err := s.audit(domain.WithActor(ctx, actor), actor, "token.create", "token", tok.ID, "oidc login token", map[string]any{"prefix": tok.Prefix}); err != nil {
-			return err
-		}
-		secret = raw
-		return nil
+		secret, err = s.mintLogin(ctx, user.ID, "oidc login token", nil)
+		return err
 	})
 	return secret, err
+}
+
+// mintLogin creates a dashboard session token (named LoginTokenName, so
+// sign-out revokes it) for userID and audits it. meta adds to the audit
+// entry, for example where the sign-in came from.
+func (s *Service) mintLogin(ctx context.Context, userID, summary string, meta map[string]any) (string, error) {
+	scopes, err := auth.NormalizeScopes([]string{"read", "write", "approve"})
+	if err != nil {
+		return "", err
+	}
+	raw, prefix, hash, err := auth.Generate()
+	if err != nil {
+		return "", err
+	}
+	tok := domain.Token{
+		ID: s.NewID(), UserID: userID, Name: LoginTokenName, Hash: hash,
+		Prefix: prefix, Scopes: scopes, CreatedAt: s.now(),
+	}
+	if err := s.DB.CreateToken(ctx, tok); err != nil {
+		return "", err
+	}
+	actor := domain.Actor{UserID: userID, TokenID: tok.ID, Name: tok.Name, Scopes: scopes}
+	m := map[string]any{"prefix": tok.Prefix}
+	for k, v := range meta {
+		m[k] = v
+	}
+	if err := s.audit(domain.WithActor(ctx, actor), actor, "token.create", "token", tok.ID, summary, m); err != nil {
+		return "", err
+	}
+	return raw, nil
 }
 
 type TokenInput struct {

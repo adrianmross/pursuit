@@ -14,6 +14,8 @@ import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp
 import { SnakeEyes } from "@/components/Sketch"
 import { ThemeToggle } from "@/components/ThemeToggle"
 import { cn } from "@/lib/utils"
+import { passkeyError, passkeysUsable, signInWithPasskey } from "@/lib/passkeys"
+import { Fingerprint } from "lucide-react"
 
 // A failed sign-in step: the message beside a sketched bad roll.
 function FailNote({ className, children }: { className?: string; children: React.ReactNode }) {
@@ -380,6 +382,7 @@ function AccountSignIn() {
             <Button type="submit" disabled={submitting}>
               {mode === "sign-up" ? "Create account" : "Sign in"}
             </Button>
+            {mode === "sign-in" && <PasskeySignIn />}
             {(signupsOpen || mode === "sign-up") && (
               <button
                 type="button"
@@ -477,6 +480,46 @@ function TryDemo() {
   )
 }
 
+// Shown only when the server has passkeys on and the browser can use them.
+// Usernameless: the device offers its passkeys for this site.
+function PasskeySignIn() {
+  const { refresh } = useAuth()
+  const [enabled, setEnabled] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
+  const [localError, setLocalError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!passkeysUsable()) return
+    api<{ passkeys?: boolean }>("/v1/auth/providers")
+      .then((result) => setEnabled(result.passkeys === true))
+      .catch(() => {})
+  }, [])
+
+  async function onClick() {
+    setSubmitting(true)
+    setLocalError(null)
+    try {
+      await signInWithPasskey()
+      await refresh()
+    } catch (err) {
+      setLocalError(passkeyError(err, "Passkey sign-in failed"))
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  if (!enabled) return null
+  return (
+    <div className="flex flex-col gap-2">
+      {localError && <FailNote>{localError}</FailNote>}
+      <Button type="button" variant="outline" disabled={submitting} onClick={onClick}>
+        <Fingerprint />
+        {submitting ? "Waiting for your passkey…" : "Sign in with a passkey"}
+      </Button>
+    </div>
+  )
+}
+
 function ContinueAsOwner() {
   const { continueAsOwner } = useAuth()
   const [submitting, setSubmitting] = useState(false)
@@ -536,7 +579,7 @@ export function SignInForm({
         </div>
         {proxySignedOut && <ContinueAsOwner />}
         {demoAvailable && <TryDemo />}
-        {authClient && <AccountSignIn />}
+        {authClient ? <AccountSignIn /> : <PasskeySignIn />}
         {allowTokenLogin && <TokenSignIn />}
       </div>
     </div>

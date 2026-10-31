@@ -18,6 +18,7 @@ import { Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemMedia, 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Spinner } from "@/components/ui/spinner"
+import { PasskeysSection } from "@/components/settings/PasskeysSection"
 
 // Better Auth's default minPasswordLength; Neon Auth doesn't change it.
 const MIN_PASSWORD = 8
@@ -423,6 +424,7 @@ export function AccountPanel() {
     <div className="flex flex-col gap-4">
       <ProfileCard mode={mode} />
       {mode === "account" ? <SecurityCard /> : <NoAccountCard mode={mode} />}
+      <PasskeysSection />
       <Card>
         <CardHeader>
           <CardTitle>Sign out</CardTitle>
