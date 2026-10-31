@@ -2,8 +2,12 @@ package httpapi
 
 import (
 	"errors"
+	"mime"
 	"net/http"
+	"net/url"
 	"strings"
+
+	"github.com/pursuit/pursuit/internal/domain"
 
 	"github.com/pursuit/pursuit/internal/service"
 )
@@ -16,9 +20,13 @@ import (
 //   POST /v1/auth/revoke                RFC 7009
 //
 // Authenticated with the dashboard session (approve scope), JSON:
+//   GET  /v1/oauth/authorize?...        validate a loopback request for the page
 //   POST /v1/oauth/authorize            loopback consent; returns redirect_to
 //   GET  /v1/oauth/device?user_code=    what a device code is asking for
 //   POST /v1/oauth/device/approve       approve or deny a device code
+//
+// The /v1/oauth POSTs also require JSON and a same-origin browser
+// (Sec-Fetch-Site or Origin), so another site can't submit them.
 //
 // The authorize URL the CLI opens is the dashboard page /authorize, which
 // signs the human in and calls POST /v1/oauth/authorize.
@@ -27,6 +35,7 @@ func (s *Server) registerOAuth(mux *http.ServeMux) {
 	mux.HandleFunc("POST /v1/auth/device_authorization", s.oauthDeviceAuthorization)
 	mux.HandleFunc("POST /v1/auth/token", s.oauthToken)
 	mux.HandleFunc("POST /v1/auth/revoke", s.oauthRevoke)
+	mux.HandleFunc("GET /v1/oauth/authorize", s.oauthAuthorizeCheck)
 	mux.HandleFunc("POST /v1/oauth/authorize", s.oauthAuthorize)
 	mux.HandleFunc("GET /v1/oauth/device", s.oauthDeviceLookup)
 	mux.HandleFunc("POST /v1/oauth/device/approve", s.oauthDeviceApprove)
@@ -57,6 +66,12 @@ func writeOAuthErr(w http.ResponseWriter, err error) {
 }
 
 func (s *Server) oauthDeviceAuthorization(w http.ResponseWriter, r *http.Request) {
+	if !s.deviceLimiterFor().allow(clientIP(r)) {
+		w.Header().Set("Retry-After", "60")
+		w.Header().Set("Cache-Control", "no-store")
+		writeJSON(w, http.StatusTooManyRequests, &service.OAuthError{Code: "slow_down", Description: "too many device logins from this address; wait a minute"})
+		return
+	}
 	if !s.oauthForm(w, r) {
 		return
 	}
@@ -117,7 +132,45 @@ func (s *Server) logOAuth(endpoint string, err error) {
 	s.log().Error("oauth", "endpoint", endpoint, "err", err.Error())
 }
 
+// sameOriginJSON is the CSRF guard for the consent POSTs: a JSON body
+// (not a simple form/text request), from this origin.
+func sameOriginJSON(r *http.Request) error {
+	if mt, _, err := mime.ParseMediaType(r.Header.Get("Content-Type")); err != nil || mt != "application/json" {
+		return domain.Validation("Content-Type must be application/json")
+	}
+	if r.Header.Get("Sec-Fetch-Site") == "same-origin" {
+		return nil
+	}
+	if o := r.Header.Get("Origin"); o != "" {
+		if u, err := url.Parse(o); err == nil && strings.EqualFold(u.Host, r.Host) {
+			return nil
+		}
+	}
+	return &domain.Error{Code: "forbidden", Message: "cross-origin request refused", Hint: "approve from the dashboard page itself", Status: 403}
+}
+
+func (s *Server) oauthAuthorizeCheck(w http.ResponseWriter, r *http.Request) {
+	q, err := query(r, "response_type", "client_id", "redirect_uri", "code_challenge", "code_challenge_method", "state", "scope")
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	out, err := s.Svc.OAuthAuthorizeCheck(r.Context(), service.AuthorizeInput{
+		ClientID: first(q, "client_id"), RedirectURI: first(q, "redirect_uri"), CodeChallenge: first(q, "code_challenge"),
+		CodeChallengeMethod: first(q, "code_challenge_method"), State: first(q, "state"), Scope: first(q, "scope"),
+	})
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	writeJSON(w, 200, out)
+}
+
 func (s *Server) oauthAuthorize(w http.ResponseWriter, r *http.Request) {
+	if err := sameOriginJSON(r); err != nil {
+		writeErr(w, err)
+		return
+	}
 	body, ok := s.read(w, r)
 	if !ok {
 		return
@@ -150,6 +203,10 @@ func (s *Server) oauthDeviceLookup(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) oauthDeviceApprove(w http.ResponseWriter, r *http.Request) {
+	if err := sameOriginJSON(r); err != nil {
+		writeErr(w, err)
+		return
+	}
 	body, ok := s.read(w, r)
 	if !ok {
 		return

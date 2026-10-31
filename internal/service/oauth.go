@@ -47,14 +47,51 @@ type OAuthToken struct {
 	Scope       string `json:"scope"`
 }
 
-// ParseOAuthScopes accepts space- or comma-separated scopes. Empty means
-// read and write: approve is only ever granted when asked for by name.
+// ParseOAuthScopes accepts space- or comma-separated scopes, each exactly
+// "read" or "write" (case-sensitive). Empty means read and write. OAuth
+// never grants approve: approving stays a dashboard action, or an
+// explicit PURSUIT_TOKEN a human minted on purpose.
 func ParseOAuthScopes(raw string) ([]string, error) {
-	raw = strings.TrimSpace(strings.ReplaceAll(raw, " ", ","))
-	if raw == "" {
-		raw = "read,write"
+	parts := strings.FieldsFunc(raw, func(r rune) bool { return r == ' ' || r == ',' })
+	if len(parts) == 0 {
+		parts = []string{"read", "write"}
 	}
-	return auth.NormalizeScopes([]string{raw})
+	for _, p := range parts {
+		if p != "read" && p != "write" {
+			return nil, oauthErr("invalid_scope", "scope is read and/or write; "+quoteScope(p)+" cannot be granted through OAuth")
+		}
+	}
+	return auth.NormalizeScopes(parts)
+}
+
+func quoteScope(s string) string {
+	if len(s) > 32 {
+		s = s[:32]
+	}
+	return `"` + strings.Map(func(r rune) rune {
+		if r < 0x20 || r == '"' {
+			return '?'
+		}
+		return r
+	}, s) + `"`
+}
+
+// invalidScope is ParseOAuthScopes' error as a dashboard API error.
+func invalidScope(err error) error {
+	msg := err.Error()
+	if oe, ok := err.(*OAuthError); ok {
+		msg = oe.Description
+	}
+	return &domain.Error{Code: "invalid_scope", Message: msg, Hint: "request read and/or write; approve is never granted to the CLI", Status: 400}
+}
+
+const maxClientID = 64
+
+func normalizeClientID(c string) (string, bool) {
+	if c == "" {
+		return DefaultCLIClientID, true
+	}
+	return c, len(c) <= maxClientID
 }
 
 // ValidLoopbackRedirect accepts only http://127.0.0.1:<port>/callback or
@@ -81,7 +118,7 @@ func (s *Service) humanApprover(ctx context.Context) (domain.Actor, error) {
 	if err != nil {
 		return a, err
 	}
-	if !a.Can("approve") || a.Demo {
+	if !a.Can("approve") || a.Demo || a.Proxy {
 		return domain.Actor{}, domain.Forbidden("approve").WithHint("approve CLI logins from the dashboard while signed in as yourself")
 	}
 	return a, nil
@@ -106,41 +143,68 @@ type AuthorizeInput struct {
 	Approve             bool   `json:"approve"`
 }
 
+// AuthorizeRequest is a validated loopback request, normalized for the
+// consent page to show as-is.
+type AuthorizeRequest struct {
+	ClientID    string   `json:"client_id"`
+	Scopes      []string `json:"scopes"`
+	RedirectURI string   `json:"redirect_uri"`
+}
+
+func (s *Service) checkAuthorize(ctx context.Context, in AuthorizeInput) (domain.Actor, AuthorizeRequest, error) {
+	a, err := s.humanApprover(ctx)
+	if err != nil {
+		return a, AuthorizeRequest{}, err
+	}
+	if err := ValidLoopbackRedirect(in.RedirectURI); err != nil {
+		return a, AuthorizeRequest{}, err
+	}
+	if in.CodeChallengeMethod != "S256" {
+		return a, AuthorizeRequest{}, domain.Validation("code_challenge_method must be S256")
+	}
+	if !auth.ValidPKCEValue(in.CodeChallenge) {
+		return a, AuthorizeRequest{}, domain.Validation("invalid code_challenge")
+	}
+	if in.State == "" || len(in.State) > 512 {
+		return a, AuthorizeRequest{}, domain.Validation("state is required")
+	}
+	clientID, ok := normalizeClientID(in.ClientID)
+	if !ok {
+		return a, AuthorizeRequest{}, domain.Validation("client_id is at most 64 characters")
+	}
+	scopes, err := ParseOAuthScopes(in.Scope)
+	if err != nil {
+		return a, AuthorizeRequest{}, invalidScope(err)
+	}
+	return a, AuthorizeRequest{ClientID: clientID, Scopes: scopes, RedirectURI: in.RedirectURI}, nil
+}
+
+// OAuthAuthorizeCheck validates a loopback request without deciding it,
+// so the consent page shows the server's reading of client and scopes.
+func (s *Service) OAuthAuthorizeCheck(ctx context.Context, in AuthorizeInput) (AuthorizeRequest, error) {
+	_, req, err := s.checkAuthorize(ctx, in)
+	return req, err
+}
+
 // OAuthAuthorize is the dashboard consent step of the loopback flow. It
 // validates the request, and on approval stores a single-use code bound to
 // the challenge, redirect URI, user, and scopes. It returns where the
 // browser goes next: the CLI's loopback callback with code or error.
 func (s *Service) OAuthAuthorize(ctx context.Context, in AuthorizeInput) (string, error) {
-	a, err := s.humanApprover(ctx)
+	a, req, err := s.checkAuthorize(ctx, in)
 	if err != nil {
 		return "", err
-	}
-	if err := ValidLoopbackRedirect(in.RedirectURI); err != nil {
-		return "", err
-	}
-	if in.CodeChallengeMethod != "S256" {
-		return "", domain.Validation("code_challenge_method must be S256")
-	}
-	if !auth.ValidPKCEValue(in.CodeChallenge) {
-		return "", domain.Validation("invalid code_challenge")
-	}
-	if in.State == "" || len(in.State) > 512 {
-		return "", domain.Validation("state is required")
-	}
-	clientID := in.ClientID
-	if clientID == "" {
-		clientID = DefaultCLIClientID
-	}
-	scopes, err := ParseOAuthScopes(in.Scope)
-	if err != nil {
-		return "", domain.Validation("%s", err.Error())
 	}
 	q := url.Values{"state": {in.State}}
+	meta := map[string]any{"flow": "browser", "client_id": req.ClientID, "scopes": req.Scopes}
 	if !in.Approve {
+		if err := s.audit(ctx, a, "oauth.deny", "oauth_grant", "", "denied a CLI login (browser)", meta); err != nil {
+			return "", err
+		}
 		q.Set("error", "access_denied")
 		return in.RedirectURI + "?" + q.Encode(), nil
 	}
-	if err := checkGrantable(a, scopes); err != nil {
+	if err := checkGrantable(a, req.Scopes); err != nil {
 		return "", err
 	}
 	code, err := auth.RandomURLToken(32)
@@ -149,11 +213,18 @@ func (s *Service) OAuthAuthorize(ctx context.Context, in AuthorizeInput) (string
 	}
 	now := s.now()
 	_ = s.DB.DeleteExpiredOAuthGrants(ctx, domain.FormatTime(now.Add(-time.Hour)))
-	if err := s.DB.CreateOAuthGrant(ctx, sqlstore.OAuthGrant{
-		ID: s.NewID(), Kind: "code", CodeHash: auth.Hash(code), ClientID: clientID, Scopes: scopes,
-		RedirectURI: in.RedirectURI, CodeChallenge: in.CodeChallenge, UserID: a.UserID, Status: "approved",
-		ExpiresAt: domain.FormatTime(now.Add(OAuthCodeTTL)), CreatedAt: domain.FormatTime(now),
-	}); err != nil {
+	g := sqlstore.OAuthGrant{
+		ID: s.NewID(), Kind: "code", CodeHash: auth.Hash(code), ClientID: req.ClientID, Scopes: req.Scopes,
+		RedirectURI: in.RedirectURI, CodeChallenge: in.CodeChallenge, UserID: a.UserID, ApproverTokenID: a.TokenID,
+		Status: "approved", ExpiresAt: domain.FormatTime(now.Add(OAuthCodeTTL)), CreatedAt: domain.FormatTime(now),
+	}
+	err = s.DB.WithTx(ctx, func(ctx context.Context) error {
+		if err := s.DB.CreateOAuthGrant(ctx, g); err != nil {
+			return err
+		}
+		return s.audit(ctx, a, "oauth.approve", "oauth_grant", g.ID, "approved a CLI login (browser)", meta)
+	})
+	if err != nil {
 		return "", err
 	}
 	q.Set("code", code)
@@ -166,8 +237,9 @@ func (s *Service) OAuthExchangeCode(ctx context.Context, code, verifier, redirec
 	if code == "" || verifier == "" || redirectURI == "" {
 		return OAuthToken{}, oauthErr("invalid_request", "code, code_verifier and redirect_uri are required")
 	}
-	if clientID == "" {
-		clientID = DefaultCLIClientID
+	clientID, ok := normalizeClientID(clientID)
+	if !ok {
+		return OAuthToken{}, oauthErr("invalid_request", "client_id is at most 64 characters")
 	}
 	g, err := s.DB.GetOAuthGrantByCode(ctx, "code", auth.Hash(code))
 	if domain.IsCode(err, "not_found") {
@@ -195,24 +267,26 @@ func (s *Service) OAuthExchangeCode(ctx context.Context, code, verifier, redirec
 }
 
 // DeviceAuthorization is the RFC 8628 section 3.2 response.
+// There is deliberately no verification_uri_complete: the human types the
+// code, so a phished link can't carry one in for them.
 type DeviceAuthorization struct {
-	DeviceCode              string `json:"device_code"`
-	UserCode                string `json:"user_code"`
-	VerificationURI         string `json:"verification_uri"`
-	VerificationURIComplete string `json:"verification_uri_complete"`
-	ExpiresIn               int    `json:"expires_in"`
-	Interval                int    `json:"interval"`
+	DeviceCode      string `json:"device_code"`
+	UserCode        string `json:"user_code"`
+	VerificationURI string `json:"verification_uri"`
+	ExpiresIn       int    `json:"expires_in"`
+	Interval        int    `json:"interval"`
 }
 
 // OAuthDeviceStart begins a device login. baseURL is the public origin
 // the dashboard is served from; the human opens baseURL/device.
 func (s *Service) OAuthDeviceStart(ctx context.Context, clientID, scope, baseURL string) (DeviceAuthorization, error) {
-	if clientID == "" {
-		clientID = DefaultCLIClientID
+	clientID, ok := normalizeClientID(clientID)
+	if !ok {
+		return DeviceAuthorization{}, oauthErr("invalid_request", "client_id is at most 64 characters")
 	}
 	scopes, err := ParseOAuthScopes(scope)
 	if err != nil {
-		return DeviceAuthorization{}, oauthErr("invalid_scope", err.Error())
+		return DeviceAuthorization{}, err
 	}
 	deviceCode, err := auth.RandomURLToken(32)
 	if err != nil {
@@ -235,8 +309,7 @@ func (s *Service) OAuthDeviceStart(ctx context.Context, clientID, scope, baseURL
 	verify := strings.TrimRight(baseURL, "/") + "/device"
 	return DeviceAuthorization{
 		DeviceCode: deviceCode, UserCode: userCode, VerificationURI: verify,
-		VerificationURIComplete: verify + "?user_code=" + url.QueryEscape(userCode),
-		ExpiresIn:               int(OAuthDeviceTTL.Seconds()), Interval: OAuthDeviceInterval,
+		ExpiresIn: int(OAuthDeviceTTL.Seconds()), Interval: OAuthDeviceInterval,
 	}, nil
 }
 
@@ -246,6 +319,7 @@ type DeviceRequest struct {
 	ClientID  string   `json:"client_id"`
 	Scopes    []string `json:"scopes"`
 	Status    string   `json:"status"`
+	CreatedAt string   `json:"created_at"`
 	ExpiresAt string   `json:"expires_at"`
 }
 
@@ -269,7 +343,7 @@ func (s *Service) OAuthDeviceLookup(ctx context.Context, userCode string) (Devic
 	if err != nil {
 		return DeviceRequest{}, err
 	}
-	return DeviceRequest{UserCode: formatUserCode(normalizeUserCode(userCode)), ClientID: g.ClientID, Scopes: g.Scopes, Status: g.Status, ExpiresAt: g.ExpiresAt}, nil
+	return DeviceRequest{UserCode: formatUserCode(normalizeUserCode(userCode)), ClientID: g.ClientID, Scopes: g.Scopes, Status: g.Status, CreatedAt: g.CreatedAt, ExpiresAt: g.ExpiresAt}, nil
 }
 
 // OAuthDeviceDecide approves or denies a device login. It needs both the
@@ -290,12 +364,19 @@ func (s *Service) OAuthDeviceDecide(ctx context.Context, userCode string, approv
 		}
 		status = "approved"
 	}
-	ok, err := s.DB.DecideOAuthDevice(ctx, g.ID, a.UserID, status, domain.FormatTime(s.now()))
+	action := map[string]string{"approved": "oauth.approve", "denied": "oauth.deny"}[status]
+	err = s.DB.WithTx(ctx, func(ctx context.Context) error {
+		ok, err := s.DB.DecideOAuthDevice(ctx, g.ID, a.UserID, a.TokenID, status, domain.FormatTime(s.now()))
+		if err != nil {
+			return err
+		}
+		if !ok {
+			return domain.Conflict("this device login was already decided", "run pursuit auth login --device again")
+		}
+		return s.audit(ctx, a, action, "oauth_grant", g.ID, status+" a CLI login (device)", map[string]any{"flow": "device", "client_id": g.ClientID, "scopes": g.Scopes})
+	})
 	if err != nil {
 		return "", err
-	}
-	if !ok {
-		return "", domain.Conflict("this device login was already decided", "run pursuit auth login --device again")
 	}
 	return status, nil
 }
@@ -305,8 +386,9 @@ func (s *Service) OAuthExchangeDevice(ctx context.Context, deviceCode, clientID 
 	if deviceCode == "" {
 		return OAuthToken{}, oauthErr("invalid_request", "device_code is required")
 	}
-	if clientID == "" {
-		clientID = DefaultCLIClientID
+	clientID, ok := normalizeClientID(clientID)
+	if !ok {
+		return OAuthToken{}, oauthErr("invalid_request", "client_id is at most 64 characters")
 	}
 	g, err := s.DB.GetOAuthGrantByCode(ctx, "device", auth.Hash(deviceCode))
 	if domain.IsCode(err, "not_found") || (err == nil && !auth.EqualHash(g.CodeHash, deviceCode)) {
@@ -365,7 +447,7 @@ func (s *Service) issueOAuthToken(ctx context.Context, g sqlstore.OAuthGrant, fl
 		if err := s.DB.CreateToken(ctx, tok); err != nil {
 			return err
 		}
-		return s.audit(ctx, actor, "token.create", "token", tok.ID, "cli login token ("+flow+")", map[string]any{"prefix": prefix, "scopes": g.Scopes, "client_id": g.ClientID})
+		return s.audit(ctx, actor, "token.create", "token", tok.ID, "cli login token ("+flow+")", map[string]any{"prefix": prefix, "scopes": g.Scopes, "client_id": g.ClientID, "grant_id": g.ID, "approver_token_id": g.ApproverTokenID})
 	})
 	if err != nil {
 		return OAuthToken{}, err

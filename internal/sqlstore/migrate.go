@@ -396,4 +396,11 @@ var migrations = []migration{{
 		)`,
 		`CREATE INDEX IF NOT EXISTS oauth_grants_expires_idx ON oauth_grants(expires_at)`,
 	},
+}, {
+	version: "009",
+	stmts: []string{
+		// The approving session's token, so the issued CLI token's audit
+		// entry can name who let it in.
+		`ALTER TABLE oauth_grants ADD COLUMN approver_token_id TEXT NOT NULL DEFAULT ''`,
+	},
 }}

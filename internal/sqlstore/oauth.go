@@ -21,19 +21,21 @@ type OAuthGrant struct {
 	RedirectURI   string
 	CodeChallenge string
 	UserID        string
-	Status        string
-	Interval      int
-	LastPolledAt  string
-	ExpiresAt     string
-	CreatedAt     string
+	// ApproverTokenID is the dashboard session token that approved the grant.
+	ApproverTokenID string
+	Status          string
+	Interval        int
+	LastPolledAt    string
+	ExpiresAt       string
+	CreatedAt       string
 }
 
-const oauthCols = `id, kind, code_hash, user_code_hash, client_id, scopes, redirect_uri, code_challenge, user_id, status, interval_seconds, last_polled_at, expires_at, created_at`
+const oauthCols = `id, kind, code_hash, user_code_hash, client_id, scopes, redirect_uri, code_challenge, user_id, approver_token_id, status, interval_seconds, last_polled_at, expires_at, created_at`
 
 func (s *Store) CreateOAuthGrant(ctx context.Context, g OAuthGrant) error {
-	_, err := s.exec(ctx, `INSERT INTO oauth_grants (`+oauthCols+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+	_, err := s.exec(ctx, `INSERT INTO oauth_grants (`+oauthCols+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		g.ID, g.Kind, g.CodeHash, nullString(g.UserCodeHash), g.ClientID, strings.Join(g.Scopes, ","), g.RedirectURI,
-		g.CodeChallenge, nullString(g.UserID), g.Status, g.Interval, g.LastPolledAt, g.ExpiresAt, g.CreatedAt)
+		g.CodeChallenge, nullString(g.UserID), g.ApproverTokenID, g.Status, g.Interval, g.LastPolledAt, g.ExpiresAt, g.CreatedAt)
 	return mapWriteErr(err)
 }
 
@@ -53,7 +55,7 @@ func (s *Store) oauthGrant(ctx context.Context, cond string, args ...any) (OAuth
 	var scopes string
 	err := s.queryRow(ctx, `SELECT `+oauthCols+` FROM oauth_grants WHERE `+cond, args...).Scan(
 		&g.ID, &g.Kind, &g.CodeHash, &userCode, &g.ClientID, &scopes, &g.RedirectURI, &g.CodeChallenge,
-		&userID, &g.Status, &g.Interval, &g.LastPolledAt, &g.ExpiresAt, &g.CreatedAt)
+		&userID, &g.ApproverTokenID, &g.Status, &g.Interval, &g.LastPolledAt, &g.ExpiresAt, &g.CreatedAt)
 	if err == sql.ErrNoRows {
 		return OAuthGrant{}, domain.NotFound("authorization")
 	}
@@ -69,8 +71,8 @@ func (s *Store) oauthGrant(ctx context.Context, cond string, args ...any) (OAuth
 
 // DecideOAuthDevice records a human's approve/deny on a pending, unexpired
 // device grant. It reports false when the grant was already decided.
-func (s *Store) DecideOAuthDevice(ctx context.Context, id, userID, status, now string) (bool, error) {
-	res, err := s.exec(ctx, `UPDATE oauth_grants SET status=?, user_id=? WHERE id=? AND kind='device' AND status='pending' AND expires_at > ?`, status, userID, id, now)
+func (s *Store) DecideOAuthDevice(ctx context.Context, id, userID, approverTokenID, status, now string) (bool, error) {
+	res, err := s.exec(ctx, `UPDATE oauth_grants SET status=?, user_id=?, approver_token_id=? WHERE id=? AND kind='device' AND status='pending' AND expires_at > ?`, status, userID, approverTokenID, id, now)
 	if err != nil {
 		return false, err
 	}

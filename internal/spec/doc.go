@@ -78,11 +78,11 @@ func build() []byte {
 			"400": map[string]any{"description": "RFC 6749 error", "content": map[string]any{"application/json": map[string]any{"schema": map[string]any{"$ref": "#/components/schemas/OAuthError"}}}},
 		}
 	}
-	add("/v1/auth/device_authorization", "post", "RFC 8628 device authorization for pursuit auth login --device. scope is space or comma separated and defaults to read write; approve is granted only when named. device codes last 10 minutes; poll /v1/auth/token no faster than interval", false, map[string]any{
+	add("/v1/auth/device_authorization", "post", "RFC 8628 device authorization for pursuit auth login --device. scope is space or comma separated, each exactly read or write, default read write; anything else (approve, APPROVE, Read) is invalid_scope: OAuth never grants approve. client_id is at most 64 characters. limited to 10 starts a minute per client IP (429 slow_down). device codes last 10 minutes; poll /v1/auth/token no faster than interval. there is no verification_uri_complete: the human types the code", false, map[string]any{
 		"security":    []any{},
 		"requestBody": form(map[string]any{"client_id": str, "scope": str}),
 		"responses": oauthResp("device authorization", map[string]any{
-			"device_code": str, "user_code": str, "verification_uri": str, "verification_uri_complete": str,
+			"device_code": str, "user_code": str, "verification_uri": str,
 			"expires_in": map[string]any{"type": "integer"}, "interval": map[string]any{"type": "integer"},
 		}),
 	})
@@ -99,9 +99,10 @@ func build() []byte {
 		"requestBody": form(map[string]any{"token": str}, "token"),
 		"responses":   oauthResp("revoked", map[string]any{"revoked": map[string]any{"type": "boolean"}}),
 	})
-	add("/v1/oauth/authorize", "post", "loopback consent, called by the dashboard /authorize page that pursuit auth login opens. requires a signed-in human session with the approve scope. body {client_id, redirect_uri, code_challenge, code_challenge_method:S256, state, scope, approve}. redirect_uri must be http://127.0.0.1:<port>/callback or http://[::1]:<port>/callback. returns {redirect_to}: the callback with code and state, or error=access_denied when approve is false", false, nil)
-	add("/v1/oauth/device", "get", "look up a pending device login by user_code (query) so the dashboard can show the requested scopes. requires the approve scope. returns {user_code, client_id, scopes, status, expires_at}", false, nil)
-	add("/v1/oauth/device/approve", "post", "approve or deny a device login from the dashboard /device page. body {user_code, approve}. requires a signed-in human session with the approve scope; the code alone approves nothing. returns {status: approved|denied}", false, nil)
+	add("/v1/oauth/authorize", "get", "validate a loopback request for the dashboard /authorize page without deciding it. query client_id, redirect_uri, code_challenge, code_challenge_method, state, scope (response_type is accepted and ignored). requires the approve scope. returns {client_id, scopes, redirect_uri} as the server normalized them; a scope other than read or write is 400 invalid_scope", false, nil)
+	add("/v1/oauth/authorize", "post", "loopback consent, called by the dashboard /authorize page that pursuit auth login opens. requires a signed-in human session with the approve scope (not the PURSUIT_TRUST_PROXY_AUTH owner), Content-Type application/json, and Sec-Fetch-Site same-origin or an Origin matching the host. writes an oauth.approve or oauth.deny audit entry. body {client_id, redirect_uri, code_challenge, code_challenge_method:S256, state, scope, approve}. redirect_uri must be http://127.0.0.1:<port>/callback or http://[::1]:<port>/callback. returns {redirect_to}: the callback with code and state, or error=access_denied when approve is false", false, nil)
+	add("/v1/oauth/device", "get", "look up a pending device login by user_code (query) so the dashboard can show the requested scopes. requires the approve scope. returns {user_code, client_id, scopes, status, created_at, expires_at}", false, nil)
+	add("/v1/oauth/device/approve", "post", "approve or deny a device login from the dashboard /device page. body {user_code, approve}. requires a signed-in human session with the approve scope (not the PURSUIT_TRUST_PROXY_AUTH owner), Content-Type application/json, and Sec-Fetch-Site same-origin or an Origin matching the host; the code alone approves nothing. writes an oauth.approve or oauth.deny audit entry. returns {status: approved|denied}", false, nil)
 	add("/v1/me", "get", "current user and token", false, nil)
 	add("/v1/tokens", "get", "list tokens", false, nil)
 	add("/v1/tokens", "post", "create a token; secret is returned once", true, nil)
