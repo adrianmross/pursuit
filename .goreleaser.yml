@@ -24,7 +24,8 @@ changelog:
   disable: true
 
 release:
-  # Pre-1.0: every release is a GitHub pre-release. Switch to `auto` at v1.0.0.
-  prerelease: true
+  # 0.x is the pre-release signal. Only -rc style tags are GitHub
+  # pre-releases, because the Homebrew tap ignores those.
+  prerelease: auto
   extra_files:
     - glob: "{{ .Env.RUNNER_TEMP }}/pursuit-extension_*.zip"

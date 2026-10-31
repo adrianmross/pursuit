@@ -21,6 +21,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       TAG: ${{ inputs.tag || github.ref_name }}
+      TAP_APP_ID: ${{ secrets.TAP_APP_ID }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -50,3 +51,22 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GORELEASER_CURRENT_TAG: ${{ env.TAG }}
+      # GoReleaser's release is made with GITHUB_TOKEN, so it fires no
+      # `release: published` workflow; poke the tap from here instead. Without
+      # the TAP_APP_* secrets this skips and the tap's 6h poll picks it up.
+      - id: tap-token
+        if: env.TAP_APP_ID != ''
+        uses: actions/create-github-app-token@v2.1.4
+        with:
+          app-id: ${{ secrets.TAP_APP_ID }}
+          private-key: ${{ secrets.TAP_APP_PRIVATE_KEY }}
+          owner: adrianmross
+          repositories: homebrew-tap
+      - if: steps.tap-token.outputs.token != ''
+        env:
+          GH_TOKEN: ${{ steps.tap-token.outputs.token }}
+        run: |
+          gh api --method POST /repos/adrianmross/homebrew-tap/dispatches \
+            -f event_type=formula-bump \
+            -F "client_payload[repo]=${GITHUB_REPOSITORY}" \
+            -F "client_payload[tag]=${TAG}"
