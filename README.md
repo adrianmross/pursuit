@@ -93,7 +93,7 @@ Use `sslmode=require` for Neon. Two replicas can share one Postgres database. Qu
 
 ## Dev environment (devenv)
 
-[devenv](https://devenv.sh) sets up Go 1.26, Node 22, GoReleaser, actionlint and `changelogger`. `direnv allow` loads it on `cd`; otherwise use `devenv shell`. `pursuit serve` still defaults to SQLite.
+[devenv](https://devenv.sh) sets up Go 1.26, Node 22, GoReleaser, actionlint and `changelogger`. Enter it with `devenv shell`. The `.envrc` does not activate it on `cd` unless `DIRENV_WARM=1` is set; background warm-ups and agent hooks set that to load it through direnv. `pursuit serve` still defaults to SQLite.
 
 ```bash
 devenv shell
