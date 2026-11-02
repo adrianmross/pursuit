@@ -33,6 +33,13 @@ jobs:
           for f in .changelogs/*.md; do
             [ "$f" = .changelogs/README.md ] || grep -qxF "$f" "$RUNNER_TEMP/added" || rm -- "$f"
           done
+          # A new migration changes the schema an older binary can read, so it
+          # needs at least a minor release.
+          if git cat-file -e "origin/${BASE_REF}:internal/sqlstore/testdata/migrations.txt" 2>/dev/null &&
+            git diff "origin/${BASE_REF}...HEAD" -- internal/sqlstore/testdata/migrations.txt | grep '^+[0-9]' >/dev/null; then
+            grep -qxE 'bump: (minor|major)' .changelogs/*.md ||
+              { echo "::error::this PR adds a migration; its .changelogs fragment needs bump: minor or major"; exit 1; }
+          fi
           "$CHANGELOGGER" check --base "origin/${BASE_REF}" --pr --pr-title "$PR_TITLE" --pr-body "$PR_BODY"
 
   go:
