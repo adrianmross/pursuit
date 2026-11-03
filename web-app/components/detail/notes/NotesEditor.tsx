@@ -2,8 +2,9 @@
 
 import { useEffect, useRef, useState } from "react"
 import { defaultKeymap, history, historyKeymap } from "@codemirror/commands"
-import { markdown } from "@codemirror/lang-markdown"
-import { codeFolding, foldAll, foldGutter, foldKeymap, foldService, foldedRanges, HighlightStyle, syntaxHighlighting, unfoldEffect } from "@codemirror/language"
+import { markdownLanguage } from "@codemirror/lang-markdown"
+import type { MarkdownParser } from "@lezer/markdown"
+import { codeFolding, foldAll, foldNodeProp, Language, LanguageSupport, foldGutter, foldKeymap, foldService, foldedRanges, HighlightStyle, syntaxHighlighting, unfoldEffect } from "@codemirror/language"
 import { EditorState, type Extension } from "@codemirror/state"
 import { EditorView, keymap } from "@codemirror/view"
 import { tags } from "@lezer/highlight"
@@ -65,6 +66,10 @@ function plan(sections: NoteSection[], parts: Part[]) {
   }
   return { pairs, gone, added: parts.filter((_, k) => !used.has(k)) }
 }
+
+// Markdown with none of its own folds (every heading, list and paragraph),
+// so only the # parts below fold.
+const md = new LanguageSupport(new Language(markdownLanguage.data, (markdownLanguage.parser as MarkdownParser).configure({ props: [foldNodeProp.add(() => () => null)] }), [], "markdown"))
 
 // Only a # heading folds: one fold per part, down to the next # heading.
 const partFolds = foldService.of((state, from) => {
@@ -178,7 +183,7 @@ export function NotesEditor({ sections, writable, single = false, onCreate }: { 
     const extensions: Extension[] = [
       vimOn ? vim() : [],
       history(),
-      markdown(),
+      md,
       single ? [] : [partFolds, codeFolding({ placeholderText: "--->" }), foldGutter({ openText: "v", closedText: ">" }), keymap.of(foldKeymap), openAtCursor],
       syntaxHighlighting(highlight),
       keymap.of([...defaultKeymap, ...historyKeymap]),

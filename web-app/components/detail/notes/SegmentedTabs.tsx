@@ -33,7 +33,7 @@ export function SegmentedTabs<T extends string>({
   }, [value])
 
   return (
-    <div ref={ref} role="tablist" aria-label={label} className="relative inline-flex max-w-full overflow-x-auto rounded-full bg-muted p-0.5">
+    <div ref={ref} role="tablist" aria-label={label} className="relative inline-flex max-w-full overflow-x-auto overscroll-x-contain rounded-full [scrollbar-width:none] [&::-webkit-scrollbar]:hidden bg-muted p-0.5">
       {pill && (
         <span
           aria-hidden
