@@ -2,12 +2,10 @@
 
 import { useEffect, useState, type ReactNode } from "react"
 import { usePathname, useRouter } from "next/navigation"
-import { Bot, Check, ChevronDown, Copy, Eye, Sparkles, Trash2, X } from "lucide-react"
+import { Bot, Check, ChevronDown, Copy, Eye, Trash2, X } from "lucide-react"
 import { api } from "@/lib/api-client"
-import { useAuth } from "@/lib/auth"
 import { cn } from "@/lib/utils"
-import type { Document, Page, StandingAnswer } from "@/lib/types"
-import { Alert, AlertAction, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import type { Document, Page } from "@/lib/types"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -219,54 +217,5 @@ export function ProfilePage() {
         <Documents />
       </Section>
     </div>
-  )
-}
-
-const DISMISSED = "pursuit.profile-nudge-dismissed"
-
-// First-run prompt on the home page until there is a résumé and an email
-// on file. Dismissal is per browser.
-export function ProfileNudge({ onOpen }: { onOpen: (href: string) => void }) {
-  const { can } = useAuth()
-  const home = usePathname() === "/start"
-  const [missing, setMissing] = useState<string[]>([])
-  useEffect(() => {
-    let dismissed = false
-    try {
-      dismissed = localStorage.getItem(DISMISSED) === "1"
-    } catch {}
-    if (!home || dismissed || !can("write")) return
-    void Promise.all([api<Page<Document>>("/v1/documents"), api<Page<StandingAnswer>>("/v1/standing")])
-      .then(([docs, standing]) => {
-        const out = []
-        if (!docs.data?.some((d) => d.kind === "base_resume")) out.push("a résumé")
-        if (!standing.data?.some((s) => s.key === "email")) out.push("your contact details")
-        setMissing(out)
-      })
-      .catch(() => {})
-  }, [home, can])
-  if (!home || !missing.length) return null
-
-  function dismiss() {
-    try {
-      localStorage.setItem(DISMISSED, "1")
-    } catch {}
-    setMissing([])
-  }
-
-  return (
-    <Alert className="mx-auto mb-4 max-w-5xl">
-      <Sparkles />
-      <AlertTitle>Finish your profile</AlertTitle>
-      <AlertDescription>Add {missing.join(" and ")} so prepared applications fill themselves in.</AlertDescription>
-      <AlertAction className="flex items-center gap-1">
-        <Button size="sm" onClick={() => onOpen(missing.includes("a résumé") ? "/profile" : "/profile/questions")}>
-          Set up
-        </Button>
-        <Button size="icon-sm" variant="ghost" aria-label="Dismiss" onClick={dismiss}>
-          <X />
-        </Button>
-      </AlertAction>
-    </Alert>
   )
 }

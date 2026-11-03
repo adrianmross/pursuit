@@ -12,7 +12,6 @@ import { SettingsDialog } from "@/components/SettingsDialog"
 import { SearchBox } from "@/components/SearchBox"
 import { SiteFooter } from "@/components/SiteFooter"
 import { UserAvatar, displayName } from "@/components/UserAvatar"
-import { ProfileNudge } from "@/components/profile/ProfilePage"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -185,7 +184,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         )}
       </header>
       <main className="flex-1 p-4">
-        <ProfileNudge onOpen={(href) => router.push(href)} />
         {children}
       </main>
       <SiteFooter />

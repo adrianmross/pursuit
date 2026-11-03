@@ -56,7 +56,9 @@ const DEFAULTS = { density: "comfortable", accent: "neutral", textSize: "default
   // The application page's cards ("on" or "off"), and where each outline tab
   // shows: "tab" inside Rounds, tasks and notes, "card" as its own card, or "off".
   cardAttributes: "on", cardRelated: "on", cardArtifacts: "on", cardHistory: "on",
-  tabRounds: "tab", tabTasks: "tab", tabQuestions: "tab", tabNotes: "tab" }
+  tabRounds: "tab", tabTasks: "tab", tabQuestions: "tab", tabNotes: "tab",
+  // The start page's Get started rows, "off" once dismissed.
+  hintProfile: "on", hintAgent: "on", hintTerminal: "on", hintExtension: "on" }
 export type Pref = keyof typeof DEFAULTS
 
 function read(key: Pref) {
