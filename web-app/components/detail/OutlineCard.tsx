@@ -11,6 +11,7 @@ import { InlineText } from "@/components/InlineEdit"
 import { SectionCard } from "@/components/detail/SectionCard"
 import { Markdown } from "@/components/detail/notes/Markdown"
 import { MarkdownDoc } from "@/components/detail/notes/MarkdownDoc"
+import { RoundCounter } from "@/components/detail/notes/RoundCounter"
 import { SegmentedTabs } from "@/components/detail/notes/SegmentedTabs"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -27,7 +28,7 @@ const ANYTIME = "anytime"
 const day = (value?: string) => (value ? value.slice(0, 10) : "")
 const short = (v?: string) => (v ? new Date(`${day(v)}T12:00:00`).toLocaleDateString(undefined, { month: "short", day: "numeric" }) : "")
 const roundName = (r: Interview, n: number) => r.kind || `Round ${n + 1}`
-const stageName = (key: string) => (key === ANYTIME ? "Inbox" : (STAGE_STOPS.find(([k]) => k === key)?.[1] ?? label(key)))
+const baseStageName = (key: string) => (key === ANYTIME ? "Inbox" : (STAGE_STOPS.find(([k]) => k === key)?.[1] ?? label(key)))
 const STAGE_KEYS = [ANYTIME, ...STAGE_STOPS.map(([k]) => k)]
 
 // What the card shows. Layout (outline now; board and timeline to come) is a
@@ -112,7 +113,7 @@ const bare = "h-auto min-w-0 flex-1 rounded-none border-0 bg-transparent p-0 sha
 
 // Adding a task looks like the task it becomes: the same row, a dashed box
 // where the checkbox will be. Enter adds and stays open; Esc closes.
-function AddTaskRow({ where: initial, places, onAdd, startOpen = false, compact = false, onClose }: { where: string; places: { id: string; name: string; indent?: boolean }[]; onAdd: (title: string, where: string) => Promise<unknown>; startOpen?: boolean; compact?: boolean; onClose?: () => void }) {
+function AddTaskRow({ where: initial, places, onAdd, startOpen = false, compact = false, closeOnAdd = false, onClose }: { where: string; places: { id: string; name: string; indent?: boolean }[]; onAdd: (title: string, where: string) => Promise<unknown>; startOpen?: boolean; compact?: boolean; closeOnAdd?: boolean; onClose?: () => void }) {
   const [open, setOpenState] = useState(startOpen)
   const [title, setTitle] = useState("")
   const [where, setWhere] = useState(initial)
@@ -134,7 +135,11 @@ function AddTaskRow({ where: initial, places, onAdd, startOpen = false, compact 
       className={cn("-mx-2 flex items-center gap-2.5 rounded-md bg-muted px-2", size)}
       onSubmit={(e) => {
         e.preventDefault()
-        if (title.trim()) void onAdd(title.trim(), where).then(() => setTitle(""))
+        if (title.trim())
+          void onAdd(title.trim(), where).then(() => {
+            setTitle("")
+            if (closeOnAdd) setOpen(false)
+          })
       }}
     >
       <span aria-hidden className="size-4 shrink-0 rounded-[4px] border border-dashed border-muted-foreground" />
@@ -298,6 +303,40 @@ function RoundDetails({ r, name, writable, onPatch, onDelete, onOpenNotes, child
   )
 }
 
+// A stage's name in this application. Double-click to rename it; a renamed
+// stage keeps the status it stands for, shown after an arrow.
+function StageLabel({ name, base, current, reached, writable, onRename }: { name: string; base: string; current: boolean; reached: boolean; writable: boolean; onRename: (name: string) => Promise<unknown> }) {
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState(name)
+  if (editing)
+    return (
+      <form
+        className="min-w-0 flex-1"
+        onSubmit={(e) => {
+          e.preventDefault()
+          setEditing(false)
+          if (draft.trim() !== name) void onRename(draft)
+        }}
+      >
+        <input autoFocus aria-label={`Name for ${base}`} placeholder={base} className="w-full rounded-sm bg-muted px-1 text-[11px] tracking-wide uppercase outline-none" value={draft} onChange={(e) => setDraft(e.target.value)} onBlur={(e) => e.currentTarget.form?.requestSubmit()} onKeyDown={(e) => e.key === "Escape" && setEditing(false)} />
+      </form>
+    )
+  return (
+    <span
+      onDoubleClick={() => {
+        if (!writable) return
+        setDraft(name)
+        setEditing(true)
+      }}
+      title={writable ? "Double-click to rename" : undefined}
+      className={cn("min-w-0 truncate text-[11px] tracking-wide uppercase", current ? "font-semibold text-foreground" : reached ? "text-muted-foreground" : "text-muted-foreground/60", writable && "cursor-text")}
+    >
+      {name}
+      {name !== base && <span className="ml-1 font-normal text-muted-foreground/60 normal-case">→ {base}</span>}
+    </span>
+  )
+}
+
 // A round as one compact line: a dot (filled once done), its name, then date,
 // who and questions. Click for its details; double-click to rename it.
 function RoundChip({ r, name, prefix, index, writable, onRename, details }: { r: Interview; name: string; prefix?: string; index: number; writable: boolean; onRename: (kind: string) => Promise<unknown>; details: (trigger: ReactNode) => ReactNode }) {
@@ -429,7 +468,20 @@ function useFocus(id: string | undefined) {
 
 // Rounds, tasks, questions and notes for one application. Tabs pick what to
 // show; All puts the next step, the outline and the notes together.
-export function OutlineCard({ application, writable, onChange, onSaveNotes }: { application: Application; writable: boolean; onChange: () => Promise<void>; onSaveNotes: (notes: string) => Promise<unknown> }) {
+export function OutlineCard({ application, writable, onChange, onSaveNotes, onPatch }: { application: Application; writable: boolean; onChange: () => Promise<void>; onSaveNotes: (notes: string) => Promise<unknown>; onPatch: (patch: Record<string, unknown>) => Promise<unknown> }) {
+  // This application's own stage names and skipped stages. The status each
+  // stands for never changes; only what it is called and whether it shows.
+  const plan = application.stage_plan
+  const stageName = (key: string) => plan?.labels?.[key] || baseStageName(key)
+  const isOff = (key: string) => !!plan?.off?.includes(key)
+  const savePlan = (labels: Record<string, string>, off: string[]) => onPatch({ stage_plan: { labels, off } })
+  const rename = (key: string, name: string) => {
+    const labels = { ...(plan?.labels ?? {}) }
+    if (name.trim() && name.trim() !== baseStageName(key)) labels[key] = name.trim()
+    else delete labels[key]
+    return savePlan(labels, plan?.off ?? [])
+  }
+  const setOn = (key: string, on: boolean) => savePlan(plan?.labels ?? {}, on ? (plan?.off ?? []).filter((k) => k !== key) : [...(plan?.off ?? []), key])
   const appId = application.id
   const current = application.stage ?? 0
   const currentKey = STAGE_STOPS[current][0]
@@ -595,7 +647,7 @@ export function OutlineCard({ application, writable, onChange, onSaveNotes }: { 
   }
   const taskPlaces = [
     { id: `stage:${ANYTIME}`, name: "Inbox" },
-    ...STAGE_STOPS.flatMap(([key, name]) => [{ id: `stage:${key}`, name }, ...rounds.storedFor(all, key).map((r, n) => ({ id: `round:${r.id}`, name: roundName(r, n), indent: true }))]),
+    ...STAGE_STOPS.filter(([key]) => !isOff(key)).flatMap(([key]) => [{ id: `stage:${key}`, name: stageName(key) }, ...rounds.storedFor(all, key).map((r, n) => ({ id: `round:${r.id}`, name: roundName(r, n), indent: true }))]),
   ]
   const addTask = (title: string, where: string) => (where.startsWith("round:") ? tasks.add(title, undefined, where.slice(6)) : tasks.add(title, where.slice(6)))
 
@@ -688,30 +740,47 @@ export function OutlineCard({ application, writable, onChange, onSaveNotes }: { 
       )}
     />
   )
+  // Rounds to a number: add or drop one at a time, from the end.
+  const setCount = async (key: string, i: number, target: number) => {
+    const shown = Math.max(1, rounds.storedFor(all, key).length)
+    if (target > shown) for (let n = shown; n < target; n++) await rounds.add(key, i)
+    else for (let n = shown; n > target; n--) await rounds.remove(key)
+  }
   let k = 0
   // A grey stage label on the left, its rounds as lines on the right.
   const roundsView = (
     <div className="flex flex-col">
       {prefs.sort === "date"
         ? byDate(ordered).map(({ r, n }) => chip(r, n, k++, stageName(r.stage)))
-        : STAGE_STOPS.slice(1, -1).map(([key, name], j) => {
+        : STAGE_STOPS.slice(1, -1).map(([key], j) => {
             const i = j + 1
             const stored = rounds.storedFor(all, key)
+            const off = isOff(key)
+            const name = stageName(key)
             return (
-              <div key={key} className="group/stage grid grid-cols-[124px_minmax(0,1fr)] items-start gap-x-2">
-                <div className="flex h-7 items-center gap-1">
-                  <span className={cn("truncate text-[11px] tracking-wide uppercase", i === current ? "font-semibold text-foreground" : i < current ? "text-muted-foreground" : "text-muted-foreground/60")}>{name}</span>
-                  {writable && (
-                    <button type="button" aria-label={`Add a ${name} round`} title="Add a round" disabled={rounds.busy} onClick={() => void rounds.add(key, i)} className="flex size-5 shrink-0 items-center justify-center rounded-full text-muted-foreground opacity-0 outline-none group-hover/stage:opacity-100 hover:bg-muted hover:text-foreground focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-ring">
-                      <Plus className="size-3" />
-                    </button>
+              <div key={key} className={cn("grid grid-cols-[minmax(0,210px)_minmax(0,1fr)] items-start gap-x-3 border-t py-1 first:border-t-0", off && "opacity-50")}>
+                <div className="flex h-7 items-center gap-2">
+                  {writable && <Switch className="scale-75" checked={!off} aria-label={`${baseStageName(key)} in this process`} onCheckedChange={(v) => void setOn(key, v)} />}
+                  <StageLabel name={name} base={baseStageName(key)} current={i === current} reached={i < current} writable={writable && !off} onRename={(v) => rename(key, v)} />
+                  <span className="flex-1" />
+                  {!off && (
+                    <RoundCounter value={Math.max(1, stored.length)} label={`${name} rounds`} disabled={!writable || rounds.busy} onChange={(n) => void setCount(key, i, n)} />
                   )}
                 </div>
-                <div className="flex min-w-0 flex-col">{stored.length ? stored.map((r, n) => chip(r, n, k++)) : <span className="flex h-7 items-center px-2 text-xs text-muted-foreground/50">{i <= current ? "done" : "—"}</span>}</div>
+                <div className="flex min-w-0 flex-col">
+                  {off ? (
+                    <span className="flex h-7 items-center px-2 text-xs text-muted-foreground">Not part of this process</span>
+                  ) : stored.length ? (
+                    stored.map((r, n) => chip(r, n, k++))
+                  ) : (
+                    <span className="flex h-7 items-center px-2 text-xs text-muted-foreground/60">{i <= current ? "One round, done" : "One round"}</span>
+                  )}
+                </div>
               </div>
             )
           })}
-      <p className="pt-2 text-xs text-muted-foreground">Double-click a round to rename it. Hover a stage for +.</p>
+      {rounds.armed && <p className="pt-1 text-xs text-destructive">That round has notes. Turn down once more to delete it.</p>}
+      <p className="pt-2 text-xs text-muted-foreground">Scroll a counter to add or remove rounds. Double-click a stage or round to rename it; the switch leaves a stage out of this process.</p>
     </div>
   )
 
@@ -727,7 +796,9 @@ export function OutlineCard({ application, writable, onChange, onSaveNotes }: { 
             {inboxCount > 0 && <span className="text-xs text-muted-foreground">{inboxCount}</span>}
           </button>
         </li>
-        {STAGE_STOPS.map(([key, name], i) => {
+        {STAGE_STOPS.map(([key], i) => {
+          if (isOff(key)) return null
+          const name = stageName(key)
           const stored = rounds.storedFor(all, key)
           const offer = i === STAGE_STOPS.length - 1
           const own = allTasks.filter((t) => t.stage === key && !t.round_id && (prefs.showDone || !t.done_at))
@@ -771,19 +842,17 @@ export function OutlineCard({ application, writable, onChange, onSaveNotes }: { 
                             </Button>
                           )}
                         </div>
-                        {(rt.length > 0 || addingAt === `round:${r.id}`) && (
+                        {rt.length > 0 && (
                           <div className="flex flex-col pl-6">
                             {rt.map((t, k) => taskRow(t, k, true))}
-                            {addingAt === `round:${r.id}` && <AddTaskRow where={`round:${r.id}`} places={taskPlaces} onAdd={addTask} startOpen compact onClose={() => setAddingAt(null)} />}
                           </div>
                         )}
                       </div>
                     )
                   })}
-                  {(own.length > 0 || addingAt === `stage:${key}`) && (
+                  {own.length > 0 && (
                     <div className="flex flex-col pl-2">
                       {own.map((t, k) => taskRow(t, k, true))}
-                      {addingAt === `stage:${key}` && <AddTaskRow where={`stage:${key}`} places={taskPlaces} onAdd={addTask} startOpen compact onClose={() => setAddingAt(null)} />}
                     </div>
                   )}
                 </div>
@@ -843,6 +912,7 @@ export function OutlineCard({ application, writable, onChange, onSaveNotes }: { 
             md: r.notes || "",
             hidden: r.in_notes === false,
             onSave: (notes: string) => patch(r, { notes }),
+            onRename: (kind: string) => patch(r, { kind }),
             onShow: (show: boolean) => void patch(r, { in_notes: show }),
           })),
         ]}
@@ -870,7 +940,16 @@ export function OutlineCard({ application, writable, onChange, onSaveNotes }: { 
       </div>
 
       {/* Holds its height while a shorter view would move the page; see hold. */}
-      <div ref={bodyRef} style={{ minHeight: hold || undefined }}>
+      <div ref={bodyRef} style={{ minHeight: hold || undefined }} className="relative">
+        {addingAt && (
+          // Adding from the outline: the card blurs and the task row floats on top.
+          <div className="absolute inset-0 z-20 flex items-start justify-center rounded-lg bg-background/60 pt-24 backdrop-blur-sm animate-in fade-in duration-150" onMouseDown={(e) => e.target === e.currentTarget && setAddingAt(null)}>
+            <div className="w-full max-w-xl rounded-xl border bg-background p-3 shadow-lg animate-in fade-in zoom-in-95 duration-150">
+              <AddTaskRow where={addingAt} places={taskPlaces} onAdd={addTask} startOpen closeOnAdd onClose={() => setAddingAt(null)} />
+              <p className="px-2 pt-1 text-xs text-muted-foreground">Enter adds · Esc cancels</p>
+            </div>
+          </div>
+        )}
         <div ref={innerRef} className="flex flex-col gap-3">
         {prefs.view === "all" && (
           <>

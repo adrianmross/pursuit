@@ -114,7 +114,7 @@ export function DetailShell({ id, initial, children }: { id: string; initial: De
     return run
   }
 
-  function patchApp(patch: Record<string, string>) {
+  function patchApp(patch: Record<string, unknown>) {
     return enqueue((version) => api<Application>(path, { method: "PATCH", body: { version, ...patch } }))
   }
 
@@ -207,7 +207,7 @@ export function DetailShell({ id, initial, children }: { id: string; initial: De
             fieldError={fieldError}
           />
           <RelatedCard application={application} writable={writable} onChange={reload} />
-          <OutlineCard key={roundsTick} application={application} writable={writable} onChange={reload} onSaveNotes={(notes) => patchApp({ notes })} />
+          <OutlineCard key={roundsTick} application={application} writable={writable} onChange={reload} onSaveNotes={(notes) => patchApp({ notes })} onPatch={patchApp} />
         </>
       )}
 

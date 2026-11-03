@@ -27,6 +27,8 @@ export type Application = {
   contact_email?: string
   // The application at the same company whose process covers this posting.
   tracked_by?: string
+  // This application's own names for its round stages and the ones it skips.
+  stage_plan?: { labels?: Record<string, string>; off?: string[] }
   resume_version?: string
   next_step?: string
   archived_at?: string

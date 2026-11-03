@@ -179,6 +179,9 @@ function Appearance() {
       <Row label="Text reveal" hint="Text decodes into place as it opens: in the notes view, or everywhere text opens. Off whenever motion is reduced.">
         <Choice pref="textFx" options={[["notes", "Notes"], ["all", "Everywhere"], ["off", "Off"]]} />
       </Row>
+      <Row label="Round counter" hint="How a stage's number of rounds is set: a wheel you scroll or click, or a die you roll and turn.">
+        <Choice pref="roundCounter" options={[["wheel", "Wheel"], ["dice", "Dice"]]} />
+      </Row>
     </FieldGroup>
   )
 }

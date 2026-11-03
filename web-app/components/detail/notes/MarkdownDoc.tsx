@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useLayoutEffect, useRef, useState } from "react"
 import { cn } from "@/lib/utils"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Decode } from "@/components/detail/notes/Markdown"
@@ -12,6 +12,8 @@ export type DocSession = {
   md: string
   hidden?: boolean
   onSave: (md: string) => Promise<unknown>
+  // Renaming the # heading renames the round; absent, the title is fixed.
+  onRename?: (title: string) => Promise<unknown>
   onShow?: (show: boolean) => void
 }
 
@@ -24,6 +26,24 @@ function lines(md: string): Line[] {
     const h = !fence && text.match(/^\s*(#{1,6})\s/)
     return { text, level: h ? h[1].length : 0, at }
   })
+}
+
+// The whole document as one file: each part under its own # heading.
+function compose(sessions: DocSession[]) {
+  return sessions.map((s) => `# ${s.title}\n${s.md.trim() ? `\n${s.md.trim()}\n` : ""}`).join("\n")
+}
+
+// Splits the file back at its # headings, one part per session, in order.
+function split(text: string): { title: string; body: string }[] {
+  const out: { title: string; body: string[] }[] = []
+  let fence = false
+  for (const line of text.split("\n")) {
+    if (/^\s*(```|~~~)/.test(line)) fence = !fence
+    const h = !fence && line.match(/^#\s+(.*?)\s*$/)
+    if (h) out.push({ title: h[1], body: [] })
+    else if (out.length) out[out.length - 1].body.push(line)
+  }
+  return out.map((p) => ({ title: p.title, body: p.body.join("\n").trim() }))
 }
 
 // One markdown line with light highlighting: dim markers, strong headings.
@@ -59,24 +79,96 @@ function Gutter({ fold, open, onClick, label }: { fold: boolean; open?: boolean;
   )
 }
 
-// The notes as one markdown file, the way an editor shows it: every heading
-// folds from the gutter, and clicking a section's text edits it in place.
+// The notes as one markdown file. Read, it folds from the gutter; click
+// anywhere and the whole file is one editor, the cursor where you clicked.
+// Clicking out (or Cmd+Enter) saves each part back where it belongs.
 export function MarkdownDoc({ sessions, writable }: { sessions: DocSession[]; writable: boolean }) {
   const [shut, setShut] = useState<Record<string, boolean>>({})
-  const [editing, setEditing] = useState<string | null>(null)
+  const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState("")
-  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState("")
   const [reveal, setReveal] = useState<string | null>(null)
+  const area = useRef<HTMLTextAreaElement>(null)
+  const [caretAt, setCaretAt] = useState(0)
   const flip = (key: string) => {
     if (shut[key]) setReveal(key)
     setShut((s) => ({ ...s, [key]: !s[key] }))
   }
 
+  // Each session's first line in the composed file, to put the cursor where
+  // the click was.
+  const starts: Record<string, number> = {}
+  {
+    let n = 0
+    for (const s of sessions) {
+      starts[s.id] = n
+      n += 1 + (s.md.trim() ? s.md.trim().split("\n").length + 2 : 0) + 1
+    }
+  }
+  const open = (sessionId: string, line: number) => {
+    if (!writable) return
+    const text = compose(sessions)
+    const target = starts[sessionId] + line
+    setCaretAt(text.split("\n").slice(0, target).join("\n").length + (target ? 1 : 0))
+    setDraft(text)
+    setError("")
+    setEditing(true)
+  }
+  useLayoutEffect(() => {
+    if (!editing || !area.current) return
+    area.current.focus()
+    area.current.setSelectionRange(caretAt, caretAt)
+  }, [editing, caretAt])
+
+  async function save() {
+    const parts = split(draft)
+    if (parts.length !== sessions.length) {
+      setError(`Keep one # heading for each of the ${sessions.length} parts; the file has ${parts.length}.`)
+      return
+    }
+    setEditing(false)
+    await Promise.all(
+      sessions.map((s, i) => {
+        const p = parts[i]
+        const jobs: Promise<unknown>[] = []
+        if (p.body !== s.md.trim()) jobs.push(s.onSave(p.body))
+        if (s.onRename && p.title !== s.title && p.title) jobs.push(s.onRename(p.title))
+        return Promise.all(jobs)
+      }),
+    )
+  }
+
+  if (editing)
+    return (
+      <div className="flex flex-col gap-1">
+        <textarea
+          ref={area}
+          aria-label="Notes"
+          spellCheck
+          className="w-full resize-none rounded-lg border bg-background px-3 py-2 font-mono text-[13px] leading-6 outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          rows={Math.max(8, draft.split("\n").length + 2)}
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={() => void save()}
+          onKeyDown={(e) => {
+            if (e.key === "Escape") setEditing(false)
+            if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+              e.preventDefault()
+              void save()
+            }
+          }}
+        />
+        <p className={cn("text-xs", error ? "text-destructive" : "text-muted-foreground")}>
+          {error || "Click out or ⌘↵ to save · Esc cancels · # starts a round · a heading ending in ? is a question"}
+        </p>
+      </div>
+    )
+
   return (
     <div className="overflow-x-auto rounded-lg border bg-muted/30 py-2 font-mono text-[13px] leading-6">
       {sessions.map((s) => {
-        const open = !shut[s.id]
-        const body = lines(s.md)
+        const isOpen = !shut[s.id]
+        const body = lines(s.md.trim())
         // A line is hidden when a heading above it, at its level or higher, is folded.
         const visible: Line[] = []
         let foldedAt = 0
@@ -86,12 +178,11 @@ export function MarkdownDoc({ sessions, writable }: { sessions: DocSession[]; wr
           visible.push(l)
           if (l.level && shut[`${s.id}:${l.at}`]) foldedAt = l.level
         }
-        const isEditing = editing === s.id
         return (
           <section key={s.id} id={`note-${s.id}`} className={cn("group/doc scroll-mt-24", s.hidden && "opacity-60")}>
             <div className="flex items-center pr-3">
-              <Gutter fold open={open} onClick={() => flip(s.id)} label={`Fold ${s.title}`} />
-              <span className="min-w-0 flex-1 truncate">
+              <Gutter fold open={isOpen} onClick={() => flip(s.id)} label={`Fold ${s.title}`} />
+              <span className={cn("min-w-0 flex-1 truncate", writable && "cursor-text")} onClick={() => open(s.id, 0)}>
                 <span className="text-muted-foreground/60"># </span>
                 <span className="font-semibold">{s.title}</span>
                 {s.meta && <span className="text-muted-foreground"> · {s.meta}</span>}
@@ -104,68 +195,25 @@ export function MarkdownDoc({ sessions, writable }: { sessions: DocSession[]; wr
                 </label>
               )}
             </div>
-            {open &&
-              (isEditing ? (
-                <div className="flex flex-col gap-1 py-1 pr-3 pl-5">
-                  <textarea
-                    autoFocus
-                    aria-label={`${s.title} notes`}
-                    className="w-full resize-none rounded-md border bg-background px-2 py-1 font-mono text-[13px] leading-6 outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                    rows={Math.max(3, draft.split("\n").length + 1)}
-                    value={draft}
-                    onChange={(e) => setDraft(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Escape") setEditing(null)
-                      if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) void save(s)
-                    }}
-                  />
-                  <div className="flex items-center gap-3 font-sans text-xs text-muted-foreground">
-                    <button type="button" className="rounded-sm font-medium text-foreground hover:underline disabled:opacity-50" disabled={saving} onClick={() => void save(s)}>
-                      Save
-                    </button>
-                    <button type="button" className="hover:text-foreground" onClick={() => setEditing(null)}>
-                      Cancel
-                    </button>
-                    <span>⌘↵ saves · Esc cancels · a heading ending in ? is a question</span>
-                  </div>
-                </div>
-              ) : (
-                <div
-                  role={writable ? "button" : undefined}
-                  tabIndex={writable ? 0 : undefined}
-                  aria-label={writable ? `Edit ${s.title}` : undefined}
-                  onClick={(e) => {
-                    if (!writable || (e.target as HTMLElement).closest("button")) return
-                    setDraft(s.md)
-                    setEditing(s.id)
-                  }}
-                  onKeyDown={(e) => {
-                    if (writable && e.key === "Enter" && e.target === e.currentTarget) {
-                      setDraft(s.md)
-                      setEditing(s.id)
-                    }
-                  }}
-                  className={cn("rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring", writable && "cursor-text hover:bg-muted/60")}
-                >
-                  {visible.length && s.md.trim() ? (
-                    visible.map((l) => {
-                      const key = `${s.id}:${l.at}`
-                      return (
-                        <div key={l.at} className="flex pr-3">
-                          <span aria-hidden className="w-5 shrink-0" />
-                          <Gutter fold={!!l.level} open={!shut[key]} onClick={() => flip(key)} label="Fold section" />
-                          <span className="min-w-0 flex-1 whitespace-pre-wrap">
-                            <Styled text={l.text} level={l.level} reveal={reveal === s.id || reveal === key} />
-                          </span>
-                        </div>
-                      )
-                    })
-                  ) : (
-                    <div className="flex pr-3 text-muted-foreground/60">
-                      <span className="w-10 shrink-0" />
-                      {writable ? "Click to write…" : "Nothing yet."}
+            {isOpen &&
+              (visible.length && s.md.trim() ? (
+                visible.map((l) => {
+                  const key = `${s.id}:${l.at}`
+                  return (
+                    <div key={l.at} className="flex pr-3">
+                      <span aria-hidden className="w-5 shrink-0" />
+                      <Gutter fold={!!l.level} open={!shut[key]} onClick={() => flip(key)} label="Fold section" />
+                      {/* +2: the # heading and the blank line under it */}
+                      <span className={cn("min-w-0 flex-1 whitespace-pre-wrap", writable && "cursor-text")} onClick={() => open(s.id, l.at + 2)}>
+                        <Styled text={l.text} level={l.level} reveal={reveal === s.id || reveal === key} />
+                      </span>
                     </div>
-                  )}
+                  )
+                })
+              ) : (
+                <div className={cn("flex pr-3 text-muted-foreground/60", writable && "cursor-text")} onClick={() => open(s.id, 1)}>
+                  <span className="w-10 shrink-0" />
+                  {writable ? "Click to write…" : "Nothing yet."}
                 </div>
               ))}
           </section>
@@ -173,14 +221,4 @@ export function MarkdownDoc({ sessions, writable }: { sessions: DocSession[]; wr
       })}
     </div>
   )
-
-  async function save(s: DocSession) {
-    setSaving(true)
-    try {
-      await s.onSave(draft)
-      setEditing(null)
-    } finally {
-      setSaving(false)
-    }
-  }
 }
