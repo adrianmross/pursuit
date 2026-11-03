@@ -140,6 +140,12 @@ func (s *Store) DeleteInterview(ctx context.Context, userID, id string, version 
 	if err != nil {
 		return err
 	}
+	if n, _ := res.RowsAffected(); n > 0 {
+		// Its tasks stay on the stage.
+		if _, err := s.exec(ctx, `UPDATE tasks SET round_id='' WHERE user_id=? AND round_id=?`, userID, id); err != nil {
+			return err
+		}
+	}
 	return changed(res, func() (int, error) {
 		cur, err := s.GetInterview(ctx, userID, id)
 		if err != nil {

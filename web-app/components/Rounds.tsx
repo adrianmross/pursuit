@@ -148,7 +148,8 @@ export function useTasks(appId: string, stage: number, onChange?: () => Promise<
     }
   }
   const forStage = (key: string) => (list ?? []).filter((t) => t.stage === key)
-  const add = (title: string, key = STAGE_STOPS[stage][0]) => run(() => api(base, { method: "POST", body: { stage: key, title } }))
+  const add = (title: string, key = STAGE_STOPS[stage][0], roundId?: string) =>
+    run(() => api(base, { method: "POST", body: roundId ? { round_id: roundId, title } : { stage: key, title } }))
   const toggle = (t: Task) =>
     run(() => api(`/v1/tasks/${encodeURIComponent(t.id)}`, { method: "PATCH", body: { version: t.version, done: !t.done_at } }))
   const remove = (t: Task) => run(() => api(`/v1/tasks/${encodeURIComponent(t.id)}?version=${t.version}`, { method: "DELETE" }))

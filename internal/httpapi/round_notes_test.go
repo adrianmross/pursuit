@@ -67,6 +67,22 @@ func TestRoundNotes(t *testing.T) {
 		t.Fatalf("anytime counts apart from Apply: %#v", tasks)
 	}
 
+	// A task on a round takes the round's stage, and loses the round when it goes.
+	code, other := e.json(t, http.MethodPost, "/v1/applications/"+app["id"].(string)+"/rounds", e.token, map[string]any{"stage": "interviewing", "kind": "System design"})
+	if code != 201 {
+		t.Fatal(other)
+	}
+	code, rt := e.json(t, http.MethodPost, "/v1/applications/"+app["id"].(string)+"/tasks", e.token, map[string]any{"title": "Practice a design", "round_id": other["id"]})
+	if code != 201 || rt["round_id"] != other["id"] || rt["stage"] != "interviewing" {
+		t.Fatalf("round task: %d %#v", code, rt)
+	}
+	if code, _ = e.json(t, http.MethodDelete, "/v1/rounds/"+other["id"].(string)+"?version=1", e.token, nil); code != 200 {
+		t.Fatal(code)
+	}
+	if _, rt = e.json(t, http.MethodGet, "/v1/tasks/"+rt["id"].(string), e.token, nil); rt["round_id"] != nil || rt["stage"] != "interviewing" {
+		t.Fatalf("round gone, task stays on the stage: %#v", rt)
+	}
+
 	code, bank := e.json(t, http.MethodGet, "/v1/questions?q=query+engine", e.token, nil)
 	rows := bank["data"].([]any)
 	if code != 200 || len(rows) != 1 || rows[0].(map[string]any)["company"] != "Snowflake" || rows[0].(map[string]any)["round_id"] != round["id"] {

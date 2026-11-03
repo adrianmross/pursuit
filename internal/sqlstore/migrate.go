@@ -502,4 +502,10 @@ var migrations = []migration{{
 		// outline, or fold to one line.
 		`ALTER TABLE interviews ADD COLUMN in_notes BIGINT NOT NULL DEFAULT 1`,
 	},
+}, {
+	version: "017",
+	stmts: []string{
+		// A task can belong to one round of its stage; empty means the stage.
+		`ALTER TABLE tasks ADD COLUMN round_id TEXT NOT NULL DEFAULT ''`,
+	},
 }}

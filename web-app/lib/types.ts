@@ -69,6 +69,8 @@ export type Task = {
   id: string
   application_id: string
   stage: string
+  // The round this task belongs to, if any; empty means its whole stage.
+  round_id?: string
   title: string
   notes?: string
   due_at?: string

@@ -176,8 +176,8 @@ function Appearance() {
       <Row label="Motion" hint="Reduced turns off transitions and animations.">
         <Choice pref="motion" options={[["full", "Full"], ["reduced", "Reduced"]]} />
       </Row>
-      <Row label="Text reveal" hint="Notes decode into place when you open them. Off whenever motion is reduced.">
-        <Choice pref="textFx" options={[["on", "On"], ["off", "Off"]]} />
+      <Row label="Text reveal" hint="Text decodes into place as it opens: in the notes view, or everywhere text opens. Off whenever motion is reduced.">
+        <Choice pref="textFx" options={[["notes", "Notes"], ["all", "Everywhere"], ["off", "Off"]]} />
       </Row>
     </FieldGroup>
   )

@@ -2210,7 +2210,7 @@
             "description": "error"
           }
         },
-        "summary": "add a task. title is required. stage is anytime (no stage), to_apply, prepared, applied, screening, interviewing, final, or offer and defaults to the current stage. due_at is RFC3339 or YYYY-MM-DD"
+        "summary": "add a task. title is required. stage is anytime (no stage), to_apply, prepared, applied, screening, interviewing, final, or offer and defaults to the current stage. round_id puts it on one round, which sets its stage. due_at is RFC3339 or YYYY-MM-DD"
       }
     },
     "/v1/applications/{id}/transition": {

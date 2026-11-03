@@ -170,7 +170,7 @@ func build() []byte {
 	add("/v1/interviews/{id}", "patch", "deprecated alias of PATCH /v1/rounds/{id}", true, deprecated)
 	add("/v1/interviews/{id}", "delete", "deprecated alias of DELETE /v1/rounds/{id}", true, deprecated)
 	add("/v1/applications/{id}/tasks", "get", "list an application's tasks, the things waiting on you. limit, cursor, fields; no limit returns all", false, nil)
-	add("/v1/applications/{id}/tasks", "post", "add a task. title is required. stage is anytime (no stage), to_apply, prepared, applied, screening, interviewing, final, or offer and defaults to the current stage. due_at is RFC3339 or YYYY-MM-DD", true, nil)
+	add("/v1/applications/{id}/tasks", "post", "add a task. title is required. stage is anytime (no stage), to_apply, prepared, applied, screening, interviewing, final, or offer and defaults to the current stage. round_id puts it on one round, which sets its stage. due_at is RFC3339 or YYYY-MM-DD", true, nil)
 	add("/v1/tasks/{id}", "get", "get a task", false, nil)
 	add("/v1/tasks/{id}", "patch", "update a task; body.version is required. done true/false marks it done", true, nil)
 	add("/v1/tasks/{id}", "delete", "delete a task; version query or If-Match", true, nil)

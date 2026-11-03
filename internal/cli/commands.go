@@ -682,9 +682,10 @@ func cmdTasks() *Command {
 		{Name: "stage", Type: "string", Help: "anytime (no stage), to_apply, prepared, applied, screening, interviewing, final, or offer (default: the application's current stage)"},
 		{Name: "notes", Type: "string", Help: "details"},
 		{Name: "due", Type: "string", Help: "RFC3339 or YYYY-MM-DD"},
+		{Name: "round", Type: "string", Help: "round id: the task belongs to that round and takes its stage; empty to untie"},
 	}
 	put := func(e *exec, payload map[string]any) error {
-		for key, flag := range map[string]string{"title": "title", "stage": "stage", "notes": "notes", "due_at": "due"} {
+		for key, flag := range map[string]string{"title": "title", "stage": "stage", "notes": "notes", "due_at": "due", "round_id": "round"} {
 			if _, ok := e.flags[flag]; ok {
 				payload[key] = e.flag(flag)
 			}

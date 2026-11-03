@@ -736,17 +736,19 @@ func ParseInterviewStage(s string) (string, error) {
 
 // Task is a to-do on an application, tied to a stage: something waiting on you.
 type Task struct {
-	ID            string     `json:"id"`
-	UserID        string     `json:"-"`
-	ApplicationID string     `json:"application_id"`
-	Stage         string     `json:"stage"`
-	Title         string     `json:"title"`
-	Notes         string     `json:"notes"`
-	DueAt         *time.Time `json:"due_at,omitempty"`
-	DoneAt        *time.Time `json:"done_at,omitempty"`
-	Version       int        `json:"version"`
-	CreatedAt     time.Time  `json:"created_at"`
-	UpdatedAt     time.Time  `json:"updated_at"`
+	ID            string `json:"id"`
+	UserID        string `json:"-"`
+	ApplicationID string `json:"application_id"`
+	Stage         string `json:"stage"`
+	// RoundID ties the task to one round of its stage; empty is the stage.
+	RoundID   string     `json:"round_id,omitempty"`
+	Title     string     `json:"title"`
+	Notes     string     `json:"notes"`
+	DueAt     *time.Time `json:"due_at,omitempty"`
+	DoneAt    *time.Time `json:"done_at,omitempty"`
+	Version   int        `json:"version"`
+	CreatedAt time.Time  `json:"created_at"`
+	UpdatedAt time.Time  `json:"updated_at"`
 }
 
 // ParseTaskStage accepts to_apply or any stage a round can sit in. It
@@ -941,7 +943,7 @@ var (
 	AppFields         = []string{"id", "company_id", "company", "role_id", "title", "location", "salary", "salary_min_cents", "salary_max_cents", "fit", "status", "outcome", "stage", "interviews", "tasks", "applied_date", "next_step", "notes", "posting_url", "source", "job_type", "resume_version", "resume_file_ref", "contact_email", "external_id", "tracked_by", "tags", "link_status", "link_checked_at", "archived_at", "custom_fields", "version", "created_at", "updated_at"}
 	EventFields       = []string{"id", "application_id", "kind", "from_status", "to_status", "title", "body", "occurred_at", "created_at", "actor"}
 	InterviewFields   = []string{"id", "application_id", "stage", "kind", "interviewer", "scheduled_at", "done_at", "notes", "questions", "in_notes", "version", "created_at", "updated_at"}
-	TaskFields        = []string{"id", "application_id", "stage", "title", "notes", "due_at", "done_at", "version", "created_at", "updated_at"}
+	TaskFields        = []string{"id", "application_id", "stage", "round_id", "title", "notes", "due_at", "done_at", "version", "created_at", "updated_at"}
 	TagFields         = []string{"id", "name", "created_at"}
 	CustomFieldFields = []string{"id", "name", "type", "created_at"}
 	TokenFields       = []string{"id", "name", "prefix", "scopes", "created_at", "last_used_at", "revoked_at"}

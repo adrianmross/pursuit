@@ -1,11 +1,11 @@
 "use client"
 
-import { useEffect, useState, type ReactNode } from "react"
-import { ChevronDown, FileText, Inbox, Pencil, Plus, SlidersHorizontal, Trash2, X } from "lucide-react"
+import { useEffect, useRef, useState, type ReactNode } from "react"
+import { ChevronRight, FileText, Inbox, ListPlus, Pencil, Plus, SlidersHorizontal, Trash2, X } from "lucide-react"
 import { api } from "@/lib/api-client"
 import { cn } from "@/lib/utils"
 import { label, STAGE_STOPS, type Application, type Interview, type Page, type Question, type Task } from "@/lib/types"
-import { RoundPie, useRounds, useTasks } from "@/components/Rounds"
+import { AddRoundIcon, RoundPie, useRounds, useTasks } from "@/components/Rounds"
 import { Unanswered } from "@/components/PreparedAnswers"
 import { InlineText } from "@/components/InlineEdit"
 import { SectionCard } from "@/components/detail/SectionCard"
@@ -62,8 +62,12 @@ function withQuestion(md: string, prompt: string, answer: string) {
   return `${md.trimEnd()}${md.trim() ? "\n\n" : ""}### ${p}\n${answer.trim()}\n`
 }
 
+// Rows arrive one after another, like the rows in the landing demo.
+const stagger = (i = 0) => ({ className: "animate-in fade-in slide-in-from-bottom-1 fill-mode-both duration-300", style: { animationDelay: `${Math.min(i, 12) * 60}ms` } })
+
 // A row that lights up on hover, like the questions list: a title and a line under it.
-function Row({ title, sub, onClick, lead, muted }: { title: ReactNode; sub?: ReactNode; onClick?: () => void; lead?: ReactNode; muted?: boolean }) {
+function Row({ title, sub, onClick, lead, muted, index }: { title: ReactNode; sub?: ReactNode; onClick?: () => void; lead?: ReactNode; muted?: boolean; index?: number }) {
+  const anim = stagger(index)
   const body = (
     <>
       {lead}
@@ -73,38 +77,29 @@ function Row({ title, sub, onClick, lead, muted }: { title: ReactNode; sub?: Rea
       </span>
     </>
   )
-  const cls = "-mx-2 flex items-start gap-2.5 rounded-md px-2 py-1.5 text-left hover:bg-muted"
+  const cls = cn("-mx-2 flex items-start gap-2.5 rounded-md px-2 py-1.5 text-left hover:bg-muted", anim.className)
   return onClick ? (
-    <button type="button" className={cn(cls, "w-[calc(100%+1rem)] outline-none focus-visible:ring-2 focus-visible:ring-ring")} onClick={onClick}>
+    <button type="button" className={cn(cls, "w-[calc(100%+1rem)] outline-none focus-visible:ring-2 focus-visible:ring-ring")} style={anim.style} onClick={onClick}>
       {body}
     </button>
   ) : (
-    <div className={cls}>{body}</div>
+    <div className={cls} style={anim.style}>
+      {body}
+    </div>
   )
 }
 
-// A plain + that opens into the inputs for adding something.
-function Adder({ label: name, children }: { label: string; children: (close: () => void) => ReactNode }) {
-  const [open, setOpen] = useState(false)
-  if (!open)
-    return (
-      <Button variant="ghost" size="sm" className="-ml-2 self-start text-muted-foreground" onClick={() => setOpen(true)}>
-        <Plus /> {name}
-      </Button>
-    )
-  return <div className="flex w-full flex-col gap-2 rounded-lg border p-3">{children(() => setOpen(false))}</div>
-}
-
-function StagePicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+// Where a new task or question goes, shown as a small chip at the row's end.
+function WherePicker({ value, options, onChange, label: name }: { value: string; options: { id: string; name: string; indent?: boolean }[]; onChange: (v: string) => void; label: string }) {
   return (
     <Select value={value} onValueChange={onChange}>
-      <SelectTrigger size="sm" className="w-36" aria-label="Stage">
+      <SelectTrigger size="sm" className="h-6 max-w-40 shrink-0 gap-1 border-0 bg-transparent px-1.5 text-xs text-muted-foreground shadow-none hover:bg-background/60 dark:bg-transparent" aria-label={name}>
         <SelectValue />
       </SelectTrigger>
       <SelectContent>
-        {STAGE_KEYS.map((k) => (
-          <SelectItem key={k} value={k}>
-            {stageName(k)}
+        {options.map((o) => (
+          <SelectItem key={o.id} value={o.id} className={cn(o.indent && "pl-6")}>
+            {o.name}
           </SelectItem>
         ))}
       </SelectContent>
@@ -112,69 +107,84 @@ function StagePicker({ value, onChange }: { value: string; onChange: (v: string)
   )
 }
 
-function TaskForm({ stage: initial, onAdd, onClose }: { stage: string; onAdd: (title: string, stage: string) => Promise<unknown>; onClose: () => void }) {
+const bare = "h-auto min-w-0 flex-1 rounded-none border-0 bg-transparent p-0 shadow-none focus-visible:ring-0 dark:bg-transparent"
+
+// Adding a task looks like the task it becomes: the same row, a dashed box
+// where the checkbox will be. Enter adds and stays open; Esc closes.
+function AddTaskRow({ where: initial, places, onAdd, startOpen = false, compact = false, onClose }: { where: string; places: { id: string; name: string; indent?: boolean }[]; onAdd: (title: string, where: string) => Promise<unknown>; startOpen?: boolean; compact?: boolean; onClose?: () => void }) {
+  const [open, setOpenState] = useState(startOpen)
   const [title, setTitle] = useState("")
-  const [stage, setStage] = useState(initial)
+  const [where, setWhere] = useState(initial)
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => setWhere(initial), [initial])
+  const setOpen = (v: boolean) => {
+    setOpenState(v)
+    if (!v) onClose?.()
+  }
+  const size = compact ? "min-h-7 text-[13px]" : "min-h-9 text-sm"
+  if (!open)
+    return (
+      <button type="button" className={cn("-mx-2 flex w-[calc(100%+1rem)] items-center gap-2.5 rounded-md px-2 text-left text-muted-foreground outline-none hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring", size)} onClick={() => setOpen(true)}>
+        <Plus className="size-4 shrink-0" /> Add task
+      </button>
+    )
   return (
     <form
-      className="flex flex-wrap gap-2"
+      className={cn("-mx-2 flex items-center gap-2.5 rounded-md bg-muted px-2", size)}
       onSubmit={(e) => {
         e.preventDefault()
-        if (title.trim()) void onAdd(title.trim(), stage).then(() => setTitle(""))
+        if (title.trim()) void onAdd(title.trim(), where).then(() => setTitle(""))
       }}
     >
-      <Input autoFocus className="h-8 min-w-48 flex-1 text-sm" placeholder="What needs doing?" aria-label="New task" value={title} onChange={(e) => setTitle(e.target.value)} />
-      <StagePicker value={stage} onChange={setStage} />
-      <Button type="submit" size="sm" disabled={!title.trim()}>
-        Add
-      </Button>
-      <Button type="button" size="sm" variant="ghost" onClick={onClose}>
-        Done
-      </Button>
+      <span aria-hidden className="size-4 shrink-0 rounded-[4px] border border-dashed border-muted-foreground" />
+      <Input autoFocus className={cn(bare, compact ? "text-[13px]" : "text-sm")} placeholder="What needs doing?" aria-label="New task" value={title} onChange={(e) => setTitle(e.target.value)} onKeyDown={(e) => e.key === "Escape" && setOpen(false)} onBlur={(e) => !title.trim() && !e.currentTarget.form?.contains(e.relatedTarget) && setOpen(false)} />
+      {!compact && <WherePicker value={where} options={places} onChange={setWhere} label="Where the task goes" />}
     </form>
   )
 }
 
-function QuestionForm({ places, onAdd, onClose }: { places: { id: string; name: string }[]; onAdd: (where: string, prompt: string, answer: string) => Promise<unknown>; onClose: () => void }) {
+// Adding a question looks like the question it becomes: a title line and the
+// answer under it. Enter in the question moves to the answer; Enter there adds.
+function AddQuestionRow({ places, onAdd }: { places: { id: string; name: string }[]; onAdd: (where: string, prompt: string, answer: string) => Promise<unknown> }) {
+  const [open, setOpen] = useState(false)
   const [prompt, setPrompt] = useState("")
   const [answer, setAnswer] = useState("")
   const [where, setWhere] = useState(places[0]?.id ?? "about")
+  const submit = () => {
+    if (!prompt.trim()) return
+    void onAdd(where, prompt, answer).then(() => {
+      setPrompt("")
+      setAnswer("")
+      document.getElementById("add-question-prompt")?.focus()
+    })
+  }
+  if (!open)
+    return (
+      <button type="button" className="-mx-2 flex min-h-9 w-[calc(100%+1rem)] items-center gap-2.5 rounded-md px-2 text-left text-sm text-muted-foreground outline-none hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring" onClick={() => setOpen(true)}>
+        <Plus className="size-4 shrink-0" /> Add question
+      </button>
+    )
   return (
-    <form
-      className="flex flex-col gap-2"
-      onSubmit={(e) => {
-        e.preventDefault()
-        if (prompt.trim())
-          void onAdd(where, prompt, answer).then(() => {
-            setPrompt("")
-            setAnswer("")
-          })
-      }}
+    <div
+      className="-mx-2 flex items-start gap-2.5 rounded-md bg-muted px-2 py-1.5"
+      onKeyDown={(e) => e.key === "Escape" && setOpen(false)}
+      onBlur={(e) => !e.currentTarget.contains(e.relatedTarget) && !prompt.trim() && setOpen(false)}
     >
-      <Input autoFocus className="h-8 text-sm" placeholder="The question, e.g. Why this team?" aria-label="Question" value={prompt} onChange={(e) => setPrompt(e.target.value)} />
-      <Textarea className="min-h-16 text-sm" placeholder="Your answer, or leave it for later" aria-label="Answer" value={answer} onChange={(e) => setAnswer(e.target.value)} />
-      <div className="flex flex-wrap gap-2">
-        <Select value={where} onValueChange={setWhere}>
-          <SelectTrigger size="sm" className="w-56" aria-label="Where it was asked">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {places.map((p) => (
-              <SelectItem key={p.id} value={p.id}>
-                {p.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <span className="flex-1" />
-        <Button type="button" size="sm" variant="ghost" onClick={onClose}>
-          Done
-        </Button>
-        <Button type="submit" size="sm" disabled={!prompt.trim()}>
-          Add question
-        </Button>
-      </div>
-    </form>
+      <span className="flex min-w-0 flex-1 flex-col">
+        <Input id="add-question-prompt" autoFocus className={cn(bare, "text-sm font-medium")} placeholder="The question, e.g. Why this team?" aria-label="Question" value={prompt} onChange={(e) => setPrompt(e.target.value)} onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), document.getElementById("add-question-answer")?.focus())} />
+        <Textarea
+          id="add-question-answer"
+          className={cn(bare, "min-h-0 resize-none text-sm text-muted-foreground")}
+          rows={Math.max(1, answer.split("\n").length)}
+          placeholder="Your answer, or leave it for later"
+          aria-label="Answer"
+          value={answer}
+          onChange={(e) => setAnswer(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && (e.preventDefault(), submit())}
+        />
+      </span>
+      <WherePicker value={where} options={places} onChange={setWhere} label="Where it was asked" />
+    </div>
   )
 }
 
@@ -440,13 +450,13 @@ function DocSession({
                             {last ? "└─" : "├─"} {sOpen ? "▾" : "▸"}
                           </span>
                           <span className="font-sans text-xs font-medium tracking-wide uppercase">
-                            <Decode text={p.title} active={reveal(-1)} />
+                            <Decode text={p.title} active={reveal(-1)} scope="notes" />
                           </span>
                         </button>
                       )}
                       {(sOpen || !p.title) && (
                         <div className={cn("py-1 pl-6", p.title && !last && "ml-[0.3rem] border-l border-border pl-[1.2rem]")}>
-                          <Markdown md={p.body} active={reveal(k)} />
+                          <Markdown md={p.body} active={reveal(k)} scope="notes" />
                         </div>
                       )}
                     </div>
@@ -482,8 +492,19 @@ export function OutlineCard({ application, writable, onChange, onSaveNotes }: { 
   const [shut, setShut] = useState<Record<string, boolean>>({})
   const [open, setOpen] = useState<Record<string, boolean>>({})
   const [justOpened, setJustOpened] = useState<string | null>(null)
-  const [todo, setTodo] = useState(false)
-  const [taskStage, setTaskStage] = useState(ANYTIME)
+  const [marked, setMarked] = useState<string | null>(null)
+  const [addingAt, setAddingAt] = useState<string | null>(null)
+  const bodyRef = useRef<HTMLDivElement>(null)
+  const [bodyMin, setBodyMin] = useState(0)
+  useEffect(() => {
+    const el = bodyRef.current
+    if (!el) return
+    const ro = new ResizeObserver(() => setBodyMin((m) => Math.max(m, el.scrollHeight)))
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
+  // New tasks from the Tasks view land on the stage the application is on.
+  const taskStage = currentKey
   const [compiled, setCompiled] = useState(false)
   const [prefs, setPrefsState] = useState<Prefs>(DEFAULT_PREFS)
 
@@ -541,7 +562,19 @@ export function OutlineCard({ application, writable, onChange, onSaveNotes }: { 
         : null
   const waiting = openTasks.length + toAnswer.length + unanswered.length
   const questionCount = looseQuestions.length + ordered.reduce((n, { r }) => n + (r.questions?.length ?? 0), 0) + form.length
-  useFocus(prefs.view === "tasks" || (prefs.view === "all" && todo) ? nextTask?.id : undefined)
+  useFocus(prefs.view === "tasks" ? nextTask?.id : undefined)
+  // NEXT in All jumps to the task in the outline, under its stage or round,
+  // and marks it until the pointer finds it.
+  const jumpToNext = () => {
+    if (!nextTask) return setPrefs({ view: "tasks" })
+    setShut((x) => ({ ...x, [nextTask.stage]: false }))
+    setMarked(nextTask.id)
+    requestAnimationFrame(() => {
+      const row = document.getElementById(`task-${nextTask.id}`)
+      row?.scrollIntoView({ block: "center", behavior: "smooth" })
+      row?.querySelector<HTMLElement>("button")?.focus({ preventScroll: true })
+    })
+  }
 
   const patch = (r: Interview, body: Record<string, unknown>) =>
     rounds.run(() => api(`/v1/rounds/${encodeURIComponent(r.id)}`, { method: "PATCH", body: { version: r.version, ...body } }))
@@ -569,18 +602,39 @@ export function OutlineCard({ application, writable, onChange, onSaveNotes }: { 
   const places = [{ id: "about", name: "Not tied to a round" }, ...ordered.map(({ r, n }) => ({ id: r.id, name: `${roundName(r, n)} · ${stageName(r.stage)}` }))]
   const meta = (r: Interview) => [stageName(r.stage), short(r.scheduled_at), r.questions?.length ? `${r.questions.length}?` : ""].filter(Boolean).join(" · ")
 
-  const taskRow = (t: Task) => (
-    <div key={t.id} id={`task-${t.id}`} className={cn("group -mx-2 flex min-h-9 scroll-mt-24 items-center gap-2.5 rounded-md px-2 hover:bg-muted", t.id === nextTask?.id && "bg-muted")}>
-      <Checkbox aria-label={`Done: ${t.title}`} checked={!!t.done_at} disabled={!writable} onCheckedChange={() => void tasks.toggle(t)} />
-      <span className={cn("min-w-0 flex-1 text-sm", t.done_at && "text-muted-foreground line-through")}>{t.title}</span>
-      {t.id === nextTask?.id && <span className="text-[10px] font-semibold tracking-wider text-muted-foreground">NEXT</span>}
-      {writable && (
-        <Button variant="ghost" size="icon-xs" className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100" aria-label={`Delete ${t.title}`} onClick={() => void tasks.remove(t)}>
-          <X />
-        </Button>
-      )}
-    </div>
-  )
+  const roundOf = (t: Task) => {
+    const at = ordered.find(({ r }) => r.id === t.round_id)
+    return at ? roundName(at.r, at.n) : ""
+  }
+  const taskRow = (t: Task, i = 0, compact = false) => {
+    const anim = stagger(i)
+    const isMarked = marked === t.id
+    return (
+      <div
+        key={t.id}
+        id={`task-${t.id}`}
+        onMouseEnter={() => isMarked && setMarked(null)}
+        style={anim.style}
+        className={cn("group relative -mx-2 flex scroll-mt-24 items-center gap-2.5 rounded-md px-2 hover:bg-muted", compact ? "min-h-7 text-[13px]" : "min-h-9 text-sm", anim.className, isMarked && "bg-muted")}
+      >
+        {isMarked && <span aria-hidden className="absolute top-1/2 -left-1 size-1.5 -translate-y-1/2 animate-pulse rounded-full bg-foreground motion-reduce:animate-none" />}
+        <Checkbox aria-label={`Done: ${t.title}`} checked={!!t.done_at} disabled={!writable} onCheckedChange={() => void tasks.toggle(t)} />
+        <span className={cn("min-w-0 flex-1 truncate", t.done_at && "text-muted-foreground line-through")}>{t.title}</span>
+        {!compact && t.round_id && <span className="shrink-0 text-xs text-muted-foreground">{roundOf(t)}</span>}
+        {!compact && t.id === nextTask?.id && <span className="text-[10px] font-semibold tracking-wider text-muted-foreground">NEXT</span>}
+        {writable && (
+          <Button variant="ghost" size="icon-xs" className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100" aria-label={`Delete ${t.title}`} onClick={() => void tasks.remove(t)}>
+            <X />
+          </Button>
+        )}
+      </div>
+    )
+  }
+  const taskPlaces = [
+    { id: `stage:${ANYTIME}`, name: "Inbox" },
+    ...STAGE_STOPS.flatMap(([key, name]) => [{ id: `stage:${key}`, name }, ...rounds.storedFor(all, key).map((r, n) => ({ id: `round:${r.id}`, name: roundName(r, n), indent: true }))]),
+  ]
+  const addTask = (title: string, where: string) => (where.startsWith("round:") ? tasks.add(title, undefined, where.slice(6)) : tasks.add(title, where.slice(6)))
 
   // Tasks, grouped Inbox first, with answers waiting where they belong.
   const groups = STAGE_KEYS.map((key) => ({
@@ -598,7 +652,7 @@ export function OutlineCard({ application, writable, onChange, onSaveNotes }: { 
             {g.key === ANYTIME && <Inbox className="size-3.5" />}
             {stageName(g.key)}
           </h3>
-          {g.items.map(taskRow)}
+          {g.items.map((t, i) => taskRow(t, i))}
           {g.form.map((q) => (
             <Collapsible key={q.prompt}>
               <CollapsibleTrigger className="-mx-2 flex min-h-9 w-[calc(100%+1rem)] items-center gap-2.5 rounded-md px-2 text-left text-sm hover:bg-muted">
@@ -615,10 +669,10 @@ export function OutlineCard({ application, writable, onChange, onSaveNotes }: { 
         </section>
       ))}
       {!groups.length && <p className="text-sm text-muted-foreground">Nothing waiting on you.</p>}
-      <div className="flex items-center gap-3">
-        {writable && <Adder label="Add task">{(close) => <TaskForm key={taskStage} stage={taskStage} onAdd={(title, stage) => tasks.add(title, stage)} onClose={close} />}</Adder>}
+      <div className="flex flex-col">
+        {writable && <AddTaskRow where={`stage:${taskStage}`} places={taskPlaces} onAdd={addTask} />}
         {doneCount > 0 && (
-          <button type="button" className="text-xs text-muted-foreground hover:text-foreground" onClick={() => setPrefs({ showDone: !prefs.showDone })}>
+          <button type="button" className="self-start pt-1 text-xs text-muted-foreground hover:text-foreground" onClick={() => setPrefs({ showDone: !prefs.showDone })}>
             {prefs.showDone ? "Hide done" : `${doneCount} done`}
           </button>
         )}
@@ -635,27 +689,27 @@ export function OutlineCard({ application, writable, onChange, onSaveNotes }: { 
       {questionGroups.map((g) => (
         <section key={g.id} className="flex flex-col">
           <h3 className="pb-1 text-xs text-muted-foreground">{g.title}</h3>
-          {g.items.map((q) => (
-            <Row key={q.prompt} title={q.prompt} sub={<span className={cn(!q.answer && "italic")}>{q.answer || "No answer yet"}</span>} onClick={() => go("notes", g.id)} />
+          {g.items.map((q, i) => (
+            <Row key={q.prompt} index={i} title={q.prompt} sub={<span className={cn(!q.answer && "italic")}>{q.answer || "No answer yet"}</span>} onClick={() => go("notes", g.id)} />
           ))}
         </section>
       ))}
       {form.length > 0 && (
         <section className="flex flex-col">
           <h3 className="pb-1 text-xs text-muted-foreground">Application form</h3>
-          {form.map((q) => (
-            <Row key={q.prompt} title={q.prompt} sub={q.answer || (q.prompt && writable ? <Unanswered prompt={q.prompt} /> : "No answer yet")} />
+          {form.map((q, i) => (
+            <Row key={q.prompt} index={i} title={q.prompt} sub={q.answer || (q.prompt && writable ? <Unanswered prompt={q.prompt} /> : "No answer yet")} />
           ))}
         </section>
       )}
       {!questionGroups.length && !form.length && <p className="text-sm text-muted-foreground">No questions yet. In any note, a heading that ends in ? is a question.</p>}
-      {writable && <Adder label="Add question">{(close) => <QuestionForm places={places} onAdd={addQuestion} onClose={close} />}</Adder>}
+      {writable && <AddQuestionRow places={places} onAdd={addQuestion} />}
     </div>
   )
 
   const roundRow = (r: Interview, n: number, sub: string) => (
     <RoundDetails key={r.id} r={r} name={roundName(r, n)} writable={writable} onPatch={(body) => patch(r, body)} onDelete={() => void remove(r)} onOpenNotes={() => go(prefs.view === "all" ? "all" : "notes", r.id)}>
-      <button type="button" className="-mx-2 flex w-[calc(100%+1rem)] items-start gap-2.5 rounded-md px-2 py-1.5 text-left outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring">
+      <button type="button" style={stagger(n).style} className={cn("-mx-2 flex w-[calc(100%+1rem)] items-start gap-2.5 rounded-md px-2 py-1.5 text-left outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring", stagger(n).className)}>
         <RoundPie className="mt-0.5 size-4 shrink-0" total={1} done={r.done_at ? 1 : 0} />
         <span className="flex min-w-0 flex-1 flex-col">
           <span className={cn("truncate text-sm font-medium", r.in_notes === false && "font-normal text-muted-foreground")}>{roundName(r, n)}</span>
@@ -706,35 +760,64 @@ export function OutlineCard({ application, writable, onChange, onSaveNotes }: { 
         {STAGE_STOPS.map(([key, name], i) => {
           const stored = rounds.storedFor(all, key)
           const offer = i === STAGE_STOPS.length - 1
+          const own = allTasks.filter((t) => t.stage === key && !t.round_id && (prefs.showDone || !t.done_at))
+          const hasKids = stored.length > 0 || own.length > 0
           return (
             <li key={key} className="flex flex-col">
-              <div className="group relative flex h-8 items-center rounded-md px-2 hover:bg-muted">
-                <button type="button" className="flex min-w-0 flex-1 items-center gap-2 rounded-sm text-left text-[13px] outline-none focus-visible:ring-2 focus-visible:ring-ring" aria-expanded={stored.length ? !shut[key] : undefined} onClick={() => stored.length && setShut((x) => ({ ...x, [key]: !x[key] }))}>
+              <div className="group flex h-8 items-center gap-1 rounded-md px-2 hover:bg-muted">
+                <button type="button" className="flex min-w-0 flex-1 items-center gap-2 rounded-sm text-left text-[13px] outline-none focus-visible:ring-2 focus-visible:ring-ring" aria-expanded={hasKids ? !shut[key] : undefined} onClick={() => hasKids && setShut((x) => ({ ...x, [key]: !x[key] }))}>
                   <RoundPie className="size-4 shrink-0" total={offer ? 1 : Math.max(1, stored.length)} done={stored.length ? stored.filter((r) => r.done_at).length : i <= current ? 1 : 0} />
                   <span className={cn("truncate", i === current ? "font-semibold" : i > current && "text-muted-foreground")}>{name}</span>
                 </button>
                 {writable && (
-                  <span className="absolute right-1 flex gap-1 opacity-0 group-focus-within:opacity-100 group-hover:opacity-100">
+                  <span className="flex shrink-0 gap-0.5 opacity-0 group-focus-within:opacity-100 group-hover:opacity-100">
                     {i > 0 && !offer && (
-                      <Button size="xs" variant="outline" className="h-5 rounded-full px-1.5 text-[11px]" disabled={rounds.busy} onClick={() => { setShut((x) => ({ ...x, [key]: false })); void rounds.add(key, i) }}>
-                        + round
+                      <Button size="icon-xs" variant="ghost" aria-label={`Add a ${name} round`} title="Add a round" disabled={rounds.busy} onClick={() => { setShut((x) => ({ ...x, [key]: false })); void rounds.add(key, i) }}>
+                        <AddRoundIcon className="size-3.5" />
                       </Button>
                     )}
-                    <Button size="xs" variant="outline" className="h-5 rounded-full px-1.5 text-[11px]" onClick={() => { setTaskStage(key); setTodo(true) }}>
-                      + task
+                    <Button size="icon-xs" variant="ghost" aria-label={`Add a ${name} task`} title="Add a task" onClick={() => { setShut((x) => ({ ...x, [key]: false })); setAddingAt(`stage:${key}`) }}>
+                      <ListPlus className="size-3.5" />
                     </Button>
                   </span>
                 )}
               </div>
-              {!shut[key] &&
-                stored.map((r, n) => (
-                  <RoundDetails key={r.id} r={r} name={roundName(r, n)} writable={writable} onPatch={(body) => patch(r, body)} onDelete={() => void remove(r)} onOpenNotes={() => reveal(r.id)}>
-                    <button type="button" className="flex h-7 items-center gap-2 rounded-md pr-2 pl-7 text-left text-[13px] outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring">
-                      <RoundPie className="size-3.5 shrink-0" total={1} done={r.done_at ? 1 : 0} />
-                      <span className={cn("min-w-0 flex-1 truncate", r.in_notes === false && "text-muted-foreground")}>{roundName(r, n)}</span>
-                    </button>
-                  </RoundDetails>
-                ))}
+              {!shut[key] && (
+                <div className="flex flex-col pl-5">
+                  {stored.map((r, n) => {
+                    const rt = allTasks.filter((t) => t.round_id === r.id && (prefs.showDone || !t.done_at))
+                    return (
+                      <div key={r.id} className="flex flex-col">
+                        <div className="group flex h-7 items-center gap-1 rounded-md pr-2 hover:bg-muted">
+                          <RoundDetails r={r} name={roundName(r, n)} writable={writable} onPatch={(body) => patch(r, body)} onDelete={() => void remove(r)} onOpenNotes={() => reveal(r.id)}>
+                            <button type="button" className="flex min-w-0 flex-1 items-center gap-2 rounded-md pl-2 text-left text-[13px] outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                              <RoundPie className="size-3.5 shrink-0" total={1} done={r.done_at ? 1 : 0} />
+                              <span className={cn("min-w-0 flex-1 truncate", r.in_notes === false && "text-muted-foreground")}>{roundName(r, n)}</span>
+                            </button>
+                          </RoundDetails>
+                          {writable && (
+                            <Button size="icon-xs" variant="ghost" className="shrink-0 opacity-0 group-focus-within:opacity-100 group-hover:opacity-100" aria-label={`Add a task to ${roundName(r, n)}`} title="Add a task" onClick={() => setAddingAt(`round:${r.id}`)}>
+                              <ListPlus className="size-3.5" />
+                            </Button>
+                          )}
+                        </div>
+                        {(rt.length > 0 || addingAt === `round:${r.id}`) && (
+                          <div className="flex flex-col pl-6">
+                            {rt.map((t, k) => taskRow(t, k, true))}
+                            {addingAt === `round:${r.id}` && <AddTaskRow where={`round:${r.id}`} places={taskPlaces} onAdd={addTask} startOpen compact onClose={() => setAddingAt(null)} />}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                  {(own.length > 0 || addingAt === `stage:${key}`) && (
+                    <div className="flex flex-col pl-2">
+                      {own.map((t, k) => taskRow(t, k, true))}
+                      {addingAt === `stage:${key}` && <AddTaskRow where={`stage:${key}`} places={taskPlaces} onAdd={addTask} startOpen compact onClose={() => setAddingAt(null)} />}
+                    </div>
+                  )}
+                </div>
+              )}
             </li>
           )
         })}
@@ -747,15 +830,15 @@ export function OutlineCard({ application, writable, onChange, onSaveNotes }: { 
     <article aria-label="Notes" className="min-w-0">
       <Fold id="inbox" title="Inbox" meta={[inboxTasks.length ? `${inboxTasks.length} tasks` : "", looseQuestions.length ? `${looseQuestions.length}?` : ""].filter(Boolean).join(" · ") || "empty"} open={isOpen("inbox")} onToggle={() => toggle("inbox")} writable={writable}>
         <div className="flex flex-col">
-          {inboxTasks.map(taskRow)}
-          {looseQuestions.map((q) => (
-            <Row key={q.prompt} title={q.prompt} sub={<span className={cn(!q.answer && "italic")}>{q.answer || "No answer yet"}</span>} onClick={() => reveal("about")} />
+          {inboxTasks.map((t, i) => taskRow(t, i))}
+          {looseQuestions.map((q, i) => (
+            <Row key={q.prompt} index={inboxTasks.length + i} title={q.prompt} sub={<span className={cn(!q.answer && "italic")}>{q.answer || "No answer yet"}</span>} onClick={() => reveal("about")} />
           ))}
           {!inboxTasks.length && !looseQuestions.length && <p className="text-sm text-muted-foreground">Tasks with no stage and questions not tied to a round land here.</p>}
           {writable && (
-            <div className="flex flex-wrap gap-1 pt-1">
-              <Adder label="Task">{(close) => <TaskForm stage={ANYTIME} onAdd={(title, stage) => tasks.add(title, stage)} onClose={close} />}</Adder>
-              <Adder label="Question">{(close) => <QuestionForm places={places} onAdd={addQuestion} onClose={close} />}</Adder>
+            <div className="flex flex-col pt-1">
+              <AddTaskRow where={`stage:${ANYTIME}`} places={taskPlaces} onAdd={addTask} />
+              <AddQuestionRow places={places} onAdd={addQuestion} />
             </div>
           )}
         </div>
@@ -852,30 +935,33 @@ export function OutlineCard({ application, writable, onChange, onSaveNotes }: { 
         <ViewOptions prefs={prefs} onChange={setPrefs} />
       </div>
 
-      {prefs.view === "all" && (
-        <>
-          <Collapsible open={todo} onOpenChange={setTodo} className="rounded-lg border px-3.5 py-2">
-            <CollapsibleTrigger className="flex w-full items-center gap-3 text-left text-sm outline-none">
+      {/* Never shorter than the tallest view so far: switching tabs leaves the page where it is. */}
+      <div ref={bodyRef} style={{ minHeight: bodyMin || undefined }} className="flex flex-col gap-3">
+        {prefs.view === "all" && (
+          <>
+            <div className="flex items-center gap-3 rounded-lg border px-3.5 py-2 text-sm">
               <span className="text-[11px] font-semibold tracking-wider">NEXT</span>
-              <span className="min-w-0 flex-1 truncate">{next ? next.title : "Nothing waiting on you"}</span>
+              <button type="button" className="min-w-0 flex-1 truncate rounded-sm text-left outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring" onClick={jumpToNext} disabled={!next}>
+                {next ? next.title : "Nothing waiting on you"}
+              </button>
               {next && <span className="shrink-0 text-xs text-muted-foreground">{next.where}</span>}
-              <span className="flex shrink-0 items-center gap-1 text-xs text-muted-foreground">
-                {waiting > 1 ? `${waiting - 1} more` : ""}
-                <ChevronDown className={cn("size-4 transition-transform", !todo && "-rotate-90")} />
-              </span>
-            </CollapsibleTrigger>
-            <CollapsibleContent className="pt-3">{tasksView}</CollapsibleContent>
-          </Collapsible>
-          <div className="grid gap-8 pt-2 md:grid-cols-[180px_minmax(0,1fr)]">
-            {outline}
-            {allNotes}
-          </div>
-        </>
-      )}
-      {prefs.view === "rounds" && roundsView}
-      {prefs.view === "tasks" && tasksView}
-      {prefs.view === "questions" && questionsView}
-      {prefs.view === "notes" && notesView}
+              {waiting > 1 && (
+                <button type="button" className="flex shrink-0 items-center gap-0.5 text-xs text-muted-foreground hover:text-foreground" onClick={() => setPrefs({ view: "tasks" })}>
+                  {waiting - 1} more <ChevronRight className="size-3.5" />
+                </button>
+              )}
+            </div>
+            <div className="grid gap-8 pt-2 md:grid-cols-[230px_minmax(0,1fr)]">
+              {outline}
+              {allNotes}
+            </div>
+          </>
+        )}
+        {prefs.view === "rounds" && roundsView}
+        {prefs.view === "tasks" && tasksView}
+        {prefs.view === "questions" && questionsView}
+        {prefs.view === "notes" && notesView}
+      </div>
       {rounds.error && <p className="text-xs text-destructive">{rounds.error}</p>}
       <CompiledNotes appId={appId} open={compiled} onOpenChange={setCompiled} />
     </SectionCard>

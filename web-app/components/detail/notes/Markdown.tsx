@@ -4,21 +4,25 @@ import { Fragment, useEffect, useState, type ReactNode } from "react"
 import { getPref } from "@/lib/settings"
 import { cn } from "@/lib/utils"
 
-// The decode effect when a note opens: on only with Motion full, Text reveal
-// on, and no reduced-motion request from the system.
-export function revealEnabled() {
+// Where text reveal runs: the notes view, or anywhere text opens.
+export type RevealScope = "notes" | "other"
+
+// The decode effect: on only with Motion full, no reduced-motion request from
+// the system, and Text reveal set to this scope (Notes) or Everywhere.
+export function revealEnabled(scope: RevealScope) {
   if (typeof window === "undefined") return false
-  if (getPref("motion") === "reduced" || getPref("textFx") === "off") return false
+  const fx = getPref("textFx")
+  if (getPref("motion") === "reduced" || fx === "off" || (fx === "notes" && scope !== "notes")) return false
   return !window.matchMedia("(prefers-reduced-motion: reduce)").matches
 }
 
 const GLYPHS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789#*+=-/<>"
 
 // Text that settles from random glyphs, left to right, in about 350 ms.
-export function Decode({ text, active }: { text: string; active: boolean }) {
+export function Decode({ text, active, scope = "other" }: { text: string; active: boolean; scope?: RevealScope }) {
   const [shown, setShown] = useState(text)
   useEffect(() => {
-    if (!active || !revealEnabled() || text.length > 400) {
+    if (!active || !revealEnabled(scope) || text.length > 400) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setShown(text)
       return
@@ -33,12 +37,12 @@ export function Decode({ text, active }: { text: string; active: boolean }) {
     }
     frame = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(frame)
-  }, [text, active])
+  }, [text, active, scope])
   return <>{shown}</>
 }
 
 // `code` and **bold**, the only inline marks the notes use.
-function inline(text: string, active: boolean): ReactNode {
+function inline(text: string, active: boolean, scope: RevealScope): ReactNode {
   const parts = text.split(/(`[^`]+`|\*\*[^*]+\*\*)/g)
   return parts.map((p, i) =>
     p.startsWith("`") && p.endsWith("`") && p.length > 1 ? (
@@ -47,11 +51,11 @@ function inline(text: string, active: boolean): ReactNode {
       </code>
     ) : p.startsWith("**") && p.endsWith("**") && p.length > 3 ? (
       <strong key={i}>
-        <Decode text={p.slice(2, -2)} active={active} />
+        <Decode text={p.slice(2, -2)} active={active} scope={scope} />
       </strong>
     ) : (
       <Fragment key={i}>
-        <Decode text={p} active={active} />
+        <Decode text={p} active={active} scope={scope} />
       </Fragment>
     ),
   )
@@ -104,7 +108,7 @@ export function parseBlocks(md: string): Block[] {
 }
 
 // A note rendered for reading. A heading that ends in ? reads as a question.
-export function Markdown({ md, active = false, className }: { md: string; active?: boolean; className?: string }) {
+export function Markdown({ md, active = false, scope = "other", className }: { md: string; active?: boolean; scope?: RevealScope; className?: string }) {
   const blocks = parseBlocks(md)
   if (!blocks.length) return <p className={cn("text-sm text-muted-foreground italic", className)}>Nothing written yet.</p>
   return (
@@ -114,13 +118,13 @@ export function Markdown({ md, active = false, className }: { md: string; active
           case "heading":
             return (
               <div key={i} className={cn("pt-1 font-medium", b.level <= 2 ? "text-[13px] tracking-wide text-muted-foreground uppercase" : "")}>
-                {inline(b.text, active)}
+                {inline(b.text, active, scope)}
               </div>
             )
           case "question":
             return (
               <div key={i} className="mt-1 border-l-2 border-foreground pl-3 font-medium">
-                {inline(b.text, active)}
+                {inline(b.text, active, scope)}
               </div>
             )
           case "list":
@@ -131,7 +135,7 @@ export function Markdown({ md, active = false, className }: { md: string; active
                     <span aria-hidden className="font-mono text-xs text-muted-foreground">
                       {it.task ? (it.done ? "[x]" : "[ ]") : "·"}
                     </span>
-                    <span>{inline(it.text, active)}</span>
+                    <span>{inline(it.text, active, scope)}</span>
                   </li>
                 ))}
               </ul>
@@ -145,7 +149,7 @@ export function Markdown({ md, active = false, className }: { md: string; active
           default:
             return (
               <p key={i} className="text-muted-foreground">
-                {inline(b.text, active)}
+                {inline(b.text, active, scope)}
               </p>
             )
         }
