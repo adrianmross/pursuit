@@ -1,9 +1,9 @@
 "use client"
 
 import { useEffect, useMemo, useState, type KeyboardEvent, type ReactNode } from "react"
-import { Database, Download, History, Info, Keyboard, KeyRound, ScanSearch, Palette, Rows3, Search, SlidersHorizontal, User } from "lucide-react"
+import { Database, Download, History, Info, Keyboard, KeyRound, LayoutPanelTop, ScanSearch, Palette, Rows3, Search, SlidersHorizontal, User } from "lucide-react"
 import { FILTERS, MORE, SORTS } from "@/lib/types"
-import { getDefaultSort, getDefaultStatus, ACCENTS, getPref, setPref, setDefaultSort, setDefaultStatus, type Accent, type Density, type TextSize } from "@/lib/settings"
+import { getDefaultSort, getDefaultStatus, ACCENTS, OUTLINE_TABS, PAGE_CARDS, getPref, setPref, setDefaultSort, setDefaultStatus, type Accent, type Density, type TabPlace, type TextSize } from "@/lib/settings"
 import { useShortcuts } from "@/lib/keybindings"
 import { useTheme } from "next-themes"
 import { api } from "@/lib/api-client"
@@ -189,6 +189,30 @@ function Appearance() {
   )
 }
 
+// What an application's page shows: each card on or off, and each tab of
+// Rounds, tasks and notes kept as a tab, given a card of its own, or hidden.
+function DetailsPanel() {
+  return (
+    <FieldGroup>
+      <Row label="Rounds, tasks and notes" hint="A tab stays inside the card. Own card moves it out to a card of its own below, and All becomes an overview of the rest.">
+        <div className="flex flex-col gap-2">
+          {OUTLINE_TABS.map(([, label, pref]) => (
+            <div key={pref} className="flex items-center justify-between gap-4 text-sm">
+              {label}
+              <Choice<TabPlace> pref={pref} options={[["tab", "Tab"], ["card", "Own card"], ["off", "Off"]]} />
+            </div>
+          ))}
+        </div>
+      </Row>
+      {PAGE_CARDS.map(([pref, label, hint]) => (
+        <Row key={pref} label={label} hint={hint}>
+          <Choice pref={pref} options={[["on", "Show"], ["off", "Hide"]]} />
+        </Row>
+      ))}
+    </FieldGroup>
+  )
+}
+
 function TableDefaults() {
   const [status, setStatus] = useState(getDefaultStatus())
   const [sort, setSort] = useState(getDefaultSort())
@@ -292,7 +316,7 @@ function DataPanel() {
   )
 }
 
-type Section = { id: string; label: string; icon: ReactNode; render: (close: () => void) => ReactNode }
+type Section = { id: string; label: string; icon: ReactNode; render: (close: () => void) => ReactNode; sub?: boolean }
 
 // `items` feed the settings search: each is a setting label plus synonyms.
 const SECTIONS: (Section & { items: [string, string][] })[] = [
@@ -303,6 +327,17 @@ const SECTIONS: (Section & { items: [string, string][] })[] = [
       ["Motion", "animations reduce accessibility"],
       ["Company icons", "favicon logo google service privacy fallback"],
     ] },
+  {
+    id: "details",
+    label: "Details",
+    icon: <LayoutPanelTop />,
+    sub: true,
+    render: () => <DetailsPanel />,
+    items: [
+      ["Application page cards", "details related documents history hide show"],
+      ["Rounds, tasks and notes tabs", "tasks questions notes rounds own card separate overview"],
+    ],
+  },
   {
     id: "table",
     label: "Table",
@@ -488,6 +523,7 @@ export function SettingsDialog({
                   aria-current={!query && s.id === current.id}
                   className={cn(
                     "flex shrink-0 items-center gap-2 rounded-md px-2.5 py-1.5 text-sm [&_svg]:size-4",
+                    s.sub && "sm:ml-5",
                     !query && s.id === current.id ? "bg-background font-medium shadow-sm ring-1 ring-foreground/10" : "text-muted-foreground hover:bg-muted",
                   )}
                 >

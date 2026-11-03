@@ -53,7 +53,7 @@ export function SectionCard({
   }
   return (
     <Collapsible open={open} onOpenChange={toggle}>
-      <Card className={className}>
+      <Card id={id} className={cn("scroll-mt-4", className)}>
         <CollapsibleTrigger className="flex w-full items-baseline justify-between gap-3 px-(--card-spacing) text-left outline-none focus-visible:ring-2 focus-visible:ring-ring">
           <span className="flex min-w-0 flex-col gap-1">
             <CardTitle className="text-base">{title}</CardTitle>

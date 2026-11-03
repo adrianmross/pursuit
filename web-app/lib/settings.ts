@@ -36,10 +36,27 @@ export const ACCENTS = {
 export type Accent = keyof typeof ACCENTS
 export type Density = "comfortable" | "compact"
 export type TextSize = "small" | "default" | "large"
+export type TabPlace = "tab" | "card" | "off"
+export const OUTLINE_TABS = [
+  ["rounds", "Rounds", "tabRounds"],
+  ["tasks", "Tasks", "tabTasks"],
+  ["questions", "Questions", "tabQuestions"],
+  ["notes", "Notes", "tabNotes"],
+] as const
+export const PAGE_CARDS = [
+  ["cardAttributes", "Details", "The fields under the header: link, dates and custom fields."],
+  ["cardRelated", "Related postings", "Other postings at the company, and what this one is tracked with."],
+  ["cardArtifacts", "Documents", "Résumés, cover letters and files."],
+  ["cardHistory", "History", "Every change to the application."],
+] as const
 
 const SIZES: Record<TextSize, string> = { small: "14px", default: "16px", large: "18px" }
 
-const DEFAULTS = { density: "comfortable", accent: "neutral", textSize: "default", motion: "full", textFx: "notes", roundCounter: "wheel", vimKeys: "off", stripes: "off", searchSyntax: "on", faviconService: "default", funnel: "off" }
+const DEFAULTS = { density: "comfortable", accent: "neutral", textSize: "default", motion: "full", textFx: "notes", roundCounter: "wheel", vimKeys: "off", stripes: "off", searchSyntax: "on", faviconService: "default", funnel: "off",
+  // The application page's cards ("on" or "off"), and where each outline tab
+  // shows: "tab" inside Rounds, tasks and notes, "card" as its own card, or "off".
+  cardAttributes: "on", cardRelated: "on", cardArtifacts: "on", cardHistory: "on",
+  tabRounds: "tab", tabTasks: "tab", tabQuestions: "tab", tabNotes: "tab" }
 export type Pref = keyof typeof DEFAULTS
 
 function read(key: Pref) {

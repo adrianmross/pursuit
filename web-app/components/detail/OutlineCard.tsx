@@ -5,6 +5,8 @@ import { createPortal } from "react-dom"
 import { Check, ChevronLeft, ChevronRight, Copy, FilePlus, FileText, Inbox, ListPlus, Plus, SlidersHorizontal, Trash2, X } from "lucide-react"
 import { api } from "@/lib/api-client"
 import { cn } from "@/lib/utils"
+import { OUTLINE_TABS, type TabPlace } from "@/lib/settings"
+import { usePref } from "@/lib/use-pref"
 import { label, STAGE_STOPS, type Application, type Interview, type Note, type Page, type Question, type Task } from "@/lib/types"
 import { AddRoundIcon, RoundPie, useRounds, useTasks } from "@/components/Rounds"
 import { Unanswered } from "@/components/PreparedAnswers"
@@ -542,7 +544,7 @@ function RoundChip({ r, name, prefix, index, writable, tasks = 0, onTasks, onQue
 }
 
 // Filters, sort and layout, behind one icon so the tabs stay few.
-function ViewOptions({ prefs, onChange }: { prefs: Prefs; onChange: (p: Partial<Prefs>) => void }) {
+function ViewOptions({ prefs, onChange, layouts = true }: { prefs: Prefs; onChange: (p: Partial<Prefs>) => void; layouts?: boolean }) {
   const row = "flex items-center justify-between gap-4 text-sm"
   return (
     <Popover>
@@ -571,6 +573,7 @@ function ViewOptions({ prefs, onChange }: { prefs: Prefs; onChange: (p: Partial<
             </ToggleGroupItem>
           </ToggleGroup>
         </div>
+        {layouts && (
         <div className="flex flex-col gap-1.5 border-t pt-3">
           <span className="text-xs text-muted-foreground">Layout</span>
           <ToggleGroup type="single" variant="outline" size="sm" value={prefs.layout} onValueChange={(v) => v && onChange({ layout: v as Prefs["layout"] })}>
@@ -586,6 +589,7 @@ function ViewOptions({ prefs, onChange }: { prefs: Prefs; onChange: (p: Partial<
           </ToggleGroup>
           <span className="text-xs text-muted-foreground">How All lays out stages and rounds.</span>
         </div>
+        )}
       </PopoverContent>
     </Popover>
   )
@@ -628,7 +632,9 @@ function useFocus(id: string | undefined) {
 
 // Rounds, tasks, questions and notes for one application. Tabs pick what to
 // show; All puts the next step, the outline and the notes together.
-export function OutlineCard({ application, writable, onChange, onSaveNotes, onPatch }: { application: Application; writable: boolean; onChange: () => Promise<void>; onSaveNotes: (notes: string) => Promise<unknown>; onPatch: (patch: Record<string, unknown>) => Promise<unknown> }) {
+// `only` shows one tab as a card of its own (Settings, Details). `tick` changes
+// whenever any of these cards changes something, so the others refetch.
+export function OutlineCard({ application, writable, onChange, onSaveNotes, onPatch, only, tick = 0 }: { application: Application; writable: boolean; onChange: () => Promise<void>; onSaveNotes: (notes: string) => Promise<unknown>; onPatch: (patch: Record<string, unknown>) => Promise<unknown>; only?: Exclude<View, "all">; tick?: number }) {
   // This application's own stage names and skipped stages. The status each
   // stands for never changes; only what it is called and whether it shows.
   const plan = application.stage_plan
@@ -725,7 +731,15 @@ export function OutlineCard({ application, writable, onChange, onSaveNotes, onPa
       .then((page) => setForm(page.data || []))
       .catch(() => {})
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [appId])
+  }, [appId, tick])
+  // Where each tab shows. One moved to a card of its own, or turned off,
+  // leaves the tabs here; All stays as the overview.
+  const tabRounds = usePref<TabPlace>("tabRounds")
+  const tabTasks = usePref<TabPlace>("tabTasks")
+  const tabQuestions = usePref<TabPlace>("tabQuestions")
+  const tabNotes = usePref<TabPlace>("tabNotes")
+  const place: Record<View, TabPlace> = { all: "tab", rounds: tabRounds, tasks: tabTasks, questions: tabQuestions, notes: tabNotes }
+  const view: View = only ?? (place[prefs.view] === "tab" ? prefs.view : "all")
   useEffect(() => {
     // Read after hydration so the server render matches the first client one.
     try {
@@ -737,7 +751,14 @@ export function OutlineCard({ application, writable, onChange, onSaveNotes, onPa
     }
   }, [])
   const setPrefs = (next: Partial<Prefs>) => {
-    if (next.view && next.view !== prefs.view) setHold(bodyRef.current?.offsetHeight ?? 0)
+    if (next.view && next.view !== view) {
+      // A view that is not a tab here is somewhere else: scroll to its card.
+      const to = next.view
+      if (only || place[to] !== "tab") {
+        if (place[to] !== "off") document.getElementById(place[to] === "card" ? `outline-${to}` : "outline")?.scrollIntoView({ block: "start", behavior: "smooth" })
+        next = { ...next, view: prefs.view }
+      } else setHold(bodyRef.current?.offsetHeight ?? 0)
+    }
     const merged = { ...prefs, ...next }
     setPrefsState(merged)
     try {
@@ -773,7 +794,7 @@ export function OutlineCard({ application, writable, onChange, onSaveNotes, onPa
         : null
   const waiting = openTasks.length + toAnswer.length + unanswered.length
   const questionCount = looseQuestions.length + ordered.reduce((n, { r }) => n + (r.questions?.length ?? 0), 0) + form.length
-  useFocus(prefs.view === "tasks" ? nextTask?.id : undefined)
+  useFocus(view === "tasks" && !only ? nextTask?.id : undefined)
   // NEXT in All jumps to the task in the outline, under its stage or round,
   // and marks it until the pointer finds it.
   // Drag a task onto a stage or a round in the outline to move it there.
@@ -863,8 +884,24 @@ export function OutlineCard({ application, writable, onChange, onSaveNotes, onPa
     setOpen((o) => ({ ...o, [id]: true }))
     requestAnimationFrame(() => document.getElementById(`note-${id}`)?.scrollIntoView({ block: "nearest", behavior: "smooth" }))
   }
+  // Another card asked this one to open a file or a round.
+  useEffect(() => {
+    if (!only) return
+    const onGo = (e: Event) => {
+      const { view: to, noteId } = (e as CustomEvent<{ view: View; noteId: string }>).detail
+      if (to !== only) return
+      if (to === "notes") setNoteFile(noteId)
+      else reveal(noteId)
+    }
+    window.addEventListener("pursuit:outline-go", onGo)
+    return () => window.removeEventListener("pursuit:outline-go", onGo)
+  })
   const go = (view: View, noteId?: string) => {
     setPrefs({ view })
+    if (place[view] === "card" && view !== only) {
+      if (noteId) window.dispatchEvent(new CustomEvent("pursuit:outline-go", { detail: { view, noteId } }))
+      return
+    }
     if (view === "notes" && noteId) setNoteFile(noteId)
     else if (noteId) reveal(noteId)
   }
@@ -1337,7 +1374,7 @@ export function OutlineCard({ application, writable, onChange, onSaveNotes, onPa
     const ro = new ResizeObserver(edges)
     ro.observe(el)
     return () => ro.disconnect()
-  }, [prefs.layout, prefs.view])
+  }, [prefs.layout, view])
   const fade = (on: boolean, right = false) => {
     if (!on) return right ? "black 100%" : "black 0%"
     const stops = [0, 0.45, 0.7, 0.85, 1].map((a, k) => ({ a, at: [0, 8, 20, 36, 56][k] }))
@@ -1720,22 +1757,30 @@ export function OutlineCard({ application, writable, onChange, onSaveNotes, onPa
   )
 
   return (
-    <SectionCard id="outline" title="Rounds, tasks and notes" summary={waiting ? `${waiting} waiting on you` : rounds.summary()}>
+    <SectionCard
+      id={only ? `outline-${only}` : "outline"}
+      title={only ? OUTLINE_TABS.find(([v]) => v === only)![1] : "Rounds, tasks and notes"}
+      summary={only === "rounds" ? rounds.summary() : only === "questions" ? questionCount || undefined : only === "notes" ? undefined : waiting ? `${waiting} waiting on you` : rounds.summary()}
+    >
       <div className="flex items-center gap-2">
-        <SegmentedTabs
-          label="Show"
-          value={prefs.view}
-          onChange={(view) => setPrefs({ view })}
-          options={[
-            { value: "all", label: "All" },
-            { value: "rounds", label: "Rounds", count: ordered.length },
-            { value: "tasks", label: "Tasks", count: waiting },
-            { value: "questions", label: "Questions", count: questionCount },
-            { value: "notes", label: "Notes" },
-          ]}
-        />
+        {!only && (
+          <SegmentedTabs
+            label="Show"
+            value={view}
+            onChange={(view) => setPrefs({ view })}
+            options={(
+              [
+                { value: "all", label: "All" },
+                { value: "rounds", label: "Rounds", count: ordered.length },
+                { value: "tasks", label: "Tasks", count: waiting },
+                { value: "questions", label: "Questions", count: questionCount },
+                { value: "notes", label: "Notes" },
+              ] as const
+            ).filter((o) => place[o.value] === "tab")}
+          />
+        )}
         <span className="flex-1" />
-        <ViewOptions prefs={prefs} onChange={setPrefs} />
+        <ViewOptions prefs={prefs} onChange={setPrefs} layouts={!only} />
       </div>
 
       {/* Holds its height while a shorter view would move the page; see hold. */}
@@ -1773,8 +1818,8 @@ export function OutlineCard({ application, writable, onChange, onSaveNotes, onPa
           )
         })()}
         {/* On the board the columns fill any height held for a steady page, so its scroll bar sits on the card's bottom edge. */}
-        <div ref={innerRef} className={cn("flex flex-col gap-3", prefs.view === "all" && prefs.layout === "board" && "flex-1")}>
-        {prefs.view === "all" && (
+        <div ref={innerRef} className={cn("flex flex-col gap-3", view === "all" && prefs.layout === "board" && "flex-1")}>
+        {view === "all" && (
           <>
             <div className="flex items-center gap-3 rounded-lg border px-3.5 py-2 text-sm">
               <span className="text-[11px] font-semibold tracking-wider">NEXT</span>
@@ -1800,10 +1845,10 @@ export function OutlineCard({ application, writable, onChange, onSaveNotes, onPa
             )}
           </>
         )}
-        {prefs.view === "rounds" && roundsView}
-        {prefs.view === "tasks" && tasksView}
-        {prefs.view === "questions" && questionsView}
-        {prefs.view === "notes" && notesView}
+        {view === "rounds" && roundsView}
+        {view === "tasks" && tasksView}
+        {view === "questions" && questionsView}
+        {view === "notes" && notesView}
         </div>
       </div>
       {rounds.error && <p className="text-xs text-destructive">{rounds.error}</p>}

@@ -4,6 +4,8 @@ import { useEffect, useRef, useState, type ReactNode } from "react"
 import { useRouter } from "next/navigation"
 import { api, ApiError } from "@/lib/api-client"
 import { useAuth } from "@/lib/auth"
+import { OUTLINE_TABS, type Pref } from "@/lib/settings"
+import { usePref } from "@/lib/use-pref"
 import type { Application, Artifact, CustomField, Event, Page } from "@/lib/types"
 import { DetailHeader } from "@/components/detail/DetailHeader"
 import { DetailAttributes } from "@/components/detail/DetailAttributes"
@@ -15,6 +17,11 @@ import { SectionError } from "@/components/detail/SectionError"
 import { AttributesSkeleton, ArtifactsSkeleton, EventsSkeleton, HeaderSkeleton } from "@/components/detail/SectionSkeletons"
 
 export type DetailInitial = { application: Application; fields: CustomField[] }
+
+// A server-rendered card that Settings, Details can hide.
+export function ShowIf({ pref, children }: { pref: Pref; children: ReactNode }) {
+  return usePref(pref) === "off" ? null : children
+}
 
 // One resource, fetched independently of the others — this is the actual
 // fix for the reported bug: a slow/failed `events` call (say) no longer
@@ -149,6 +156,19 @@ export function DetailShell({ id, initial, children }: { id: string; initial: De
     await reload()
   }
 
+  // Settings, Details: which cards show, and which outline tabs have a card of their own.
+  const showAttributes = usePref("cardAttributes") === "on"
+  const showRelated = usePref("cardRelated") === "on"
+  const showArtifacts = usePref("cardArtifacts") === "on"
+  const showHistory = usePref("cardHistory") === "on"
+  const places = [usePref("tabRounds"), usePref("tabTasks"), usePref("tabQuestions"), usePref("tabNotes")]
+  // A change in one outline card refetches the others.
+  const [outlineTick, setOutlineTick] = useState(0)
+  async function onOutlineChange() {
+    setOutlineTick((n) => n + 1)
+    await reload()
+  }
+
   async function onRecheckLink() {
     if (!application) return
     await api(`/v1/applications/${encodeURIComponent(application.id)}/check-link`, { method: "POST", body: {} })
@@ -211,17 +231,22 @@ export function DetailShell({ id, initial, children }: { id: string; initial: De
             onDelete={onDelete}
             onRoundsChange={onRoundsChange}
           />
-          <DetailAttributes
-            application={application}
-            fields={fields}
-            writable={writable}
-            onSaveField={patchApp}
-            onSaveCustomFieldValue={onSaveCustomFieldValue}
-            onRecheckLink={onRecheckLink}
-            fieldError={fieldError}
-          />
-          <RelatedCard application={application} writable={writable} onChange={reload} />
-          <OutlineCard key={roundsTick} application={application} writable={writable} onChange={reload} onSaveNotes={(notes) => patchApp({ notes })} onPatch={patchApp} />
+          {showAttributes && (
+            <DetailAttributes
+              application={application}
+              fields={fields}
+              writable={writable}
+              onSaveField={patchApp}
+              onSaveCustomFieldValue={onSaveCustomFieldValue}
+              onRecheckLink={onRecheckLink}
+              fieldError={fieldError}
+            />
+          )}
+          {showRelated && <RelatedCard application={application} writable={writable} onChange={reload} />}
+          {/* The overview, then each tab Settings moved out to a card of its own. */}
+          {([undefined, ...OUTLINE_TABS.filter((_, i) => places[i] === "card").map(([v]) => v)] as const).map((only) => (
+            <OutlineCard key={`${only}-${roundsTick}`} only={only} tick={outlineTick} application={application} writable={writable} onChange={onOutlineChange} onSaveNotes={(notes) => patchApp({ notes })} onPatch={patchApp} />
+          ))}
         </>
       )}
 
@@ -246,14 +271,14 @@ export function DetailShell({ id, initial, children }: { id: string; initial: De
 
       {exportMode ? (
         <>
-          {artifacts.error ? (
+          {!showArtifacts ? null : artifacts.error ? (
             <SectionError label="artifacts" onRetry={artifacts.retry} />
           ) : artifacts.data == null ? (
             <ArtifactsSkeleton />
           ) : (
             <ArtifactsCard appId={id} artifacts={artifacts.data.data || []} />
           )}
-          {events.error ? (
+          {!showHistory ? null : events.error ? (
             <SectionError label="history" onRetry={events.retry} />
           ) : events.data == null ? (
             <EventsSkeleton />
