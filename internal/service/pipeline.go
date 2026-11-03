@@ -95,6 +95,11 @@ func (s *Service) guardTransition(ctx context.Context, a domain.Actor, appID, co
 	return nil
 }
 
+// trackedConflict refuses apply work on a posting another application covers.
+func trackedConflict(app domain.Application) error {
+	return domain.Conflict("application is tracked with "+app.TrackedBy+", which covers it", "apply on "+app.TrackedBy+", or clear tracked_by with apps update")
+}
+
 func (s *Service) enforceCaps(ctx context.Context, userID, company, excludeID, action string) error {
 	company = strings.TrimSpace(company)
 	if company == "" {
@@ -190,6 +195,9 @@ func (s *Service) Enqueue(ctx context.Context, applicationID, kind string) (Work
 		app, err := s.DB.GetApplication(ctx, a.UserID, applicationID)
 		if err != nil {
 			return err
+		}
+		if app.TrackedBy != "" {
+			return trackedConflict(app)
 		}
 		if kind == workSubmit {
 			if app.EffectiveStatus() != domain.StatusApproved && app.EffectiveStatus() != domain.StatusSubmitting {
@@ -465,6 +473,9 @@ func (s *Service) Prepare(ctx context.Context, id, worker string) (PrepareResult
 		app, err := s.DB.GetApplication(ctx, a.UserID, id)
 		if err != nil {
 			return err
+		}
+		if app.TrackedBy != "" {
+			return trackedConflict(app)
 		}
 		switch app.EffectiveStatus() {
 		case domain.StatusToApply, domain.StatusPreparing, domain.StatusNeedsInput, domain.StatusSaved, domain.StatusAwaitingReview:

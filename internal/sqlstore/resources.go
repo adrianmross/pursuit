@@ -514,7 +514,7 @@ func (s *Store) stageCounts(ctx context.Context, table string, apps []domain.App
 }
 
 func appSelect() string {
-	return `SELECT a.id, a.user_id, a.role_id, a.status, a.outcome, a.applied_date, a.next_step, a.notes, a.resume_version, a.resume_file_ref, a.contact_email, a.external_id, a.archived_at, a.version, a.created_at, a.updated_at, r.title, r.location, r.salary_text, r.salary_min_cents, r.salary_max_cents, r.fit, r.posting_url, r.source, r.job_type, r.company_id, c.name, COALESCE(pc.status, ''), pc.checked_at FROM applications a JOIN roles r ON r.id = a.role_id JOIN companies c ON c.id = r.company_id LEFT JOIN posting_checks pc ON pc.role_id = r.id`
+	return `SELECT a.id, a.user_id, a.role_id, a.status, a.outcome, a.applied_date, a.next_step, a.notes, a.resume_version, a.resume_file_ref, a.contact_email, a.external_id, a.tracked_by, a.archived_at, a.version, a.created_at, a.updated_at, r.title, r.location, r.salary_text, r.salary_min_cents, r.salary_max_cents, r.fit, r.posting_url, r.source, r.job_type, r.company_id, c.name, COALESCE(pc.status, ''), pc.checked_at FROM applications a JOIN roles r ON r.id = a.role_id JOIN companies c ON c.id = r.company_id LEFT JOIN posting_checks pc ON pc.role_id = r.id`
 }
 
 func scanApp(row scanner) (domain.Application, error) {
@@ -523,7 +523,7 @@ func scanApp(row scanner) (domain.Application, error) {
 	var min, max sql.NullInt64
 	var created, updated, archived string
 	var checked sql.NullString
-	err := row.Scan(&a.ID, &a.UserID, &a.RoleID, &a.Status, &a.Outcome, &applied, &a.NextStep, &a.Notes, &a.ResumeVersion, &a.ResumeFileRef, &a.ContactEmail, &a.ExternalID, &archived, &a.Version, &created, &updated, &a.Title, &a.Location, &a.Salary, &min, &max, &a.Fit, &a.PostingURL, &a.Source, &a.JobType, &a.CompanyID, &a.Company, &a.LinkStatus, &checked)
+	err := row.Scan(&a.ID, &a.UserID, &a.RoleID, &a.Status, &a.Outcome, &applied, &a.NextStep, &a.Notes, &a.ResumeVersion, &a.ResumeFileRef, &a.ContactEmail, &a.ExternalID, &a.TrackedBy, &archived, &a.Version, &created, &updated, &a.Title, &a.Location, &a.Salary, &min, &max, &a.Fit, &a.PostingURL, &a.Source, &a.JobType, &a.CompanyID, &a.Company, &a.LinkStatus, &checked)
 	if err != nil {
 		return domain.Application{}, err
 	}
@@ -561,8 +561,8 @@ func (s *Store) CreateApplication(ctx context.Context, a domain.Application) err
 			a.Status = domain.StatusApplied
 		}
 	}
-	_, err := s.exec(ctx, `INSERT INTO applications (id, user_id, role_id, status, outcome, applied_date, next_step, notes, resume_version, resume_file_ref, contact_email, external_id, version, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		a.ID, a.UserID, a.RoleID, a.Status, a.Outcome, nullString(a.AppliedDateValue()), a.NextStep, a.Notes, a.ResumeVersion, a.ResumeFileRef, a.ContactEmail, a.ExternalID, a.Version, formatTime(a.CreatedAt), formatTime(a.UpdatedAt))
+	_, err := s.exec(ctx, `INSERT INTO applications (id, user_id, role_id, status, outcome, applied_date, next_step, notes, resume_version, resume_file_ref, contact_email, external_id, tracked_by, version, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		a.ID, a.UserID, a.RoleID, a.Status, a.Outcome, nullString(a.AppliedDateValue()), a.NextStep, a.Notes, a.ResumeVersion, a.ResumeFileRef, a.ContactEmail, a.ExternalID, a.TrackedBy, a.Version, formatTime(a.CreatedAt), formatTime(a.UpdatedAt))
 	return mapWriteErr(err)
 }
 
@@ -791,7 +791,7 @@ func (s *Store) listApplicationsByField(ctx context.Context, userID string, q do
 	if limit <= 0 {
 		limit = 51
 	}
-	selectSQL := `SELECT a.id, a.user_id, a.role_id, a.status, a.outcome, a.applied_date, a.next_step, a.notes, a.resume_version, a.resume_file_ref, a.contact_email, a.external_id, a.archived_at, a.version, a.created_at, a.updated_at, r.title, r.location, r.salary_text, r.salary_min_cents, r.salary_max_cents, r.fit, r.posting_url, r.source, r.job_type, r.company_id, c.name, COALESCE(pc.status, ''), pc.checked_at FROM ` +
+	selectSQL := `SELECT a.id, a.user_id, a.role_id, a.status, a.outcome, a.applied_date, a.next_step, a.notes, a.resume_version, a.resume_file_ref, a.contact_email, a.external_id, a.tracked_by, a.archived_at, a.version, a.created_at, a.updated_at, r.title, r.location, r.salary_text, r.salary_min_cents, r.salary_max_cents, r.fit, r.posting_url, r.source, r.job_type, r.company_id, c.name, COALESCE(pc.status, ''), pc.checked_at FROM ` +
 		joined + ` ` + w.sql() + ` ORDER BY ` + orderCol + ` IS NULL, ` + orderCol + ` ` + dir + `, a.id LIMIT ?`
 	rows, err := s.query(ctx, selectSQL, append(joinArgs, limit)...)
 	if err != nil {
@@ -884,8 +884,8 @@ func (s *Store) UpdateApplication(ctx context.Context, a domain.Application) err
 	if domain.IsOutcome(a.Status) {
 		outcome = a.Status
 	}
-	res, err := s.exec(ctx, `UPDATE applications SET status=CASE WHEN ?='' THEN ? ELSE status END, outcome=?, applied_date=?, next_step=?, notes=?, resume_version=?, resume_file_ref=?, contact_email=?, version=version+1, updated_at=? WHERE id=? AND user_id=? AND version=?`,
-		outcome, a.Status, outcome, nullString(a.AppliedDateValue()), a.NextStep, a.Notes, a.ResumeVersion, a.ResumeFileRef, a.ContactEmail, formatTime(a.UpdatedAt), a.ID, a.UserID, a.Version)
+	res, err := s.exec(ctx, `UPDATE applications SET status=CASE WHEN ?='' THEN ? ELSE status END, outcome=?, applied_date=?, next_step=?, notes=?, resume_version=?, resume_file_ref=?, contact_email=?, tracked_by=?, version=version+1, updated_at=? WHERE id=? AND user_id=? AND version=?`,
+		outcome, a.Status, outcome, nullString(a.AppliedDateValue()), a.NextStep, a.Notes, a.ResumeVersion, a.ResumeFileRef, a.ContactEmail, a.TrackedBy, formatTime(a.UpdatedAt), a.ID, a.UserID, a.Version)
 	if err != nil {
 		return mapWriteErr(err)
 	}
@@ -924,13 +924,24 @@ func (s *Store) DeleteApplication(ctx context.Context, userID, id string, versio
 	if err != nil {
 		return mapWriteErr(err)
 	}
-	return changed(res, func() (int, error) {
+	if err := changed(res, func() (int, error) {
 		cur, err := s.GetApplication(ctx, userID, id)
 		if err != nil {
 			return 0, err
 		}
 		return cur.Version, nil
-	}, "application")
+	}, "application"); err != nil {
+		return err
+	}
+	// Applications tracked with the deleted one stand on their own again.
+	_, err = s.exec(ctx, `UPDATE applications SET tracked_by='' WHERE user_id=? AND tracked_by=?`, userID, id)
+	return err
+}
+
+func (s *Store) CountTrackedBy(ctx context.Context, userID, id string) (int, error) {
+	var n int
+	err := s.queryRow(ctx, `SELECT COUNT(*) FROM applications WHERE user_id=? AND tracked_by=?`, userID, id).Scan(&n)
+	return n, err
 }
 
 func (s *Store) CreateEvent(ctx context.Context, e domain.Event) error {
