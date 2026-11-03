@@ -26,7 +26,7 @@ export type NoteSection = {
 type Part = { title: string; body: string }
 
 // The whole document as one file: each part under its own # heading.
-function compose(sections: NoteSection[]) {
+export function compose(sections: NoteSection[]) {
   return sections.map((s) => `# ${s.title}\n${s.md.trim() ? `\n${s.md.trim()}\n` : ""}`).join("\n")
 }
 

@@ -1,7 +1,7 @@
 "use client"
 
-import { useEffect, useRef, useState, type ReactNode } from "react"
-import { ChevronLeft, ChevronRight, FileText, Inbox, ListPlus, Pencil, Plus, SlidersHorizontal, Trash2, X } from "lucide-react"
+import { useEffect, useRef, useState, type ComponentProps, type ReactNode } from "react"
+import { Check, ChevronLeft, ChevronRight, Copy, FileText, Inbox, ListPlus, Pencil, Plus, SlidersHorizontal, Trash2, X } from "lucide-react"
 import { api } from "@/lib/api-client"
 import { cn } from "@/lib/utils"
 import { label, STAGE_STOPS, type Application, type Interview, type Note, type Page, type Question, type Task } from "@/lib/types"
@@ -10,11 +10,12 @@ import { Unanswered } from "@/components/PreparedAnswers"
 import { InlineText } from "@/components/InlineEdit"
 import { SectionCard } from "@/components/detail/SectionCard"
 import { Markdown } from "@/components/detail/notes/Markdown"
-import { NotesEditor } from "@/components/detail/notes/NotesEditor"
+import { compose, NotesEditor, type NoteSection } from "@/components/detail/notes/NotesEditor"
 import { RoundCounter } from "@/components/detail/notes/RoundCounter"
 import { SegmentedTabs } from "@/components/detail/notes/SegmentedTabs"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Input } from "@/components/ui/input"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
@@ -567,6 +568,7 @@ export function OutlineCard({ application, writable, onChange, onSaveNotes, onPa
   const [noteFile, setNoteFile] = useState<string | null>(null)
   // A file just made with New file, whose name field starts selected.
   const [fresh, setFresh] = useState<string | null>(null)
+  const [copied, setCopied] = useState<string | null>(null)
   const filesPath = `/v1/applications/${encodeURIComponent(appId)}/notes/files`
   const loadFiles = () => api<Page<Note>>(filesPath).then((p) => setNoteFiles(p.data || []))
   const createFile = async (name: string, body: string) => {
@@ -1077,22 +1079,63 @@ export function OutlineCard({ application, writable, onChange, onSaveNotes, onPa
     onDelete: () => deleteFile(f),
   })
   const aboutSection = { id: "about", title: "About this application", md: application.notes || "", onSave: onSaveNotes }
+  // about.md and a round's file show once they have notes, or while open;
+  // until then New file offers them.
+  const written = (id: string, md?: string) => !!md?.trim() || noteFile === id
+  const aboutWritten = written("about", application.notes)
+  const writtenRounds = notesRounds.filter(({ r }) => written(r.id, r.notes))
+  const unwritten = ordered.filter(({ r }) => !r.notes?.trim() && noteFile !== r.id)
   const fileList: { id: string; name: string; md: string; hint?: string; dim?: boolean; file?: Note; round?: Interview }[] = [
     { id: "overall", name: "overall.md", md: "", hint: "everything" },
-    { id: "about", name: "about.md", md: application.notes || "" },
+    ...(aboutWritten ? [{ id: "about", name: "about.md", md: application.notes || "" }] : []),
     ...noteFiles.map((f) => ({ id: f.id, name: slug(f.name), md: f.body, file: f })),
-    ...notesRounds.map(({ r, n }) => ({ id: r.id, name: slug(roundName(r, n)), md: r.notes || "", dim: r.in_notes === false, round: r })),
+    ...writtenRounds.map(({ r, n }) => ({ id: r.id, name: slug(roundName(r, n)), md: r.notes || "", dim: r.in_notes === false, round: r })),
   ]
+  const newBlank = () => {
+    const taken = new Set(noteFiles.map((n) => n.name.toLowerCase()))
+    let name = "Untitled"
+    for (let i = 2; taken.has(name.toLowerCase()); i++) name = `Untitled ${i}`
+    void createFile(name, "").then((n) => setFresh(n.id))
+  }
+  // A new # heading in overall.md named like a round with no notes yet is
+  // that round's notes, not a new file.
+  const createPart = (name: string, body: string) => {
+    const hit = unwritten.find(({ r, n }) => roundName(r, n).toLowerCase() === name.trim().toLowerCase())
+    if (hit) return patch(hit.r, { notes: body })
+    if (!application.notes?.trim() && name.trim().toLowerCase() === aboutSection.title.toLowerCase()) return onSaveNotes(body)
+    return createFile(name, body)
+  }
   // X on a tile: a file goes, a round or about.md keeps its place with no
   // notes, and overall.md does all of that.
   const clearFile = async (f: (typeof fileList)[number]): Promise<unknown> => {
+    if (noteFile === f.id) setNoteFile(null)
     if (f.file) return deleteFile(f.file)
-    if (f.round) return patch(f.round, { notes: "" })
-    if (f.id === "about") return onSaveNotes("")
+    if (f.round) return f.md.trim() && patch(f.round, { notes: "" })
+    if (f.id === "about") return f.md.trim() && onSaveNotes("")
     return Promise.all(fileList.filter((g) => g.id !== "overall" && (g.file || g.md.trim())).map(clearFile))
   }
   // A deleted file falls back to the grid.
   const picked = fileList.find((f) => f.id === noteFile)
+  const newTile = (props: ComponentProps<"button">) => (
+    <button type="button" {...props} style={stagger(fileList.length).style} className={cn(tile, "text-muted-foreground hover:text-foreground", stagger(fileList.length).className)}>
+      <span className="flex size-10 items-center justify-center rounded-md border border-dashed">
+        <Plus className="size-4" />
+      </span>
+      <span className="text-xs">New file</span>
+      <span className="h-3.5" />
+    </button>
+  )
+  // What the open file holds: overall.md is every part, the rest one each.
+  const single = picked?.id !== "overall"
+  const openSections: NoteSection[] = !picked
+    ? []
+    : !single
+      ? [...(application.notes?.trim() ? [aboutSection] : []), ...noteFiles.map(fileSection), ...notesRounds.filter(({ r }) => r.in_notes !== false && r.notes?.trim()).map(roundSection)]
+      : picked.file
+        ? [fileSection(picked.file)]
+        : picked.round
+          ? [roundSection({ r: picked.round, n: ordered.find((o) => o.r.id === picked.round!.id)?.n ?? 0 })]
+          : [aboutSection]
   const tile = "flex w-full flex-col items-center gap-1.5 rounded-lg px-2 pt-3 pb-2 text-center outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
   const notesView = !picked ? (
     // Like Finder's icon view: a file per tile, click one to open it.
@@ -1106,13 +1149,13 @@ export function OutlineCard({ application, writable, onChange, onSaveNotes, onPa
             </span>
             <span className="h-3.5 w-full truncate text-[11px] leading-none text-muted-foreground">{f.hint ?? (f.round ? meta(f.round) : f.dim ? "hidden" : "")}</span>
           </button>
-          {writable && (f.id === "overall" || f.file || f.md.trim()) && (
+          {writable && (
             <Button
               size="icon-xs"
               variant="ghost"
               className={cn("absolute top-1 right-1 opacity-0 group-hover:opacity-100 focus-visible:opacity-100", armedDel === f.id && "text-destructive opacity-100 hover:text-destructive")}
-              aria-label={armedDel === f.id ? `Confirm clearing ${f.name}` : f.file ? `Delete ${f.name}` : `Clear ${f.name}`}
-              title={armedDel === f.id ? "Click again: deletes every file and clears every note" : f.file ? "Delete file" : "Clear notes"}
+              aria-label={armedDel === f.id ? `Confirm clearing ${f.name}` : `Delete ${f.name}`}
+              title={armedDel === f.id ? "Click again: deletes every file and clears every note" : "Delete"}
               onMouseLeave={() => armedDel === f.id && setArmedDel(null)}
               onClick={() => {
                 // overall.md is everything at once, so it asks first.
@@ -1126,25 +1169,32 @@ export function OutlineCard({ application, writable, onChange, onSaveNotes, onPa
           )}
         </div>
       ))}
-      {writable && (
-        <button
-          type="button"
-          onClick={() => {
-            const taken = new Set(noteFiles.map((n) => n.name.toLowerCase()))
-            let name = "Untitled"
-            for (let i = 2; taken.has(name.toLowerCase()); i++) name = `Untitled ${i}`
-            void createFile(name, "").then((n) => setFresh(n.id))
-          }}
-          style={stagger(fileList.length).style}
-          className={cn(tile, "text-muted-foreground hover:text-foreground", stagger(fileList.length).className)}
-        >
-          <span className="flex size-10 items-center justify-center rounded-md border border-dashed">
-            <Plus className="size-4" />
-          </span>
-          <span className="text-xs">New file</span>
-          <span className="h-3.5" />
-        </button>
-      )}
+      {writable &&
+        (!aboutWritten || unwritten.length ? (
+          // Rounds with no notes have no file yet; New file can start one.
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>{newTile({})}</DropdownMenuTrigger>
+            <DropdownMenuContent side="bottom" className="font-mono text-xs">
+              <DropdownMenuItem onSelect={newBlank}>
+                <FileText /> Blank file
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuLabel className="font-sans text-[11px] font-normal text-muted-foreground">Notes for</DropdownMenuLabel>
+              {!aboutWritten && (
+                <DropdownMenuItem onSelect={() => setNoteFile("about")}>
+                  <FileText /> about.md
+                </DropdownMenuItem>
+              )}
+              {unwritten.map(({ r, n }) => (
+                <DropdownMenuItem key={r.id} onSelect={() => setNoteFile(r.id)}>
+                  <FileText /> {slug(roundName(r, n))}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        ) : (
+          newTile({ onClick: newBlank })
+        ))}
     </nav>
   ) : (
     <div key={picked.id} className={cn("flex min-w-0 flex-col gap-2", stagger().className)}>
@@ -1198,16 +1248,19 @@ export function OutlineCard({ application, writable, onChange, onSaveNotes, onPa
             <FileText className="size-3.5" /> Raw
           </button>
         )}
+        <button
+          type="button"
+          className="flex items-center gap-1 font-sans hover:text-foreground"
+          onClick={() => {
+            void navigator.clipboard.writeText(single ? openSections[0].md.trim() : compose(openSections))
+            setCopied(picked.id)
+            setTimeout(() => setCopied(null), 1500)
+          }}
+        >
+          {copied === picked.id ? <Check className="size-3.5" /> : <Copy className="size-3.5" />} {copied === picked.id ? "Copied" : "Copy all"}
+        </button>
       </div>
-      {picked.id === "overall" ? (
-        <NotesEditor key="overall" writable={writable} sections={[aboutSection, ...noteFiles.map(fileSection), ...notesRounds.filter(({ r }) => r.in_notes !== false).map(roundSection)]} onCreate={(name, body) => createFile(name, body)} />
-      ) : picked.id === "about" ? (
-        <NotesEditor key="about" single writable={writable} sections={[aboutSection]} />
-      ) : picked.file ? (
-        <NotesEditor key={picked.id} single writable={writable} sections={[fileSection(picked.file)]} />
-      ) : picked.round ? (
-        <NotesEditor key={picked.id} single writable={writable} sections={[roundSection({ r: picked.round, n: ordered.find((o) => o.r.id === picked.round!.id)?.n ?? 0 })]} />
-      ) : null}
+      <NotesEditor key={picked.id} single={single} writable={writable} sections={openSections} onCreate={single ? undefined : createPart} />
     </div>
   )
 
