@@ -17,6 +17,9 @@ func TestRoundNotes(t *testing.T) {
 		t.Fatalf("prep lands under ## Prep: %d %#v", code, round)
 	}
 	path := "/v1/rounds/" + round["id"].(string)
+	if code, bad := e.json(t, http.MethodPost, "/v1/applications/"+app["id"].(string)+"/rounds", e.token, map[string]any{"stage": "offer"}); code != 400 {
+		t.Fatalf("an offer has no rounds: %d %#v", code, bad)
+	}
 
 	if code, bad := e.json(t, http.MethodPatch, path, e.token, map[string]any{"notes": "x"}); code != 400 {
 		t.Fatalf("notes without version: %d %#v", code, bad)

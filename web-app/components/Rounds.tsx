@@ -243,7 +243,7 @@ export function TaskList({
 
 // One stage: its rounds as a pie (click to fill the next wedge) with how many
 // there are, its tasks as a box with how many are open, then remove-last
-// round (never below one) and add. Apply has no rounds, only tasks.
+// round (never below one) and add. Apply and Offer have no rounds, only tasks.
 function RoundRow({
   name,
   current,
@@ -388,7 +388,7 @@ export function RoundsList({
                 current={i === stage}
                 selected={i === sel}
                 reached={i <= stage}
-                noRounds={i === 0}
+                noRounds={i === 0 || i > ROUND_STAGES.length}
                 rounds={stored}
                 tasks={own}
                 tasksOpen={expanded === i}

@@ -725,12 +725,13 @@ func StageKey(stage int) string {
 // applied, screening, interviewing, final or offer. It returns the stored key.
 func ParseInterviewStage(s string) (string, error) {
 	st, err := ParseStatus(s)
-	if err == nil && !IsOutcome(st) {
+	// Rounds run from Prepared to Final. An offer is the outcome, not a round.
+	if err == nil && !IsOutcome(st) && StageOf(st) <= 5 {
 		if key := StageKey(StageOf(st)); key != "" {
 			return key, nil
 		}
 	}
-	return "", Validation("invalid round stage %q", s).WithHint("stage is prepared, applied, screening, interviewing, final, or offer")
+	return "", Validation("invalid round stage %q", s).WithHint("stage is prepared, applied, screening, interviewing, or final")
 }
 
 // Task is a to-do on an application, tied to a stage: something waiting on you.

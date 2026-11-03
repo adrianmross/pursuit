@@ -1944,7 +1944,7 @@
             "description": "error"
           }
         },
-        "summary": "add a round. stage is prepared, applied, screening, interviewing, final, or offer and defaults to the current stage. notes is the round's markdown document; prep is written as its ## Prep section"
+        "summary": "add a round. stage is prepared, applied, screening, interviewing, or final (an offer has no rounds) and defaults to the current stage, or final from an offer. notes is the round's markdown document; prep is written as its ## Prep section"
       }
     },
     "/v1/applications/{id}/tags": {

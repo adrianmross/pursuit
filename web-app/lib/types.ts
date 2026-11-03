@@ -224,8 +224,8 @@ export const STAGE_STOPS: [string, string][] = ["to_apply", "awaiting_review", "
   (s) => [s, LABELS[s]],
 )
 
-// Rounds attach to pieces 1-6, keyed by the stage's status name.
-export const ROUND_STAGES = STAGE_STOPS.slice(1)
+// Rounds attach to pieces 1-5, keyed by the stage's status name. Offer has none.
+export const ROUND_STAGES = STAGE_STOPS.slice(1, 6)
 
 // Mirrors domain.IsOutcome: these overlay a stage instead of replacing it.
 export const OUTCOMES = ["waiting", "needs_input", "failed", "rejected", "ghosted", "withdrawn"]

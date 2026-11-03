@@ -137,12 +137,22 @@ function RoundDetails({ r, name, writable, onPatch, onDelete, onOpenNotes, child
 
 // Everything waiting on you, behind the NEXT line: open tasks grouped Anytime
 // first, form questions to answer, and one place to add a task.
-function Todo({ tasks, form, stageFor, writable, onToggle, onRemove, onAdd }: { tasks: Task[]; form: Question[]; stageFor: string; writable: boolean; onToggle: (t: Task) => void; onRemove: (t: Task) => void; onAdd: (title: string, stage: string) => Promise<unknown> }) {
+function Todo({ tasks, form, stageFor, focusId, writable, onToggle, onRemove, onAdd }: { tasks: Task[]; form: Question[]; stageFor: string; focusId: string | null; writable: boolean; onToggle: (t: Task) => void; onRemove: (t: Task) => void; onAdd: (title: string, stage: string) => Promise<unknown> }) {
   const [title, setTitle] = useState("")
   const [stage, setStage] = useState(stageFor)
   const [showDone, setShowDone] = useState(false)
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => setStage(stageFor), [stageFor])
+  // NEXT brings you to its task: scrolled into view, highlighted, focused.
+  useEffect(() => {
+    if (!focusId) return
+    const id = requestAnimationFrame(() => {
+      const row = document.getElementById(`task-${focusId}`)
+      row?.scrollIntoView({ block: "center", behavior: "smooth" })
+      row?.querySelector<HTMLElement>("button, input")?.focus({ preventScroll: true })
+    })
+    return () => cancelAnimationFrame(id)
+  }, [focusId])
   const groups = [ANYTIME, ...STAGE_STOPS.map(([k]) => k)]
     .map((key) => ({ key, items: tasks.filter((t) => t.stage === key && (showDone || !t.done_at)), answers: key === "to_apply" ? form : [] }))
     .filter((g) => g.items.length || g.answers.length)
@@ -162,7 +172,7 @@ function Todo({ tasks, form, stageFor, writable, onToggle, onRemove, onAdd }: { 
             </Collapsible>
           ))}
           {g.items.map((t) => (
-            <div key={t.id} className="group flex min-h-8 items-center gap-2.5 rounded-md hover:bg-muted/60">
+            <div key={t.id} id={`task-${t.id}`} className={cn("group flex min-h-8 scroll-mt-24 items-center gap-2.5 rounded-md px-1 -mx-1 hover:bg-muted/60", t.id === focusId && "bg-muted ring-1 ring-foreground")}>
               <Checkbox aria-label={`Done: ${t.title}`} checked={!!t.done_at} disabled={!writable} onCheckedChange={() => onToggle(t)} />
               <span className={cn("min-w-0 flex-1 text-sm break-words", t.done_at && "text-muted-foreground line-through")}>{t.title}</span>
               {writable && (
@@ -294,6 +304,7 @@ export function OutlineCard({ application, writable, onChange, onSaveNotes }: { 
             tasks={allTasks}
             form={toAnswer}
             stageFor={taskStage}
+            focusId={todo ? (nextTask?.id ?? null) : null}
             writable={writable}
             onToggle={(t) => void tasks.toggle(t)}
             onRemove={(t) => void tasks.remove(t)}
@@ -321,7 +332,7 @@ export function OutlineCard({ application, writable, onChange, onSaveNotes }: { 
                     </button>
                     {writable && (
                       <span className="absolute right-1 flex gap-1 opacity-0 group-focus-within:opacity-100 group-hover:opacity-100">
-                        {i > 0 && (
+                        {i > 0 && i < STAGE_STOPS.length - 1 && (
                           <Button size="xs" variant="outline" className="h-5 rounded-full px-1.5 text-[11px]" disabled={rounds.busy} onClick={() => { setShut((x) => ({ ...x, [key]: false })); void rounds.add(key, i) }}>
                             + round
                           </Button>

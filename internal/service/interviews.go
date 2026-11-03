@@ -97,7 +97,8 @@ func (s *Service) AddInterview(ctx context.Context, appID string, in InterviewIn
 				return err
 			}
 		default:
-			iv.Stage = domain.StageKey(max(app.Stage, 1))
+			// Offer has no rounds; an application there adds to Final.
+			iv.Stage = domain.StageKey(min(max(app.Stage, 1), 5))
 		}
 		if err := s.DB.CreateInterview(ctx, iv); err != nil {
 			return err

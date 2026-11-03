@@ -569,7 +569,7 @@ func cmdFields() *Command {
 // roundCommands are the children of rounds and of its alias interviews.
 func roundCommands() []*Command {
 	fields := []Flag{
-		{Name: "stage", Type: "string", Help: "prepared, applied, screening, interviewing, final, or offer (default: the application's current stage)"},
+		{Name: "stage", Type: "string", Help: "prepared, applied, screening, interviewing, or final (default: the application's current stage; an offer has no rounds)"},
 		{Name: "kind", Type: "string", Help: "the round, e.g. Recruiter call or System design"},
 		{Name: "interviewer", Type: "string", Help: "who you meet"},
 		{Name: "when", Type: "string", Help: "RFC3339 or YYYY-MM-DD"},
