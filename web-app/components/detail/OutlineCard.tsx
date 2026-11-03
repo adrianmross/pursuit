@@ -955,7 +955,8 @@ export function OutlineCard({ application, writable, onChange, onSaveNotes, onPa
         </section>
       ))}
       {!groups.length && <p className="text-sm text-muted-foreground">Nothing waiting on you.</p>}
-      <div className="flex flex-col">
+      {/* Sits right under the last task, not a group's gap away. */}
+      <div className={cn("flex flex-col", groups.length > 0 && "-mt-4")}>
         {writable && <AddTaskRow where={`stage:${taskStage}`} places={taskPlaces} onAdd={addTask} />}
         {doneCount > 0 && (
           <button type="button" className="self-start pt-1 text-xs text-muted-foreground hover:text-foreground" onClick={() => setPrefs({ showDone: !prefs.showDone })}>
@@ -989,7 +990,12 @@ export function OutlineCard({ application, writable, onChange, onSaveNotes, onPa
         </section>
       )}
       {!questionGroups.length && !form.length && <p className="text-sm text-muted-foreground">No questions yet. In any note, a heading that ends in ? is a question.</p>}
-      {writable && <AddQuestionRow places={places} onAdd={addQuestion} />}
+      {/* Right under the last question: less the gap, and the group's padding. */}
+      {writable && (
+        <div className={cn(form.length ? "-mt-5" : questionGroups.length > 0 && "-mt-6")}>
+          <AddQuestionRow places={places} onAdd={addQuestion} />
+        </div>
+      )}
     </div>
   )
 
@@ -1080,12 +1086,7 @@ export function OutlineCard({ application, writable, onChange, onSaveNotes, onPa
           return (
             <li key={key} className="flex flex-col">
               <div {...dropTarget(`stage:${key}`)} className={cn("group flex h-8 items-center gap-1 rounded-md px-2 hover:bg-muted", dropAt === `stage:${key}` && "bg-muted ring-1 ring-foreground/30")}>
-                <button type="button" className="flex min-w-0 flex-1 items-center gap-2 rounded-sm text-left text-[13px] outline-none focus-visible:ring-2 focus-visible:ring-ring" aria-expanded={hasKids ? !shut[key] : undefined} onClick={() => {
-                    if (!hasKids) return
-                    const opening = !!shut[key]
-                    setShut((x) => ({ ...x, [key]: !x[key] }))
-                    if (opening || !stored.some((r) => isOpen(r.id))) setOpen((o) => ({ ...o, ...Object.fromEntries(stored.map((r) => [r.id, true])) }))
-                  }}>
+                <button type="button" className="flex min-w-0 flex-1 items-center gap-2 rounded-sm text-left text-[13px] outline-none focus-visible:ring-2 focus-visible:ring-ring" aria-expanded={hasKids ? !shut[key] : undefined} onClick={() => hasKids && setShut((x) => ({ ...x, [key]: !x[key] }))}>
                   <RoundPie className="size-4 shrink-0" total={offer ? 1 : Math.max(1, stored.length)} done={stored.length ? stored.filter((r) => r.done_at).length : i <= current ? 1 : 0} />
                   <span className={cn("truncate", i === current ? "font-semibold" : i > current && "text-muted-foreground")}>{name}</span>
                 </button>
