@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.3.1](https://github.com/adrianmross/pursuit/compare/v0.3.0...v0.3.1) (2026-11-03)
+
+
+### Bug Fixes
+
+* **pursuit:** Pin the Dockerfile and go.mod toolchain to the dev environment Go and Node versions ([#91](https://github.com/adrianmross/pursuit/issues/91)) ([2273c12](https://github.com/adrianmross/pursuit/commit/2273c12369eaf6ec07f7887203dae1edf45a43c2))
+* **pursuit:** Stop direnv from activating the dev shell on cd and keep it for background warm-ups ([#90](https://github.com/adrianmross/pursuit/issues/90)) ([4af1306](https://github.com/adrianmross/pursuit/commit/4af13067f0da4a792a36236af257ebefe853854c))
+* **pursuit:** Stop Vercel cold boots from hanging on a leaked migration lock and serve hashed assets from the CDN ([#93](https://github.com/adrianmross/pursuit/issues/93)) ([1493402](https://github.com/adrianmross/pursuit/commit/1493402f0f7b5ec2bf47fe4ecd524eefb67536b2))
+
 ## [0.3.0](https://github.com/adrianmross/pursuit/compare/v0.2.1...v0.3.0) (2026-11-02)
 
 
