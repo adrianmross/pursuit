@@ -9,7 +9,8 @@ import { AddRoundIcon, RoundPie, useRounds, useTasks } from "@/components/Rounds
 import { Unanswered } from "@/components/PreparedAnswers"
 import { InlineText } from "@/components/InlineEdit"
 import { SectionCard } from "@/components/detail/SectionCard"
-import { Decode, Markdown, sections } from "@/components/detail/notes/Markdown"
+import { Markdown } from "@/components/detail/notes/Markdown"
+import { MarkdownDoc } from "@/components/detail/notes/MarkdownDoc"
 import { SegmentedTabs } from "@/components/detail/notes/SegmentedTabs"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -235,7 +236,7 @@ function NoteBody({ md, writable, label: name, placeholder, onSave, reveal }: { 
   )
 }
 
-// One line of the notes: ▸ Title ─── meta, opening to the note. The In notes
+// One line of the notes: ▸ Title ─── meta, opening to the note. The Show in notes
 // checkbox shows once it is open.
 function Fold({ id, title, meta, open, onToggle, included, onInclude, writable, children }: { id: string; title: string; meta?: string; open: boolean; onToggle: () => void; included?: boolean; onInclude?: (next: boolean) => void; writable: boolean; children: ReactNode }) {
   return (
@@ -252,7 +253,7 @@ function Fold({ id, title, meta, open, onToggle, included, onInclude, writable, 
         {onInclude && open && (
           <label className="flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground">
             <Checkbox checked={included} disabled={!writable} onCheckedChange={(v) => onInclude(v === true)} />
-            In notes
+            Show in notes
           </label>
         )}
       </div>
@@ -280,7 +281,7 @@ function RoundDetails({ r, name, writable, onPatch, onDelete, onOpenNotes, child
         </label>
         <label className="flex items-center gap-2">
           <Checkbox checked={r.in_notes !== false} disabled={!writable} onCheckedChange={(v) => void onPatch({ in_notes: v === true })} />
-          In notes
+          Show in notes
         </label>
         <div className="flex items-center justify-between">
           <Button variant="outline" size="sm" onClick={onOpenNotes}>
@@ -294,6 +295,50 @@ function RoundDetails({ r, name, writable, onPatch, onDelete, onOpenNotes, child
         </div>
       </PopoverContent>
     </Popover>
+  )
+}
+
+// A round as one compact line: a dot (filled once done), its name, then date,
+// who and questions. Click for its details; double-click to rename it.
+function RoundChip({ r, name, prefix, index, writable, onRename, details }: { r: Interview; name: string; prefix?: string; index: number; writable: boolean; onRename: (kind: string) => Promise<unknown>; details: (trigger: ReactNode) => ReactNode }) {
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState(name)
+  const anim = stagger(index)
+  if (editing)
+    return (
+      <form
+        className="flex h-7 items-center gap-2 rounded-md bg-muted px-2"
+        onSubmit={(e) => {
+          e.preventDefault()
+          const v = draft.trim()
+          setEditing(false)
+          if (v && v !== name) void onRename(v)
+        }}
+      >
+        <span aria-hidden className="size-2 shrink-0 rounded-full border border-dashed border-foreground" />
+        <input autoFocus aria-label="Round name" className="min-w-0 flex-1 bg-transparent text-[13px] font-medium outline-none" value={draft} onChange={(e) => setDraft(e.target.value)} onBlur={(e) => e.currentTarget.form?.requestSubmit()} onKeyDown={(e) => e.key === "Escape" && setEditing(false)} />
+      </form>
+    )
+  return (
+    <>
+      {details(
+        <button
+          type="button"
+          style={anim.style}
+          onDoubleClick={() => {
+            if (!writable) return
+            setDraft(name)
+            setEditing(true)
+          }}
+          className={cn("flex h-7 w-full min-w-0 items-center gap-2 rounded-md px-2 text-left text-[13px] outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring", r.in_notes === false && "text-muted-foreground", anim.className)}
+        >
+          <span aria-hidden className={cn("size-2 shrink-0 rounded-full border border-foreground", r.done_at && "bg-foreground")} />
+          {prefix && <span className="text-muted-foreground">{prefix} ·</span>}
+          <span className="truncate font-medium">{name}</span>
+          <span className="ml-auto shrink-0 text-xs text-muted-foreground">{[short(r.scheduled_at), r.interviewer, r.questions?.length ? `${r.questions.length}?` : ""].filter(Boolean).join(" · ")}</span>
+        </button>,
+      )}
+    </>
   )
 }
 
@@ -313,7 +358,7 @@ function ViewOptions({ prefs, onChange }: { prefs: Prefs; onChange: (p: Partial<
           <Switch checked={prefs.showDone} onCheckedChange={(v) => onChange({ showDone: v })} />
         </label>
         <label className={row}>
-          Hide notes left out
+          Hide hidden rounds
           <Switch checked={prefs.hideLeftOut} onCheckedChange={(v) => onChange({ hideLeftOut: v })} />
         </label>
         <div className={row}>
@@ -382,104 +427,6 @@ function useFocus(id: string | undefined) {
   }, [id])
 }
 
-// One round (or the application's notes) in the notes view: an ASCII fold,
-// and inside it each ## section as its own fold.
-function DocSession({
-  id,
-  title,
-  meta,
-  md,
-  dim,
-  writable,
-  open,
-  onToggle,
-  sectionOpen,
-  onSectionToggle,
-  reveal,
-  onSave,
-  extra,
-}: {
-  id: string
-  title: string
-  meta: string
-  md: string
-  dim?: boolean
-  writable: boolean
-  open: boolean
-  onToggle: () => void
-  sectionOpen: (k: number) => boolean
-  onSectionToggle: (k: number) => void
-  reveal: (k: number) => boolean
-  onSave: (notes: string) => Promise<unknown>
-  extra?: ReactNode
-}) {
-  const [editing, setEditing] = useState(false)
-  const parts = sections(md)
-  return (
-    <section id={`note-${id}`} className="group/session scroll-mt-24">
-      <div className="flex items-center gap-2">
-        <button type="button" className="flex min-w-0 flex-1 items-center gap-2 py-1 text-left font-mono text-[13px] outline-none focus-visible:ring-2 focus-visible:ring-ring" onClick={onToggle} aria-expanded={open}>
-          <span aria-hidden className="shrink-0 text-muted-foreground">
-            {open ? "▾" : "▸"} ─
-          </span>
-          <span className={cn("truncate font-sans text-sm font-semibold", dim && "font-normal text-muted-foreground")}>{title}</span>
-          <span aria-hidden className="min-w-4 flex-1 overflow-hidden whitespace-nowrap text-border">
-            {"─".repeat(160)}
-          </span>
-          <span className="shrink-0 font-sans text-xs text-muted-foreground">{meta}</span>
-        </button>
-        {open && extra}
-      </div>
-      {open && (
-        <div className="flex flex-col pb-3 pl-1.5">
-          {editing ? (
-            <div className="pt-1 pl-6">
-              <NoteEditor md={md} label={`${title} notes`} onSave={onSave} onDone={() => setEditing(false)} />
-            </div>
-          ) : (
-            <>
-              {parts.length ? (
-                parts.map((p, k) => {
-                  const last = k === parts.length - 1
-                  const sOpen = sectionOpen(k)
-                  return (
-                    <div key={k} className="flex flex-col">
-                      {p.title && (
-                        <button type="button" className="flex items-center gap-2 py-0.5 text-left font-mono text-[13px] text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring" onClick={() => onSectionToggle(k)} aria-expanded={sOpen}>
-                          <span aria-hidden>
-                            {last ? "└─" : "├─"} {sOpen ? "▾" : "▸"}
-                          </span>
-                          <span className="font-sans text-xs font-medium tracking-wide uppercase">
-                            <Decode text={p.title} active={reveal(-1)} scope="notes" />
-                          </span>
-                        </button>
-                      )}
-                      {(sOpen || !p.title) && (
-                        <div className={cn("py-1 pl-6", p.title && !last && "ml-[0.3rem] border-l border-border pl-[1.2rem]")}>
-                          <Markdown md={p.body} active={reveal(k)} scope="notes" />
-                        </div>
-                      )}
-                    </div>
-                  )
-                })
-              ) : (
-                <p className="py-1 pl-6 text-sm text-muted-foreground italic">Nothing written yet.</p>
-              )}
-              {writable && (
-                <div className="pl-5 opacity-0 group-hover/session:opacity-100 focus-within:opacity-100">
-                  <Button variant="ghost" size="xs" className="text-muted-foreground" onClick={() => setEditing(true)}>
-                    <Pencil /> Edit
-                  </Button>
-                </div>
-              )}
-            </>
-          )}
-        </div>
-      )}
-    </section>
-  )
-}
-
 // Rounds, tasks, questions and notes for one application. Tabs pick what to
 // show; All puts the next step, the outline and the notes together.
 export function OutlineCard({ application, writable, onChange, onSaveNotes }: { application: Application; writable: boolean; onChange: () => Promise<void>; onSaveNotes: (notes: string) => Promise<unknown> }) {
@@ -494,15 +441,30 @@ export function OutlineCard({ application, writable, onChange, onSaveNotes }: { 
   const [justOpened, setJustOpened] = useState<string | null>(null)
   const [marked, setMarked] = useState<string | null>(null)
   const [addingAt, setAddingAt] = useState<string | null>(null)
+  // Switching to a shorter view would pull the page up under you when you are
+  // scrolled near the bottom. Hold the old height, then let it go only as far
+  // as it can without moving anything, as you scroll.
   const bodyRef = useRef<HTMLDivElement>(null)
-  const [bodyMin, setBodyMin] = useState(0)
+  const innerRef = useRef<HTMLDivElement>(null)
+  const [hold, setHold] = useState(0)
   useEffect(() => {
-    const el = bodyRef.current
-    if (!el) return
-    const ro = new ResizeObserver(() => setBodyMin((m) => Math.max(m, el.scrollHeight)))
-    ro.observe(el)
-    return () => ro.disconnect()
-  }, [])
+    if (!hold) return
+    const release = () => {
+      const natural = innerRef.current?.offsetHeight ?? 0
+      const slack = document.documentElement.scrollHeight - (window.scrollY + window.innerHeight)
+      setHold((h) => {
+        const next = Math.max(natural, h - Math.max(0, slack))
+        return next <= natural ? 0 : next
+      })
+    }
+    release()
+    window.addEventListener("scroll", release, { passive: true })
+    window.addEventListener("resize", release)
+    return () => {
+      window.removeEventListener("scroll", release)
+      window.removeEventListener("resize", release)
+    }
+  }, [hold])
   // New tasks from the Tasks view land on the stage the application is on.
   const taskStage = currentKey
   const [compiled, setCompiled] = useState(false)
@@ -527,6 +489,7 @@ export function OutlineCard({ application, writable, onChange, onSaveNotes }: { 
     }
   }, [])
   const setPrefs = (next: Partial<Prefs>) => {
+    if (next.view && next.view !== prefs.view) setHold(bodyRef.current?.offsetHeight ?? 0)
     const merged = { ...prefs, ...next }
     setPrefsState(merged)
     try {
@@ -707,41 +670,48 @@ export function OutlineCard({ application, writable, onChange, onSaveNotes }: { 
     </div>
   )
 
-  const roundRow = (r: Interview, n: number, sub: string) => (
-    <RoundDetails key={r.id} r={r} name={roundName(r, n)} writable={writable} onPatch={(body) => patch(r, body)} onDelete={() => void remove(r)} onOpenNotes={() => go(prefs.view === "all" ? "all" : "notes", r.id)}>
-      <button type="button" style={stagger(n).style} className={cn("-mx-2 flex w-[calc(100%+1rem)] items-start gap-2.5 rounded-md px-2 py-1.5 text-left outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring", stagger(n).className)}>
-        <RoundPie className="mt-0.5 size-4 shrink-0" total={1} done={r.done_at ? 1 : 0} />
-        <span className="flex min-w-0 flex-1 flex-col">
-          <span className={cn("truncate text-sm font-medium", r.in_notes === false && "font-normal text-muted-foreground")}>{roundName(r, n)}</span>
-          {sub && <span className="truncate text-sm text-muted-foreground">{sub}</span>}
-        </span>
-      </button>
-    </RoundDetails>
-  )
-  const roundsView = (
-    <div className="flex flex-col gap-4">
-      {prefs.sort === "date" ? (
-        <section className="flex flex-col">{byDate(ordered).map(({ r, n }) => roundRow(r, n, [stageName(r.stage), short(r.scheduled_at), r.interviewer].filter(Boolean).join(" · ")))}</section>
-      ) : (
-        STAGE_STOPS.slice(1, -1).map(([key, name], j) => {
-          const i = j + 1
-          const stored = rounds.storedFor(all, key)
-          return (
-            <section key={key} className="group/stage flex flex-col">
-              <h3 className={cn("flex h-7 items-center gap-2 text-xs", i === current ? "font-medium text-foreground" : "text-muted-foreground")}>
-                <RoundPie className="size-3.5" total={Math.max(1, stored.length)} done={stored.length ? stored.filter((r) => r.done_at).length : i <= current ? 1 : 0} />
-                {name}
-                {writable && (
-                  <Button variant="ghost" size="xs" className="ml-auto opacity-0 group-hover/stage:opacity-100 focus-visible:opacity-100" disabled={rounds.busy} onClick={() => void rounds.add(key, i)}>
-                    <Plus /> Round
-                  </Button>
-                )}
-              </h3>
-              {stored.map((r, n) => roundRow(r, n, [short(r.scheduled_at), r.interviewer, r.questions?.length ? `${r.questions.length} questions` : ""].filter(Boolean).join(" · ")))}
-            </section>
-          )
-        })
+  // Rounds as one rail of named chips. The stage each sits in is only a small
+  // grey label between them: it still decides where the round counts.
+  const chip = (r: Interview, n: number, k: number, prefix?: string) => (
+    <RoundChip
+      key={r.id}
+      r={r}
+      name={roundName(r, n)}
+      prefix={prefix}
+      index={k}
+      writable={writable}
+      onRename={(kind) => patch(r, { kind })}
+      details={(trigger) => (
+        <RoundDetails r={r} name={roundName(r, n)} writable={writable} onPatch={(body) => patch(r, body)} onDelete={() => void remove(r)} onOpenNotes={() => go("notes", r.id)}>
+          {trigger}
+        </RoundDetails>
       )}
+    />
+  )
+  let k = 0
+  // A grey stage label on the left, its rounds as lines on the right.
+  const roundsView = (
+    <div className="flex flex-col">
+      {prefs.sort === "date"
+        ? byDate(ordered).map(({ r, n }) => chip(r, n, k++, stageName(r.stage)))
+        : STAGE_STOPS.slice(1, -1).map(([key, name], j) => {
+            const i = j + 1
+            const stored = rounds.storedFor(all, key)
+            return (
+              <div key={key} className="group/stage grid grid-cols-[124px_minmax(0,1fr)] items-start gap-x-2">
+                <div className="flex h-7 items-center gap-1">
+                  <span className={cn("truncate text-[11px] tracking-wide uppercase", i === current ? "font-semibold text-foreground" : i < current ? "text-muted-foreground" : "text-muted-foreground/60")}>{name}</span>
+                  {writable && (
+                    <button type="button" aria-label={`Add a ${name} round`} title="Add a round" disabled={rounds.busy} onClick={() => void rounds.add(key, i)} className="flex size-5 shrink-0 items-center justify-center rounded-full text-muted-foreground opacity-0 outline-none group-hover/stage:opacity-100 hover:bg-muted hover:text-foreground focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-ring">
+                      <Plus className="size-3" />
+                    </button>
+                  )}
+                </div>
+                <div className="flex min-w-0 flex-col">{stored.length ? stored.map((r, n) => chip(r, n, k++)) : <span className="flex h-7 items-center px-2 text-xs text-muted-foreground/50">{i <= current ? "done" : "—"}</span>}</div>
+              </div>
+            )
+          })}
+      <p className="pt-2 text-xs text-muted-foreground">Double-click a round to rename it. Hover a stage for +.</p>
     </div>
   )
 
@@ -783,15 +753,15 @@ export function OutlineCard({ application, writable, onChange, onSaveNotes }: { 
                 )}
               </div>
               {!shut[key] && (
-                <div className="flex flex-col pl-5">
+                <div className="ml-[15px] flex flex-col border-l pl-3">
                   {stored.map((r, n) => {
                     const rt = allTasks.filter((t) => t.round_id === r.id && (prefs.showDone || !t.done_at))
                     return (
                       <div key={r.id} className="flex flex-col">
                         <div className="group flex h-7 items-center gap-1 rounded-md pr-2 hover:bg-muted">
                           <RoundDetails r={r} name={roundName(r, n)} writable={writable} onPatch={(body) => patch(r, body)} onDelete={() => void remove(r)} onOpenNotes={() => reveal(r.id)}>
-                            <button type="button" className="flex min-w-0 flex-1 items-center gap-2 rounded-md pl-2 text-left text-[13px] outline-none focus-visible:ring-2 focus-visible:ring-ring">
-                              <RoundPie className="size-3.5 shrink-0" total={1} done={r.done_at ? 1 : 0} />
+                            <button type="button" className="flex min-w-0 flex-1 items-center gap-2 rounded-md pl-1 text-left text-[13px] outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                              <span aria-hidden className={cn("size-1.5 shrink-0 rounded-full border border-foreground", r.done_at && "bg-foreground")} />
                               <span className={cn("min-w-0 flex-1 truncate", r.in_notes === false && "text-muted-foreground")}>{roundName(r, n)}</span>
                             </button>
                           </RoundDetails>
@@ -847,72 +817,36 @@ export function OutlineCard({ application, writable, onChange, onSaveNotes }: { 
         <NoteBody md={application.notes || ""} writable={writable} label="Application notes" placeholder={"Anything worth remembering.\n\n### A question not tied to a round?\nIts answer."} onSave={onSaveNotes} reveal={justOpened === "about"} />
       </Fold>
       {notesRounds.map(({ r, n }) => (
-        <Fold key={r.id} id={r.id} title={roundName(r, n)} meta={r.in_notes === false ? "left out" : meta(r)} open={isOpen(r.id)} onToggle={() => toggle(r.id)} included={r.in_notes !== false} onInclude={(v) => void patch(r, { in_notes: v })} writable={writable}>
+        <Fold key={r.id} id={r.id} title={roundName(r, n)} meta={r.in_notes === false ? "hidden" : meta(r)} open={isOpen(r.id)} onToggle={() => toggle(r.id)} included={r.in_notes !== false} onInclude={(v) => void patch(r, { in_notes: v })} writable={writable}>
           <NoteBody md={r.notes || ""} writable={writable} label={`${roundName(r, n)} notes`} placeholder={"## Prep\n\n### A question they asked?\nYour answer.\n\n## Notes"} onSave={(notes) => patch(r, { notes })} reveal={justOpened === r.id} />
         </Fold>
       ))}
     </article>
   )
 
-  // Notes: the whole document, every session open, each section a fold.
-  const docIds = ["about", ...notesRounds.map(({ r }) => r.id)]
-  const setAllDoc = (v: boolean) =>
-    setOpen((o) => {
-      const next = { ...o }
-      for (const id of docIds) {
-        next[`doc:${id}`] = v
-        for (let k = 0; k < 24; k++) next[`doc:${id}:${k}`] = v
-      }
-      return next
-    })
-  const session = (id: string, title: string, metaText: string, md: string, save: (notes: string) => Promise<unknown>, extra?: ReactNode, dim?: boolean) => (
-    <DocSession
-      key={id}
-      id={id}
-      title={title}
-      meta={metaText}
-      md={md}
-      dim={dim}
-      writable={writable}
-      open={isOpen(`doc:${id}`, true)}
-      onToggle={() => toggle(`doc:${id}`, true)}
-      sectionOpen={(k) => isOpen(`doc:${id}:${k}`, true)}
-      onSectionToggle={(k) => toggle(`doc:${id}:${k}`, true)}
-      reveal={(k) => justOpened === `doc:${id}` || justOpened === `doc:${id}:${k}`}
-      onSave={save}
-      extra={extra}
-    />
-  )
+  // Notes: the whole thing as one markdown file, folding from the gutter.
   const notesView = (
-    <article aria-label="Notes" className="flex min-w-0 flex-col gap-1">
-      <div className="flex items-center justify-end gap-3 text-xs text-muted-foreground">
-        <button type="button" className="hover:text-foreground" onClick={() => setAllDoc(true)}>
-          Expand all
-        </button>
-        <button type="button" className="hover:text-foreground" onClick={() => setAllDoc(false)}>
-          Collapse all
-        </button>
+    <article aria-label="Notes" className="flex min-w-0 flex-col gap-2">
+      <div className="flex items-center justify-end text-xs text-muted-foreground">
         <button type="button" className="flex items-center gap-1 hover:text-foreground" onClick={() => setCompiled(true)}>
-          <FileText className="size-3.5" /> Markdown
+          <FileText className="size-3.5" /> As one file
         </button>
       </div>
-      {session("about", "About this application", "", application.notes || "", onSaveNotes)}
-      {notesRounds.map(({ r, n }) =>
-        session(
-          r.id,
-          roundName(r, n),
-          r.in_notes === false ? "left out" : meta(r),
-          r.notes || "",
-          (notes) => patch(r, { notes }),
-          writable ? (
-            <label className="flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground">
-              <Checkbox checked={r.in_notes !== false} onCheckedChange={(v) => void patch(r, { in_notes: v === true })} />
-              In notes
-            </label>
-          ) : null,
-          r.in_notes === false,
-        ),
-      )}
+      <MarkdownDoc
+        writable={writable}
+        sessions={[
+          { id: "about", title: "About this application", meta: "", md: application.notes || "", onSave: onSaveNotes },
+          ...notesRounds.map(({ r, n }) => ({
+            id: r.id,
+            title: roundName(r, n),
+            meta: meta(r),
+            md: r.notes || "",
+            hidden: r.in_notes === false,
+            onSave: (notes: string) => patch(r, { notes }),
+            onShow: (show: boolean) => void patch(r, { in_notes: show }),
+          })),
+        ]}
+      />
     </article>
   )
 
@@ -935,8 +869,9 @@ export function OutlineCard({ application, writable, onChange, onSaveNotes }: { 
         <ViewOptions prefs={prefs} onChange={setPrefs} />
       </div>
 
-      {/* Never shorter than the tallest view so far: switching tabs leaves the page where it is. */}
-      <div ref={bodyRef} style={{ minHeight: bodyMin || undefined }} className="flex flex-col gap-3">
+      {/* Holds its height while a shorter view would move the page; see hold. */}
+      <div ref={bodyRef} style={{ minHeight: hold || undefined }}>
+        <div ref={innerRef} className="flex flex-col gap-3">
         {prefs.view === "all" && (
           <>
             <div className="flex items-center gap-3 rounded-lg border px-3.5 py-2 text-sm">
@@ -961,6 +896,7 @@ export function OutlineCard({ application, writable, onChange, onSaveNotes }: { 
         {prefs.view === "tasks" && tasksView}
         {prefs.view === "questions" && questionsView}
         {prefs.view === "notes" && notesView}
+        </div>
       </div>
       {rounds.error && <p className="text-xs text-destructive">{rounds.error}</p>}
       <CompiledNotes appId={appId} open={compiled} onOpenChange={setCompiled} />
