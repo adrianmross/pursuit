@@ -10,7 +10,7 @@ import { Unanswered } from "@/components/PreparedAnswers"
 import { InlineText } from "@/components/InlineEdit"
 import { SectionCard } from "@/components/detail/SectionCard"
 import { Markdown } from "@/components/detail/notes/Markdown"
-import { MarkdownDoc } from "@/components/detail/notes/MarkdownDoc"
+import { NotesEditor } from "@/components/detail/notes/NotesEditor"
 import { RoundCounter } from "@/components/detail/notes/RoundCounter"
 import { SegmentedTabs } from "@/components/detail/notes/SegmentedTabs"
 import { Button } from "@/components/ui/button"
@@ -339,7 +339,7 @@ function StageLabel({ name, base, current, reached, writable, onRename }: { name
 
 // A round as one compact line: a dot (filled once done), its name, then date,
 // who and questions. Click for its details; double-click to rename it.
-function RoundChip({ r, name, prefix, index, writable, onRename, details }: { r: Interview; name: string; prefix?: string; index: number; writable: boolean; onRename: (kind: string) => Promise<unknown>; details: (trigger: ReactNode) => ReactNode }) {
+function RoundChip({ r, name, prefix, index, writable, tasks = 0, onTasks, onQuestions, onRename, details }: { r: Interview; name: string; prefix?: string; index: number; writable: boolean; tasks?: number; onTasks?: () => void; onQuestions?: () => void; onRename: (kind: string) => Promise<unknown>; details: (trigger: ReactNode) => ReactNode }) {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(name)
   const anim = stagger(index)
@@ -374,7 +374,35 @@ function RoundChip({ r, name, prefix, index, writable, onRename, details }: { r:
           <span aria-hidden className={cn("size-2 shrink-0 rounded-full border border-foreground", r.done_at && "bg-foreground")} />
           {prefix && <span className="text-muted-foreground">{prefix} ·</span>}
           <span className="truncate font-medium">{name}</span>
-          <span className="ml-auto shrink-0 text-xs text-muted-foreground">{[short(r.scheduled_at), r.interviewer, r.questions?.length ? `${r.questions.length}?` : ""].filter(Boolean).join(" · ")}</span>
+          <span className="ml-auto flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground">
+            {[short(r.scheduled_at), r.interviewer].filter(Boolean).join(" · ")}
+            {tasks > 0 && (
+              <span
+                role="link"
+                tabIndex={-1}
+                className="rounded px-1 hover:bg-background hover:text-foreground"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onTasks?.()
+                }}
+              >
+                {tasks} {tasks === 1 ? "task" : "tasks"}
+              </span>
+            )}
+            {!!r.questions?.length && (
+              <span
+                role="link"
+                tabIndex={-1}
+                className="rounded px-1 hover:bg-background hover:text-foreground"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onQuestions?.()
+                }}
+              >
+                {r.questions.length}?
+              </span>
+            )}
+          </span>
         </button>,
       )}
     </>
@@ -580,6 +608,13 @@ export function OutlineCard({ application, writable, onChange, onSaveNotes, onPa
   useFocus(prefs.view === "tasks" ? nextTask?.id : undefined)
   // NEXT in All jumps to the task in the outline, under its stage or round,
   // and marks it until the pointer finds it.
+  // From a round's counts to its questions or tasks: switch view, scroll, glow.
+  const jumpTo = (view: View, target: string) => {
+    if (!target) return
+    setPrefs({ view })
+    setMarked(target)
+    requestAnimationFrame(() => requestAnimationFrame(() => (document.getElementById(`mark-${target}`) ?? document.getElementById(`task-${target}`))?.scrollIntoView({ block: "center", behavior: "smooth" })))
+  }
   const jumpToNext = () => {
     if (!nextTask) return setPrefs({ view: "tasks" })
     setShut((x) => ({ ...x, [nextTask.stage]: false }))
@@ -630,9 +665,8 @@ export function OutlineCard({ application, writable, onChange, onSaveNotes, onPa
         id={`task-${t.id}`}
         onMouseEnter={() => isMarked && setMarked(null)}
         style={anim.style}
-        className={cn("group relative -mx-2 flex scroll-mt-24 items-center gap-2.5 rounded-md px-2 hover:bg-muted", compact ? "min-h-7 text-[13px]" : "min-h-9 text-sm", anim.className, isMarked && "bg-muted")}
+        className={cn("group relative -mx-2 flex scroll-mt-24 items-center gap-2.5 rounded-md px-2 hover:bg-muted", compact ? "min-h-7 text-[13px]" : "min-h-9 text-sm", anim.className, isMarked && "marked-glow")}
       >
-        {isMarked && <span aria-hidden className="absolute top-1/2 -left-1 size-1.5 -translate-y-1/2 animate-pulse rounded-full bg-foreground motion-reduce:animate-none" />}
         <Checkbox aria-label={`Done: ${t.title}`} checked={!!t.done_at} disabled={!writable} onCheckedChange={() => void tasks.toggle(t)} />
         <span className={cn("min-w-0 flex-1 truncate", t.done_at && "text-muted-foreground line-through")}>{t.title}</span>
         {!compact && t.round_id && <span className="shrink-0 text-xs text-muted-foreground">{roundOf(t)}</span>}
@@ -702,7 +736,7 @@ export function OutlineCard({ application, writable, onChange, onSaveNotes, onPa
   const questionsView = (
     <div className="flex flex-col gap-5">
       {questionGroups.map((g) => (
-        <section key={g.id} className="flex flex-col">
+        <section key={g.id} id={`mark-${g.id}`} onMouseEnter={() => marked === g.id && setMarked(null)} className={cn("-mx-2 flex scroll-mt-24 flex-col rounded-lg px-2 py-1", marked === g.id && "marked-glow")}>
           <h3 className="pb-1 text-xs text-muted-foreground">{g.title}</h3>
           {g.items.map((q, i) => (
             <Row key={q.prompt} index={i} title={q.prompt} sub={<span className={cn(!q.answer && "italic")}>{q.answer || "No answer yet"}</span>} onClick={() => go("notes", g.id)} />
@@ -732,6 +766,9 @@ export function OutlineCard({ application, writable, onChange, onSaveNotes, onPa
       prefix={prefix}
       index={k}
       writable={writable}
+      tasks={allTasks.filter((t) => t.round_id === r.id && !t.done_at).length}
+      onTasks={() => jumpTo("tasks", allTasks.find((t) => t.round_id === r.id && !t.done_at)?.id ?? "")}
+      onQuestions={() => jumpTo("questions", r.id)}
       onRename={(kind) => patch(r, { kind })}
       details={(trigger) => (
         <RoundDetails r={r} name={roundName(r, n)} writable={writable} onPatch={(body) => patch(r, body)} onDelete={() => void remove(r)} onOpenNotes={() => go("notes", r.id)}>
@@ -901,19 +938,16 @@ export function OutlineCard({ application, writable, onChange, onSaveNotes, onPa
           <FileText className="size-3.5" /> As one file
         </button>
       </div>
-      <MarkdownDoc
+      <NotesEditor
         writable={writable}
-        sessions={[
-          { id: "about", title: "About this application", meta: "", md: application.notes || "", onSave: onSaveNotes },
+        sections={[
+          { id: "about", title: "About this application", md: application.notes || "", onSave: onSaveNotes },
           ...notesRounds.map(({ r, n }) => ({
             id: r.id,
             title: roundName(r, n),
-            meta: meta(r),
             md: r.notes || "",
-            hidden: r.in_notes === false,
             onSave: (notes: string) => patch(r, { notes }),
             onRename: (kind: string) => patch(r, { kind }),
-            onShow: (show: boolean) => void patch(r, { in_notes: show }),
           })),
         ]}
       />

@@ -182,6 +182,9 @@ function Appearance() {
       <Row label="Round counter" hint="How a stage's number of rounds is set: a wheel you scroll or click, or a die you roll and turn.">
         <Choice pref="roundCounter" options={[["wheel", "Wheel"], ["dice", "Dice"]]} />
       </Row>
+      <Row label="Vim keys in notes" hint="The notes editor takes Vim motions, with zc, zo and za to fold. Applies the next time notes open.">
+        <Choice pref="vimKeys" options={[["off", "Off"], ["on", "On"]]} />
+      </Row>
     </FieldGroup>
   )
 }

@@ -183,3 +183,27 @@
   transition: none !important;
   animation: none !important;
 }
+
+/* What a jump lands on: an amber outline that breathes until you hover it. */
+@keyframes marked-glow {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 1.5px rgb(245 158 11 / 0.9),
+      0 0 10px 1px rgb(245 158 11 / 0.35);
+  }
+  50% {
+    box-shadow:
+      0 0 0 1.5px rgb(245 158 11 / 0.6),
+      0 0 18px 4px rgb(245 158 11 / 0.15);
+  }
+}
+.marked-glow {
+  box-shadow: 0 0 0 1.5px rgb(245 158 11 / 0.9);
+  animation: marked-glow 1.6s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .marked-glow {
+    animation: none;
+  }
+}
