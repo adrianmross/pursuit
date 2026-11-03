@@ -67,4 +67,13 @@ func TestSetSection(t *testing.T) {
 	if got := AppendNotes("a", "b"); got != "a\n\nb\n" {
 		t.Fatalf("append: %q", got)
 	}
+	// Appending after a question opens a Notes section instead of extending
+	// the answer; a second append stays in it.
+	md = AppendNotes(AppendNotes("### Why us?\nScale.", "Went well."), "Next: final.")
+	if q := ParseRoundQuestions(md); len(q) != 1 || q[0].Answer != "Scale." {
+		t.Fatalf("append after question: %#v\n%s", q, md)
+	}
+	if md != "### Why us?\nScale.\n\n## Notes\nWent well.\n\nNext: final.\n" {
+		t.Fatalf("append after question: %q", md)
+	}
 }

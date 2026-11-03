@@ -195,10 +195,15 @@ func (s *Service) UpdateInterview(ctx context.Context, id string, p InterviewPat
 			next.Notes, ops = domain.SetSection(next.Notes, "Prep", *p.Prep), append(ops, "prep")
 		}
 		if q := p.SetQuestion; q != nil {
-			if strings.TrimSpace(q.Prompt) == "" {
+			// A prompt is one heading line: newlines would inject headings.
+			prompt, err := domain.BoundText("set_question.prompt", strings.Join(strings.Fields(q.Prompt), " "), 500)
+			if err != nil {
+				return err
+			}
+			if prompt == "" {
 				return domain.Validation("set_question needs a prompt")
 			}
-			next.Notes, ops = domain.SetRoundQuestion(next.Notes, q.Prompt, q.Answer), append(ops, "set_question")
+			next.Notes, ops = domain.SetRoundQuestion(next.Notes, prompt, q.Answer), append(ops, "set_question")
 		}
 		if p.Append != nil && strings.TrimSpace(*p.Append) != "" {
 			next.Notes, ops = domain.AppendNotes(next.Notes, *p.Append), append(ops, "append")

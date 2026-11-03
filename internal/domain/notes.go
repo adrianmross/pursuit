@@ -137,9 +137,15 @@ func SetRoundQuestion(md, prompt, answer string) string {
 	return appendBlock(md, "## Questions\n\n"+block)
 }
 
-// AppendNotes adds text at the end as its own paragraph.
+// AppendNotes adds text at the end as its own paragraph. When the document
+// ends inside a question, the text goes under a new "Notes" heading so it
+// never becomes part of that question's answer.
 func AppendNotes(md, text string) string {
-	return appendBlock(md, strings.TrimSpace(text))
+	text = strings.TrimSpace(text)
+	if hs := headings(strings.Split(md, "\n")); len(hs) > 0 && strings.HasSuffix(hs[len(hs)-1].text, "?") {
+		text = "## Notes\n" + text
+	}
+	return appendBlock(md, text)
 }
 
 func replaceBody(lines []string, at, end int, body string) string {

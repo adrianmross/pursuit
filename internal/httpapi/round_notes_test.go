@@ -25,11 +25,10 @@ func TestRoundNotes(t *testing.T) {
 	if code != 200 || len(qs) != 1 || qs[0].(map[string]any)["prompt"] != "Why Snowflake?" {
 		t.Fatalf("set_question creates: %d %#v", code, round)
 	}
-	code, round = e.json(t, http.MethodPatch, path, e.token, map[string]any{"set_question": map[string]any{"prompt": "why snowflake?", "answer": "Query engine."}, "append": "Recruiter: Dana."})
+	code, round = e.json(t, http.MethodPatch, path, e.token, map[string]any{"set_question": map[string]any{"prompt": "why\nsnowflake?", "answer": "Query engine."}, "append": "Recruiter: Dana."})
 	qs = round["questions"].([]any)
-	if code != 200 || len(qs) != 1 || qs[0].(map[string]any)["answer"] != "Query engine.\n\nRecruiter: Dana." {
-		// append lands after the last question, so it reads as part of its answer.
-		t.Fatalf("set_question replaces, append adds: %d %#v", code, round)
+	if code != 200 || len(qs) != 1 || qs[0].(map[string]any)["answer"] != "Query engine." {
+		t.Fatalf("set_question replaces, append stays out of the answer: %d %#v", code, round)
 	}
 	if code, stale := e.json(t, http.MethodPatch, path, e.token, map[string]any{"version": 1, "append": "late"}); code != 409 {
 		t.Fatalf("stale version still checked: %d %#v", code, stale)
