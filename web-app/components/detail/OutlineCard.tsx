@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useRef, useState, type ComponentProps, type ReactNode } from "react"
+import { createPortal } from "react-dom"
 import { Check, ChevronLeft, ChevronRight, Copy, FilePlus, FileText, Inbox, ListPlus, Plus, SlidersHorizontal, Trash2, X } from "lucide-react"
 import { api } from "@/lib/api-client"
 import { cn } from "@/lib/utils"
@@ -652,6 +653,15 @@ export function OutlineCard({ application, writable, onChange, onSaveNotes, onPa
   const [justOpened, setJustOpened] = useState<string | null>(null)
   const [marked, setMarked] = useState<string | null>(null)
   const [editTask, setEditTask] = useState<string | null>(null)
+  // The board card open on top of the blurred card.
+  const [focusRound, setFocusRound] = useState<string | null>(null)
+  useEffect(() => {
+    if (!focusRound) return
+    // Esc closes it, unless Esc is cancelling an edit inside it.
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && !(e.target instanceof HTMLElement && e.target.closest("input, textarea")) && setFocusRound(null)
+    window.addEventListener("keydown", onKey)
+    return () => window.removeEventListener("keydown", onKey)
+  }, [focusRound])
   // The round whose details popover the outline opened by double-click.
   const [detailsFor, setDetailsFor] = useState<string | null>(null)
   const [addingAt, setAddingAt] = useState<string | null>(null)
@@ -779,22 +789,47 @@ export function OutlineCard({ application, writable, onChange, onSaveNotes, onPa
     await tasks.fetchTasks()
     await onChange()
   }
-  const dropTarget = (where: string) =>
+  // A round moves to another stage: Prepared through Final only.
+  const roundStages = STAGE_STOPS.slice(1, -1).map(([key]) => key)
+  const moveRound = (id: string, key: string) => {
+    const r = all.find((x) => x.id === id)
+    if (r && r.stage !== key) void patch(r, { stage: key })
+  }
+  const dragRound = (r: Interview) =>
     writable
       ? {
-          onDragOver: (e: React.DragEvent) => {
-            if (!e.dataTransfer.types.includes("text/x-pursuit-task")) return
-            e.preventDefault()
-            if (dropAt !== where) setDropAt(where)
-          },
-          onDragLeave: () => dropAt === where && setDropAt(null),
-          onDrop: (e: React.DragEvent) => {
-            const id = e.dataTransfer.getData("text/x-pursuit-task")
-            setDropAt(null)
-            if (id) void moveTask(id, where)
+          draggable: true,
+          onDragStart: (e: React.DragEvent) => {
+            e.stopPropagation()
+            e.dataTransfer.setData("text/x-pursuit-round", r.id)
+            e.dataTransfer.effectAllowed = "move"
           },
         }
       : {}
+  // Tasks drop on a stage or a round; rounds drop on a stage they can be in.
+  const dropTarget = (where: string) => {
+    if (!writable) return {}
+    const takesRound = where.startsWith("stage:") && roundStages.includes(where.slice(6))
+    const takes = (e: React.DragEvent) => e.dataTransfer.types.includes("text/x-pursuit-task") || (takesRound && e.dataTransfer.types.includes("text/x-pursuit-round"))
+    return {
+      onDragOver: (e: React.DragEvent) => {
+        if (!takes(e)) return
+        e.preventDefault()
+        e.stopPropagation()
+        if (dropAt !== where) setDropAt(where)
+      },
+      onDragLeave: () => dropAt === where && setDropAt(null),
+      onDrop: (e: React.DragEvent) => {
+        if (!takes(e)) return
+        e.stopPropagation()
+        const task = e.dataTransfer.getData("text/x-pursuit-task")
+        const round = e.dataTransfer.getData("text/x-pursuit-round")
+        setDropAt(null)
+        if (task) void moveTask(task, where)
+        else if (round) moveRound(round, where.slice(6))
+      },
+    }
+  }
 
   // From a round's counts to its questions or tasks: switch view, scroll, glow.
   const jumpTo = (view: View, target: string) => {
@@ -1002,23 +1037,24 @@ export function OutlineCard({ application, writable, onChange, onSaveNotes, onPa
   // Rounds as one rail of named chips. The stage each sits in is only a small
   // grey label between them: it still decides where the round counts.
   const chip = (r: Interview, n: number, k: number, prefix?: string) => (
-    <RoundChip
-      key={r.id}
-      r={r}
-      name={roundName(r, n)}
-      prefix={prefix}
-      index={k}
-      writable={writable}
-      tasks={allTasks.filter((t) => t.round_id === r.id && !t.done_at).length}
-      onTasks={() => jumpTo("tasks", allTasks.find((t) => t.round_id === r.id && !t.done_at)?.id ?? "")}
-      onQuestions={() => jumpTo("questions", r.id)}
-      onRename={(kind) => patch(r, { kind })}
-      details={(trigger) => (
-        <RoundDetails r={r} name={roundName(r, n)} writable={writable} onPatch={(body) => patch(r, body)} onDelete={() => void remove(r)} onOpenNotes={() => go("notes", r.id)}>
-          {trigger}
-        </RoundDetails>
-      )}
-    />
+    <div key={r.id} {...dragRound(r)}>
+      <RoundChip
+        r={r}
+        name={roundName(r, n)}
+        prefix={prefix}
+        index={k}
+        writable={writable}
+        tasks={allTasks.filter((t) => t.round_id === r.id && !t.done_at).length}
+        onTasks={() => jumpTo("tasks", allTasks.find((t) => t.round_id === r.id && !t.done_at)?.id ?? "")}
+        onQuestions={() => jumpTo("questions", r.id)}
+        onRename={(kind) => patch(r, { kind })}
+        details={(trigger) => (
+          <RoundDetails r={r} name={roundName(r, n)} writable={writable} onPatch={(body) => patch(r, body)} onDelete={() => void remove(r)} onOpenNotes={() => go("notes", r.id)}>
+            {trigger}
+          </RoundDetails>
+        )}
+      />
+    </div>
   )
   // Rounds to a number: add or drop one at a time, from the end.
   const setCount = async (key: string, i: number, target: number) => {
@@ -1038,7 +1074,7 @@ export function OutlineCard({ application, writable, onChange, onSaveNotes, onPa
             const off = isOff(key)
             const name = stageName(key)
             return (
-              <div key={key} className={cn("grid grid-cols-[minmax(0,210px)_minmax(0,1fr)] items-start gap-x-3 border-t py-1 first:border-t-0", off && "opacity-50")}>
+              <div key={key} {...(off ? {} : dropTarget(`stage:${key}`))} className={cn("grid grid-cols-[minmax(0,210px)_minmax(0,1fr)] items-start gap-x-3 rounded-md border-t py-1 first:border-t-0", off && "opacity-50", dropAt === `stage:${key}` && "bg-muted ring-1 ring-foreground/30")}>
                 <div className="flex h-7 items-center gap-2">
                   {writable && <Switch className="scale-75" checked={!off} aria-label={`${baseStageName(key)} in this process`} onCheckedChange={(v) => void setOn(key, v)} />}
                   <StageLabel name={name} base={baseStageName(key)} current={i === current} reached={i < current} writable={writable && !off} onRename={(v) => rename(key, v)} />
@@ -1148,7 +1184,7 @@ export function OutlineCard({ application, writable, onChange, onSaveNotes, onPa
                     const rq = (r.questions ?? []).filter((q) => prefs.showDone || !q.answer?.trim())
                     return (
                       <div key={r.id} className="flex flex-col">
-                        <div {...dropTarget(`round:${r.id}`)} className={cn("group flex h-7 items-center gap-1 rounded-md pr-2 hover:bg-muted", dropAt === `round:${r.id}` && "bg-muted ring-1 ring-foreground/30")}>
+                        <div {...dropTarget(`round:${r.id}`)} {...dragRound(r)} className={cn("group flex h-7 items-center gap-1 rounded-md pr-2 hover:bg-muted", dropAt === `round:${r.id}` && "bg-muted ring-1 ring-foreground/30")}>
                           <RoundDetails r={r} name={roundName(r, n)} writable={writable} onPatch={(body) => patch(r, body)} onDelete={() => void remove(r)} onOpenNotes={() => reveal(r.id)} open={detailsFor === r.id} onOpenChange={(o) => setDetailsFor(o ? r.id : null)}>
                             <button type="button" title="Click to open or fold it on the right · double-click to edit" onClick={() => (isOpen(r.id) ? setOpen((o) => ({ ...o, [r.id]: false })) : reveal(r.id))} onDoubleClick={() => setDetailsFor(r.id)} className="flex min-w-0 flex-1 items-center gap-2 rounded-md pl-1 text-left text-[13px] outline-none focus-visible:ring-2 focus-visible:ring-ring">
                               <span aria-hidden className={cn("size-1.5 shrink-0 rounded-full border border-foreground", r.done_at && "bg-foreground")} />
@@ -1230,9 +1266,9 @@ export function OutlineCard({ application, writable, onChange, onSaveNotes, onPa
     )
   }
   // dot false on the timeline, whose lane already has one.
-  const roundHead = (r: Interview, n: number, sub: string, dot = true) => (
+  const roundHead = (r: Interview, n: number, sub: string, dot = true, onOpen = () => toggle(r.id)) => (
     <RoundDetails r={r} name={roundName(r, n)} writable={writable} onPatch={(body) => patch(r, body)} onDelete={() => void remove(r)} onOpenNotes={() => go("notes", r.id)} open={detailsFor === r.id} onOpenChange={(o) => setDetailsFor(o ? r.id : null)}>
-      <button type="button" title="Click to open · double-click to edit" aria-expanded={isOpen(r.id)} onClick={() => toggle(r.id)} onDoubleClick={() => setDetailsFor(r.id)} className="flex w-full min-w-0 flex-col rounded-sm text-left outline-none focus-visible:ring-2 focus-visible:ring-ring">
+      <button type="button" title="Click to open · double-click to edit" aria-expanded={isOpen(r.id)} onClick={onOpen} onDoubleClick={() => setDetailsFor(r.id)} className="flex w-full min-w-0 flex-col rounded-sm text-left outline-none focus-visible:ring-2 focus-visible:ring-ring">
         <span className="flex items-center gap-2 text-[13px] font-medium">
           {dot && <span aria-hidden className={cn("size-2 shrink-0 rounded-full border border-foreground", r.done_at && "bg-foreground")} />}
           <span className="truncate">{roundName(r, n)}</span>
@@ -1247,10 +1283,38 @@ export function OutlineCard({ application, writable, onChange, onSaveNotes, onPa
     return [t && `${t} ${t === 1 ? "task" : "tasks"}`, q && `${q}?`].filter(Boolean).join(" · ")
   }
 
+  // The board's sides fade out where more columns are hidden, steeply at the
+  // very edge and gently further in, like a log curve.
+  const boardRef = useRef<HTMLDivElement>(null)
+  const [boardEdge, setBoardEdge] = useState({ left: false, right: false })
+  const edges = () => {
+    const el = boardRef.current
+    if (!el) return
+    const next = { left: el.scrollLeft > 2, right: el.scrollLeft + el.clientWidth < el.scrollWidth - 2 }
+    setBoardEdge((was) => (was.left === next.left && was.right === next.right ? was : next))
+  }
+  useEffect(() => {
+    const el = boardRef.current
+    if (!el) return
+    const ro = new ResizeObserver(edges)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [prefs.layout, prefs.view])
+  const fade = (on: boolean, right = false) => {
+    if (!on) return right ? "black 100%" : "black 0%"
+    const stops = [0, 0.45, 0.7, 0.85, 1].map((a, k) => ({ a, at: [0, 8, 20, 36, 56][k] }))
+    return (right ? stops.reverse().map(({ a, at }) => `rgb(0 0 0 / ${a}) calc(100% - ${at}px)`) : stops.map(({ a, at }) => `rgb(0 0 0 / ${a}) ${at}px`)).join(", ")
+  }
+
   // Board: a column per stage, its rounds as cards. Click a card to open it
   // in place; drop a task on a column or a card to move it there.
   const board = (
-    <div className="-mx-1 flex gap-3 overflow-x-auto px-1 pb-2">
+    <div
+      ref={boardRef}
+      onScroll={edges}
+      style={{ maskImage: `linear-gradient(to right, ${fade(boardEdge.left)}, ${fade(boardEdge.right, true)})` }}
+      className="-mx-(--card-spacing) -mb-(--card-spacing) flex gap-3 overflow-x-auto px-(--card-spacing) pb-(--card-spacing) [scrollbar-width:thin]"
+    >
       {STAGE_STOPS.map(([key], i) => {
         if (isOff(key)) return null
         const stored = rounds.storedFor(all, key)
@@ -1268,9 +1332,8 @@ export function OutlineCard({ application, writable, onChange, onSaveNotes, onPa
               )}
             </h3>
             {cards.map(({ r, n }) => (
-              <div key={r.id} {...dropTarget(`round:${r.id}`)} className={cn("rounded-lg border bg-background p-2.5 shadow-xs", dropAt === `round:${r.id}` && "ring-1 ring-foreground/40")}>
-                {roundHead(r, n, [short(r.scheduled_at), r.interviewer, openCounts(r)].filter(Boolean).join(" · "))}
-                {isOpen(r.id) && roundBody(r, n)}
+              <div key={r.id} {...dropTarget(`round:${r.id}`)} {...dragRound(r)} className={cn("rounded-lg border bg-background p-2.5 shadow-xs", dropAt === `round:${r.id}` && "ring-1 ring-foreground/40")}>
+                {roundHead(r, n, [short(r.scheduled_at), r.interviewer, openCounts(r)].filter(Boolean).join(" · "), true, () => setFocusRound(r.id))}
               </div>
             ))}
             {own.length > 0 && <div className="flex flex-col px-2">{own.map((t, k) => taskRow(t, k, true))}</div>}
@@ -1632,6 +1695,29 @@ export function OutlineCard({ application, writable, onChange, onSaveNotes, onPa
             </div>
           </div>
         )}
+        {(() => {
+          const f = focusRound ? ordered.find(({ r }) => r.id === focusRound) : undefined
+          return (
+            f &&
+            createPortal(
+              // A board card opened: the card blurs and the round floats on top.
+              // Fixed and centred, so a long round is never cut off by the card.
+              <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/60 p-4 backdrop-blur-sm animate-in fade-in duration-150" onMouseDown={(e) => e.target === e.currentTarget && setFocusRound(null)}>
+                <div role="dialog" aria-label={roundName(f.r, f.n)} className="flex max-h-[85vh] w-full max-w-xl flex-col gap-1 overflow-y-auto rounded-xl border bg-background p-4 shadow-lg animate-in fade-in zoom-in-95 duration-150">
+                  <div className="flex items-start gap-2">
+                    <div className="min-w-0 flex-1">{roundHead(f.r, f.n, [stageName(f.r.stage), short(f.r.scheduled_at), f.r.interviewer].filter(Boolean).join(" · "), true, () => {})}</div>
+                    <Button size="icon-xs" variant="ghost" aria-label="Close" onClick={() => setFocusRound(null)}>
+                      <X />
+                    </Button>
+                  </div>
+                  {roundBody(f.r, f.n)}
+                  <p className="pt-2 text-xs text-muted-foreground">Double-click anything to edit · double-click the name for details · Esc closes</p>
+                </div>
+              </div>,
+              document.body,
+            )
+          )
+        })()}
         <div ref={innerRef} className="flex flex-col gap-3">
         {prefs.view === "all" && (
           <>
