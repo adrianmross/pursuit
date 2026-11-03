@@ -1313,7 +1313,7 @@ export function OutlineCard({ application, writable, onChange, onSaveNotes, onPa
       ref={boardRef}
       onScroll={edges}
       style={{ maskImage: `linear-gradient(to right, ${fade(boardEdge.left)}, ${fade(boardEdge.right, true)})` }}
-      className="-mx-(--card-spacing) -mb-(--card-spacing) flex gap-3 overflow-x-auto px-(--card-spacing) pb-(--card-spacing) [scrollbar-width:thin]"
+      className="-mx-(--card-spacing) -mb-(--card-spacing) flex flex-1 gap-3 overflow-x-auto px-(--card-spacing) pb-3 [&::-webkit-scrollbar]:h-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-foreground/20 hover:[&::-webkit-scrollbar-thumb]:bg-foreground/35 [&::-webkit-scrollbar-track]:mx-5 [&::-webkit-scrollbar-track]:mb-1 [&::-webkit-scrollbar-track]:bg-transparent"
     >
       {STAGE_STOPS.map(([key], i) => {
         if (isOff(key)) return null
@@ -1685,7 +1685,7 @@ export function OutlineCard({ application, writable, onChange, onSaveNotes, onPa
       </div>
 
       {/* Holds its height while a shorter view would move the page; see hold. */}
-      <div ref={bodyRef} style={{ minHeight: hold || undefined }} className="relative">
+      <div ref={bodyRef} style={{ minHeight: hold || undefined }} className="relative flex flex-col">
         {addingAt && (
           // Adding from the outline: the card blurs and the task row floats on top.
           <div className="absolute inset-0 z-20 flex items-start justify-center rounded-lg bg-background/60 pt-24 backdrop-blur-sm animate-in fade-in duration-150" onMouseDown={(e) => e.target === e.currentTarget && setAddingAt(null)}>
@@ -1718,7 +1718,8 @@ export function OutlineCard({ application, writable, onChange, onSaveNotes, onPa
             )
           )
         })()}
-        <div ref={innerRef} className="flex flex-col gap-3">
+        {/* On the board the columns fill any height held for a steady page, so its scroll bar sits on the card's bottom edge. */}
+        <div ref={innerRef} className={cn("flex flex-col gap-3", prefs.view === "all" && prefs.layout === "board" && "flex-1")}>
         {prefs.view === "all" && (
           <>
             <div className="flex items-center gap-3 rounded-lg border px-3.5 py-2 text-sm">
@@ -1734,7 +1735,7 @@ export function OutlineCard({ application, writable, onChange, onSaveNotes, onPa
               )}
             </div>
             {prefs.layout === "board" ? (
-              <div className="pt-2">{board}</div>
+              <div className="flex flex-1 flex-col pt-2">{board}</div>
             ) : prefs.layout === "timeline" ? (
               <div className="pt-2">{timeline}</div>
             ) : (
