@@ -33,12 +33,17 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            web-app/package-lock.json
+            docs-site/package-lock.json
+            extension/package-lock.json
       # The binary go:embeds the dashboard and docs build.
       - run: sh scripts/vercel-build.sh
       - run: go test ./...
       - working-directory: extension
         run: |
-          npm install
+          npm ci
           npm run build
           (cd dist && zip -qr "$RUNNER_TEMP/pursuit-extension_${TAG#v}.zip" .)
       # This tag's CHANGELOG.md section becomes the release notes.
