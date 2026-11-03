@@ -162,14 +162,14 @@ export function GetStarted() {
       ) : (
         <AllClear />
       )}
-      {kept.length > 0 && (
-        // Quiet rows like the calendar's day list, muted until hovered.
+      {open.length < tips.length && (
+        // Quiet rows like the calendar's day list, muted until hovered. The last brings every card back.
         <div className="flex flex-col gap-0.5">
-          {kept.map((t) => (
+          {[...kept, { pref: "all", icon: <RotateCcw />, title: "See them all again" } as const].map((t) => (
             <button
               key={t.pref}
               type="button"
-              onClick={() => setPref(t.pref, "on")}
+              onClick={() => (t.pref === "all" ? HINTS : [t.pref]).forEach((p) => setPref(p, "on"))}
               className="flex items-center gap-2.5 rounded-md px-1.5 py-1 text-left text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground [&_svg]:size-3.5"
             >
               {t.icon}
@@ -201,10 +201,6 @@ function AllClear() {
         </g>
       </Sketch>
       <p className="font-medium">Nothing more to see</p>
-      <p className="text-sm text-muted-foreground">You&apos;re all set up.</p>
-      <Button variant="ghost" size="sm" className="mt-1 text-muted-foreground" onClick={() => HINTS.forEach((p) => setPref(p, "on"))}>
-        <RotateCcw /> See them again
-      </Button>
-    </div>
+      <p className="text-sm text-muted-foreground">You&apos;re all set up.</p>    </div>
   )
 }
