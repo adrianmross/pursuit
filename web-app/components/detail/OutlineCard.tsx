@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useRef, useState, type ReactNode } from "react"
-import { ChevronRight, FileText, Inbox, ListPlus, Pencil, Plus, SlidersHorizontal, Trash2, X } from "lucide-react"
+import { ChevronLeft, ChevronRight, FileText, Inbox, ListPlus, Pencil, Plus, SlidersHorizontal, Trash2, X } from "lucide-react"
 import { api } from "@/lib/api-client"
 import { cn } from "@/lib/utils"
 import { label, STAGE_STOPS, type Application, type Interview, type Note, type Page, type Question, type Task } from "@/lib/types"
@@ -563,7 +563,8 @@ export function OutlineCard({ application, writable, onChange, onSaveNotes, onPa
   const [compiled, setCompiled] = useState(false)
   // Notes files of their own, and which file the Notes tab has open.
   const [noteFiles, setNoteFiles] = useState<Note[]>([])
-  const [noteFile, setNoteFile] = useState("about")
+  // null shows the files as a grid; an id opens that file.
+  const [noteFile, setNoteFile] = useState<string | null>(null)
   const [naming, setNaming] = useState(false)
   const [draftName, setDraftName] = useState("")
   const filesPath = `/v1/applications/${encodeURIComponent(appId)}/notes/files`
@@ -1081,22 +1082,26 @@ export function OutlineCard({ application, writable, onChange, onSaveNotes, onPa
     ...noteFiles.map((f) => ({ id: f.id, name: slug(f.name), file: f })),
     ...notesRounds.map(({ r, n }) => ({ id: r.id, name: slug(roundName(r, n)), dim: r.in_notes === false, round: r })),
   ]
-  const picked = fileList.find((f) => f.id === noteFile) ?? fileList[1]
-  const notesView = (
-    <div className="grid gap-4 md:grid-cols-[200px_minmax(0,1fr)]">
-      <nav aria-label="Notes files" className="flex flex-col font-mono text-[13px]">
-        {fileList.map((f) => (
-          <div key={f.id} className={cn("group flex h-8 items-center gap-1 rounded-md pr-1 hover:bg-muted", picked.id === f.id && "bg-muted")}>
-            <button type="button" onClick={() => setNoteFile(f.id)} aria-current={picked.id === f.id ? "page" : undefined} className={cn("flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring", f.dim && "text-muted-foreground", f.id === "overall" && "italic")}>
-              <FileText className="size-3.5 shrink-0 text-muted-foreground" />
-              <span className="truncate">{f.name}</span>
-              {f.hint && <span className="ml-auto shrink-0 font-sans text-[11px] text-muted-foreground not-italic">{f.hint}</span>}
-            </button>
-            {writable && f.file && (
-              <Button
-                size="icon-xs"
-                variant="ghost"
-                className={cn("shrink-0 opacity-0 group-hover:opacity-100 focus-visible:opacity-100", armedDel === f.id && "text-destructive opacity-100 hover:text-destructive")}
+  // A deleted file falls back to the grid.
+  const picked = fileList.find((f) => f.id === noteFile)
+  const tile = "flex w-full flex-col items-center gap-1.5 rounded-lg px-2 pt-3 pb-2 text-center outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
+  const notesView = !picked ? (
+    // Like Finder's icon view: a file per tile, click one to open it.
+    <nav aria-label="Notes files" className="grid grid-cols-[repeat(auto-fill,minmax(7rem,1fr))] gap-2">
+      {fileList.map((f) => (
+        <div key={f.id} className="group relative">
+          <button type="button" onClick={() => setNoteFile(f.id)} className={cn(tile, f.dim && "opacity-50")}>
+            <FileText strokeWidth={1.25} className={cn("size-10", f.id === "overall" ? "text-foreground" : "text-muted-foreground")} />
+            <span className={cn("line-clamp-2 w-full font-mono text-xs break-all", f.id === "overall" && "italic")} title={f.name}>
+              {f.name}
+            </span>
+            <span className="h-3.5 w-full truncate text-[11px] leading-none text-muted-foreground">{f.hint ?? (f.round ? meta(f.round) : f.dim ? "hidden" : "")}</span>
+          </button>
+          {writable && f.file && (
+            <Button
+              size="icon-xs"
+              variant="ghost"
+              className={cn("absolute top-1 right-1 opacity-0 group-hover:opacity-100 focus-visible:opacity-100", armedDel === f.id && "text-destructive opacity-100 hover:text-destructive")}
                 aria-label={armedDel === f.id ? `Confirm deleting ${f.name}` : `Delete ${f.name}`}
                 title={armedDel === f.id ? "Click again to delete" : "Delete file"}
                 onMouseLeave={() => armedDel === f.id && setArmedDel(null)}
@@ -1107,59 +1112,69 @@ export function OutlineCard({ application, writable, onChange, onSaveNotes, onPa
                 }}
               >
                 <X />
-              </Button>
-            )}
-          </div>
-        ))}
-        {writable &&
-          (naming ? (
-            <form
-              className="flex h-8 items-center gap-2 rounded-md bg-muted px-2"
-              onSubmit={(e) => {
-                e.preventDefault()
-                const name = draftName.trim()
-                setNaming(false)
-                setDraftName("")
-                if (name) void createFile(name, "")
-              }}
-            >
-              <FileText className="size-3.5 shrink-0 text-muted-foreground" />
-              <input autoFocus aria-label="New file name" placeholder="name" className="min-w-0 flex-1 bg-transparent outline-none" value={draftName} onChange={(e) => setDraftName(e.target.value)} onBlur={(e) => e.currentTarget.form?.requestSubmit()} onKeyDown={(e) => e.key === "Escape" && (setNaming(false), setDraftName(""))} />
-              <span className="text-muted-foreground">.md</span>
-            </form>
-          ) : (
-            <button type="button" onClick={() => setNaming(true)} className="flex h-8 items-center gap-2 rounded-md px-2 text-left font-sans text-sm text-muted-foreground outline-none hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring">
-              <Plus className="size-3.5" /> New file
-            </button>
-          ))}
-      </nav>
-      <div className="flex min-w-0 flex-col gap-2">
-        <div className="flex items-center gap-2 font-mono text-xs text-muted-foreground">
-          <span>{picked.name}</span>
-          {picked.round && <span className="font-sans">· {meta(picked.round)}</span>}
-          <span className="flex-1" />
-          {picked.round && writable && (
-            <label className="flex items-center gap-1.5 font-sans">
-              <Checkbox checked={picked.round.in_notes !== false} onCheckedChange={(v) => void patch(picked.round!, { in_notes: v === true })} />
-              Show in overall
-            </label>
-          )}
-          {picked.id === "overall" && (
-            <button type="button" className="flex items-center gap-1 font-sans hover:text-foreground" onClick={() => setCompiled(true)}>
-              <FileText className="size-3.5" /> Raw
-            </button>
+            </Button>
           )}
         </div>
-        {picked.id === "overall" ? (
-          <NotesEditor key="overall" writable={writable} sections={[aboutSection, ...noteFiles.map(fileSection), ...notesRounds.filter(({ r }) => r.in_notes !== false).map(roundSection)]} onCreate={(name, body) => createFile(name, body)} />
-        ) : picked.id === "about" ? (
-          <NotesEditor key="about" single writable={writable} sections={[aboutSection]} />
-        ) : picked.file ? (
-          <NotesEditor key={picked.id} single writable={writable} sections={[fileSection(picked.file)]} />
-        ) : picked.round ? (
-          <NotesEditor key={picked.id} single writable={writable} sections={[roundSection({ r: picked.round, n: ordered.find((o) => o.r.id === picked.round!.id)?.n ?? 0 })]} />
-        ) : null}
+      ))}
+      {writable &&
+        (naming ? (
+          <form
+            className={cn(tile, "bg-muted hover:bg-muted")}
+            onSubmit={(e) => {
+              e.preventDefault()
+              const name = draftName.trim()
+              setNaming(false)
+              setDraftName("")
+              if (name) void createFile(name, "")
+            }}
+          >
+            <FileText strokeWidth={1.25} className="size-10 text-muted-foreground" />
+            <span className="flex w-full items-center font-mono text-xs">
+              <input autoFocus aria-label="New file name" placeholder="name" className="min-w-0 flex-1 bg-transparent text-center outline-none" value={draftName} onChange={(e) => setDraftName(e.target.value)} onBlur={(e) => e.currentTarget.form?.requestSubmit()} onKeyDown={(e) => e.key === "Escape" && (setNaming(false), setDraftName(""))} />
+              <span className="text-muted-foreground">.md</span>
+            </span>
+            <span className="h-3.5" />
+          </form>
+        ) : (
+          <button type="button" onClick={() => setNaming(true)} className={cn(tile, "text-muted-foreground hover:text-foreground")}>
+            <span className="flex size-10 items-center justify-center rounded-md border border-dashed">
+              <Plus className="size-4" />
+            </span>
+            <span className="text-xs">New file</span>
+            <span className="h-3.5" />
+          </button>
+        ))}
+    </nav>
+  ) : (
+    <div className="flex min-w-0 flex-col gap-2">
+      <div className="flex items-center gap-2 font-mono text-xs text-muted-foreground">
+        <Button size="xs" variant="ghost" className="-ml-2 font-sans" onClick={() => setNoteFile(null)}>
+          <ChevronLeft /> Files
+        </Button>
+        <span className="text-foreground">{picked.name}</span>
+        {picked.round && <span className="font-sans">· {meta(picked.round)}</span>}
+        <span className="flex-1" />
+        {picked.round && writable && (
+          <label className="flex items-center gap-1.5 font-sans">
+            <Checkbox checked={picked.round.in_notes !== false} onCheckedChange={(v) => void patch(picked.round!, { in_notes: v === true })} />
+            Show in overall
+          </label>
+        )}
+        {picked.id === "overall" && (
+          <button type="button" className="flex items-center gap-1 font-sans hover:text-foreground" onClick={() => setCompiled(true)}>
+            <FileText className="size-3.5" /> Raw
+          </button>
+        )}
       </div>
+      {picked.id === "overall" ? (
+        <NotesEditor key="overall" writable={writable} sections={[aboutSection, ...noteFiles.map(fileSection), ...notesRounds.filter(({ r }) => r.in_notes !== false).map(roundSection)]} onCreate={(name, body) => createFile(name, body)} />
+      ) : picked.id === "about" ? (
+        <NotesEditor key="about" single writable={writable} sections={[aboutSection]} />
+      ) : picked.file ? (
+        <NotesEditor key={picked.id} single writable={writable} sections={[fileSection(picked.file)]} />
+      ) : picked.round ? (
+        <NotesEditor key={picked.id} single writable={writable} sections={[roundSection({ r: picked.round, n: ordered.find((o) => o.r.id === picked.round!.id)?.n ?? 0 })]} />
+      ) : null}
     </div>
   )
 
