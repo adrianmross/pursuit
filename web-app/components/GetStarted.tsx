@@ -9,33 +9,26 @@ import { setPref, type Pref } from "@/lib/settings"
 import { usePref } from "@/lib/use-pref"
 import type { Document, Page, StandingAnswer } from "@/lib/types"
 import { Button } from "@/components/ui/button"
-import { Item, ItemActions, ItemContent, ItemDescription, ItemFooter, ItemGroup, ItemMedia, ItemTitle } from "@/components/ui/item"
 import { CommandBlock } from "@/components/CommandBlock"
 
 const noop = () => () => {}
 
-// One row of Get started. Dismissing a row with `stays` shrinks it to its
-// title and action; any other row goes away.
-function Row({ pref, icon, title, description, action, footer, stays }: { pref: Pref; icon: ReactNode; title: string; description: ReactNode; action: ReactNode; footer?: ReactNode; stays?: boolean }) {
-  const open = usePref(pref) === "on"
-  if (!open && !stays) return null
+type Tip = { pref: Pref; icon: ReactNode; title: string; description: ReactNode; action: ReactNode; footer?: ReactNode; stays?: boolean }
+
+// One card in the Get started row, like Robinhood's news cards: icon, title,
+// a line or two, and its action along the bottom.
+function TipCard({ tip }: { tip: Tip }) {
   return (
-    <Item variant="outline" size={open ? "default" : "xs"}>
-      <ItemMedia variant="icon">{icon}</ItemMedia>
-      <ItemContent>
-        <ItemTitle>{title}</ItemTitle>
-        {open && <ItemDescription>{description}</ItemDescription>}
-      </ItemContent>
-      <ItemActions>
-        {action}
-        {open && (
-          <Button size="icon-sm" variant="ghost" aria-label={stays ? `Shrink ${title}` : `Dismiss ${title}`} onClick={() => setPref(pref, "off")}>
-            <X />
-          </Button>
-        )}
-      </ItemActions>
-      {open && footer && <ItemFooter className="block">{footer}</ItemFooter>}
-    </Item>
+    <div className={`${tip.footer ? "w-[26rem]" : "w-72"} relative flex shrink-0 flex-col gap-2 rounded-xl bg-card p-4 text-sm ring-1 ring-foreground/10`}>
+      <Button size="icon-sm" variant="ghost" className="absolute top-2 right-2 text-muted-foreground" aria-label={`Dismiss ${tip.title}`} onClick={() => setPref(tip.pref, "off")}>
+        <X />
+      </Button>
+      <span className="flex size-8 items-center justify-center rounded-lg bg-muted [&_svg]:size-4">{tip.icon}</span>
+      <p className="pr-6 font-medium">{tip.title}</p>
+      <p className="text-muted-foreground">{tip.description}</p>
+      {tip.footer}
+      <div className="mt-auto flex pt-1">{tip.action}</div>
+    </div>
   )
 }
 
@@ -58,72 +51,98 @@ export function GetStarted() {
       .catch(() => {})
   }, [profileOpen, can])
 
-  return (
-    <div className="flex flex-col gap-3">
-      <h2 className="text-sm font-medium text-muted-foreground">Get started</h2>
-      <ItemGroup className="gap-2">
-        {missing.length > 0 && (
-          <Row
-            pref="hintProfile"
-            icon={<Sparkles />}
-            title="Finish your profile"
-            description={`Add ${missing.join(" and ")} so prepared applications fill themselves in.`}
-            action={
+  const prefs: Record<string, boolean> = {
+    hintProfile: profileOpen,
+    hintAgent: usePref("hintAgent") === "on",
+    hintTerminal: usePref("hintTerminal") === "on",
+    hintExtension: usePref("hintExtension") === "on",
+  }
+  const tips: Tip[] = [
+    ...(missing.length
+      ? [
+          {
+            pref: "hintProfile" as Pref,
+            icon: <Sparkles />,
+            title: "Finish your profile",
+            description: `Add ${missing.join(" and ")} so prepared applications fill themselves in.`,
+            action: (
               <Button size="sm" asChild>
                 <Link href={missing.includes("a résumé") ? "/profile" : "/profile/questions"}>
                   Set up <ArrowRight />
                 </Link>
               </Button>
-            }
-          />
-        )}
-        <Row
-          pref="hintAgent"
-          icon={<Bot />}
-          title="Connect an agent"
-          description="Copy one prompt into your coding agent. It installs the CLI and signs in with a code you type here."
-          action={
-            <Button size="sm" variant="outline" asChild>
-              <Link href="/agents">
-                Set up <ArrowRight />
-              </Link>
+            ),
+          },
+        ]
+      : []),
+    {
+      pref: "hintAgent",
+      icon: <Bot />,
+      title: "Connect an agent",
+      description: "Copy one prompt into your coding agent. It installs the CLI and signs in with a code you type here.",
+      action: (
+        <Button size="sm" variant="outline" asChild>
+          <Link href="/agents">
+            Set up <ArrowRight />
+          </Link>
+        </Button>
+      ),
+    },
+    {
+      pref: "hintTerminal",
+      stays: true,
+      icon: <Terminal />,
+      title: "Use the terminal",
+      description: "Everything here is also a command. Install it and sign in to this server.",
+      footer: <CommandBlock command={`brew install adrianmross/tap/pursuit\npursuit auth login${server ? ` \\\n  --server ${server}` : ""}`} />,
+      action: (
+        <Button variant="outline" size="sm" asChild>
+          <a href="https://hire-pursuit.app/docs" target="_blank" rel="noopener noreferrer">
+            <BookOpen /> Docs
+          </a>
+        </Button>
+      ),
+    },
+    {
+      pref: "hintExtension",
+      stays: true,
+      icon: <Puzzle />,
+      title: "Browser extension",
+      description: "Save the posting you have open and autofill Greenhouse, Ashby, and Lever forms from this server.",
+      action: (
+        <Button variant="outline" size="sm" asChild>
+          <a href="https://github.com/adrianmross/pursuit#browser-extension" target="_blank" rel="noopener noreferrer">
+            <Download /> Get it
+          </a>
+        </Button>
+      ),
+    },
+  ]
+  const open = tips.filter((t) => prefs[t.pref])
+  // A dismissed card that stays becomes a chip; clicking it brings the card back.
+  const kept = tips.filter((t) => !prefs[t.pref] && t.stays)
+  if (!open.length && !kept.length) return null
+
+  return (
+    <div className="flex flex-col gap-3">
+      <h2 className="text-sm font-medium text-muted-foreground">Get started</h2>
+      {open.length > 0 && (
+        // No scroll snap: it re-snaps to the old card when the profile card loads in front of it.
+        <div className="flex gap-3 overflow-x-auto p-px [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          {open.map((t) => (
+            <TipCard key={t.pref} tip={t} />
+          ))}
+        </div>
+      )}
+      {kept.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {kept.map((t) => (
+            <Button key={t.pref} variant="outline" size="sm" className="rounded-full" onClick={() => setPref(t.pref, "on")}>
+              {t.icon} {t.title}
             </Button>
-          }
-        />
-        <Row
-          pref="hintTerminal"
-          stays
-          icon={<Terminal />}
-          title="Use the terminal"
-          description={
-            <>
-              Everything here is also a <code className="font-mono text-foreground">pursuit</code> command. Install it and sign in to this server.
-            </>
-          }
-          action={
-            <Button variant="outline" size="sm" asChild>
-              <a href="https://hire-pursuit.app/docs" target="_blank" rel="noopener noreferrer">
-                <BookOpen /> Docs
-              </a>
-            </Button>
-          }
-          footer={<CommandBlock command={`brew install adrianmross/tap/pursuit\npursuit auth login${server ? ` --server ${server}` : ""}`} />}
-        />
-        <Row
-          pref="hintExtension"
-          stays
-          icon={<Puzzle />}
-          title="Browser extension"
-          description="Save the posting you have open and autofill Greenhouse, Ashby, and Lever application forms from this server."
-          action={
-            <Button variant="outline" size="sm" asChild>
-              <a href="https://github.com/adrianmross/pursuit#browser-extension" target="_blank" rel="noopener noreferrer">
-                <Download /> Get it
-              </a>
-            </Button>
-          }
-        />
-      </ItemGroup>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
