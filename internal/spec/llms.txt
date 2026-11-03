@@ -45,3 +45,11 @@ pursuit audit list --actor agent-1 --until 2026-10-30T12:00:00Z
 ```
 
 A rejected request leaves no entry, so a missing step is the clue: compare the trace with what should have happened, then check the server log by `request_id`. The dashboard's Settings, Audit log page has "Copy for an agent", which copies the same entries as JSON with the command that reproduces them.
+
+## Docs
+
+- [OpenAPI](/openapi.json): every HTTP route and shape
+- [Auth](/auth.md): tokens, scopes, and OAuth login
+- [Agent Skill](/skill.md): the CLI workflow as an installable skill
+- [CLI reference](/docs/cli): every command and flag
+- [Getting started](/docs/getting-started): run a server and make a token
