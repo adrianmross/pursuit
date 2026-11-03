@@ -62,6 +62,7 @@ type ApplicationPatch struct {
 	ResumeVersion *string  `json:"resume_version"`
 	ResumeFileRef *string  `json:"resume_file_ref"`
 	ContactEmail  *string  `json:"contact_email"`
+	TrackedBy     *string  `json:"tracked_by"`
 	Company       *string  `json:"company"`
 	Title         *string  `json:"title"`
 	Location      *string  `json:"location"`
@@ -362,6 +363,8 @@ func (s *Service) UpdateApplication(ctx context.Context, id string, p Applicatio
 			return domain.VersionConflict("application", cur.Version)
 		}
 		next := cur
+		// Keep an outcome unless the patch moves the status.
+		next.Status = cur.Shown()
 		changed := false
 		var from string
 		if p.Status != nil {
@@ -435,6 +438,16 @@ func (s *Service) UpdateApplication(ctx context.Context, id string, p Applicatio
 			next.ContactEmail = n
 			changed = true
 		}
+		if p.TrackedBy != nil && strings.TrimSpace(*p.TrackedBy) != cur.TrackedBy {
+			by := strings.TrimSpace(*p.TrackedBy)
+			if by != "" {
+				if err := s.checkTrackedBy(ctx, a.UserID, cur, by); err != nil {
+					return err
+				}
+			}
+			next.TrackedBy = by
+			changed = true
+		}
 		roleChanged, err := s.patchLinkedRole(ctx, a, &cur, p)
 		if err != nil {
 			return err
@@ -467,6 +480,32 @@ func (s *Service) UpdateApplication(ctx context.Context, id string, p Applicatio
 		return err
 	})
 	return out, err
+}
+
+// checkTrackedBy allows one level: app is tracked with another application at
+// the same company that is itself not tracked, and nothing is tracked with app.
+func (s *Service) checkTrackedBy(ctx context.Context, userID string, app domain.Application, by string) error {
+	if by == app.ID {
+		return domain.Validation("an application cannot be tracked with itself")
+	}
+	primary, err := s.DB.GetApplication(ctx, userID, by)
+	if err != nil {
+		return err
+	}
+	if primary.CompanyID != app.CompanyID {
+		return domain.Validation("tracked_by must be an application at %s", app.Company)
+	}
+	if primary.TrackedBy != "" {
+		return domain.Validation("%s is itself tracked with another application", by).WithHint("use tracked_by " + primary.TrackedBy)
+	}
+	n, err := s.DB.CountTrackedBy(ctx, userID, app.ID)
+	if err != nil {
+		return err
+	}
+	if n > 0 {
+		return domain.Validation("other applications are tracked with this one").WithHint("track them with " + by + " first")
+	}
+	return nil
 }
 
 func (s *Service) patchLinkedRole(ctx context.Context, a domain.Actor, app *domain.Application, p ApplicationPatch) (bool, error) {

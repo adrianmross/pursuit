@@ -45,6 +45,7 @@ import {
   statusCategory,
   markOf,
   shown,
+  displayed,
   type Application,
   type CustomField,
   type Page,
@@ -697,7 +698,7 @@ export function PipelineView({ initial }: { initial: PipelineInitial | null }) {
         ? base
         : base
             .map((row) => {
-              const haystack = [row.company, row.title, label(shown(row)), ...(row.tags || [])].filter(Boolean).join(" ")
+              const haystack = [row.company, row.title, label(displayed(row)), ...(row.tags || [])].filter(Boolean).join(" ")
               return { row, score: commandScore(haystack, free) }
             })
             .filter((entry) => entry.score > 0)
@@ -706,7 +707,7 @@ export function PipelineView({ initial }: { initial: PipelineInitial | null }) {
     }
     if (sort === "category") {
       out = out
-        .map((row, i) => ({ row, i, rank: CATEGORY_ORDER.indexOf(statusCategory(shown(row))) }))
+        .map((row, i) => ({ row, i, rank: CATEGORY_ORDER.indexOf(statusCategory(displayed(row))) }))
         .sort((a, b) => a.rank - b.rank || a.i - b.i)
         .map((entry) => entry.row)
     }
@@ -1135,11 +1136,11 @@ export function PipelineView({ initial }: { initial: PipelineInitial | null }) {
                             onRoundsChange={() => refreshRow(row)}
                           >
                             <button type="button" className="rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring" aria-label="Change status">
-                              <StatusBadge status={shown(row)} />
+                              <StatusBadge status={displayed(row)} />
                             </button>
                           </StatusChooser>
                         ) : (
-                          <StatusBadge status={shown(row)} />
+                          <StatusBadge status={displayed(row)} />
                         )}
                         {openTasks(row) > 0 && (
                           <span

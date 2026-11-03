@@ -208,6 +208,7 @@ func cmdApps() *Command {
 				{Name: "posting-url", Type: "string", Help: "posting URL"},
 				{Name: "resume-version", Type: "string", Help: "resume version label"},
 				{Name: "contact-email", Type: "string", Help: "contact email"},
+				{Name: "tracked-by", Type: "string", Help: "id of the application at the same company whose process covers this one; empty to clear"},
 			}, Run: runAppUpdate},
 			{Name: "delete", Summary: "delete an application", Mutating: true, Usage: "pursuit apps delete <id>", Args: []Arg{{Name: "id", Required: true}}, Flags: []Flag{{Name: "version", Type: "string", Help: "object version"}}, Run: func(e *exec) error {
 				return e.delete("/v1/applications/" + url.PathEscape(e.args[0]))
@@ -322,6 +323,7 @@ func runAppUpdate(e *exec) error {
 	put("posting_url", "posting-url")
 	put("resume_version", "resume-version")
 	put("contact_email", "contact-email")
+	put("tracked_by", "tracked-by")
 	if _, ok := e.flags["applied-date"]; ok {
 		if strings.EqualFold(e.flag("applied-date"), "null") {
 			payload["applied_date"] = nil

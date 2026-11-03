@@ -25,6 +25,8 @@ export type Application = {
   source?: string
   job_type?: string
   contact_email?: string
+  // The application at the same company whose process covers this posting.
+  tracked_by?: string
   resume_version?: string
   next_step?: string
   archived_at?: string
@@ -177,6 +179,7 @@ export const SORTS: [string, string][] = [
 ]
 
 export const LABELS: Record<string, string> = {
+  tracked: "Tracked elsewhere",
   saved: "Saved",
   to_apply: "Apply",
   preparing: "Preparing",
@@ -216,6 +219,12 @@ export const SUB_STEPS = ["saved", "preparing", "approved", "submitting", "submi
 // The status an application displays: its outcome when set, else its stage.
 export function shown(app: Pick<Application, "status" | "outcome">) {
   return app.outcome || app.status
+}
+
+// What the badge reads: a tracked posting with no outcome of its own reads
+// "Tracked elsewhere" instead of its stage. Transitions still compare shown().
+export function displayed(app: Pick<Application, "status" | "outcome" | "tracked_by">) {
+  return app.tracked_by && !app.outcome ? "tracked" : shown(app)
 }
 
 export function label(status?: string) {
