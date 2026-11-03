@@ -1287,11 +1287,49 @@ export function OutlineCard({ application, writable, onChange, onSaveNotes, onPa
   // very edge and gently further in, like a log curve.
   const boardRef = useRef<HTMLDivElement>(null)
   const [boardEdge, setBoardEdge] = useState({ left: false, right: false })
+  // Its own scroll bar runs into the card's rounded corners. Pushing past an
+  // end squeezes the thumb against that corner, and it springs back on release.
+  const [bar, setBar] = useState({ left: 0, width: 0 })
+  const [squeeze, setSqueeze] = useState(0)
+  const unsqueeze = useRef<ReturnType<typeof setTimeout>>(undefined)
+  const BAR_INSET = 8
   const edges = () => {
     const el = boardRef.current
     if (!el) return
     const next = { left: el.scrollLeft > 2, right: el.scrollLeft + el.clientWidth < el.scrollWidth - 2 }
     setBoardEdge((was) => (was.left === next.left && was.right === next.right ? was : next))
+    const track = el.clientWidth - 2 * BAR_INSET
+    const over = el.scrollWidth - el.clientWidth
+    const width = over > 2 ? Math.max(32, (track * el.clientWidth) / el.scrollWidth) : 0
+    setBar({ width, left: BAR_INSET + (over > 0 ? ((track - width) * el.scrollLeft) / over : 0) })
+  }
+  const overscroll = (e: React.WheelEvent) => {
+    const el = boardRef.current
+    const dx = e.deltaX || (e.shiftKey ? e.deltaY : 0)
+    if (!el || !dx) return
+    const atStart = el.scrollLeft <= 0 && dx < 0
+    const atEnd = el.scrollLeft >= el.scrollWidth - el.clientWidth - 1 && dx > 0
+    if (!atStart && !atEnd) return
+    setSqueeze((s) => Math.max(-0.6, Math.min(0.6, s + dx / 300)))
+    clearTimeout(unsqueeze.current)
+    unsqueeze.current = setTimeout(() => setSqueeze(0), 120)
+  }
+  const dragBar = (e: React.PointerEvent) => {
+    const el = boardRef.current
+    if (!el) return
+    e.preventDefault()
+    const from = e.clientX
+    const start = el.scrollLeft
+    const ratio = el.scrollWidth / (el.clientWidth - 2 * BAR_INSET)
+    const move = (m: PointerEvent) => {
+      el.scrollLeft = start + (m.clientX - from) * ratio
+    }
+    const up = () => {
+      window.removeEventListener("pointermove", move)
+      window.removeEventListener("pointerup", up)
+    }
+    window.addEventListener("pointermove", move)
+    window.addEventListener("pointerup", up)
   }
   useEffect(() => {
     const el = boardRef.current
@@ -1309,46 +1347,62 @@ export function OutlineCard({ application, writable, onChange, onSaveNotes, onPa
   // Board: a column per stage, its rounds as cards. Click a card to open it
   // in place; drop a task on a column or a card to move it there.
   const board = (
-    <div
-      ref={boardRef}
-      onScroll={edges}
-      style={{ maskImage: `linear-gradient(to right, ${fade(boardEdge.left)}, ${fade(boardEdge.right, true)})` }}
-      className="-mx-(--card-spacing) -mb-(--card-spacing) flex flex-1 gap-3 overflow-x-auto px-(--card-spacing) pb-3 [&::-webkit-scrollbar]:h-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-foreground/20 hover:[&::-webkit-scrollbar-thumb]:bg-foreground/35 [&::-webkit-scrollbar-track]:mx-5 [&::-webkit-scrollbar-track]:mb-1 [&::-webkit-scrollbar-track]:bg-transparent"
-    >
-      {STAGE_STOPS.map(([key], i) => {
-        if (isOff(key)) return null
-        const stored = rounds.storedFor(all, key)
-        const cards = stored.map((r, n) => ({ r, n })).filter(({ r }) => shownRound(r))
-        const own = allTasks.filter((t) => t.stage === key && !t.round_id && (prefs.showDone || !t.done_at))
-        return (
-          <section key={key} {...dropTarget(`stage:${key}`)} style={stagger(i).style} className={cn("group flex shrink-0 flex-col gap-2 rounded-xl bg-muted/50 p-2", cards.length || own.length ? "w-56" : "w-36", i === current && "ring-1 ring-foreground/20", dropAt === `stage:${key}` && "ring-1 ring-foreground/40", stagger(i).className)}>
-            <h3 className="flex h-6 items-center gap-2 px-1 text-xs">
-              <RoundPie className="size-3.5 shrink-0" total={Math.max(1, stored.length)} done={stored.length ? stored.filter((r) => r.done_at).length : i <= current ? 1 : 0} />
-              <span className={cn("flex-1 truncate", i === current ? "font-semibold" : "text-muted-foreground")}>{stageName(key)}</span>
-              {writable && (
-                <Button size="icon-xs" variant="ghost" className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100" aria-label={`Add to ${stageName(key)}`} title="Add a task" onClick={() => setAddingAt(`stage:${key}`)}>
-                  <ListPlus />
-                </Button>
-              )}
+    <div className="relative -mx-(--card-spacing) -mb-(--card-spacing) flex flex-1">
+      <div
+        ref={boardRef}
+        onScroll={edges}
+        onWheel={overscroll}
+        style={{ maskImage: `linear-gradient(to right, ${fade(boardEdge.left)}, ${fade(boardEdge.right, true)})` }}
+        className="flex flex-1 gap-3 overflow-x-auto overscroll-x-contain px-(--card-spacing) pb-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      >
+        {STAGE_STOPS.map(([key], i) => {
+          if (isOff(key)) return null
+          const stored = rounds.storedFor(all, key)
+          const cards = stored.map((r, n) => ({ r, n })).filter(({ r }) => shownRound(r))
+          const own = allTasks.filter((t) => t.stage === key && !t.round_id && (prefs.showDone || !t.done_at))
+          return (
+            <section key={key} {...dropTarget(`stage:${key}`)} style={stagger(i).style} className={cn("group flex shrink-0 flex-col gap-2 rounded-xl bg-muted/50 p-2", cards.length || own.length ? "w-56" : "w-36", i === current && "ring-1 ring-foreground/20", dropAt === `stage:${key}` && "ring-1 ring-foreground/40", stagger(i).className)}>
+              <h3 className="flex h-6 items-center gap-2 px-1 text-xs">
+                <RoundPie className="size-3.5 shrink-0" total={Math.max(1, stored.length)} done={stored.length ? stored.filter((r) => r.done_at).length : i <= current ? 1 : 0} />
+                <span className={cn("flex-1 truncate", i === current ? "font-semibold" : "text-muted-foreground")}>{stageName(key)}</span>
+                {writable && (
+                  <Button size="icon-xs" variant="ghost" className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100" aria-label={`Add to ${stageName(key)}`} title="Add a task" onClick={() => setAddingAt(`stage:${key}`)}>
+                    <ListPlus />
+                  </Button>
+                )}
+              </h3>
+              {cards.map(({ r, n }) => (
+                <div key={r.id} {...dropTarget(`round:${r.id}`)} {...dragRound(r)} className={cn("rounded-lg border bg-background p-2.5 shadow-xs", dropAt === `round:${r.id}` && "ring-1 ring-foreground/40")}>
+                  {roundHead(r, n, [short(r.scheduled_at), r.interviewer, openCounts(r)].filter(Boolean).join(" · "), true, () => setFocusRound(r.id))}
+                </div>
+              ))}
+              {own.length > 0 && <div className="flex flex-col px-2">{own.map((t, k) => taskRow(t, k, true))}</div>}
+              {/* An empty stage stays narrow: just its name and whether it is behind you. */}
+              {!cards.length && !own.length && <p className="px-1 text-xs text-muted-foreground/60">{i < current ? "Done" : "Nothing yet"}</p>}
+            </section>
+          )
+        })}
+        {inboxTasks.length > 0 && (
+          <section {...dropTarget(`stage:${ANYTIME}`)} className="flex w-56 shrink-0 flex-col gap-2 rounded-xl border border-dashed p-2">
+            <h3 className="flex h-6 items-center gap-2 px-1 text-xs text-muted-foreground">
+              <Inbox className="size-3.5" /> Inbox
             </h3>
-            {cards.map(({ r, n }) => (
-              <div key={r.id} {...dropTarget(`round:${r.id}`)} {...dragRound(r)} className={cn("rounded-lg border bg-background p-2.5 shadow-xs", dropAt === `round:${r.id}` && "ring-1 ring-foreground/40")}>
-                {roundHead(r, n, [short(r.scheduled_at), r.interviewer, openCounts(r)].filter(Boolean).join(" · "), true, () => setFocusRound(r.id))}
-              </div>
-            ))}
-            {own.length > 0 && <div className="flex flex-col px-2">{own.map((t, k) => taskRow(t, k, true))}</div>}
-            {/* An empty stage stays narrow: just its name and whether it is behind you. */}
-            {!cards.length && !own.length && <p className="px-1 text-xs text-muted-foreground/60">{i < current ? "Done" : "Nothing yet"}</p>}
+            <div className="flex flex-col px-2">{inboxTasks.map((t, k) => taskRow(t, k, true))}</div>
           </section>
-        )
-      })}
-      {inboxTasks.length > 0 && (
-        <section {...dropTarget(`stage:${ANYTIME}`)} className="flex w-56 shrink-0 flex-col gap-2 rounded-xl border border-dashed p-2">
-          <h3 className="flex h-6 items-center gap-2 px-1 text-xs text-muted-foreground">
-            <Inbox className="size-3.5" /> Inbox
-          </h3>
-          <div className="flex flex-col px-2">{inboxTasks.map((t, k) => taskRow(t, k, true))}</div>
-        </section>
+        )}
+      </div>
+      {bar.width > 0 && (
+        <div
+          onPointerDown={dragBar}
+          style={{
+            left: bar.left,
+            width: bar.width,
+            transform: `scaleX(${1 - Math.abs(squeeze)})`,
+            transformOrigin: squeeze < 0 ? "left" : "right",
+            transition: squeeze ? "transform 60ms ease-out" : "transform 450ms cubic-bezier(.34,1.8,.64,1)",
+          }}
+          className="absolute bottom-1 h-1.5 cursor-grab touch-none rounded-full bg-foreground/20 hover:bg-foreground/35 active:cursor-grabbing"
+        />
       )}
     </div>
   )
