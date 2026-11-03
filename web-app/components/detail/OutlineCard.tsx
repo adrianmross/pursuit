@@ -898,8 +898,26 @@ export function OutlineCard({ application, writable, onChange, onSaveNotes, onPa
                   <RoundPie className="size-4 shrink-0" total={offer ? 1 : Math.max(1, stored.length)} done={stored.length ? stored.filter((r) => r.done_at).length : i <= current ? 1 : 0} />
                   <span className={cn("truncate", i === current ? "font-semibold" : i > current && "text-muted-foreground")}>{name}</span>
                 </button>
+                {shut[key] && hasKids && (
+                  // Folded: what is under it, until hover brings the actions back.
+                  <span className={cn("shrink-0 text-[11px] text-muted-foreground", writable && "group-focus-within:hidden group-hover:hidden")}>
+                    {[
+                      stored.length ? `${stored.length} ${stored.length === 1 ? "round" : "rounds"}` : "",
+                      (() => {
+                        const q = stored.reduce((m, r) => m + (r.questions?.length ?? 0), 0)
+                        return q ? `${q}?` : ""
+                      })(),
+                      (() => {
+                        const t = allTasks.filter((x) => x.stage === key && !x.done_at).length
+                        return t ? `${t} ${t === 1 ? "task" : "tasks"}` : ""
+                      })(),
+                    ]
+                      .filter(Boolean)
+                      .join(" · ")}
+                  </span>
+                )}
                 {writable && (
-                  <span className="flex shrink-0 gap-0.5 opacity-0 group-focus-within:opacity-100 group-hover:opacity-100">
+                  <span className={cn("shrink-0 gap-0.5 opacity-0 group-focus-within:opacity-100 group-hover:opacity-100", shut[key] && hasKids ? "hidden group-focus-within:flex group-hover:flex" : "flex")}>
                     {i > 0 && !offer && (
                       <Button size="icon-xs" variant="ghost" aria-label={`Add a ${name} round`} title="Add a round" disabled={rounds.busy} onClick={() => { setShut((x) => ({ ...x, [key]: false })); void rounds.add(key, i) }}>
                         <AddRoundIcon className="size-3.5" />
