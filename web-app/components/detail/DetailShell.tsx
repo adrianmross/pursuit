@@ -7,9 +7,8 @@ import { useAuth } from "@/lib/auth"
 import type { Application, Artifact, CustomField, Event, Page } from "@/lib/types"
 import { DetailHeader } from "@/components/detail/DetailHeader"
 import { DetailAttributes } from "@/components/detail/DetailAttributes"
-import { DetailNotes } from "@/components/detail/DetailNotes"
 import { RelatedCard } from "@/components/detail/RelatedCard"
-import { InterviewsCard } from "@/components/detail/InterviewsCard"
+import { OutlineCard } from "@/components/detail/OutlineCard"
 import { EventsHistoryCard } from "@/components/detail/EventsHistoryCard"
 import { ArtifactsCard } from "@/components/detail/ArtifactsCard"
 import { SectionError } from "@/components/detail/SectionError"
@@ -208,8 +207,7 @@ export function DetailShell({ id, initial, children }: { id: string; initial: De
             fieldError={fieldError}
           />
           <RelatedCard application={application} writable={writable} onChange={reload} />
-          <InterviewsCard key={roundsTick} appId={application.id} current={application.stage ?? 0} writable={writable} onChange={reload} />
-          <DetailNotes notes={application.notes || ""} writable={writable} onSave={(notes) => patchApp({ notes })} />
+          <OutlineCard key={roundsTick} application={application} writable={writable} onChange={reload} onSaveNotes={(notes) => patchApp({ notes })} />
         </>
       )}
 

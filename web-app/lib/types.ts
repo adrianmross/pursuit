@@ -46,6 +46,8 @@ export type Interview = {
   notes?: string
   // Parsed from notes: a heading ending in ? and the text under it.
   questions?: { prompt: string; answer: string }[]
+  // false folds the round to one line in the notes outline.
+  in_notes?: boolean
   version: number
 }
 
