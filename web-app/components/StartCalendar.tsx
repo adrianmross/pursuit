@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
 import { ChevronLeft, ChevronRight, Maximize2, Minimize2 } from "lucide-react"
 import { api } from "@/lib/api-client"
@@ -68,58 +68,70 @@ function useEvents() {
   return events
 }
 
-// A month at a glance, like Apple Calendar's month view. Compact by default:
-// the dates, with a dot for each kind of thing on a day. Pick a day to list
-// it below; Expand opens the full grid with each day's events as bars.
+// The week at a glance, like Apple Calendar: the dates, with a dot for each
+// kind of thing on a day. Arrows or a sideways swipe move a week; Expand opens
+// the month grid with each day's events as bars. Pick a day and what's on it
+// drops down below, a row at a time.
 export function StartCalendar() {
   const events = useEvents()
   const today = ymd(new Date())
-  const [month, setMonth] = useState(() => firstOf(new Date()))
-  const [picked, setPicked] = useState(today)
+  const [anchor, setAnchor] = useState(() => new Date())
+  const [picked, setPicked] = useState<string | null>(today)
   const [expanded, setExpanded] = useState(false)
+  const swipe = useRef(0)
   const byDay = useMemo(() => {
     const m = new Map<string, CalEvent[]>()
     events.forEach((e) => m.set(e.day, [...(m.get(e.day) ?? []), e]))
     return m
   }, [events])
-  const start = new Date(month.getFullYear(), month.getMonth(), 1 - month.getDay())
-  const weeks = Math.ceil((month.getDay() + new Date(month.getFullYear(), month.getMonth() + 1, 0).getDate()) / 7)
+  const month = firstOf(anchor)
+  const start = expanded ? new Date(month.getFullYear(), month.getMonth(), 1 - month.getDay()) : new Date(anchor.getFullYear(), anchor.getMonth(), anchor.getDate() - anchor.getDay())
+  const weeks = expanded ? Math.ceil((month.getDay() + new Date(month.getFullYear(), month.getMonth() + 1, 0).getDate()) / 7) : 1
   const days = Array.from({ length: weeks * 7 }, (_, i) => new Date(start.getFullYear(), start.getMonth(), start.getDate() + i))
-  const shift = (n: number) => setMonth(new Date(month.getFullYear(), month.getMonth() + n, 1))
+  // A week is labelled by its Wednesday, so a week across two months reads as the one it's mostly in.
+  const label = expanded ? month : days[3]
+  const shift = (n: number) => setAnchor(expanded ? new Date(anchor.getFullYear(), anchor.getMonth() + n, 1) : new Date(anchor.getFullYear(), anchor.getMonth(), anchor.getDate() + 7 * n))
+  const onWheel = (e: React.WheelEvent) => {
+    if (expanded || Math.abs(e.deltaX) <= Math.abs(e.deltaY)) return
+    swipe.current += e.deltaX
+    if (Math.abs(swipe.current) < 60) return
+    shift(Math.sign(swipe.current))
+    swipe.current = -Math.sign(swipe.current) * 400 // ponytail: crude debounce so one swipe moves one week
+  }
   const weekdays = days.slice(0, 7).map((d) => d.toLocaleDateString(undefined, expanded ? { weekday: "short" } : { weekday: "narrow" }))
-  const pickedDate = new Date(`${picked}T12:00:00`)
-  const list = byDay.get(picked) ?? []
+  const list = picked ? (byDay.get(picked) ?? []) : []
+  const unit = expanded ? "month" : "week"
 
   return (
-    <Card className="gap-3 py-4">
-      <div className="flex items-center gap-2 px-4">
+    <Card className={cn("gap-3", expanded ? "py-4" : "bg-transparent py-0 ring-0")} onWheel={onWheel}>
+      <div className={cn("flex items-center gap-2", expanded ? "px-4" : "px-1.5")}>
         <h2 className="text-base">
-          <span className="font-semibold">{month.toLocaleDateString(undefined, { month: "long" })}</span> <span className="text-muted-foreground">{month.getFullYear()}</span>
+          <span className="font-semibold">{label.toLocaleDateString(undefined, { month: "long" })}</span> <span className="text-muted-foreground">{label.getFullYear()}</span>
         </h2>
         <span className="flex-1" />
         <ButtonGroup>
-          <Button variant="outline" size="icon-sm" aria-label="Previous month" onClick={() => shift(-1)}>
+          <Button variant="outline" size="icon-sm" aria-label={`Previous ${unit}`} onClick={() => shift(-1)}>
             <ChevronLeft />
           </Button>
           <Button
             variant="outline"
             size="sm"
             onClick={() => {
-              setMonth(firstOf(new Date()))
+              setAnchor(new Date())
               setPicked(today)
             }}
           >
             Today
           </Button>
-          <Button variant="outline" size="icon-sm" aria-label="Next month" onClick={() => shift(1)}>
+          <Button variant="outline" size="icon-sm" aria-label={`Next ${unit}`} onClick={() => shift(1)}>
             <ChevronRight />
           </Button>
         </ButtonGroup>
-        <Button variant="ghost" size="icon-sm" aria-label={expanded ? "Collapse" : "Expand"} title={expanded ? "Collapse" : "Expand"} onClick={() => setExpanded(!expanded)}>
+        <Button variant="ghost" size="icon-sm" aria-label={expanded ? "Show the week" : "Show the month"} title={expanded ? "Show the week" : "Show the month"} onClick={() => setExpanded(!expanded)}>
           {expanded ? <Minimize2 /> : <Maximize2 />}
         </Button>
       </div>
-      <CardContent className="flex flex-col gap-3 px-3">
+      <CardContent className={cn("flex flex-col gap-3", expanded ? "px-3" : "px-0")}>
         <div className={cn("grid grid-cols-7 text-[11px] text-muted-foreground", expanded ? "text-right" : "text-center")}>
           {weekdays.map((w, i) => (
             <span key={i} className="px-1.5">
@@ -132,7 +144,8 @@ export function StartCalendar() {
             const key = ymd(d)
             const items = byDay.get(key) ?? []
             const kinds = KINDS.filter(([k]) => items.some((e) => e.kind === k))
-            const out = d.getMonth() !== month.getMonth()
+            const out = expanded && d.getMonth() !== month.getMonth()
+            const pick = () => setPicked(key === picked ? null : key)
             const number = (
               <span
                 className={cn(
@@ -147,7 +160,7 @@ export function StartCalendar() {
             )
             if (!expanded)
               return (
-                <button key={key} type="button" onClick={() => setPicked(key)} aria-label={d.toLocaleDateString(undefined, { dateStyle: "full" })} aria-pressed={key === picked} className="flex flex-col items-center gap-0.5 rounded-md py-1 outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring">
+                <button key={key} type="button" onClick={pick} aria-label={d.toLocaleDateString(undefined, { dateStyle: "full" })} aria-pressed={key === picked} className="flex flex-col items-center gap-0.5 rounded-md py-1 outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring">
                   {number}
                   <span className="flex h-1.5 gap-0.5">
                     {kinds.map(([k]) => (
@@ -157,10 +170,10 @@ export function StartCalendar() {
                 </button>
               )
             return (
-              <button key={key} type="button" onClick={() => setPicked(key)} aria-pressed={key === picked} className={cn("flex min-h-24 min-w-0 flex-col items-stretch gap-0.5 border-b p-1 text-left outline-none not-[:nth-child(7n)]:border-r hover:bg-muted/50 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset", (d.getDay() === 0 || d.getDay() === 6) && "bg-muted/30")}>
+              <button key={key} type="button" onClick={pick} aria-pressed={key === picked} className={cn("flex min-h-24 min-w-0 flex-col items-stretch gap-0.5 border-b p-1 text-left outline-none not-[:nth-child(7n)]:border-r hover:bg-muted/50 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset", (d.getDay() === 0 || d.getDay() === 6) && "bg-muted/30")}>
                 <span className="self-end">{number}</span>
                 {items.slice(0, 3).map((e, i) => (
-                  <span key={i} className={cn("truncate rounded-[4px] px-1.5 py-px text-[11px] leading-4 font-medium", BAR[e.kind], e.done && "line-through opacity-60")}>
+                  <span key={i} className={cn("truncate rounded-[4px] px-1.5 py-px text-[11px] leading-4 font-medium", BAR[e.kind], e.done && "line-through")}>
                     {e.title}
                   </span>
                 ))}
@@ -169,21 +182,21 @@ export function StartCalendar() {
             )
           })}
         </div>
-        {/* The picked day, Apple Calendar style: what's on it, each a link to its application. */}
-        <div className="flex flex-col gap-1 border-t pt-3">
-          <p className="text-xs font-medium text-muted-foreground">{pickedDate.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" })}</p>
-          {list.length === 0 && <p className="text-sm text-muted-foreground/70">Nothing this day.</p>}
-          {list.map((e, i) => (
-            <Link key={i} href={e.href} className="flex items-center gap-2.5 rounded-md px-1.5 py-1 text-sm hover:bg-muted">
-              <span className={cn("h-4 w-1 shrink-0 rounded-full", DOT[e.kind])} />
-              <span className={cn("min-w-0 flex-1 truncate", e.done && "text-muted-foreground line-through")}>
-                {e.title}
-                {e.where && <span className="text-muted-foreground"> · {e.where}</span>}
-              </span>
-              <span className="shrink-0 text-xs text-muted-foreground">{KINDS.find(([k]) => k === e.kind)![1]}</span>
-            </Link>
-          ))}
-        </div>
+        {/* The picked day drops down when there's something on it, each row fading in after the last. Keyed by day so a new pick replays it. */}
+        {list.length > 0 && (
+          <div key={picked} className="-mt-1 flex flex-col gap-0.5">
+            {list.map((e, i) => (
+              <Link key={i} href={e.href} style={{ animationDelay: `${i * 60}ms` }} className="flex items-center gap-2.5 rounded-md px-1.5 py-1 text-sm duration-300 animate-in fill-mode-both fade-in slide-in-from-top-1 hover:bg-muted">
+                <span className={cn("h-4 w-1 shrink-0 rounded-full", DOT[e.kind])} />
+                <span className={cn("min-w-0 flex-1 truncate", e.done && "text-muted-foreground line-through")}>
+                  {e.title}
+                  {e.where && <span className="text-muted-foreground"> · {e.where}</span>}
+                </span>
+                <span className="shrink-0 text-xs text-muted-foreground">{KINDS.find(([k]) => k === e.kind)![1]}</span>
+              </Link>
+            ))}
+          </div>
+        )}
       </CardContent>
     </Card>
   )
