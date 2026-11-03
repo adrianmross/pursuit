@@ -2,17 +2,34 @@
 
 import { useEffect, useState } from "react"
 import Link from "next/link"
+import { Link2, Unlink, X } from "lucide-react"
 import { api, ApiError } from "@/lib/api-client"
 import { applicationHref } from "@/lib/links"
-import { displayed, outcomeKind, type Application, type Page } from "@/lib/types"
+import { displayed, markOf, outcomeKind, type Application, type Page } from "@/lib/types"
 import { ConfirmDialog } from "@/components/ConfirmDialog"
+import { ProgressMark } from "@/components/ProgressMark"
 import { StatusBadge } from "@/components/StatusBadge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Item, ItemActions, ItemContent, ItemGroup, ItemMedia } from "@/components/ui/item"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+
+function Action({ label, onClick, disabled, children }: { label: string; onClick: () => void; disabled: boolean; children: React.ReactNode }) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button variant="ghost" size="icon-xs" aria-label={label} disabled={disabled} onClick={onClick}>
+          {children}
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent>{label}</TooltipContent>
+    </Tooltip>
+  )
+}
 
 // Other postings at the same company. One process often covers several: track
-// them with this application instead of applying to each, mark one not
-// considered (rejected) on its own, or close the whole group at once.
+// them with this application instead of applying to each, reject one on its
+// own, or reject the whole group at once.
 export function RelatedCard({
   application,
   writable,
@@ -46,6 +63,7 @@ export function RelatedCard({
   // Track only postings that stand alone and have nothing tracked with them.
   const trackable = others.filter((a) => !a.tracked_by && !others.some((o) => o.tracked_by === a.id))
   const open = [application, ...tracked].filter((a) => outcomeKind(a.outcome) !== "stop")
+  const openTracked = open.length - (open.includes(application) ? 1 : 0)
 
   if (!others.length && !application.tracked_by) return null
 
@@ -66,73 +84,84 @@ export function RelatedCard({
   const patch = (app: Application, body: Record<string, string>) =>
     api(`/v1/applications/${encodeURIComponent(app.id)}`, { method: "PATCH", body: { version: app.version, ...body } })
 
-  const row = (app: Application, action?: React.ReactNode) => (
-    <li key={app.id} className="flex items-center gap-2 py-1.5 text-sm">
-      <Link href={applicationHref(app.id)} className="min-w-0 flex-1 truncate hover:underline">
-        {app.title || "Untitled"}
-      </Link>
-      <StatusBadge status={displayed(app)} />
-      {writable && action}
-    </li>
+  const row = (app: Application, actions?: React.ReactNode) => (
+    <Item key={app.id} variant="outline" size="sm" role="listitem">
+      <ItemMedia>
+        <ProgressMark {...markOf(app)} size={20} />
+      </ItemMedia>
+      <ItemContent className="min-w-0 flex-row items-center gap-3">
+        <Link href={applicationHref(app.id)} className="min-w-0 flex-1 truncate text-sm font-medium hover:underline">
+          {app.title || "Untitled"}
+        </Link>
+        <StatusBadge status={displayed(app)} />
+      </ItemContent>
+      {writable && actions && <ItemActions>{actions}</ItemActions>}
+    </Item>
   )
+
+  const summary = application.tracked_by ? "Tracked" : tracked.length ? `${tracked.length} tracked` : ""
 
   return (
     <Card>
-      <CardHeader>
-        <CardTitle className="text-sm">Related postings</CardTitle>
+      <CardHeader className="flex flex-row items-baseline justify-between">
+        <CardTitle className="text-base">Related postings</CardTitle>
+        {summary && <span className="text-xs text-muted-foreground">{summary}</span>}
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
         {application.tracked_by ? (
-          <div className="flex items-center gap-2 text-sm">
-            <span className="text-muted-foreground">Tracked with</span>
-            <Link href={applicationHref(application.tracked_by)} className="min-w-0 flex-1 truncate hover:underline">
-              {primary?.title || application.tracked_by}
-            </Link>
-            {writable && (
-              <Button size="xs" variant="ghost" disabled={busy} onClick={() => run(() => patch(application, { tracked_by: "" }))}>
-                Stop tracking
-              </Button>
-            )}
-          </div>
+          <>
+            <p className="text-xs text-muted-foreground">One process at {application.company} covers this posting.</p>
+            <ItemGroup className="gap-2">
+              {primary
+                ? row(
+                    primary,
+                    <Action label="Stop tracking" disabled={busy} onClick={() => run(() => patch(application, { tracked_by: "" }))}>
+                      <Unlink className="size-3.5" />
+                    </Action>,
+                  )
+                : null}
+            </ItemGroup>
+          </>
         ) : (
           <>
             {tracked.length > 0 && (
-              <ul className="divide-y">
+              <ItemGroup className="gap-2">
                 {tracked.map((app) =>
                   row(
                     app,
                     <>
                       {outcomeKind(app.outcome) !== "stop" && (
-                        <Button size="xs" variant="ghost" disabled={busy} onClick={() => run(() => patch(app, { status: "rejected" }))}>
-                          Not considered
-                        </Button>
+                        <Action label="Reject this posting" disabled={busy} onClick={() => run(() => patch(app, { status: "rejected" }))}>
+                          <X className="size-3.5" />
+                        </Action>
                       )}
-                      <Button size="xs" variant="ghost" disabled={busy} onClick={() => run(() => patch(app, { tracked_by: "" }))}>
-                        Untrack
-                      </Button>
+                      <Action label="Stop tracking" disabled={busy} onClick={() => run(() => patch(app, { tracked_by: "" }))}>
+                        <Unlink className="size-3.5" />
+                      </Action>
                     </>,
                   ),
                 )}
-              </ul>
+              </ItemGroup>
             )}
             {trackable.length > 0 && (
-              <div className="flex flex-col gap-1">
-                <p className="text-xs text-muted-foreground">Also at {application.company}</p>
-                <ul className="divide-y">
+              <div className="flex flex-col gap-2">
+                <p className="text-xs text-muted-foreground">Also at {application.company}. Track one here instead of applying to it.</p>
+                <ItemGroup className="gap-2">
                   {trackable.map((app) =>
                     row(
                       app,
-                      <Button size="xs" variant="ghost" disabled={busy} onClick={() => run(() => patch(app, { tracked_by: application.id }))}>
-                        Track with this
-                      </Button>,
+                      <Action label="Track with this application" disabled={busy} onClick={() => run(() => patch(app, { tracked_by: application.id }))}>
+                        <Link2 className="size-3.5" />
+                      </Action>,
                     ),
                   )}
-                </ul>
+                </ItemGroup>
               </div>
             )}
             {writable && tracked.length > 0 && open.length > 0 && (
               <Button size="sm" variant="outline" className="self-start" disabled={busy} onClick={() => setConfirm(true)}>
-                Reject all related
+                <X />
+                Reject all
               </Button>
             )}
           </>
@@ -142,8 +171,8 @@ export function RelatedCard({
       <ConfirmDialog
         open={confirm}
         onOpenChange={setConfirm}
-        title="Reject all related?"
-        description={`Marks ${open.length} application${open.length === 1 ? "" : "s"} at ${application.company} rejected: this one and the postings tracked with it.`}
+        title={`Reject all at ${application.company}?`}
+        description={`Rejects ${open.includes(application) ? "this application and " : ""}${openTracked} tracked posting${openTracked === 1 ? "" : "s"}. Each keeps its stage.`}
         confirmLabel="Reject all"
         danger
         busy={busy}
