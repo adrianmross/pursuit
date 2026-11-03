@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState, type ReactNode } from "react"
-import { ChevronDown, FileText, SlidersHorizontal, Trash2, X } from "lucide-react"
+import { ChevronDown, FileText, Inbox, Pencil, Plus, SlidersHorizontal, Trash2, X } from "lucide-react"
 import { api } from "@/lib/api-client"
 import { cn } from "@/lib/utils"
 import { label, STAGE_STOPS, type Application, type Interview, type Page, type Question, type Task } from "@/lib/types"
@@ -9,6 +9,8 @@ import { RoundPie, useRounds, useTasks } from "@/components/Rounds"
 import { Unanswered } from "@/components/PreparedAnswers"
 import { InlineText } from "@/components/InlineEdit"
 import { SectionCard } from "@/components/detail/SectionCard"
+import { Decode, Markdown, sections } from "@/components/detail/notes/Markdown"
+import { SegmentedTabs } from "@/components/detail/notes/SegmentedTabs"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
@@ -21,24 +23,24 @@ import { Textarea } from "@/components/ui/textarea"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 
 const ANYTIME = "anytime"
+const day = (value?: string) => (value ? value.slice(0, 10) : "")
+const short = (v?: string) => (v ? new Date(`${day(v)}T12:00:00`).toLocaleDateString(undefined, { month: "short", day: "numeric" }) : "")
+const roundName = (r: Interview, n: number) => r.kind || `Round ${n + 1}`
+const stageName = (key: string) => (key === ANYTIME ? "Inbox" : (STAGE_STOPS.find(([k]) => k === key)?.[1] ?? label(key)))
+const STAGE_KEYS = [ANYTIME, ...STAGE_STOPS.map(([k]) => k)]
 
 // What the card shows. Layout (outline now; board and timeline to come) is a
 // separate choice in the view options, so the tabs stay about content.
 type View = "all" | "rounds" | "tasks" | "questions" | "notes"
-const VIEWS: [View, string][] = [
-  ["all", "All"],
-  ["rounds", "Rounds"],
-  ["tasks", "Tasks"],
-  ["questions", "Questions"],
-  ["notes", "Notes"],
-]
 type Prefs = { view: View; showDone: boolean; hideLeftOut: boolean; sort: "stage" | "date"; layout: "outline" }
 const DEFAULT_PREFS: Prefs = { view: "all", showDone: false, hideLeftOut: false, sort: "stage", layout: "outline" }
 const PREFS_KEY = "pursuit.outline"
 
+type Q = { prompt: string; answer: string }
+
 // Headings that end in ? and the text under them, as the server reads them.
-function parseQuestions(md: string) {
-  const out: { prompt: string; answer: string }[] = []
+function parseQuestions(md: string): Q[] {
+  const out: Q[] = []
   let cur: { prompt: string; body: string[] } | null = null
   let fence = false
   const flush = () => cur && out.push({ prompt: cur.prompt, answer: cur.body.join("\n").trim() })
@@ -54,118 +56,194 @@ function parseQuestions(md: string) {
   return out
 }
 
-// Filters, sort and layout, behind one icon so the tabs stay few.
-function ViewOptions({ prefs, onChange }: { prefs: Prefs; onChange: (p: Partial<Prefs>) => void }) {
-  const row = "flex items-center justify-between gap-4 text-sm"
-  return (
-    <Popover>
-      <PopoverTrigger asChild>
-        <Button variant="ghost" size="icon-sm" aria-label="View options">
-          <SlidersHorizontal />
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent align="end" className="flex w-64 flex-col gap-3">
-        <label className={row}>
-          Show done tasks
-          <Switch checked={prefs.showDone} onCheckedChange={(v) => onChange({ showDone: v })} />
-        </label>
-        <label className={row}>
-          Hide notes left out
-          <Switch checked={prefs.hideLeftOut} onCheckedChange={(v) => onChange({ hideLeftOut: v })} />
-        </label>
-        <div className={row}>
-          Sort
-          <ToggleGroup type="single" variant="outline" size="sm" value={prefs.sort} onValueChange={(v) => v && onChange({ sort: v as Prefs["sort"] })}>
-            <ToggleGroupItem value="stage" className="px-2.5 text-xs">Stage</ToggleGroupItem>
-            <ToggleGroupItem value="date" className="px-2.5 text-xs">Date</ToggleGroupItem>
-          </ToggleGroup>
-        </div>
-        <div className="flex flex-col gap-1.5 border-t pt-3">
-          <span className="text-xs text-muted-foreground">Layout</span>
-          <ToggleGroup type="single" variant="outline" size="sm" value={prefs.layout} onValueChange={(v) => v && onChange({ layout: v as Prefs["layout"] })}>
-            <ToggleGroupItem value="outline" className="px-2.5 text-xs">Outline</ToggleGroupItem>
-            <ToggleGroupItem value="board" disabled className="px-2.5 text-xs">Board</ToggleGroupItem>
-            <ToggleGroupItem value="timeline" disabled className="px-2.5 text-xs">Timeline</ToggleGroupItem>
-          </ToggleGroup>
-          <span className="text-xs text-muted-foreground">Board and Timeline are on the way.</span>
-        </div>
-      </PopoverContent>
-    </Popover>
+// A question added to the application's own notes, where loose questions live.
+function withQuestion(md: string, prompt: string, answer: string) {
+  const p = prompt.trim().endsWith("?") ? prompt.trim() : `${prompt.trim()}?`
+  return `${md.trimEnd()}${md.trim() ? "\n\n" : ""}### ${p}\n${answer.trim()}\n`
+}
+
+// A row that lights up on hover, like the questions list: a title and a line under it.
+function Row({ title, sub, onClick, lead, muted }: { title: ReactNode; sub?: ReactNode; onClick?: () => void; lead?: ReactNode; muted?: boolean }) {
+  const body = (
+    <>
+      {lead}
+      <span className="flex min-w-0 flex-1 flex-col">
+        <span className={cn("truncate text-sm font-medium", muted && "font-normal text-muted-foreground")}>{title}</span>
+        {sub && <span className="line-clamp-2 text-sm text-muted-foreground">{sub}</span>}
+      </span>
+    </>
+  )
+  const cls = "-mx-2 flex items-start gap-2.5 rounded-md px-2 py-1.5 text-left hover:bg-muted"
+  return onClick ? (
+    <button type="button" className={cn(cls, "w-[calc(100%+1rem)] outline-none focus-visible:ring-2 focus-visible:ring-ring")} onClick={onClick}>
+      {body}
+    </button>
+  ) : (
+    <div className={cls}>{body}</div>
   )
 }
-const day = (value?: string) => (value ? value.slice(0, 10) : "")
-const roundName = (r: Interview, n: number) => r.kind || `Round ${n + 1}`
-const stageName = (key: string) => (key === ANYTIME ? "Anytime" : STAGE_STOPS.find(([k]) => k === key)?.[1] ?? label(key))
 
-// A markdown document edited in place: Save and Discard appear once it changes.
-function MarkdownEditor({ value, placeholder, disabled, label: name, onSave }: { value: string; placeholder: string; disabled: boolean; label: string; onSave: (next: string) => Promise<unknown> }) {
-  const [draft, setDraft] = useState(value)
+// A plain + that opens into the inputs for adding something.
+function Adder({ label: name, children }: { label: string; children: (close: () => void) => ReactNode }) {
+  const [open, setOpen] = useState(false)
+  if (!open)
+    return (
+      <Button variant="ghost" size="sm" className="-ml-2 self-start text-muted-foreground" onClick={() => setOpen(true)}>
+        <Plus /> {name}
+      </Button>
+    )
+  return <div className="flex w-full flex-col gap-2 rounded-lg border p-3">{children(() => setOpen(false))}</div>
+}
+
+function StagePicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  return (
+    <Select value={value} onValueChange={onChange}>
+      <SelectTrigger size="sm" className="w-36" aria-label="Stage">
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        {STAGE_KEYS.map((k) => (
+          <SelectItem key={k} value={k}>
+            {stageName(k)}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  )
+}
+
+function TaskForm({ stage: initial, onAdd, onClose }: { stage: string; onAdd: (title: string, stage: string) => Promise<unknown>; onClose: () => void }) {
+  const [title, setTitle] = useState("")
+  const [stage, setStage] = useState(initial)
+  return (
+    <form
+      className="flex flex-wrap gap-2"
+      onSubmit={(e) => {
+        e.preventDefault()
+        if (title.trim()) void onAdd(title.trim(), stage).then(() => setTitle(""))
+      }}
+    >
+      <Input autoFocus className="h-8 min-w-48 flex-1 text-sm" placeholder="What needs doing?" aria-label="New task" value={title} onChange={(e) => setTitle(e.target.value)} />
+      <StagePicker value={stage} onChange={setStage} />
+      <Button type="submit" size="sm" disabled={!title.trim()}>
+        Add
+      </Button>
+      <Button type="button" size="sm" variant="ghost" onClick={onClose}>
+        Done
+      </Button>
+    </form>
+  )
+}
+
+function QuestionForm({ places, onAdd, onClose }: { places: { id: string; name: string }[]; onAdd: (where: string, prompt: string, answer: string) => Promise<unknown>; onClose: () => void }) {
+  const [prompt, setPrompt] = useState("")
+  const [answer, setAnswer] = useState("")
+  const [where, setWhere] = useState(places[0]?.id ?? "about")
+  return (
+    <form
+      className="flex flex-col gap-2"
+      onSubmit={(e) => {
+        e.preventDefault()
+        if (prompt.trim())
+          void onAdd(where, prompt, answer).then(() => {
+            setPrompt("")
+            setAnswer("")
+          })
+      }}
+    >
+      <Input autoFocus className="h-8 text-sm" placeholder="The question, e.g. Why this team?" aria-label="Question" value={prompt} onChange={(e) => setPrompt(e.target.value)} />
+      <Textarea className="min-h-16 text-sm" placeholder="Your answer, or leave it for later" aria-label="Answer" value={answer} onChange={(e) => setAnswer(e.target.value)} />
+      <div className="flex flex-wrap gap-2">
+        <Select value={where} onValueChange={setWhere}>
+          <SelectTrigger size="sm" className="w-56" aria-label="Where it was asked">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {places.map((p) => (
+              <SelectItem key={p.id} value={p.id}>
+                {p.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <span className="flex-1" />
+        <Button type="button" size="sm" variant="ghost" onClick={onClose}>
+          Done
+        </Button>
+        <Button type="submit" size="sm" disabled={!prompt.trim()}>
+          Add question
+        </Button>
+      </div>
+    </form>
+  )
+}
+
+function NoteEditor({ md, label: name, placeholder, onSave, onDone }: { md: string; label: string; placeholder?: string; onSave: (next: string) => Promise<unknown>; onDone: () => void }) {
+  const [draft, setDraft] = useState(md)
   const [saving, setSaving] = useState(false)
-  useEffect(() => {
-    // Takes saves and agent edits that land while this is unchanged.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setDraft(value)
-  }, [value])
-  const dirty = draft !== value
   return (
     <div className="flex flex-col gap-2">
-      <Textarea
-        aria-label={name}
-        className="min-h-20 resize-y border-0 border-l bg-transparent px-3 py-0 font-mono text-[13px] leading-relaxed shadow-none focus-visible:ring-0 dark:bg-transparent"
-        rows={Math.max(3, draft.split("\n").length + 1)}
-        placeholder={placeholder}
-        value={draft}
-        disabled={disabled}
-        onChange={(e) => setDraft(e.target.value)}
-      />
-      {dirty && !disabled && (
-        <div className="flex gap-2 pl-3">
-          <Button
-            size="xs"
-            disabled={saving}
-            onClick={async () => {
-              setSaving(true)
-              try {
-                await onSave(draft)
-              } finally {
-                setSaving(false)
-              }
-            }}
-          >
-            Save
-          </Button>
-          <Button size="xs" variant="ghost" onClick={() => setDraft(value)}>
-            Discard
-          </Button>
-        </div>
+      <Textarea autoFocus aria-label={name} className="min-h-28 font-mono text-[13px] leading-relaxed" rows={Math.max(5, draft.split("\n").length + 1)} placeholder={placeholder} value={draft} onChange={(e) => setDraft(e.target.value)} />
+      <div className="flex items-center gap-2">
+        <Button
+          size="xs"
+          disabled={saving}
+          onClick={async () => {
+            setSaving(true)
+            try {
+              await onSave(draft)
+              onDone()
+            } finally {
+              setSaving(false)
+            }
+          }}
+        >
+          Save
+        </Button>
+        <Button size="xs" variant="ghost" onClick={onDone}>
+          Cancel
+        </Button>
+        <span className="flex-1 text-right text-xs text-muted-foreground">Markdown. A heading that ends in ? is a question.</span>
+      </div>
+    </div>
+  )
+}
+
+// A note read as formatted text; Edit on hover swaps in its markdown.
+function NoteBody({ md, writable, label: name, placeholder, onSave, reveal }: { md: string; writable: boolean; label: string; placeholder: string; onSave: (next: string) => Promise<unknown>; reveal: boolean }) {
+  const [editing, setEditing] = useState(false)
+  if (editing) return <NoteEditor md={md} label={name} placeholder={placeholder} onSave={onSave} onDone={() => setEditing(false)} />
+  return (
+    <div className="group/note relative min-h-6">
+      <Markdown md={md} active={reveal} />
+      {writable && (
+        <Button variant="outline" size="xs" className="absolute top-0 right-0 opacity-0 group-hover/note:opacity-100 focus-visible:opacity-100" onClick={() => setEditing(true)}>
+          <Pencil /> Edit
+        </Button>
       )}
     </div>
   )
 }
 
-// One line of the notes: ▸ Title ─── meta. It opens to its markdown and
-// nothing else. The checkbox keeps a round in the notes or leaves it out.
+// One line of the notes: ▸ Title ─── meta, opening to the note. The In notes
+// checkbox shows once it is open.
 function Fold({ id, title, meta, open, onToggle, included, onInclude, writable, children }: { id: string; title: string; meta?: string; open: boolean; onToggle: () => void; included?: boolean; onInclude?: (next: boolean) => void; writable: boolean; children: ReactNode }) {
-  const dim = included === false
   return (
     <div id={`note-${id}`} className="scroll-mt-24">
-      <div className="group flex items-center gap-2">
+      <div className="flex items-center gap-2">
         <button type="button" className="flex min-w-0 flex-1 items-center gap-2.5 rounded-sm py-1.5 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring" onClick={onToggle} aria-expanded={open}>
           <span aria-hidden className="w-3 shrink-0 font-mono text-xs text-muted-foreground">
             {open ? "▾" : "▸"}
           </span>
-          <span className={cn("truncate text-sm font-medium", dim && "font-normal text-muted-foreground")}>{title}</span>
+          <span className={cn("truncate text-sm font-medium", included === false && "font-normal text-muted-foreground")}>{title}</span>
           <span aria-hidden className="h-px min-w-4 flex-1 bg-border" />
           <span className="shrink-0 text-xs text-muted-foreground">{meta}</span>
         </button>
         {onInclude && open && (
-          <Checkbox
-            aria-label={`${title} in notes`}
-            title={included ? "In notes. Untick to leave it out." : "Left out of notes"}
-            checked={included}
-            disabled={!writable}
-            onCheckedChange={(v) => onInclude(v === true)}
-          />
+          <label className="flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground">
+            <Checkbox checked={included} disabled={!writable} onCheckedChange={(v) => onInclude(v === true)} />
+            In notes
+          </label>
         )}
       </div>
       {open && <div className="pt-1 pb-3 pl-5">{children}</div>}
@@ -173,7 +251,7 @@ function Fold({ id, title, meta, open, onToggle, included, onInclude, writable, 
   )
 }
 
-// A round's details, one click away in the outline instead of on the page.
+// A round's details, one click away instead of on the page.
 function RoundDetails({ r, name, writable, onPatch, onDelete, onOpenNotes, children }: { r: Interview; name: string; writable: boolean; onPatch: (body: Record<string, unknown>) => Promise<unknown>; onDelete: () => void; onOpenNotes: () => void; children: ReactNode }) {
   return (
     <Popover>
@@ -209,84 +287,53 @@ function RoundDetails({ r, name, writable, onPatch, onDelete, onOpenNotes, child
   )
 }
 
-// Everything waiting on you, behind the NEXT line: open tasks grouped Anytime
-// first, form questions to answer, and one place to add a task.
-function Todo({ tasks, form, stageFor, focusId, showDone, onShowDone, writable, onToggle, onRemove, onAdd }: { tasks: Task[]; form: Question[]; stageFor: string; focusId: string | null; showDone: boolean; onShowDone: (v: boolean) => void; writable: boolean; onToggle: (t: Task) => void; onRemove: (t: Task) => void; onAdd: (title: string, stage: string) => Promise<unknown> }) {
-  const [title, setTitle] = useState("")
-  const [stage, setStage] = useState(stageFor)
-  // eslint-disable-next-line react-hooks/set-state-in-effect
-  useEffect(() => setStage(stageFor), [stageFor])
-  // NEXT brings you to its task: scrolled into view, highlighted, focused.
-  useEffect(() => {
-    if (!focusId) return
-    const id = requestAnimationFrame(() => {
-      const row = document.getElementById(`task-${focusId}`)
-      row?.scrollIntoView({ block: "center", behavior: "smooth" })
-      row?.querySelector<HTMLElement>("button, input")?.focus({ preventScroll: true })
-    })
-    return () => cancelAnimationFrame(id)
-  }, [focusId])
-  const groups = [ANYTIME, ...STAGE_STOPS.map(([k]) => k)]
-    .map((key) => ({ key, items: tasks.filter((t) => t.stage === key && (showDone || !t.done_at)), answers: key === "to_apply" ? form : [] }))
-    .filter((g) => g.items.length || g.answers.length)
-  const done = tasks.filter((t) => t.done_at).length
+// Filters, sort and layout, behind one icon so the tabs stay few.
+function ViewOptions({ prefs, onChange }: { prefs: Prefs; onChange: (p: Partial<Prefs>) => void }) {
+  const row = "flex items-center justify-between gap-4 text-sm"
   return (
-    <div className="flex flex-col gap-3 pt-3">
-      {groups.map((g) => (
-        <div key={g.key} className="flex flex-col">
-          <div className="pb-1 text-xs text-muted-foreground">{stageName(g.key)}</div>
-          {g.answers.map((q) => (
-            <Collapsible key={q.prompt}>
-              <CollapsibleTrigger className="flex min-h-8 w-full items-center gap-2.5 rounded-md text-left text-sm hover:bg-muted/60">
-                <span className="size-4 shrink-0 rounded-[5px] border border-dashed border-muted-foreground" aria-hidden />
-                Answer: {q.prompt}
-              </CollapsibleTrigger>
-              <CollapsibleContent className="py-2 pl-6">{q.prompt && <Unanswered prompt={q.prompt} />}</CollapsibleContent>
-            </Collapsible>
-          ))}
-          {g.items.map((t) => (
-            <div key={t.id} id={`task-${t.id}`} className={cn("group flex min-h-8 scroll-mt-24 items-center gap-2.5 rounded-md px-1 -mx-1 hover:bg-muted/60", t.id === focusId && "bg-muted ring-1 ring-foreground")}>
-              <Checkbox aria-label={`Done: ${t.title}`} checked={!!t.done_at} disabled={!writable} onCheckedChange={() => onToggle(t)} />
-              <span className={cn("min-w-0 flex-1 text-sm break-words", t.done_at && "text-muted-foreground line-through")}>{t.title}</span>
-              {writable && (
-                <Button variant="ghost" size="icon-xs" className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100" aria-label={`Delete ${t.title}`} onClick={() => onRemove(t)}>
-                  <X />
-                </Button>
-              )}
-            </div>
-          ))}
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button variant="ghost" size="icon-sm" aria-label="View options">
+          <SlidersHorizontal />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align="end" className="flex w-64 flex-col gap-3">
+        <label className={row}>
+          Show done tasks
+          <Switch checked={prefs.showDone} onCheckedChange={(v) => onChange({ showDone: v })} />
+        </label>
+        <label className={row}>
+          Hide notes left out
+          <Switch checked={prefs.hideLeftOut} onCheckedChange={(v) => onChange({ hideLeftOut: v })} />
+        </label>
+        <div className={row}>
+          Sort
+          <ToggleGroup type="single" variant="outline" size="sm" value={prefs.sort} onValueChange={(v) => v && onChange({ sort: v as Prefs["sort"] })}>
+            <ToggleGroupItem value="stage" className="px-2.5 text-xs">
+              Stage
+            </ToggleGroupItem>
+            <ToggleGroupItem value="date" className="px-2.5 text-xs">
+              Date
+            </ToggleGroupItem>
+          </ToggleGroup>
         </div>
-      ))}
-      {!groups.length && <p className="text-sm text-muted-foreground">Nothing waiting on you.</p>}
-      {writable && (
-        <form
-          className="flex gap-2"
-          onSubmit={(e) => {
-            e.preventDefault()
-            if (title.trim()) void onAdd(title.trim(), stage).then(() => setTitle(""))
-          }}
-        >
-          <Input className="h-8 flex-1 text-sm" placeholder="Add a task" aria-label="New task" value={title} onChange={(e) => setTitle(e.target.value)} />
-          <Select value={stage} onValueChange={setStage}>
-            <SelectTrigger size="sm" className="w-36" aria-label="Task stage">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {[ANYTIME, ...STAGE_STOPS.map(([k]) => k)].map((k) => (
-                <SelectItem key={k} value={k}>
-                  {stageName(k)}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </form>
-      )}
-      {done > 0 && (
-        <button type="button" className="self-start text-xs text-muted-foreground hover:text-foreground" onClick={() => onShowDone(!showDone)}>
-          {showDone ? "Hide done" : `${done} done`}
-        </button>
-      )}
-    </div>
+        <div className="flex flex-col gap-1.5 border-t pt-3">
+          <span className="text-xs text-muted-foreground">Layout</span>
+          <ToggleGroup type="single" variant="outline" size="sm" value={prefs.layout}>
+            <ToggleGroupItem value="outline" className="px-2.5 text-xs">
+              Outline
+            </ToggleGroupItem>
+            <ToggleGroupItem value="board" disabled className="px-2.5 text-xs">
+              Board
+            </ToggleGroupItem>
+            <ToggleGroupItem value="timeline" disabled className="px-2.5 text-xs">
+              Timeline
+            </ToggleGroupItem>
+          </ToggleGroup>
+          <span className="text-xs text-muted-foreground">Board and Timeline are on the way.</span>
+        </div>
+      </PopoverContent>
+    </Popover>
   )
 }
 
@@ -303,8 +350,8 @@ function CompiledNotes({ appId, open, onOpenChange }: { appId: string; open: boo
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent className="flex flex-col gap-0 data-[side=right]:w-full data-[side=right]:sm:max-w-2xl">
         <SheetHeader>
-          <SheetTitle>All notes</SheetTitle>
-          <SheetDescription>The application&apos;s notes and every round in notes, as one document. The same text as pursuit apps notes.</SheetDescription>
+          <SheetTitle>Markdown</SheetTitle>
+          <SheetDescription>The whole notes document as one file, the same text as pursuit apps notes.</SheetDescription>
         </SheetHeader>
         <pre className="min-h-0 flex-1 overflow-auto px-4 pb-6 font-mono text-[13px] leading-relaxed whitespace-pre-wrap">{md ?? "Loading…"}</pre>
       </SheetContent>
@@ -312,8 +359,119 @@ function CompiledNotes({ appId, open, onOpenChange }: { appId: string; open: boo
   )
 }
 
-// Rounds, tasks and notes, one concern at a time: the NEXT line opens what is
-// waiting on you, the outline is where rounds live, and the notes are prose.
+// NEXT brings you to its task: scrolled into view and focused.
+function useFocus(id: string | undefined) {
+  useEffect(() => {
+    if (!id) return
+    const frame = requestAnimationFrame(() => {
+      const row = document.getElementById(`task-${id}`)
+      row?.scrollIntoView({ block: "center", behavior: "smooth" })
+      row?.querySelector<HTMLElement>("button")?.focus({ preventScroll: true })
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [id])
+}
+
+// One round (or the application's notes) in the notes view: an ASCII fold,
+// and inside it each ## section as its own fold.
+function DocSession({
+  id,
+  title,
+  meta,
+  md,
+  dim,
+  writable,
+  open,
+  onToggle,
+  sectionOpen,
+  onSectionToggle,
+  reveal,
+  onSave,
+  extra,
+}: {
+  id: string
+  title: string
+  meta: string
+  md: string
+  dim?: boolean
+  writable: boolean
+  open: boolean
+  onToggle: () => void
+  sectionOpen: (k: number) => boolean
+  onSectionToggle: (k: number) => void
+  reveal: (k: number) => boolean
+  onSave: (notes: string) => Promise<unknown>
+  extra?: ReactNode
+}) {
+  const [editing, setEditing] = useState(false)
+  const parts = sections(md)
+  return (
+    <section id={`note-${id}`} className="group/session scroll-mt-24">
+      <div className="flex items-center gap-2">
+        <button type="button" className="flex min-w-0 flex-1 items-center gap-2 py-1 text-left font-mono text-[13px] outline-none focus-visible:ring-2 focus-visible:ring-ring" onClick={onToggle} aria-expanded={open}>
+          <span aria-hidden className="shrink-0 text-muted-foreground">
+            {open ? "▾" : "▸"} ─
+          </span>
+          <span className={cn("truncate font-sans text-sm font-semibold", dim && "font-normal text-muted-foreground")}>{title}</span>
+          <span aria-hidden className="min-w-4 flex-1 overflow-hidden whitespace-nowrap text-border">
+            {"─".repeat(160)}
+          </span>
+          <span className="shrink-0 font-sans text-xs text-muted-foreground">{meta}</span>
+        </button>
+        {open && extra}
+      </div>
+      {open && (
+        <div className="flex flex-col pb-3 pl-1.5">
+          {editing ? (
+            <div className="pt-1 pl-6">
+              <NoteEditor md={md} label={`${title} notes`} onSave={onSave} onDone={() => setEditing(false)} />
+            </div>
+          ) : (
+            <>
+              {parts.length ? (
+                parts.map((p, k) => {
+                  const last = k === parts.length - 1
+                  const sOpen = sectionOpen(k)
+                  return (
+                    <div key={k} className="flex flex-col">
+                      {p.title && (
+                        <button type="button" className="flex items-center gap-2 py-0.5 text-left font-mono text-[13px] text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring" onClick={() => onSectionToggle(k)} aria-expanded={sOpen}>
+                          <span aria-hidden>
+                            {last ? "└─" : "├─"} {sOpen ? "▾" : "▸"}
+                          </span>
+                          <span className="font-sans text-xs font-medium tracking-wide uppercase">
+                            <Decode text={p.title} active={reveal(-1)} />
+                          </span>
+                        </button>
+                      )}
+                      {(sOpen || !p.title) && (
+                        <div className={cn("py-1 pl-6", p.title && !last && "ml-[0.3rem] border-l border-border pl-[1.2rem]")}>
+                          <Markdown md={p.body} active={reveal(k)} />
+                        </div>
+                      )}
+                    </div>
+                  )
+                })
+              ) : (
+                <p className="py-1 pl-6 text-sm text-muted-foreground italic">Nothing written yet.</p>
+              )}
+              {writable && (
+                <div className="pl-5 opacity-0 group-hover/session:opacity-100 focus-within:opacity-100">
+                  <Button variant="ghost" size="xs" className="text-muted-foreground" onClick={() => setEditing(true)}>
+                    <Pencil /> Edit
+                  </Button>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
+    </section>
+  )
+}
+
+// Rounds, tasks, questions and notes for one application. Tabs pick what to
+// show; All puts the next step, the outline and the notes together.
 export function OutlineCard({ application, writable, onChange, onSaveNotes }: { application: Application; writable: boolean; onChange: () => Promise<void>; onSaveNotes: (notes: string) => Promise<unknown> }) {
   const appId = application.id
   const current = application.stage ?? 0
@@ -323,10 +481,20 @@ export function OutlineCard({ application, writable, onChange, onSaveNotes }: { 
   const [form, setForm] = useState<Question[]>([])
   const [shut, setShut] = useState<Record<string, boolean>>({})
   const [open, setOpen] = useState<Record<string, boolean>>({})
+  const [justOpened, setJustOpened] = useState<string | null>(null)
   const [todo, setTodo] = useState(false)
   const [taskStage, setTaskStage] = useState(ANYTIME)
   const [compiled, setCompiled] = useState(false)
   const [prefs, setPrefsState] = useState<Prefs>(DEFAULT_PREFS)
+
+  useEffect(() => {
+    rounds.fetchRounds().catch(() => {})
+    tasks.fetchTasks().catch(() => {})
+    api<Page<Question>>(`/v1/applications/${encodeURIComponent(appId)}/questions`)
+      .then((page) => setForm(page.data || []))
+      .catch(() => {})
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [appId])
   useEffect(() => {
     // Read after hydration so the server render matches the first client one.
     try {
@@ -337,38 +505,6 @@ export function OutlineCard({ application, writable, onChange, onSaveNotes }: { 
       // Unreadable or blocked storage: keep the defaults.
     }
   }, [])
-
-  useEffect(() => {
-    rounds.fetchRounds().catch(() => {})
-    tasks.fetchTasks().catch(() => {})
-    api<Page<Question>>(`/v1/applications/${encodeURIComponent(appId)}/questions`)
-      .then((page) => setForm(page.data || []))
-      .catch(() => {})
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [appId])
-
-  const toAnswer = form.filter((q) => q.required && !q.answer)
-  const allTasks = tasks.list ?? []
-  const openTasks = allTasks.filter((t) => !t.done_at)
-  const nextTask = openTasks.find((t) => t.stage === currentKey) ?? openTasks.find((t) => t.stage === ANYTIME) ?? openTasks[0]
-  const next = nextTask ? { title: nextTask.title, where: stageName(nextTask.stage) } : toAnswer[0] ? { title: `Answer: ${toAnswer[0].prompt}`, where: "Apply" } : null
-  const waiting = openTasks.length + toAnswer.length
-
-  const patch = (r: Interview, body: Record<string, unknown>) =>
-    rounds.run(() => api(`/v1/rounds/${encodeURIComponent(r.id)}`, { method: "PATCH", body: { version: r.version, ...body } }))
-  const remove = (r: Interview) => rounds.run(() => api(`/v1/rounds/${encodeURIComponent(r.id)}?version=${r.version}`, { method: "DELETE" }))
-  const toggleFold = (id: string) => setOpen((o) => ({ ...o, [id]: !o[id] }))
-  const reveal = (id: string) => {
-    setOpen((o) => ({ ...o, [id]: true }))
-    requestAnimationFrame(() => document.getElementById(`note-${id}`)?.scrollIntoView({ block: "nearest", behavior: "smooth" }))
-  }
-
-  const all = rounds.list ?? []
-  const ordered = STAGE_STOPS.flatMap(([key]) => rounds.storedFor(all, key).map((r, n) => ({ r, n })))
-  const included = ordered.filter(({ r }) => r.in_notes !== false)
-  const short = (v?: string) => (v ? new Date(`${day(v)}T12:00:00`).toLocaleDateString(undefined, { month: "short", day: "numeric" }) : "")
-  const meta = (r: Interview) => [stageName(r.stage), short(r.scheduled_at), r.questions?.length ? `${r.questions.length}?` : ""].filter(Boolean).join(" · ")
-
   const setPrefs = (next: Partial<Prefs>) => {
     const merged = { ...prefs, ...next }
     setPrefsState(merged)
@@ -378,65 +514,227 @@ export function OutlineCard({ application, writable, onChange, onSaveNotes }: { 
       // Private windows: the choice lasts until reload.
     }
   }
+
+  const all = rounds.list ?? []
+  const ordered = STAGE_STOPS.flatMap(([key]) => rounds.storedFor(all, key).map((r, n) => ({ r, n })))
+  const byDate = (list: { r: Interview; n: number }[]) => [...list].sort((a, b) => (a.r.scheduled_at || "9999").localeCompare(b.r.scheduled_at || "9999"))
+  const sorted = (list: { r: Interview; n: number }[]) => (prefs.sort === "date" ? byDate(list) : list)
+  const notesRounds = sorted(prefs.hideLeftOut ? ordered.filter(({ r }) => r.in_notes !== false) : ordered)
+
+  // Everything waiting on you: open tasks, form questions prepare could not
+  // answer, and questions in your notes still without an answer.
+  const allTasks = tasks.list ?? []
+  const openTasks = allTasks.filter((t) => !t.done_at)
+  const toAnswer = form.filter((q) => q.required && !q.answer)
+  const looseQuestions = parseQuestions(application.notes || "")
+  const unanswered = [
+    ...looseQuestions.filter((q) => !q.answer).map((q) => ({ q, stage: ANYTIME, note: "about" })),
+    ...ordered.flatMap(({ r }) => (r.questions ?? []).filter((q) => !q.answer).map((q) => ({ q, stage: r.stage, note: r.id }))),
+  ]
+  const nextTask = openTasks.find((t) => t.stage === currentKey) ?? openTasks.find((t) => t.stage === ANYTIME) ?? openTasks[0]
+  const next = nextTask
+    ? { title: nextTask.title, where: stageName(nextTask.stage) }
+    : toAnswer[0]
+      ? { title: `Answer: ${toAnswer[0].prompt}`, where: "Apply" }
+      : unanswered[0]
+        ? { title: `Answer: ${unanswered[0].q.prompt}`, where: stageName(unanswered[0].stage) }
+        : null
+  const waiting = openTasks.length + toAnswer.length + unanswered.length
+  const questionCount = looseQuestions.length + ordered.reduce((n, { r }) => n + (r.questions?.length ?? 0), 0) + form.length
+  useFocus(prefs.view === "tasks" || (prefs.view === "all" && todo) ? nextTask?.id : undefined)
+
+  const patch = (r: Interview, body: Record<string, unknown>) =>
+    rounds.run(() => api(`/v1/rounds/${encodeURIComponent(r.id)}`, { method: "PATCH", body: { version: r.version, ...body } }))
+  const remove = (r: Interview) => rounds.run(() => api(`/v1/rounds/${encodeURIComponent(r.id)}?version=${r.version}`, { method: "DELETE" }))
+  const isOpen = (id: string, fallback = false) => open[id] ?? fallback
+  const toggle = (id: string, fallback = false) => {
+    const now = isOpen(id, fallback)
+    if (!now) setJustOpened(id)
+    setOpen((o) => ({ ...o, [id]: !now }))
+  }
+  const reveal = (id: string) => {
+    setJustOpened(id)
+    setOpen((o) => ({ ...o, [id]: true }))
+    requestAnimationFrame(() => document.getElementById(`note-${id}`)?.scrollIntoView({ block: "nearest", behavior: "smooth" }))
+  }
   const go = (view: View, noteId?: string) => {
     setPrefs({ view })
     if (noteId) reveal(noteId)
   }
+  const addQuestion = (where: string, prompt: string, answer: string): Promise<unknown> => {
+    if (where === "about") return onSaveNotes(withQuestion(application.notes || "", prompt, answer))
+    const r = all.find((x) => x.id === where)
+    return r ? patch(r, { set_question: { prompt, answer } }) : Promise.resolve()
+  }
+  const places = [{ id: "about", name: "Not tied to a round" }, ...ordered.map(({ r, n }) => ({ id: r.id, name: `${roundName(r, n)} · ${stageName(r.stage)}` }))]
+  const meta = (r: Interview) => [stageName(r.stage), short(r.scheduled_at), r.questions?.length ? `${r.questions.length}?` : ""].filter(Boolean).join(" · ")
 
-  const byDate = (list: { r: Interview; n: number }[]) => [...list].sort((a, b) => (a.r.scheduled_at || "9999").localeCompare(b.r.scheduled_at || "9999"))
-  const notesList = prefs.hideLeftOut ? included : ordered
-  const shownNotes = prefs.sort === "date" ? byDate(notesList) : notesList
-  const roundRows = prefs.sort === "date" ? byDate(ordered) : ordered
-
-  const stageRow = (key: string, name: string, i: number, stored: Interview[]) => (
-    <div className="group relative flex h-8 items-center rounded-md px-2 hover:bg-muted">
-      <button
-        type="button"
-        className="flex min-w-0 flex-1 items-center gap-2 rounded-sm text-left text-[13px] outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        aria-expanded={stored.length ? !shut[key] : undefined}
-        onClick={() => stored.length && setShut((x) => ({ ...x, [key]: !x[key] }))}
-      >
-        {i < STAGE_STOPS.length - 1 ? (
-          <RoundPie className="size-4 shrink-0" total={Math.max(1, stored.length)} done={stored.length ? stored.filter((r) => r.done_at).length : i <= current ? 1 : 0} />
-        ) : (
-          <RoundPie className="size-4 shrink-0" total={1} done={i <= current ? 1 : 0} />
-        )}
-        <span className={cn("truncate", i === current ? "font-semibold" : i > current && "text-muted-foreground")}>{name}</span>
-      </button>
+  const taskRow = (t: Task) => (
+    <div key={t.id} id={`task-${t.id}`} className={cn("group -mx-2 flex min-h-9 scroll-mt-24 items-center gap-2.5 rounded-md px-2 hover:bg-muted", t.id === nextTask?.id && "bg-muted")}>
+      <Checkbox aria-label={`Done: ${t.title}`} checked={!!t.done_at} disabled={!writable} onCheckedChange={() => void tasks.toggle(t)} />
+      <span className={cn("min-w-0 flex-1 text-sm", t.done_at && "text-muted-foreground line-through")}>{t.title}</span>
+      {t.id === nextTask?.id && <span className="text-[10px] font-semibold tracking-wider text-muted-foreground">NEXT</span>}
       {writable && (
-        <span className="absolute right-1 flex gap-1 opacity-0 group-focus-within:opacity-100 group-hover:opacity-100">
-          {i > 0 && i < STAGE_STOPS.length - 1 && (
-            <Button size="xs" variant="outline" className="h-5 rounded-full px-1.5 text-[11px]" disabled={rounds.busy} onClick={() => { setShut((x) => ({ ...x, [key]: false })); void rounds.add(key, i) }}>
-              + round
-            </Button>
-          )}
-          <Button size="xs" variant="outline" className="h-5 rounded-full px-1.5 text-[11px]" onClick={() => { setTaskStage(key); if (prefs.view === "all") setTodo(true); else setPrefs({ view: "tasks" }) }}>
-            + task
-          </Button>
-        </span>
+        <Button variant="ghost" size="icon-xs" className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100" aria-label={`Delete ${t.title}`} onClick={() => void tasks.remove(t)}>
+          <X />
+        </Button>
       )}
     </div>
   )
 
-  const roundButton = (r: Interview, n: number, indent: boolean, extra?: string) => (
+  // Tasks, grouped Inbox first, with answers waiting where they belong.
+  const groups = STAGE_KEYS.map((key) => ({
+    key,
+    items: allTasks.filter((t) => t.stage === key && (prefs.showDone || !t.done_at)),
+    form: key === "to_apply" ? toAnswer : [],
+    notes: unanswered.filter((u) => u.stage === key),
+  })).filter((g) => g.items.length || g.form.length || g.notes.length)
+  const doneCount = allTasks.filter((t) => t.done_at).length
+  const tasksView = (
+    <div className="flex flex-col gap-4">
+      {groups.map((g) => (
+        <section key={g.key} className="flex flex-col">
+          <h3 className="flex items-center gap-1.5 pb-1 text-xs text-muted-foreground">
+            {g.key === ANYTIME && <Inbox className="size-3.5" />}
+            {stageName(g.key)}
+          </h3>
+          {g.items.map(taskRow)}
+          {g.form.map((q) => (
+            <Collapsible key={q.prompt}>
+              <CollapsibleTrigger className="-mx-2 flex min-h-9 w-[calc(100%+1rem)] items-center gap-2.5 rounded-md px-2 text-left text-sm hover:bg-muted">
+                <span aria-hidden className="size-4 shrink-0 rounded-[5px] border border-dashed border-muted-foreground" />
+                <span className="flex-1">Answer: {q.prompt}</span>
+                <span className="text-xs text-muted-foreground">form</span>
+              </CollapsibleTrigger>
+              <CollapsibleContent className="py-2 pl-6">{q.prompt && <Unanswered prompt={q.prompt} />}</CollapsibleContent>
+            </Collapsible>
+          ))}
+          {g.notes.map((u) => (
+            <Row key={`${u.note}:${u.q.prompt}`} lead={<span aria-hidden className="mt-0.5 size-4 shrink-0 rounded-[5px] border border-dashed border-muted-foreground" />} title={`Answer: ${u.q.prompt}`} sub="A question in your notes" onClick={() => go("notes", u.note)} />
+          ))}
+        </section>
+      ))}
+      {!groups.length && <p className="text-sm text-muted-foreground">Nothing waiting on you.</p>}
+      <div className="flex items-center gap-3">
+        {writable && <Adder label="Add task">{(close) => <TaskForm key={taskStage} stage={taskStage} onAdd={(title, stage) => tasks.add(title, stage)} onClose={close} />}</Adder>}
+        {doneCount > 0 && (
+          <button type="button" className="text-xs text-muted-foreground hover:text-foreground" onClick={() => setPrefs({ showDone: !prefs.showDone })}>
+            {prefs.showDone ? "Hide done" : `${doneCount} done`}
+          </button>
+        )}
+      </div>
+    </div>
+  )
+
+  const questionGroups = [
+    { id: "about", title: "Not tied to a round", items: looseQuestions },
+    ...ordered.filter(({ r }) => r.questions?.length).map(({ r, n }) => ({ id: r.id, title: `${roundName(r, n)} · ${stageName(r.stage)}`, items: r.questions ?? [] })),
+  ].filter((g) => g.items.length)
+  const questionsView = (
+    <div className="flex flex-col gap-5">
+      {questionGroups.map((g) => (
+        <section key={g.id} className="flex flex-col">
+          <h3 className="pb-1 text-xs text-muted-foreground">{g.title}</h3>
+          {g.items.map((q) => (
+            <Row key={q.prompt} title={q.prompt} sub={<span className={cn(!q.answer && "italic")}>{q.answer || "No answer yet"}</span>} onClick={() => go("notes", g.id)} />
+          ))}
+        </section>
+      ))}
+      {form.length > 0 && (
+        <section className="flex flex-col">
+          <h3 className="pb-1 text-xs text-muted-foreground">Application form</h3>
+          {form.map((q) => (
+            <Row key={q.prompt} title={q.prompt} sub={q.answer || (q.prompt && writable ? <Unanswered prompt={q.prompt} /> : "No answer yet")} />
+          ))}
+        </section>
+      )}
+      {!questionGroups.length && !form.length && <p className="text-sm text-muted-foreground">No questions yet. In any note, a heading that ends in ? is a question.</p>}
+      {writable && <Adder label="Add question">{(close) => <QuestionForm places={places} onAdd={addQuestion} onClose={close} />}</Adder>}
+    </div>
+  )
+
+  const roundRow = (r: Interview, n: number, sub: string) => (
     <RoundDetails key={r.id} r={r} name={roundName(r, n)} writable={writable} onPatch={(body) => patch(r, body)} onDelete={() => void remove(r)} onOpenNotes={() => go(prefs.view === "all" ? "all" : "notes", r.id)}>
-      <button type="button" className={cn("flex h-8 items-center gap-2 rounded-md pr-2 text-left text-[13px] outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring", indent ? "pl-7" : "pl-2")}>
-        <RoundPie className="size-3.5 shrink-0" total={1} done={r.done_at ? 1 : 0} />
-        <span className={cn("min-w-0 flex-1 truncate", r.in_notes === false && "text-muted-foreground")}>{roundName(r, n)}</span>
-        {extra && <span className="shrink-0 text-xs text-muted-foreground">{extra}</span>}
+      <button type="button" className="-mx-2 flex w-[calc(100%+1rem)] items-start gap-2.5 rounded-md px-2 py-1.5 text-left outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring">
+        <RoundPie className="mt-0.5 size-4 shrink-0" total={1} done={r.done_at ? 1 : 0} />
+        <span className="flex min-w-0 flex-1 flex-col">
+          <span className={cn("truncate text-sm font-medium", r.in_notes === false && "font-normal text-muted-foreground")}>{roundName(r, n)}</span>
+          {sub && <span className="truncate text-sm text-muted-foreground">{sub}</span>}
+        </span>
       </button>
     </RoundDetails>
   )
+  const roundsView = (
+    <div className="flex flex-col gap-4">
+      {prefs.sort === "date" ? (
+        <section className="flex flex-col">{byDate(ordered).map(({ r, n }) => roundRow(r, n, [stageName(r.stage), short(r.scheduled_at), r.interviewer].filter(Boolean).join(" · ")))}</section>
+      ) : (
+        STAGE_STOPS.slice(1, -1).map(([key, name], j) => {
+          const i = j + 1
+          const stored = rounds.storedFor(all, key)
+          return (
+            <section key={key} className="group/stage flex flex-col">
+              <h3 className={cn("flex h-7 items-center gap-2 text-xs", i === current ? "font-medium text-foreground" : "text-muted-foreground")}>
+                <RoundPie className="size-3.5" total={Math.max(1, stored.length)} done={stored.length ? stored.filter((r) => r.done_at).length : i <= current ? 1 : 0} />
+                {name}
+                {writable && (
+                  <Button variant="ghost" size="xs" className="ml-auto opacity-0 group-hover/stage:opacity-100 focus-visible:opacity-100" disabled={rounds.busy} onClick={() => void rounds.add(key, i)}>
+                    <Plus /> Round
+                  </Button>
+                )}
+              </h3>
+              {stored.map((r, n) => roundRow(r, n, [short(r.scheduled_at), r.interviewer, r.questions?.length ? `${r.questions.length} questions` : ""].filter(Boolean).join(" · ")))}
+            </section>
+          )
+        })
+      )}
+    </div>
+  )
 
+  const inboxTasks = allTasks.filter((t) => t.stage === ANYTIME && (prefs.showDone || !t.done_at))
+  const inboxCount = openTasks.filter((t) => t.stage === ANYTIME).length + looseQuestions.length
   const outline = (
     <nav aria-label="Stages and rounds">
       <ul className="flex flex-col">
+        <li>
+          <button type="button" className="flex h-8 w-full items-center gap-2 rounded-md px-2 text-left text-[13px] outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring" onClick={() => reveal("inbox")}>
+            <Inbox className="size-4 shrink-0 text-muted-foreground" />
+            <span className="flex-1">Inbox</span>
+            {inboxCount > 0 && <span className="text-xs text-muted-foreground">{inboxCount}</span>}
+          </button>
+        </li>
         {STAGE_STOPS.map(([key, name], i) => {
           const stored = rounds.storedFor(all, key)
+          const offer = i === STAGE_STOPS.length - 1
           return (
             <li key={key} className="flex flex-col">
-              {stageRow(key, name, i, stored)}
-              {!shut[key] && stored.map((r, n) => roundButton(r, n, true))}
+              <div className="group relative flex h-8 items-center rounded-md px-2 hover:bg-muted">
+                <button type="button" className="flex min-w-0 flex-1 items-center gap-2 rounded-sm text-left text-[13px] outline-none focus-visible:ring-2 focus-visible:ring-ring" aria-expanded={stored.length ? !shut[key] : undefined} onClick={() => stored.length && setShut((x) => ({ ...x, [key]: !x[key] }))}>
+                  <RoundPie className="size-4 shrink-0" total={offer ? 1 : Math.max(1, stored.length)} done={stored.length ? stored.filter((r) => r.done_at).length : i <= current ? 1 : 0} />
+                  <span className={cn("truncate", i === current ? "font-semibold" : i > current && "text-muted-foreground")}>{name}</span>
+                </button>
+                {writable && (
+                  <span className="absolute right-1 flex gap-1 opacity-0 group-focus-within:opacity-100 group-hover:opacity-100">
+                    {i > 0 && !offer && (
+                      <Button size="xs" variant="outline" className="h-5 rounded-full px-1.5 text-[11px]" disabled={rounds.busy} onClick={() => { setShut((x) => ({ ...x, [key]: false })); void rounds.add(key, i) }}>
+                        + round
+                      </Button>
+                    )}
+                    <Button size="xs" variant="outline" className="h-5 rounded-full px-1.5 text-[11px]" onClick={() => { setTaskStage(key); setTodo(true) }}>
+                      + task
+                    </Button>
+                  </span>
+                )}
+              </div>
+              {!shut[key] &&
+                stored.map((r, n) => (
+                  <RoundDetails key={r.id} r={r} name={roundName(r, n)} writable={writable} onPatch={(body) => patch(r, body)} onDelete={() => void remove(r)} onOpenNotes={() => reveal(r.id)}>
+                    <button type="button" className="flex h-7 items-center gap-2 rounded-md pr-2 pl-7 text-left text-[13px] outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring">
+                      <RoundPie className="size-3.5 shrink-0" total={1} done={r.done_at ? 1 : 0} />
+                      <span className={cn("min-w-0 flex-1 truncate", r.in_notes === false && "text-muted-foreground")}>{roundName(r, n)}</span>
+                    </button>
+                  </RoundDetails>
+                ))}
             </li>
           )
         })}
@@ -444,103 +742,112 @@ export function OutlineCard({ application, writable, onChange, onSaveNotes }: { 
     </nav>
   )
 
-  const notes = (
+  // All: the inbox and each round's notes as folds beside the outline.
+  const allNotes = (
     <article aria-label="Notes" className="min-w-0">
-      <Fold id="about" title="About this application" meta={application.notes ? "" : "empty"} open={!!open.about} onToggle={() => toggleFold("about")} writable={writable}>
-        <MarkdownEditor value={application.notes || ""} label="Application notes" placeholder={"Anything worth remembering about this one.\n\n### A question not tied to a round?\nIts answer."} disabled={!writable} onSave={onSaveNotes} />
+      <Fold id="inbox" title="Inbox" meta={[inboxTasks.length ? `${inboxTasks.length} tasks` : "", looseQuestions.length ? `${looseQuestions.length}?` : ""].filter(Boolean).join(" · ") || "empty"} open={isOpen("inbox")} onToggle={() => toggle("inbox")} writable={writable}>
+        <div className="flex flex-col">
+          {inboxTasks.map(taskRow)}
+          {looseQuestions.map((q) => (
+            <Row key={q.prompt} title={q.prompt} sub={<span className={cn(!q.answer && "italic")}>{q.answer || "No answer yet"}</span>} onClick={() => reveal("about")} />
+          ))}
+          {!inboxTasks.length && !looseQuestions.length && <p className="text-sm text-muted-foreground">Tasks with no stage and questions not tied to a round land here.</p>}
+          {writable && (
+            <div className="flex flex-wrap gap-1 pt-1">
+              <Adder label="Task">{(close) => <TaskForm stage={ANYTIME} onAdd={(title, stage) => tasks.add(title, stage)} onClose={close} />}</Adder>
+              <Adder label="Question">{(close) => <QuestionForm places={places} onAdd={addQuestion} onClose={close} />}</Adder>
+            </div>
+          )}
+        </div>
       </Fold>
-      {shownNotes.map(({ r, n }) => (
-        <Fold key={r.id} id={r.id} title={roundName(r, n)} meta={r.in_notes === false ? "left out" : meta(r)} open={!!open[r.id]} onToggle={() => toggleFold(r.id)} included={r.in_notes !== false} onInclude={(v) => void patch(r, { in_notes: v })} writable={writable}>
-          <MarkdownEditor value={r.notes || ""} label={`${roundName(r, n)} notes`} placeholder={"## Prep\n\n### A question they asked?\nYour answer.\n\n## Notes"} disabled={!writable} onSave={(notes) => patch(r, { notes })} />
+      <Fold id="about" title="About this application" meta={application.notes ? "" : "empty"} open={isOpen("about")} onToggle={() => toggle("about")} writable={writable}>
+        <NoteBody md={application.notes || ""} writable={writable} label="Application notes" placeholder={"Anything worth remembering.\n\n### A question not tied to a round?\nIts answer."} onSave={onSaveNotes} reveal={justOpened === "about"} />
+      </Fold>
+      {notesRounds.map(({ r, n }) => (
+        <Fold key={r.id} id={r.id} title={roundName(r, n)} meta={r.in_notes === false ? "left out" : meta(r)} open={isOpen(r.id)} onToggle={() => toggle(r.id)} included={r.in_notes !== false} onInclude={(v) => void patch(r, { in_notes: v })} writable={writable}>
+          <NoteBody md={r.notes || ""} writable={writable} label={`${roundName(r, n)} notes`} placeholder={"## Prep\n\n### A question they asked?\nYour answer.\n\n## Notes"} onSave={(notes) => patch(r, { notes })} reveal={justOpened === r.id} />
         </Fold>
       ))}
-      <button type="button" className="mt-3 flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground" onClick={() => setCompiled(true)}>
-        <FileText className="size-3.5" /> All notes as one document
-      </button>
     </article>
   )
 
-  const todoList = (focus: boolean) => (
-    <Todo
-      tasks={allTasks}
-      form={toAnswer}
-      stageFor={taskStage}
-      focusId={focus ? (nextTask?.id ?? null) : null}
-      showDone={prefs.showDone}
-      onShowDone={(v) => setPrefs({ showDone: v })}
+  // Notes: the whole document, every session open, each section a fold.
+  const docIds = ["about", ...notesRounds.map(({ r }) => r.id)]
+  const setAllDoc = (v: boolean) =>
+    setOpen((o) => {
+      const next = { ...o }
+      for (const id of docIds) {
+        next[`doc:${id}`] = v
+        for (let k = 0; k < 24; k++) next[`doc:${id}:${k}`] = v
+      }
+      return next
+    })
+  const session = (id: string, title: string, metaText: string, md: string, save: (notes: string) => Promise<unknown>, extra?: ReactNode, dim?: boolean) => (
+    <DocSession
+      key={id}
+      id={id}
+      title={title}
+      meta={metaText}
+      md={md}
+      dim={dim}
       writable={writable}
-      onToggle={(t) => void tasks.toggle(t)}
-      onRemove={(t) => void tasks.remove(t)}
-      onAdd={(title, stage) => tasks.add(title, stage)}
+      open={isOpen(`doc:${id}`, true)}
+      onToggle={() => toggle(`doc:${id}`, true)}
+      sectionOpen={(k) => isOpen(`doc:${id}:${k}`, true)}
+      onSectionToggle={(k) => toggle(`doc:${id}:${k}`, true)}
+      reveal={(k) => justOpened === `doc:${id}` || justOpened === `doc:${id}:${k}`}
+      onSave={save}
+      extra={extra}
     />
   )
-
-  // Every question in one list: those in the application's notes (not tied
-  // to a round), each round's, then the form's. A click opens where it lives.
-  const appQuestions = parseQuestions(application.notes || "")
-  const questionGroups = [
-    { id: "about", title: "Not tied to a round", items: appQuestions },
-    ...ordered.filter(({ r }) => r.questions?.length).map(({ r, n }) => ({ id: r.id, title: `${roundName(r, n)} · ${stageName(r.stage)}`, items: r.questions ?? [] })),
-  ]
-  const questions = (
-    <div className="flex flex-col gap-5">
-      {questionGroups.map((g) =>
-        g.items.length ? (
-          <section key={g.id} className="flex flex-col gap-1">
-            <h3 className="text-xs text-muted-foreground">{g.title}</h3>
-            {g.items.map((q) => (
-              <button key={q.prompt} type="button" className="flex flex-col rounded-md px-2 py-1.5 text-left -mx-2 hover:bg-muted" onClick={() => go("notes", g.id)}>
-                <span className="text-sm font-medium">{q.prompt}</span>
-                <span className={cn("line-clamp-2 text-sm text-muted-foreground", !q.answer && "italic")}>{q.answer || "No answer yet"}</span>
-              </button>
-            ))}
-          </section>
-        ) : null,
+  const notesView = (
+    <article aria-label="Notes" className="flex min-w-0 flex-col gap-1">
+      <div className="flex items-center justify-end gap-3 text-xs text-muted-foreground">
+        <button type="button" className="hover:text-foreground" onClick={() => setAllDoc(true)}>
+          Expand all
+        </button>
+        <button type="button" className="hover:text-foreground" onClick={() => setAllDoc(false)}>
+          Collapse all
+        </button>
+        <button type="button" className="flex items-center gap-1 hover:text-foreground" onClick={() => setCompiled(true)}>
+          <FileText className="size-3.5" /> Markdown
+        </button>
+      </div>
+      {session("about", "About this application", "", application.notes || "", onSaveNotes)}
+      {notesRounds.map(({ r, n }) =>
+        session(
+          r.id,
+          roundName(r, n),
+          r.in_notes === false ? "left out" : meta(r),
+          r.notes || "",
+          (notes) => patch(r, { notes }),
+          writable ? (
+            <label className="flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground">
+              <Checkbox checked={r.in_notes !== false} onCheckedChange={(v) => void patch(r, { in_notes: v === true })} />
+              In notes
+            </label>
+          ) : null,
+          r.in_notes === false,
+        ),
       )}
-      {form.length > 0 && (
-        <section className="flex flex-col gap-1">
-          <h3 className="text-xs text-muted-foreground">Application form</h3>
-          {form.map((q) => (
-            <div key={q.prompt} className="flex flex-col gap-1 py-1.5">
-              <span className="text-sm font-medium">{q.prompt}</span>
-              {q.answer ? <span className="line-clamp-2 text-sm text-muted-foreground">{q.answer}</span> : q.prompt && writable ? <Unanswered prompt={q.prompt} /> : null}
-            </div>
-          ))}
-        </section>
-      )}
-      {!appQuestions.length && !form.length && questionGroups.length === 1 && (
-        <p className="text-sm text-muted-foreground">No questions yet. In any note, a heading that ends in ? is a question.</p>
-      )}
-    </div>
-  )
-
-  const roundsView = (
-    <div className="flex flex-col">
-      {prefs.sort === "date"
-        ? roundRows.map(({ r, n }) => roundButton(r, n, false, [stageName(r.stage), short(r.scheduled_at)].filter(Boolean).join(" · ")))
-        : STAGE_STOPS.slice(1, -1).map(([key, name]) => {
-            const i = STAGE_STOPS.findIndex(([k]) => k === key)
-            const stored = rounds.storedFor(all, key)
-            return (
-              <div key={key} className="flex flex-col">
-                {stageRow(key, name, i, rounds.storedFor(all, key))}
-                {!shut[key] && stored.map((r) => roundButton(r, rounds.storedFor(all, key).indexOf(r), true, [short(r.scheduled_at), r.interviewer, r.questions?.length ? `${r.questions.length}?` : ""].filter(Boolean).join(" · ")))}
-              </div>
-            )
-          })}
-    </div>
+    </article>
   )
 
   return (
     <SectionCard id="outline" title="Rounds, tasks and notes" summary={waiting ? `${waiting} waiting on you` : rounds.summary()}>
       <div className="flex items-center gap-2">
-        <ToggleGroup type="single" variant="outline" size="sm" value={prefs.view} onValueChange={(v) => v && setPrefs({ view: v as View })} aria-label="Show">
-          {VIEWS.map(([v, name]) => (
-            <ToggleGroupItem key={v} value={v} className="px-3 text-xs">
-              {name}
-            </ToggleGroupItem>
-          ))}
-        </ToggleGroup>
+        <SegmentedTabs
+          label="Show"
+          value={prefs.view}
+          onChange={(view) => setPrefs({ view })}
+          options={[
+            { value: "all", label: "All" },
+            { value: "rounds", label: "Rounds", count: ordered.length },
+            { value: "tasks", label: "Tasks", count: waiting },
+            { value: "questions", label: "Questions", count: questionCount },
+            { value: "notes", label: "Notes" },
+          ]}
+        />
         <span className="flex-1" />
         <ViewOptions prefs={prefs} onChange={setPrefs} />
       </div>
@@ -557,18 +864,18 @@ export function OutlineCard({ application, writable, onChange, onSaveNotes }: { 
                 <ChevronDown className={cn("size-4 transition-transform", !todo && "-rotate-90")} />
               </span>
             </CollapsibleTrigger>
-            <CollapsibleContent>{todoList(todo)}</CollapsibleContent>
+            <CollapsibleContent className="pt-3">{tasksView}</CollapsibleContent>
           </Collapsible>
           <div className="grid gap-8 pt-2 md:grid-cols-[180px_minmax(0,1fr)]">
             {outline}
-            {notes}
+            {allNotes}
           </div>
         </>
       )}
       {prefs.view === "rounds" && roundsView}
-      {prefs.view === "tasks" && todoList(true)}
-      {prefs.view === "questions" && questions}
-      {prefs.view === "notes" && notes}
+      {prefs.view === "tasks" && tasksView}
+      {prefs.view === "questions" && questionsView}
+      {prefs.view === "notes" && notesView}
       {rounds.error && <p className="text-xs text-destructive">{rounds.error}</p>}
       <CompiledNotes appId={appId} open={compiled} onOpenChange={setCompiled} />
     </SectionCard>
