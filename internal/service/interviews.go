@@ -128,6 +128,16 @@ func (s *Service) CompiledNotes(ctx context.Context, appID string) (map[string]a
 	if n := strings.TrimSpace(app.Notes); n != "" {
 		b.WriteString("\n" + n + "\n")
 	}
+	files, err := s.DB.ListNotes(ctx, a.UserID, appID)
+	if err != nil {
+		return nil, err
+	}
+	for _, f := range files {
+		b.WriteString("\n## " + f.Name + "\n")
+		if n := strings.TrimSpace(f.Body); n != "" {
+			b.WriteString("\n" + domain.DemoteHeadings(n) + "\n")
+		}
+	}
 	included := 0
 	for i, r := range rounds {
 		if !r.InNotes {

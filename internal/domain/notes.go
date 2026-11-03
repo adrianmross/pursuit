@@ -28,6 +28,22 @@ type BankQuestion struct {
 
 var BankQuestionFields = []string{"prompt", "answer", "round_id", "application_id", "company", "title", "stage", "kind", "updated_at"}
 
+// Note is a notes file of its own on an application, beside its notes and its
+// rounds' notes. Body is markdown; Questions is parsed from it like a round's.
+type Note struct {
+	ID            string          `json:"id"`
+	UserID        string          `json:"-"`
+	ApplicationID string          `json:"application_id"`
+	Name          string          `json:"name"`
+	Body          string          `json:"body"`
+	Questions     []RoundQuestion `json:"questions"`
+	Version       int             `json:"version"`
+	CreatedAt     time.Time       `json:"created_at"`
+	UpdatedAt     time.Time       `json:"updated_at"`
+}
+
+var NoteFields = []string{"id", "application_id", "name", "body", "questions", "version", "created_at", "updated_at"}
+
 // StagePlan is one application's own process: its names for the round
 // stages (Prepared through Final), keyed by the stage they stand for, and the
 // stages it skips. The statuses underneath never change.

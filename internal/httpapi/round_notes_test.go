@@ -98,6 +98,21 @@ func TestRoundNotes(t *testing.T) {
 		t.Fatalf("empty plan resets: %d %#v", code, planned)
 	}
 
+	// Notes files of their own, in the compiled notes.
+	code, file := e.json(t, http.MethodPost, appPath+"/notes/files", e.token, map[string]any{"name": "Salary research", "body": "Levels say 250."})
+	if code != 201 || file["name"] != "Salary research" {
+		t.Fatalf("add file: %d %#v", code, file)
+	}
+	if code, file = e.json(t, http.MethodPatch, "/v1/notes/"+file["id"].(string), e.token, map[string]any{"set_question": map[string]any{"prompt": "What band", "answer": "L5"}}); code != 200 || len(file["questions"].([]any)) != 1 {
+		t.Fatalf("file question: %d %#v", code, file)
+	}
+	if _, compiled = e.json(t, http.MethodGet, appPath+"/notes", e.token, nil); !strings.Contains(compiled["markdown"].(string), "## Salary research") {
+		t.Fatalf("compiled has the file:\n%s", compiled["markdown"])
+	}
+	if code, _ = e.json(t, http.MethodDelete, "/v1/notes/"+file["id"].(string)+"?version=2", e.token, nil); code != 200 {
+		t.Fatalf("delete file: %d", code)
+	}
+
 	code, bank := e.json(t, http.MethodGet, "/v1/questions?q=query+engine", e.token, nil)
 	rows := bank["data"].([]any)
 	if code != 200 || len(rows) != 1 || rows[0].(map[string]any)["company"] != "Snowflake" || rows[0].(map[string]any)["round_id"] != round["id"] {

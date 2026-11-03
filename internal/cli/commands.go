@@ -44,6 +44,7 @@ func rootCommand() *Command {
 			{Name: "rounds", Summary: "rounds within any of an application's stages", Children: roundCommands()},
 			{Name: "interviews", Summary: "alias of rounds", Children: roundCommands()},
 			cmdTasks(),
+			cmdNotes(),
 			{Name: "questions", Summary: "the question bank: every question in your round notes", Children: []*Command{
 				{Name: "list", Summary: "list questions across applications", Usage: "pursuit questions list [--q text]", Example: "pursuit questions list --q \"why snowflake\" --fields prompt,answer,company", Flags: []Flag{{Name: "q", Type: "string", Help: "filter prompt, answer, company and title"}, {Name: "limit", Type: "string", Help: "page size"}, {Name: "cursor", Type: "string", Help: "cursor"}}, Run: func(e *exec) error {
 					q := url.Values{}
@@ -674,6 +675,68 @@ func roundCommands() []*Command {
 			return e.delete("/v1/rounds/" + url.PathEscape(e.args[0]))
 		}},
 	}
+}
+
+// cmdNotes manages an application's notes files: markdown of their own,
+// beside its notes and its rounds' notes.
+func cmdNotes() *Command {
+	put := func(e *exec, payload map[string]any) error {
+		for key, flag := range map[string]string{"name": "name", "body": "body", "append": "append"} {
+			if _, ok := e.flags[flag]; ok {
+				payload[key] = e.flag(flag)
+			}
+		}
+		if path := e.flag("file"); path != "" {
+			var b []byte
+			var err error
+			if path == "-" {
+				b, err = io.ReadAll(os.Stdin)
+			} else {
+				b, err = os.ReadFile(path)
+			}
+			if err != nil {
+				return &exitError{code: 2, message: err.Error(), hint: "check --file"}
+			}
+			payload["body"] = string(b)
+		}
+		if _, ok := e.flags["question"]; ok {
+			payload["set_question"] = map[string]string{"prompt": e.flag("question"), "answer": e.flag("answer")}
+		}
+		return nil
+	}
+	fields := []Flag{
+		{Name: "name", Type: "string", Help: "the file's name"},
+		{Name: "body", Type: "string", Help: "replace the markdown"},
+		{Name: "file", Type: "string", Help: "replace the markdown from a file (- for stdin)"},
+		{Name: "append", Type: "string", Help: "add text at the end"},
+		{Name: "question", Type: "string", Help: "set one question (a missing ? is added); use with --answer"},
+		{Name: "answer", Type: "string", Help: "the answer for --question"},
+	}
+	return &Command{Name: "notes", Summary: "an application's notes files: markdown beside its notes and rounds", Children: []*Command{
+		{Name: "list", Summary: "list an application's notes files", Usage: "pursuit notes list <application-id>", Args: []Arg{{Name: "application-id", Required: true}}, Run: func(e *exec) error {
+			return e.send("GET", "/v1/applications/"+url.PathEscape(e.args[0])+"/notes/files", nil, nil, "", false, true)
+		}},
+		{Name: "add", Summary: "add a notes file", Mutating: true, Usage: "pursuit notes add <application-id> --name \"Salary research\" [--file notes.md]", Args: []Arg{{Name: "application-id", Required: true}}, Flags: fields, Run: func(e *exec) error {
+			payload := map[string]any{}
+			if err := put(e, payload); err != nil {
+				return err
+			}
+			body, err := e.jsonBody(payload)
+			if err != nil {
+				return err
+			}
+			return e.send("POST", "/v1/applications/"+url.PathEscape(e.args[0])+"/notes/files", nil, body, "application/json", true, true)
+		}},
+		{Name: "get", Summary: "get a notes file", Args: []Arg{{Name: "id", Required: true}}, Run: func(e *exec) error {
+			return e.send("GET", "/v1/notes/"+url.PathEscape(e.args[0]), nil, nil, "", false, true)
+		}},
+		{Name: "set", Summary: "change a notes file", Mutating: true, Usage: "pursuit notes set <id> [--append ...] [--question ... --answer ...] [--file notes.md] [--name ...]", Args: []Arg{{Name: "id", Required: true}}, Flags: append(append([]Flag{}, fields...), Flag{Name: "version", Type: "string", Help: "object version"}), Run: func(e *exec) error {
+			return patchDone(e, "/v1/notes/"+url.PathEscape(e.args[0]), put)
+		}},
+		{Name: "delete", Summary: "delete a notes file", Mutating: true, Args: []Arg{{Name: "id", Required: true}}, Flags: []Flag{{Name: "version", Type: "string", Help: "object version"}}, Run: func(e *exec) error {
+			return e.delete("/v1/notes/" + url.PathEscape(e.args[0]))
+		}},
+	}}
 }
 
 func cmdTasks() *Command {

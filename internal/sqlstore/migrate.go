@@ -515,4 +515,21 @@ var migrations = []migration{{
 		// process skips, as JSON {labels, off}. Empty means the defaults.
 		`ALTER TABLE applications ADD COLUMN stage_plan TEXT NOT NULL DEFAULT ''`,
 	},
+}, {
+	version: "019",
+	stmts: []string{
+		// Notes files of their own on an application, beside its notes and
+		// its rounds' notes: salary research, a referral thread, anything.
+		`CREATE TABLE IF NOT EXISTS notes (
+			id TEXT PRIMARY KEY,
+			user_id TEXT NOT NULL,
+			application_id TEXT NOT NULL REFERENCES applications(id) ON DELETE CASCADE,
+			name TEXT NOT NULL,
+			body TEXT NOT NULL DEFAULT '',
+			version BIGINT NOT NULL DEFAULT 1,
+			created_at TEXT NOT NULL,
+			updated_at TEXT NOT NULL
+		)`,
+		`CREATE INDEX IF NOT EXISTS notes_app_idx ON notes(application_id, created_at, id)`,
+	},
 }}
