@@ -128,6 +128,14 @@ in
     "dev:release-check".exec = "goreleaser check && actionlint && changelogger check --base origin/main";
     "dev:validate".exec = "make test && go vet ./... && pursuit-extension-test && goreleaser check && actionlint";
     "dev:compose".exec = "{ echo '# Generated from devenv.nix by: devenv tasks run dev:compose'; cat ${compose}; } > docker-compose.yml";
+    # Pin the Dockerfile's images and go.mod's toolchain to devenv's Go and Node.
+    "dev:pins".exec = ''
+      sed -i.bak -E \
+        -e 's/^ARG GO_VERSION=.*/ARG GO_VERSION=${config.languages.go.package.version}/' \
+        -e 's/^ARG NODE_VERSION=.*/ARG NODE_VERSION=${config.languages.javascript.package.version}/' \
+        Dockerfile && rm Dockerfile.bak
+      go mod edit -toolchain=go${config.languages.go.package.version}
+    '';
   };
 
   enterTest = ''

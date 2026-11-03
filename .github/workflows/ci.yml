@@ -94,5 +94,7 @@ jobs:
       - run: nix profile install --accept-flake-config github:cachix/devenv/v2.3.1
       # docker-compose.yml is generated from devenv.nix; fail if it drifted.
       - run: devenv tasks run dev:compose && git diff --exit-code docker-compose.yml
+      # The Dockerfile's Go/Node and go.mod's toolchain are pinned to devenv's.
+      - run: devenv tasks run dev:pins && git diff --exit-code Dockerfile go.mod
       - run: devenv shell -- make linux
       - run: devenv container build serve
