@@ -52,6 +52,20 @@ On a server with no local disk (Vercel), upload the résumé instead. Prepare at
 pursuit documents add --kind base_resume --file resume.pdf
 ```
 
+## Verifying a release
+
+Every release archive and the extension zip from [GitHub Releases](https://github.com/adrianmross/pursuit/releases) carries a signed build provenance attestation. Check a download with the GitHub CLI:
+
+```bash
+gh attestation verify pursuit_<ver>_<os>_<arch>.tar.gz -R adrianmross/pursuit
+```
+
+The same files, `checksums.txt` included, are also on GHCR as an OCI artifact (not a container image). `latest` is the newest release that is not a pre-release. Pull them with [ORAS](https://oras.land):
+
+```bash
+oras pull ghcr.io/adrianmross/pursuit-release:<ver>
+```
+
 ## Browser extension
 
 `extension/` is a Manifest V3 extension. It saves the posting you have open and fills Greenhouse, Ashby, and Lever application forms from this server. It does not crawl, and it never clicks Submit.
