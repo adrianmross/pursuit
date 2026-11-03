@@ -483,4 +483,16 @@ var migrations = []migration{{
 		// covering several postings. Empty when it stands on its own.
 		`ALTER TABLE applications ADD COLUMN tracked_by TEXT NOT NULL DEFAULT ''`,
 	},
+}, {
+	version: "015",
+	stmts: []string{
+		// A round's prep and notes become one markdown document, prep first
+		// under its own heading. ponytail: the prep column stays, unread,
+		// since dropping a column differs per dialect.
+		`UPDATE interviews SET notes = '## Prep
+' || prep || CASE WHEN notes <> '' THEN '
+
+## Notes
+' || notes ELSE '' END, prep = '' WHERE prep <> ''`,
+	},
 }}

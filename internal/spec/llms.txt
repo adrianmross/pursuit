@@ -32,6 +32,16 @@ SQLite is the default database. Postgres is for more than one replica.
 
 `pursuit documents add --kind base_resume --file resume.pdf` stores the base résumé; prepare attaches the newest one before falling back to PURSUIT_RESUME_FILE. Tailored files go on one application with `pursuit artifacts add`. Save the user's answer to a `needs_input` question with `pursuit standing set` so later prepares reuse it.
 
+Round notes. Each round's `notes` is one markdown document: prep, transcript and questions. A heading ending in `?` is a question; the text under it, up to the next heading, is its answer. `GET /v1/rounds/{id}` returns `questions: [{prompt, answer}]` parsed from it. To edit, prefer the partial operations, which need no version: `set_question` replaces one answer or adds it under `## Questions`, `append` adds to the end (under `## Notes` when the document ends in a question, so it never changes an answer), and `prep` sets `## Prep`. Sending `notes` replaces the whole document and needs `version`. `GET /v1/questions?q=` searches every question across applications. Promote one to a form answer with `pursuit standing set` only when the user asks.
+
+```
+pursuit rounds notes ROUND_ID > notes.md
+pursuit rounds set ROUND_ID --notes-file notes.md
+pursuit rounds set ROUND_ID --question "Why Snowflake?" --answer "Query engine work at scale."
+pursuit rounds set ROUND_ID --append "Recruiter said next step is a system design round."
+pursuit questions list --q "migration" --fields prompt,answer,company,round_id
+```
+
 The browser extension uses GET /v1/profile, GET /v1/applications/by-url?url=, and POST /v1/applications/capture. It needs a write token and PURSUIT_CORS_ORIGINS. It does not approve or submit.
 
 The dashboard at `/` is for a person. Agents keep using the CLI. `POST /v1/approvals/reject` declines `awaiting_review` work (approve scope) and does not submit. `GET /v1/links?attention=true` lists closed or changed postings. On Vercel, `GET /v1/cron/links` is the daily link check and it requires `Authorization: Bearer $CRON_SECRET`. `PURSUIT_TRUST_PROXY_AUTH=vercel` is for a human behind deployment protection. Agents still send a Pursuit token.

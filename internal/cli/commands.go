@@ -44,6 +44,17 @@ func rootCommand() *Command {
 			{Name: "rounds", Summary: "rounds within any of an application's stages", Children: roundCommands()},
 			{Name: "interviews", Summary: "alias of rounds", Children: roundCommands()},
 			cmdTasks(),
+			{Name: "questions", Summary: "the question bank: every question in your round notes", Children: []*Command{
+				{Name: "list", Summary: "list questions across applications", Usage: "pursuit questions list [--q text]", Example: "pursuit questions list --q \"why snowflake\" --fields prompt,answer,company", Flags: []Flag{{Name: "q", Type: "string", Help: "filter prompt, answer, company and title"}, {Name: "limit", Type: "string", Help: "page size"}, {Name: "cursor", Type: "string", Help: "cursor"}}, Run: func(e *exec) error {
+					q := url.Values{}
+					for _, k := range []string{"q", "limit", "cursor"} {
+						if v := e.flag(k); v != "" {
+							q.Set(k, v)
+						}
+					}
+					return e.send("GET", "/v1/questions", q, nil, "", false, true)
+				}},
+			}},
 			cmdAuth(),
 			cmdTokens(),
 			cmdAudit(),
@@ -545,24 +556,46 @@ func roundCommands() []*Command {
 		{Name: "kind", Type: "string", Help: "the round, e.g. Recruiter call or System design"},
 		{Name: "interviewer", Type: "string", Help: "who you meet"},
 		{Name: "when", Type: "string", Help: "RFC3339 or YYYY-MM-DD"},
-		{Name: "prep", Type: "string", Help: "what to prepare"},
-		{Name: "prep-file", Type: "string", Help: "read prep from a file"},
-		{Name: "notes", Type: "string", Help: "what happened"},
+		{Name: "prep", Type: "string", Help: "set the notes' ## Prep section"},
+		{Name: "prep-file", Type: "string", Help: "read the ## Prep section from a file"},
+		{Name: "notes", Type: "string", Help: "replace the whole markdown notes document"},
+		{Name: "notes-file", Type: "string", Help: "replace the notes document from a file (- for stdin)"},
+		{Name: "append", Type: "string", Help: "add text at the end of the notes, e.g. a transcript"},
+		{Name: "question", Type: "string", Help: "set one question under ## Questions (a missing ? is added); use with --answer"},
+		{Name: "answer", Type: "string", Help: "the answer for --question"},
+	}
+	read := func(path, flag string) (string, error) {
+		var b []byte
+		var err error
+		if path == "-" {
+			b, err = io.ReadAll(os.Stdin)
+		} else {
+			b, err = os.ReadFile(path)
+		}
+		if err != nil {
+			return "", &exitError{code: 2, message: err.Error(), hint: "check --" + flag}
+		}
+		return string(b), nil
 	}
 	// put copies a flag into the payload only when it was passed, so set
 	// leaves everything else alone.
 	put := func(e *exec, payload map[string]any) error {
-		for key, flag := range map[string]string{"stage": "stage", "kind": "kind", "interviewer": "interviewer", "scheduled_at": "when", "prep": "prep", "notes": "notes"} {
+		for key, flag := range map[string]string{"stage": "stage", "kind": "kind", "interviewer": "interviewer", "scheduled_at": "when", "prep": "prep", "notes": "notes", "append": "append"} {
 			if _, ok := e.flags[flag]; ok {
 				payload[key] = e.flag(flag)
 			}
 		}
-		if path := e.flag("prep-file"); path != "" {
-			b, err := os.ReadFile(path)
-			if err != nil {
-				return &exitError{code: 2, message: err.Error(), hint: "check --prep-file"}
+		for key, flag := range map[string]string{"prep": "prep-file", "notes": "notes-file"} {
+			if path := e.flag(flag); path != "" {
+				text, err := read(path, flag)
+				if err != nil {
+					return err
+				}
+				payload[key] = text
 			}
-			payload["prep"] = string(b)
+		}
+		if _, ok := e.flags["question"]; ok {
+			payload["set_question"] = map[string]string{"prompt": e.flag("question"), "answer": e.flag("answer")}
 		}
 		return nil
 	}
@@ -584,11 +617,36 @@ func roundCommands() []*Command {
 			}
 			return e.send("POST", "/v1/applications/"+url.PathEscape(e.args[0])+"/rounds", nil, body, "application/json", true, true)
 		}},
-		{Name: "set", Summary: "change a round", Mutating: true, Usage: "pursuit rounds set <id> [--prep ...] [--notes ...] [--done|--undone]", Args: []Arg{{Name: "id", Required: true}}, Flags: append(append([]Flag{}, fields...), Flag{Name: "done", Type: "bool", Help: "mark done"}, Flag{Name: "undone", Type: "bool", Help: "mark not done"}, Flag{Name: "version", Type: "string", Help: "object version"}), Run: func(e *exec) error {
+		{Name: "get", Summary: "get a round, with its notes and parsed questions", Args: []Arg{{Name: "id", Required: true}}, Run: func(e *exec) error {
+			return e.send("GET", "/v1/rounds/"+url.PathEscape(e.args[0]), nil, nil, "", false, true)
+		}},
+		{Name: "notes", Summary: "print a round's notes as raw markdown", Usage: "pursuit rounds notes <id> > notes.md", Args: []Arg{{Name: "id", Required: true}}, Run: func(e *exec) error {
+			resp, err := e.client.Do(nil, "GET", "/v1/rounds/"+url.PathEscape(e.args[0]), nil, nil, "", apiclient.Options{})
+			if err != nil {
+				return &exitError{code: 1, message: err.Error(), hint: "check that pursuit serve is running and PURSUIT_SERVER is correct"}
+			}
+			if resp.Status >= 400 {
+				return &exitError{code: exitStatus(resp.Status), raw: resp.Body}
+			}
+			var round struct {
+				Notes string `json:"notes"`
+			}
+			if err := json.Unmarshal(resp.Body, &round); err != nil {
+				return err
+			}
+			_, err = fmt.Fprintln(e.stdout, round.Notes)
+			return err
+		}},
+		{Name: "set", Summary: "change a round", Mutating: true, Usage: "pursuit rounds set <id> [--append ...] [--question ... --answer ...] [--notes-file notes.md] [--done|--undone]", Example: "pursuit rounds set ROUND_ID --question \"Why Snowflake?\" --answer \"Query engine work at scale.\"", Args: []Arg{{Name: "id", Required: true}}, Flags: append(append([]Flag{}, fields...), Flag{Name: "done", Type: "bool", Help: "mark done"}, Flag{Name: "undone", Type: "bool", Help: "mark not done"}, Flag{Name: "version", Type: "string", Help: "object version"}), Run: func(e *exec) error {
 			return patchDone(e, "/v1/rounds/"+url.PathEscape(e.args[0]), put)
 		}},
-		{Name: "done", Summary: "mark a round done", Mutating: true, Usage: "pursuit rounds done <id> [--notes ...]", Args: []Arg{{Name: "id", Required: true}}, Flags: []Flag{{Name: "notes", Type: "string", Help: "what happened"}, {Name: "version", Type: "string", Help: "object version"}}, Run: func(e *exec) error {
+		{Name: "done", Summary: "mark a round done", Mutating: true, Usage: "pursuit rounds done <id> [--notes ...]", Args: []Arg{{Name: "id", Required: true}}, Flags: []Flag{{Name: "notes", Type: "string", Help: "added at the end of the notes"}, {Name: "version", Type: "string", Help: "object version"}}, Run: func(e *exec) error {
 			e.flags["done"] = []string{"true"}
+			// Finishing a round adds to its notes; it never replaces them.
+			if v, ok := e.flags["notes"]; ok {
+				e.flags["append"] = v
+				delete(e.flags, "notes")
+			}
 			return patchDone(e, "/v1/rounds/"+url.PathEscape(e.args[0]), put)
 		}},
 		{Name: "delete", Summary: "delete a round", Mutating: true, Args: []Arg{{Name: "id", Required: true}}, Flags: []Flag{{Name: "version", Type: "string", Help: "object version"}}, Run: func(e *exec) error {

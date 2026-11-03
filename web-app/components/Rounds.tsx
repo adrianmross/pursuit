@@ -1,6 +1,6 @@
 "use client"
 
-import { Fragment, useState } from "react"
+import { Fragment, useState, type ReactNode } from "react"
 import { Minus, Plus, X } from "lucide-react"
 import { api, ApiError } from "@/lib/api-client"
 import { cn } from "@/lib/utils"
@@ -15,7 +15,7 @@ import { Input } from "@/components/ui/input"
 export const shownRounds = (stored: Interview[]) => Math.max(1, stored.length)
 
 // A round carrying anything typed into it takes a second press to delete.
-export const hasDetails = (r: Interview) => !!(r.kind || r.interviewer || r.scheduled_at || r.prep || r.notes)
+export const hasDetails = (r: Interview) => !!(r.kind || r.interviewer || r.scheduled_at || r.notes)
 
 // A stage's rounds as one pie: a wedge per round, clockwise from the top,
 // the first `done` filled. More rounds split the same pie finer.
@@ -179,11 +179,13 @@ export function TaskList({
   name,
   tasks,
   api: t,
+  autoFocus = true,
 }: {
   stageKey: string
   name: string
   tasks: Task[]
   api: TasksApi
+  autoFocus?: boolean
 }) {
   const [title, setTitle] = useState("")
   function submit() {
@@ -200,7 +202,7 @@ export function TaskList({
         }}
       >
         <Input
-          autoFocus
+          autoFocus={autoFocus}
           data-task-input
           value={title}
           onChange={(e) => setTitle(e.target.value)}
@@ -251,6 +253,7 @@ function RoundRow({
   rounds,
   tasks,
   tasksOpen,
+  extraOpen = 0,
   armed,
   busy,
   onSelect,
@@ -267,6 +270,8 @@ function RoundRow({
   rounds: Interview[]
   tasks?: Task[]
   tasksOpen: boolean
+  // Open items that aren't stored tasks, such as unanswered form questions.
+  extraOpen?: number
   armed: boolean
   busy: boolean
   onSelect: () => void
@@ -275,7 +280,7 @@ function RoundRow({
   onAdd: () => void
   onTasks?: () => void
 }) {
-  const open = tasks?.filter((t) => !t.done_at).length ?? 0
+  const open = (tasks?.filter((t) => !t.done_at).length ?? 0) + extraOpen
   return (
     <li className={cn("flex h-7 items-center gap-2 rounded-lg px-1.5", selected && "bg-muted")} onMouseEnter={onSelect}>
       <span className={cn("w-[5.5rem] shrink-0 truncate text-[13px]", current ? "font-semibold" : "text-muted-foreground")}>{name}</span>
@@ -353,6 +358,8 @@ export function RoundsList({
   onSelect,
   expanded = null,
   onExpand,
+  extraOpen,
+  panel,
 }: {
   rounds: RoundsApi
   tasks?: TasksApi
@@ -361,6 +368,9 @@ export function RoundsList({
   onSelect: (i: number) => void
   expanded?: number | null
   onExpand?: (i: number | null) => void
+  extraOpen?: (i: number) => number
+  // What an expanded row shows; its tasks when not given.
+  panel?: (i: number, key: string, name: string) => ReactNode
 }) {
   const armedRound = rounds.list?.find((r) => r.id === rounds.armed)
   return (
@@ -382,6 +392,7 @@ export function RoundsList({
                 rounds={stored}
                 tasks={own}
                 tasksOpen={expanded === i}
+                extraOpen={extraOpen?.(i)}
                 armed={!!rounds.armed && stored.some((r) => r.id === rounds.armed)}
                 busy={rounds.busy || !rounds.list}
                 onSelect={() => onSelect(i)}
@@ -392,7 +403,7 @@ export function RoundsList({
               />
               {tasks && expanded === i && (
                 <li className="px-1.5 pt-1 pb-3">
-                  <TaskList stageKey={key} name={name} tasks={own ?? []} api={tasks} />
+                  {panel ? panel(i, key, name) : <TaskList stageKey={key} name={name} tasks={own ?? []} api={tasks} />}
                 </li>
               )}
             </Fragment>

@@ -30,6 +30,8 @@ pursuit standing set --key KEY --value "answer"   # standing answers fill form q
 pursuit events --follow --timeout 25s
 pursuit list --stale --fields id,company,title,link_status
 pursuit audit list --entity-id APP_ID --sort created_at
+pursuit rounds set ROUND_ID --question "Why us?" --answer "..."  # round notes are markdown; a heading ending in ? is a question
+pursuit questions list --q "why"                    # every question across rounds
 ```
 
 Exit codes: 0 ok, 2 usage, 3 not found, 4 conflict, 5 auth, 6 validation, 1 other.

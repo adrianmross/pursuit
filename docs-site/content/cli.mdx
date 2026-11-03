@@ -79,12 +79,18 @@ pursuit list --status rejected                        # filters match the outcom
 
 Rounds within any stage — prepared, applied, screening, interviewing, final or offer — and several stages can have them at once. Each round is a sub-arc of its stage's segment on the mark and fills when you mark it done. `--stage` defaults to the application's current stage.
 
+A round's notes are one markdown document holding its prep, transcript and questions. A heading that ends in `?` is a question, and the text under it is the answer. `pursuit questions list` searches the questions from every round.
+
 ```bash
-pursuit interviews add APP_ID --kind "System design" --when 2026-11-05 --prep-file prep.md
-pursuit interviews list APP_ID
-pursuit interviews set INTERVIEW_ID --notes "Went well"
-pursuit interviews done INTERVIEW_ID
-pursuit interviews delete INTERVIEW_ID
+pursuit rounds add APP_ID --kind "System design" --when 2026-11-05 --prep-file prep.md
+pursuit rounds list APP_ID
+pursuit rounds notes ROUND_ID > notes.md
+pursuit rounds set ROUND_ID --notes-file notes.md
+pursuit rounds set ROUND_ID --question "Why Snowflake?" --answer "Query engine work at scale."
+pursuit rounds set ROUND_ID --append "Went well"
+pursuit rounds done ROUND_ID --notes "Next: final round"
+pursuit rounds delete ROUND_ID
+pursuit questions list --q migration
 ```
 
 ### `pursuit roles` / `pursuit companies`

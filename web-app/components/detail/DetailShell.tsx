@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react"
 import { useRouter } from "next/navigation"
 import { api, ApiError } from "@/lib/api-client"
 import { useAuth } from "@/lib/auth"
-import type { Application, Artifact, CustomField, Event, Page, Question } from "@/lib/types"
+import type { Application, Artifact, CustomField, Event, Page } from "@/lib/types"
 import { DetailHeader } from "@/components/detail/DetailHeader"
 import { DetailAttributes } from "@/components/detail/DetailAttributes"
 import { DetailNotes } from "@/components/detail/DetailNotes"
@@ -12,9 +12,8 @@ import { RelatedCard } from "@/components/detail/RelatedCard"
 import { InterviewsCard } from "@/components/detail/InterviewsCard"
 import { EventsHistoryCard } from "@/components/detail/EventsHistoryCard"
 import { ArtifactsCard } from "@/components/detail/ArtifactsCard"
-import { QuestionsCard } from "@/components/detail/QuestionsCard"
 import { SectionError } from "@/components/detail/SectionError"
-import { AttributesSkeleton, ArtifactsSkeleton, EventsSkeleton, HeaderSkeleton, QuestionsSkeleton } from "@/components/detail/SectionSkeletons"
+import { AttributesSkeleton, ArtifactsSkeleton, EventsSkeleton, HeaderSkeleton } from "@/components/detail/SectionSkeletons"
 
 export type DetailInitial = { application: Application; fields: CustomField[] }
 
@@ -89,7 +88,6 @@ export function DetailShell({ id, initial, children }: { id: string; initial: De
   const exportMode = initial == null
   const events = useSection<Page<Event>>(`/v1/applications/${encodeURIComponent(id)}/events?limit=100`, exportMode)
   const artifacts = useSection<Page<Artifact>>(`/v1/applications/${encodeURIComponent(id)}/artifacts`, exportMode)
-  const questions = useSection<Page<Question>>(`/v1/applications/${encodeURIComponent(id)}/questions`, exportMode)
 
   function accept(app: Application) {
     latest.current = app
@@ -217,13 +215,6 @@ export function DetailShell({ id, initial, children }: { id: string; initial: De
 
       {exportMode ? (
         <>
-          {questions.error ? (
-            <SectionError label="prepared answers" onRetry={questions.retry} />
-          ) : questions.data == null ? (
-            <QuestionsSkeleton />
-          ) : (
-            <QuestionsCard questions={questions.data.data || []} />
-          )}
           {artifacts.error ? (
             <SectionError label="artifacts" onRetry={artifacts.retry} />
           ) : artifacts.data == null ? (
