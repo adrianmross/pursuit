@@ -900,21 +900,33 @@ export function OutlineCard({ application, writable, onChange, onSaveNotes, onPa
                 </button>
                 {shut[key] && hasKids && (
                   // Folded: what is under it, until hover brings the actions back.
-                  <span className={cn("shrink-0 text-[11px] text-muted-foreground", writable && "group-focus-within:hidden group-hover:hidden")}>
-                    {[
-                      stored.length ? `${stored.length} ${stored.length === 1 ? "round" : "rounds"}` : "",
-                      (() => {
-                        const q = stored.reduce((m, r) => m + (r.questions?.length ?? 0), 0)
-                        return q ? `${q}?` : ""
-                      })(),
-                      (() => {
-                        const t = allTasks.filter((x) => x.stage === key && !x.done_at).length
-                        return t ? `${t} ${t === 1 ? "task" : "tasks"}` : ""
-                      })(),
-                    ]
-                      .filter(Boolean)
-                      .join(" · ")}
-                  </span>
+                  (() => {
+                    const q = stored.reduce((m, r) => m + (r.questions?.length ?? 0), 0)
+                    const t = allTasks.filter((x) => x.stage === key && !x.done_at).length
+                    const full = [stored.length && `${stored.length} ${stored.length === 1 ? "round" : "rounds"}`, q && `${q} ${q === 1 ? "question" : "questions"}`, t && `${t} open ${t === 1 ? "task" : "tasks"}`].filter(Boolean).join(", ")
+                    return (
+                      <span title={full} aria-label={full} className={cn("flex shrink-0 items-center gap-1.5 text-[11px] text-muted-foreground tabular-nums", writable && "group-focus-within:hidden group-hover:hidden")}>
+                        {stored.length > 0 && (
+                          <span className="flex items-center gap-0.5">
+                            <span aria-hidden className="size-1.5 rounded-full border border-current" />
+                            {stored.length}
+                          </span>
+                        )}
+                        {q > 0 && (
+                          <span className="flex items-center gap-0.5">
+                            <span aria-hidden className="font-semibold">?</span>
+                            {q}
+                          </span>
+                        )}
+                        {t > 0 && (
+                          <span className="flex items-center gap-0.5">
+                            <span aria-hidden className="size-2 rounded-[2px] border border-current" />
+                            {t}
+                          </span>
+                        )}
+                      </span>
+                    )
+                  })()
                 )}
                 {writable && (
                   <span className={cn("shrink-0 gap-0.5 opacity-0 group-focus-within:opacity-100 group-hover:opacity-100", shut[key] && hasKids ? "hidden group-focus-within:flex group-hover:flex" : "flex")}>
