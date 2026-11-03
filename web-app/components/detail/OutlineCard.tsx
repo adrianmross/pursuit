@@ -432,7 +432,7 @@ function StageLabel({ name, base, current, reached, writable, onRename }: { name
           if (draft.trim() !== name) void onRename(draft)
         }}
       >
-        <input autoFocus aria-label={`Name for ${base}`} placeholder={base} className="w-full rounded-sm bg-muted px-1 text-[11px] tracking-wide uppercase outline-none" value={draft} onChange={(e) => setDraft(e.target.value)} onBlur={(e) => e.currentTarget.form?.requestSubmit()} onKeyDown={(e) => e.key === "Escape" && setEditing(false)} />
+        <input autoFocus aria-label={`Name for ${base}`} placeholder={base} className="w-full bg-transparent text-[11px] tracking-wide text-foreground uppercase outline-none" value={draft} onChange={(e) => setDraft(e.target.value)} onBlur={(e) => e.currentTarget.form?.requestSubmit()} onKeyDown={(e) => e.key === "Escape" && setEditing(false)} />
       </form>
     )
   return (
@@ -852,7 +852,7 @@ export function OutlineCard({ application, writable, onChange, onSaveNotes, onPa
         }}
         onMouseEnter={() => isMarked && setMarked(null)}
         style={anim.style}
-        className={cn("group relative -mx-2 flex scroll-mt-24 items-center gap-2.5 rounded-md px-2 hover:bg-muted", compact ? "min-h-7 text-[13px]" : "min-h-9 text-sm", anim.className, isMarked && "marked-glow")}
+        className={cn("group relative -mx-2 flex scroll-mt-24 items-center gap-2.5 rounded-md px-2 hover:bg-muted", compact ? "min-h-7 text-[13px]" : "min-h-9 text-sm", anim.className, isMarked && "marked-glow", editTask === t.id && "bg-muted")}
       >
         <Checkbox aria-label={`Done: ${t.title}`} checked={!!t.done_at} disabled={!writable} onCheckedChange={() => void tasks.toggle(t)} />
         {editTask === t.id ? (
@@ -860,7 +860,7 @@ export function OutlineCard({ application, writable, onChange, onSaveNotes, onPa
             autoFocus
             aria-label="Task"
             defaultValue={t.title}
-            className="min-w-0 flex-1 rounded-sm bg-background px-1 outline-none"
+            className="min-w-0 flex-1 bg-transparent outline-none"
             onBlur={(e) => {
               const v = e.currentTarget.value.trim()
               setEditTask(null)
