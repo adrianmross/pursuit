@@ -154,6 +154,17 @@
   to { transform: scaleX(1); }
 }
 
+/* Start page, Get started emptied: the tick draws on, the die rolls in and settles. */
+@keyframes draw-tick {
+  from { stroke-dashoffset: 1; }
+  to { stroke-dashoffset: 0; }
+}
+@keyframes roll-in {
+  from { transform: translateX(-70px) rotate(-300deg); opacity: 0; }
+  30% { opacity: 1; }
+  to { transform: none; }
+}
+
 /* Site footer: the heart beats twice, then rests. */
 @keyframes heartbeat {
   0%, 40%, 100% { transform: scale(1); }
