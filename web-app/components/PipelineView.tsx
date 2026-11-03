@@ -30,7 +30,8 @@ import { api, ApiError } from "@/lib/api-client"
 import { useAuth } from "@/lib/auth"
 import { useShortcuts } from "@/lib/keybindings"
 import { Kbd } from "@/components/ui/kbd"
-import { getDefaultSort, getDefaultStatus, getPref } from "@/lib/settings"
+import { getDefaultSort, getDefaultStatus } from "@/lib/settings"
+import { usePref } from "@/lib/use-pref"
 import { buildApplicationsQuery } from "@/lib/pipeline-query"
 import { applicationHref } from "@/lib/links"
 import {
@@ -608,10 +609,7 @@ export function PipelineView({ initial }: { initial: PipelineInitial | null }) {
   const [archiveTarget, setArchiveTarget] = useState<Application | null>(null)
   const [cursor, setCursor] = useState<string | null>(null)
   const [menuFor, setMenuFor] = useState<string | null>(null)
-  // Read after mount: the server render has no localStorage.
-  const [funnel, setFunnel] = useState(false)
-  // eslint-disable-next-line react-hooks/set-state-in-effect
-  useEffect(() => setFunnel(getPref("funnel") === "on"), [])
+  const funnel = usePref("funnel") === "on"
   const [statusFor, setStatusFor] = useState<string | null>(null)
   const [bulkMenu, setBulkMenu] = useState(false)
   const [bulkConfirm, setBulkConfirm] = useState<"archive" | "delete" | null>(null)

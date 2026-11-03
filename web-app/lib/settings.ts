@@ -40,7 +40,7 @@ export type TextSize = "small" | "default" | "large"
 const SIZES: Record<TextSize, string> = { small: "14px", default: "16px", large: "18px" }
 
 const DEFAULTS = { density: "comfortable", accent: "neutral", textSize: "default", motion: "full", textFx: "notes", roundCounter: "wheel", vimKeys: "off", stripes: "off", searchSyntax: "on", faviconService: "default", funnel: "off" }
-type Pref = keyof typeof DEFAULTS
+export type Pref = keyof typeof DEFAULTS
 
 function read(key: Pref) {
   // Server rendering has no localStorage: fall back to the default.
@@ -52,10 +52,35 @@ export function getPref<T extends string>(key: Pref) {
   return read(key) as T
 }
 
+// Everything that reads a preference while rendering subscribes here, so a
+// change in Settings shows at once instead of after a reload. Another tab's
+// change arrives as a storage event.
+const listeners = new Set<() => void>()
+
+export function subscribePrefs(cb: () => void) {
+  listeners.add(cb)
+  const onStorage = (e: StorageEvent) => {
+    if (!e.key?.startsWith(PREFIX)) return
+    applyAppearance()
+    cb()
+  }
+  window.addEventListener("storage", onStorage)
+  return () => {
+    listeners.delete(cb)
+    window.removeEventListener("storage", onStorage)
+  }
+}
+
+// The default a preference has before anything is stored, for server renders.
+export function defaultPref<T extends string>(key: Pref) {
+  return DEFAULTS[key] as T
+}
+
 export function setPref(key: Pref, value: string) {
   if (value === DEFAULTS[key]) localStorage.removeItem(PREFIX + key)
   else localStorage.setItem(PREFIX + key, value)
   applyAppearance()
+  listeners.forEach((l) => l())
 }
 
 // Reflect every appearance preference onto <html>; index.css reads these.

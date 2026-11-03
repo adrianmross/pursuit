@@ -53,6 +53,18 @@ export type Interview = {
   version: number
 }
 
+// A notes file of its own on an application, beside its notes and rounds.
+export type Note = {
+  id: string
+  application_id: string
+  name: string
+  body: string
+  questions?: { prompt: string; answer: string }[]
+  version: number
+  created_at?: string
+  updated_at?: string
+}
+
 // A question from a round's notes, with where it was asked.
 export type BankQuestion = {
   prompt: string

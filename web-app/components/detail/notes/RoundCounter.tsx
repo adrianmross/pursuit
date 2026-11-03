@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react"
 import { ChevronDown, ChevronUp } from "lucide-react"
-import { getPref } from "@/lib/settings"
+import { usePref } from "@/lib/use-pref"
 import { cn } from "@/lib/utils"
 
 const MIN = 1
@@ -34,7 +34,7 @@ export function RoundCounter({ value, onChange, label, disabled }: { value: numb
   const [dir, setDir] = useState<1 | -1>(1)
   const [turn, setTurn] = useState(0)
   const last = useRef(0)
-  const dice = typeof window !== "undefined" && getPref("roundCounter") === "dice"
+  const dice = usePref("roundCounter") === "dice"
 
   const step = (d: 1 | -1) => {
     const next = Math.min(MAX, Math.max(MIN, value + d))
