@@ -495,4 +495,11 @@ var migrations = []migration{{
 ## Notes
 ' || notes ELSE '' END, prep = '' WHERE prep <> ''`,
 	},
+}, {
+	version: "016",
+	stmts: []string{
+		// Whether a round's notes show expanded in the application's notes
+		// outline, or fold to one line.
+		`ALTER TABLE interviews ADD COLUMN in_notes BIGINT NOT NULL DEFAULT 1`,
+	},
 }}

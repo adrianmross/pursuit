@@ -563,6 +563,7 @@ func roundCommands() []*Command {
 		{Name: "append", Type: "string", Help: "add text at the end of the notes, e.g. a transcript"},
 		{Name: "question", Type: "string", Help: "set one question under ## Questions (a missing ? is added); use with --answer"},
 		{Name: "answer", Type: "string", Help: "the answer for --question"},
+		{Name: "in-notes", Type: "string", Help: "true or false: show the round expanded in the application's notes outline"},
 	}
 	read := func(path, flag string) (string, error) {
 		var b []byte
@@ -593,6 +594,9 @@ func roundCommands() []*Command {
 				}
 				payload[key] = text
 			}
+		}
+		if v, ok := e.flags["in-notes"]; ok {
+			payload["in_notes"] = len(v) == 0 || v[0] != "false"
 		}
 		if _, ok := e.flags["question"]; ok {
 			payload["set_question"] = map[string]string{"prompt": e.flag("question"), "answer": e.flag("answer")}

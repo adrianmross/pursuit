@@ -693,9 +693,12 @@ type Interview struct {
 	DoneAt        *time.Time      `json:"done_at,omitempty"`
 	Notes         string          `json:"notes"`
 	Questions     []RoundQuestion `json:"questions"`
-	Version       int             `json:"version"`
-	CreatedAt     time.Time       `json:"created_at"`
-	UpdatedAt     time.Time       `json:"updated_at"`
+	// InNotes shows the round expanded in the application's notes outline;
+	// false folds it to one line.
+	InNotes   bool      `json:"in_notes"`
+	Version   int       `json:"version"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
 }
 
 // StageKey is the status name a stage's rounds are stored under (1-6).
@@ -930,7 +933,7 @@ var (
 	RoleFields        = []string{"id", "company_id", "company", "title", "location", "salary", "salary_min_cents", "salary_max_cents", "fit", "posting_url", "source", "job_type", "version", "created_at", "updated_at"}
 	AppFields         = []string{"id", "company_id", "company", "role_id", "title", "location", "salary", "salary_min_cents", "salary_max_cents", "fit", "status", "outcome", "stage", "interviews", "tasks", "applied_date", "next_step", "notes", "posting_url", "source", "job_type", "resume_version", "resume_file_ref", "contact_email", "external_id", "tracked_by", "tags", "link_status", "link_checked_at", "archived_at", "custom_fields", "version", "created_at", "updated_at"}
 	EventFields       = []string{"id", "application_id", "kind", "from_status", "to_status", "title", "body", "occurred_at", "created_at", "actor"}
-	InterviewFields   = []string{"id", "application_id", "stage", "kind", "interviewer", "scheduled_at", "done_at", "notes", "questions", "version", "created_at", "updated_at"}
+	InterviewFields   = []string{"id", "application_id", "stage", "kind", "interviewer", "scheduled_at", "done_at", "notes", "questions", "in_notes", "version", "created_at", "updated_at"}
 	TaskFields        = []string{"id", "application_id", "stage", "title", "notes", "due_at", "done_at", "version", "created_at", "updated_at"}
 	TagFields         = []string{"id", "name", "created_at"}
 	CustomFieldFields = []string{"id", "name", "type", "created_at"}

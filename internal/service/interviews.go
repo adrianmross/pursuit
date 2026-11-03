@@ -36,6 +36,7 @@ type InterviewPatch struct {
 	SetQuestion *domain.RoundQuestion `json:"set_question"`
 	Append      *string               `json:"append"`
 	Done        *bool                 `json:"done"`
+	InNotes     *bool                 `json:"in_notes"`
 }
 
 func (s *Service) parseWhen(raw string) (*time.Time, error) {
@@ -79,7 +80,7 @@ func (s *Service) AddInterview(ctx context.Context, appID string, in InterviewIn
 	now := s.now()
 	iv := domain.Interview{
 		ID: s.NewID(), UserID: a.UserID, ApplicationID: appID, Kind: kind, Interviewer: who,
-		ScheduledAt: when, Notes: notes, Questions: domain.ParseRoundQuestions(notes), Version: 1, CreatedAt: now, UpdatedAt: now,
+		ScheduledAt: when, Notes: notes, Questions: domain.ParseRoundQuestions(notes), InNotes: true, Version: 1, CreatedAt: now, UpdatedAt: now,
 	}
 	if in.Done {
 		iv.DoneAt = &now
@@ -210,6 +211,9 @@ func (s *Service) UpdateInterview(ctx context.Context, id string, p InterviewPat
 		}
 		if next.Notes, err = domain.BoundText("notes", next.Notes, notesMax); err != nil {
 			return err
+		}
+		if p.InNotes != nil {
+			next.InNotes = *p.InNotes
 		}
 		if p.ScheduledAt != nil {
 			if next.ScheduledAt, err = s.parseWhen(*p.ScheduledAt); err != nil {

@@ -30,6 +30,12 @@ func TestRoundNotes(t *testing.T) {
 	if code != 200 || len(qs) != 1 || qs[0].(map[string]any)["answer"] != "Query engine." {
 		t.Fatalf("set_question replaces, append stays out of the answer: %d %#v", code, round)
 	}
+	if round["in_notes"] != true {
+		t.Fatalf("rounds start in notes: %#v", round)
+	}
+	if code, round = e.json(t, http.MethodPatch, path, e.token, map[string]any{"in_notes": false}); code != 200 || round["in_notes"] != false {
+		t.Fatalf("in_notes off: %d %#v", code, round)
+	}
 	if code, stale := e.json(t, http.MethodPatch, path, e.token, map[string]any{"version": 1, "append": "late"}); code != 409 {
 		t.Fatalf("stale version still checked: %d %#v", code, stale)
 	}
