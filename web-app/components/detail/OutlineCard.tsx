@@ -1146,7 +1146,7 @@ export function OutlineCard({ application, writable, onChange, onSaveNotes, onPa
                       <div key={r.id} className="flex flex-col">
                         <div {...dropTarget(`round:${r.id}`)} className={cn("group flex h-7 items-center gap-1 rounded-md pr-2 hover:bg-muted", dropAt === `round:${r.id}` && "bg-muted ring-1 ring-foreground/30")}>
                           <RoundDetails r={r} name={roundName(r, n)} writable={writable} onPatch={(body) => patch(r, body)} onDelete={() => void remove(r)} onOpenNotes={() => reveal(r.id)} open={detailsFor === r.id} onOpenChange={(o) => setDetailsFor(o ? r.id : null)}>
-                            <button type="button" title="Click to open on the right · double-click for details" onClick={() => reveal(r.id)} onDoubleClick={() => setDetailsFor(r.id)} className="flex min-w-0 flex-1 items-center gap-2 rounded-md pl-1 text-left text-[13px] outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                            <button type="button" title="Click to open or fold it on the right · double-click to edit" onClick={() => (isOpen(r.id) ? setOpen((o) => ({ ...o, [r.id]: false })) : reveal(r.id))} onDoubleClick={() => setDetailsFor(r.id)} className="flex min-w-0 flex-1 items-center gap-2 rounded-md pl-1 text-left text-[13px] outline-none focus-visible:ring-2 focus-visible:ring-ring">
                               <span aria-hidden className={cn("size-1.5 shrink-0 rounded-full border border-foreground", r.done_at && "bg-foreground")} />
                               <span className={cn("min-w-0 flex-1 truncate", r.in_notes === false && "text-muted-foreground")}>{roundName(r, n)}</span>
                             </button>
