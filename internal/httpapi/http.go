@@ -231,6 +231,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /v1/rounds/{id}", s.getInterview)
 	mux.HandleFunc("PATCH /v1/rounds/{id}", s.updateInterview)
 	mux.HandleFunc("DELETE /v1/rounds/{id}", s.deleteInterview)
+	mux.HandleFunc("GET /v1/questions", s.listRoundQuestions)
 	mux.HandleFunc("GET /v1/applications/{id}/tasks", s.listTasks)
 	mux.HandleFunc("POST /v1/applications/{id}/tasks", s.addTask)
 	mux.HandleFunc("GET /v1/tasks/{id}", s.getTask)
@@ -1173,8 +1174,8 @@ func (s *Server) page(w http.ResponseWriter, r *http.Request, allow []string, fi
 // pageSlice pages a list the service returns whole. Without limit it returns
 // every row, as these lists did before; with limit it pages by offset.
 // ponytail: offset cursor over an in-memory slice, fine for per-application lists; move to SQL keyset paging if one grows large.
-func pageSlice[T any](w http.ResponseWriter, r *http.Request, fieldAllow []string, load func(context.Context) ([]T, error)) {
-	q, err := query(r, "limit", "cursor", "fields")
+func pageSlice[T any](w http.ResponseWriter, r *http.Request, fieldAllow []string, load func(context.Context) ([]T, error), params ...string) {
+	q, err := query(r, append([]string{"limit", "cursor", "fields"}, params...)...)
 	if err != nil {
 		writeErr(w, err)
 		return
@@ -1480,6 +1481,12 @@ func (s *Server) listInterviews(w http.ResponseWriter, r *http.Request) {
 	pageSlice(w, r, domain.InterviewFields, func(ctx context.Context) ([]domain.Interview, error) {
 		return s.Svc.ListInterviews(ctx, r.PathValue("id"))
 	})
+}
+
+func (s *Server) listRoundQuestions(w http.ResponseWriter, r *http.Request) {
+	pageSlice(w, r, domain.BankQuestionFields, func(ctx context.Context) ([]domain.BankQuestion, error) {
+		return s.Svc.ListRoundQuestions(ctx, r.URL.Query().Get("q"))
+	}, "q")
 }
 
 func (s *Server) addInterview(w http.ResponseWriter, r *http.Request) {
