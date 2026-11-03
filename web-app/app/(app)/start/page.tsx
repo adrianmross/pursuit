@@ -17,6 +17,7 @@ import { CommandBlock } from "@/components/CommandBlock"
 import { HomeCta } from "@/components/HomeCta"
 import { HomeCtaClient } from "@/components/HomeCtaClient"
 import { ImportCard } from "@/components/ImportCard"
+import { StartCalendar } from "@/components/StartCalendar"
 import { IMPORTERS } from "@/lib/importers"
 
 export default async function Home() {
@@ -35,6 +36,8 @@ export default async function Home() {
         <p className="max-w-md text-muted-foreground">Land the role.</p>
         {cta}
       </div>
+
+      <StartCalendar />
 
       <ItemGroup>
         <Item variant="outline">
