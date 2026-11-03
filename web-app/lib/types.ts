@@ -42,9 +42,24 @@ export type Interview = {
   interviewer?: string
   scheduled_at?: string
   done_at?: string
-  prep?: string
+  // One markdown document: prep, transcript and questions.
   notes?: string
+  // Parsed from notes: a heading ending in ? and the text under it.
+  questions?: { prompt: string; answer: string }[]
   version: number
+}
+
+// A question from a round's notes, with where it was asked.
+export type BankQuestion = {
+  prompt: string
+  answer: string
+  round_id: string
+  application_id: string
+  company: string
+  title: string
+  stage: string
+  kind: string
+  updated_at: string
 }
 
 // A to-do on an application, things waiting on you, optionally on a stage.

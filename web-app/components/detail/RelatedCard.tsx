@@ -10,7 +10,7 @@ import { ConfirmDialog } from "@/components/ConfirmDialog"
 import { ProgressMark } from "@/components/ProgressMark"
 import { StatusBadge } from "@/components/StatusBadge"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { SectionCard } from "@/components/detail/SectionCard"
 import { Item, ItemActions, ItemContent, ItemGroup, ItemMedia } from "@/components/ui/item"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 
@@ -102,87 +102,81 @@ export function RelatedCard({
   const summary = application.tracked_by ? "Tracked" : tracked.length ? `${tracked.length} tracked` : ""
 
   return (
-    <Card>
-      <CardHeader className="flex flex-row items-baseline justify-between">
-        <CardTitle className="text-base">Related postings</CardTitle>
-        {summary && <span className="text-xs text-muted-foreground">{summary}</span>}
-      </CardHeader>
-      <CardContent className="flex flex-col gap-3">
-        {application.tracked_by ? (
-          <>
-            <p className="text-xs text-muted-foreground">One process at {application.company} covers this posting.</p>
+    <SectionCard id="related" title="Related postings" summary={summary}>
+      {application.tracked_by ? (
+        <>
+          <p className="text-xs text-muted-foreground">One process at {application.company} covers this posting.</p>
+          <ItemGroup className="gap-2">
+            {primary
+              ? row(
+                  primary,
+                  <Action label="Stop tracking" disabled={busy} onClick={() => run(() => patch(application, { tracked_by: "" }))}>
+                    <Unlink className="size-3.5" />
+                  </Action>,
+                )
+              : null}
+          </ItemGroup>
+        </>
+      ) : (
+        <>
+          {tracked.length > 0 && (
             <ItemGroup className="gap-2">
-              {primary
-                ? row(
-                    primary,
-                    <Action label="Stop tracking" disabled={busy} onClick={() => run(() => patch(application, { tracked_by: "" }))}>
+              {tracked.map((app) =>
+                row(
+                  app,
+                  <>
+                    {outcomeKind(app.outcome) !== "stop" && (
+                      <Action label="Reject this posting" disabled={busy} onClick={() => run(() => patch(app, { status: "rejected" }))}>
+                        <X className="size-3.5" />
+                      </Action>
+                    )}
+                    <Action label="Stop tracking" disabled={busy} onClick={() => run(() => patch(app, { tracked_by: "" }))}>
                       <Unlink className="size-3.5" />
-                    </Action>,
-                  )
-                : null}
+                    </Action>
+                  </>,
+                ),
+              )}
             </ItemGroup>
-          </>
-        ) : (
-          <>
-            {tracked.length > 0 && (
+          )}
+          {trackable.length > 0 && (
+            <div className="flex flex-col gap-2">
+              <p className="text-xs text-muted-foreground">Also at {application.company}. Track one here instead of applying to it.</p>
               <ItemGroup className="gap-2">
-                {tracked.map((app) =>
+                {trackable.map((app) =>
                   row(
                     app,
-                    <>
-                      {outcomeKind(app.outcome) !== "stop" && (
-                        <Action label="Reject this posting" disabled={busy} onClick={() => run(() => patch(app, { status: "rejected" }))}>
-                          <X className="size-3.5" />
-                        </Action>
-                      )}
-                      <Action label="Stop tracking" disabled={busy} onClick={() => run(() => patch(app, { tracked_by: "" }))}>
-                        <Unlink className="size-3.5" />
-                      </Action>
-                    </>,
+                    <Action label="Track with this application" disabled={busy} onClick={() => run(() => patch(app, { tracked_by: application.id }))}>
+                      <Link2 className="size-3.5" />
+                    </Action>,
                   ),
                 )}
               </ItemGroup>
-            )}
-            {trackable.length > 0 && (
-              <div className="flex flex-col gap-2">
-                <p className="text-xs text-muted-foreground">Also at {application.company}. Track one here instead of applying to it.</p>
-                <ItemGroup className="gap-2">
-                  {trackable.map((app) =>
-                    row(
-                      app,
-                      <Action label="Track with this application" disabled={busy} onClick={() => run(() => patch(app, { tracked_by: application.id }))}>
-                        <Link2 className="size-3.5" />
-                      </Action>,
-                    ),
-                  )}
-                </ItemGroup>
-              </div>
-            )}
-            {writable && tracked.length > 0 && open.length > 0 && (
-              <Button size="sm" variant="outline" className="self-start" disabled={busy} onClick={() => setConfirm(true)}>
-                <X />
-                Reject all
-              </Button>
-            )}
-          </>
-        )}
-        {error && <p className="text-xs text-destructive">{error}</p>}
-      </CardContent>
-      <ConfirmDialog
-        open={confirm}
-        onOpenChange={setConfirm}
-        title={`Reject all at ${application.company}?`}
-        description={`Rejects ${open.includes(application) ? "this application and " : ""}${openTracked} tracked posting${openTracked === 1 ? "" : "s"}. Each keeps its stage.`}
-        confirmLabel="Reject all"
-        danger
-        busy={busy}
-        onConfirm={() =>
-          run(async () => {
-            await Promise.all(open.map((app) => patch(app, { status: "rejected" })))
-            setConfirm(false)
-          })
-        }
-      />
-    </Card>
+            </div>
+          )}
+          {writable && tracked.length > 0 && open.length > 0 && (
+            <Button size="sm" variant="outline" className="self-start" disabled={busy} onClick={() => setConfirm(true)}>
+              <X />
+              Reject all
+            </Button>
+          )}
+        </>
+      )}
+      {error && <p className="text-xs text-destructive">{error}</p>}
+    <ConfirmDialog
+      open={confirm}
+      onOpenChange={setConfirm}
+      title={`Reject all at ${application.company}?`}
+      description={`Rejects ${open.includes(application) ? "this application and " : ""}${openTracked} tracked posting${openTracked === 1 ? "" : "s"}. Each keeps its stage.`}
+      confirmLabel="Reject all"
+      danger
+      busy={busy}
+      onConfirm={() =>
+        run(async () => {
+          await Promise.all(open.map((app) => patch(app, { status: "rejected" })))
+          setConfirm(false)
+        })
+      }
+    />
+    </SectionCard>
   )
 }
