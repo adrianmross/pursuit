@@ -14,7 +14,34 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 
 const day = (value?: string) => (value ? value.slice(0, 10) : "")
 
-export type RoundPatch = (item: Interview, body: Record<string, unknown>) => Promise<unknown>
+// The round's notes outside its questions (Prep, Notes, any prose), each as a
+// heading and its text, for the preview under the questions. Questions and
+// the "Questions" heading that holds them are shown separately.
+function proseSections(md: string) {
+  const out: { title: string; body: string }[] = []
+  let cur = { title: "", body: [] as string[] }
+  let skip = false
+  let fence = false
+  const flush = () => {
+    const body = cur.body.join("\n").trim()
+    if (!skip && body) out.push({ title: cur.title, body })
+  }
+  for (const line of md.split("\n")) {
+    if (/^\s*(```|~~~)/.test(line)) fence = !fence
+    const h = !fence && line.match(/^\s*#{1,6}\s+(.*?)\s*#*\s*$/)
+    if (h) {
+      flush()
+      cur = { title: h[1], body: [] }
+      skip = h[1].endsWith("?") || /^questions$/i.test(h[1])
+    } else {
+      cur.body.push(line)
+    }
+  }
+  flush()
+  return out
+}
+
+export type RoundPatch =(item: Interview, body: Record<string, unknown>) => Promise<unknown>
 
 // The round's whole markdown document, open beside the page like a transcript.
 function NotesSheet({
@@ -100,8 +127,21 @@ export function RoundItem({
   const [question, setQuestion] = useState("")
   const name = item.kind || `Round ${index}`
   const questions = item.questions ?? []
-  // Prose outside the questions, as a two-line preview.
-  const preview = questions.length ? "" : (item.notes || "").replace(/^#+\s*/gm, "").trim()
+  const prose = proseSections(item.notes || "")
+  // Prep reads before the questions; everything else after them.
+  const prep = prose.filter((s) => /^prep$/i.test(s.title))
+  const sections = prose.filter((s) => !/^prep$/i.test(s.title))
+  const section = (s: { title: string; body: string }, n: number) => (
+    <button
+      key={n}
+      type="button"
+      className="line-clamp-2 text-left text-sm whitespace-pre-line text-muted-foreground hover:text-foreground"
+      onClick={() => setSheet(true)}
+    >
+      {s.title && <span className="font-medium text-foreground">{s.title} </span>}
+      {s.body}
+    </button>
+  )
 
   return (
     <Item variant="outline" size="sm" role="listitem" className="flex-wrap items-start">
@@ -140,6 +180,7 @@ export function RoundItem({
             onSave={(v) => onPatch(item, { interviewer: v })}
           />
         </div>
+        {prep.map(section)}
         {questions.length > 0 && (
           <ul className="flex flex-col gap-1">
             {questions.map((q) => (
@@ -152,11 +193,7 @@ export function RoundItem({
             ))}
           </ul>
         )}
-        {preview && (
-          <button type="button" className="line-clamp-2 text-left text-sm whitespace-pre-line text-muted-foreground hover:text-foreground" onClick={() => setSheet(true)}>
-            {preview}
-          </button>
-        )}
+        {sections.map(section)}
         {writable && (
           <form
             onSubmit={(e) => {
