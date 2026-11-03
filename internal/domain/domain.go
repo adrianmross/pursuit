@@ -644,6 +644,7 @@ type Application struct {
 	ContactEmail   string                 `json:"contact_email"`
 	ExternalID     string                 `json:"external_id,omitempty"`
 	TrackedBy      string                 `json:"tracked_by,omitempty"`
+	StagePlan      *StagePlan             `json:"stage_plan,omitempty"`
 	Tags           []string               `json:"tags"`
 	LinkStatus     string                 `json:"link_status,omitempty"`
 	LinkCheckedAt  *time.Time             `json:"link_checked_at,omitempty"`
@@ -940,7 +941,7 @@ func CheckCursorSort(c Cursor, sort string) error {
 var (
 	CompanyFields     = []string{"id", "name", "website", "icon_url", "notes", "version", "created_at", "updated_at"}
 	RoleFields        = []string{"id", "company_id", "company", "title", "location", "salary", "salary_min_cents", "salary_max_cents", "fit", "posting_url", "source", "job_type", "version", "created_at", "updated_at"}
-	AppFields         = []string{"id", "company_id", "company", "role_id", "title", "location", "salary", "salary_min_cents", "salary_max_cents", "fit", "status", "outcome", "stage", "interviews", "tasks", "applied_date", "next_step", "notes", "posting_url", "source", "job_type", "resume_version", "resume_file_ref", "contact_email", "external_id", "tracked_by", "tags", "link_status", "link_checked_at", "archived_at", "custom_fields", "version", "created_at", "updated_at"}
+	AppFields         = []string{"id", "company_id", "company", "role_id", "title", "location", "salary", "salary_min_cents", "salary_max_cents", "fit", "status", "outcome", "stage", "interviews", "tasks", "applied_date", "next_step", "notes", "posting_url", "source", "job_type", "resume_version", "resume_file_ref", "contact_email", "external_id", "tracked_by", "stage_plan", "tags", "link_status", "link_checked_at", "archived_at", "custom_fields", "version", "created_at", "updated_at"}
 	EventFields       = []string{"id", "application_id", "kind", "from_status", "to_status", "title", "body", "occurred_at", "created_at", "actor"}
 	InterviewFields   = []string{"id", "application_id", "stage", "kind", "interviewer", "scheduled_at", "done_at", "notes", "questions", "in_notes", "version", "created_at", "updated_at"}
 	TaskFields        = []string{"id", "application_id", "stage", "round_id", "title", "notes", "due_at", "done_at", "version", "created_at", "updated_at"}

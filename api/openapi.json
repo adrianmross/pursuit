@@ -963,7 +963,7 @@
             "description": "error"
           }
         },
-        "summary": "update an application. status changes obey the approval rule"
+        "summary": "update an application. status changes obey the approval rule. tracked_by links it to another application at the same company. stage_plan {labels: {stage: name}, off: [stage]} renames this application's round stages (prepared through final) and skips some; the statuses underneath do not change, and {} resets it"
       }
     },
     "/v1/applications/{id}/archive": {

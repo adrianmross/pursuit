@@ -553,16 +553,16 @@ func (s *Store) stageCounts(ctx context.Context, table string, apps []domain.App
 }
 
 func appSelect() string {
-	return `SELECT a.id, a.user_id, a.role_id, a.status, a.outcome, a.applied_date, a.next_step, a.notes, a.resume_version, a.resume_file_ref, a.contact_email, a.external_id, a.tracked_by, a.archived_at, a.version, a.created_at, a.updated_at, r.title, r.location, r.salary_text, r.salary_min_cents, r.salary_max_cents, r.fit, r.posting_url, r.source, r.job_type, r.company_id, c.name, COALESCE(pc.status, ''), pc.checked_at FROM applications a JOIN roles r ON r.id = a.role_id JOIN companies c ON c.id = r.company_id LEFT JOIN posting_checks pc ON pc.role_id = r.id`
+	return `SELECT a.id, a.user_id, a.role_id, a.status, a.outcome, a.applied_date, a.next_step, a.notes, a.resume_version, a.resume_file_ref, a.contact_email, a.external_id, a.tracked_by, a.stage_plan, a.archived_at, a.version, a.created_at, a.updated_at, r.title, r.location, r.salary_text, r.salary_min_cents, r.salary_max_cents, r.fit, r.posting_url, r.source, r.job_type, r.company_id, c.name, COALESCE(pc.status, ''), pc.checked_at FROM applications a JOIN roles r ON r.id = a.role_id JOIN companies c ON c.id = r.company_id LEFT JOIN posting_checks pc ON pc.role_id = r.id`
 }
 
 func scanApp(row scanner) (domain.Application, error) {
 	var a domain.Application
 	var applied sql.NullString
 	var min, max sql.NullInt64
-	var created, updated, archived string
+	var created, updated, archived, plan string
 	var checked sql.NullString
-	err := row.Scan(&a.ID, &a.UserID, &a.RoleID, &a.Status, &a.Outcome, &applied, &a.NextStep, &a.Notes, &a.ResumeVersion, &a.ResumeFileRef, &a.ContactEmail, &a.ExternalID, &a.TrackedBy, &archived, &a.Version, &created, &updated, &a.Title, &a.Location, &a.Salary, &min, &max, &a.Fit, &a.PostingURL, &a.Source, &a.JobType, &a.CompanyID, &a.Company, &a.LinkStatus, &checked)
+	err := row.Scan(&a.ID, &a.UserID, &a.RoleID, &a.Status, &a.Outcome, &applied, &a.NextStep, &a.Notes, &a.ResumeVersion, &a.ResumeFileRef, &a.ContactEmail, &a.ExternalID, &a.TrackedBy, &plan, &archived, &a.Version, &created, &updated, &a.Title, &a.Location, &a.Salary, &min, &max, &a.Fit, &a.PostingURL, &a.Source, &a.JobType, &a.CompanyID, &a.Company, &a.LinkStatus, &checked)
 	if err != nil {
 		return domain.Application{}, err
 	}
@@ -574,6 +574,12 @@ func scanApp(row scanner) (domain.Application, error) {
 	a.SalaryMaxCents = optInt(max)
 	a.Stage = domain.StageOf(a.Status)
 	a.Tags = []string{}
+	if plan != "" {
+		var sp domain.StagePlan
+		if json.Unmarshal([]byte(plan), &sp) == nil {
+			a.StagePlan = &sp
+		}
+	}
 	if checked.Valid && checked.String != "" {
 		if t, perr := parseTime(checked.String); perr == nil {
 			a.LinkCheckedAt = &t
@@ -830,7 +836,7 @@ func (s *Store) listApplicationsByField(ctx context.Context, userID string, q do
 	if limit <= 0 {
 		limit = 51
 	}
-	selectSQL := `SELECT a.id, a.user_id, a.role_id, a.status, a.outcome, a.applied_date, a.next_step, a.notes, a.resume_version, a.resume_file_ref, a.contact_email, a.external_id, a.tracked_by, a.archived_at, a.version, a.created_at, a.updated_at, r.title, r.location, r.salary_text, r.salary_min_cents, r.salary_max_cents, r.fit, r.posting_url, r.source, r.job_type, r.company_id, c.name, COALESCE(pc.status, ''), pc.checked_at FROM ` +
+	selectSQL := `SELECT a.id, a.user_id, a.role_id, a.status, a.outcome, a.applied_date, a.next_step, a.notes, a.resume_version, a.resume_file_ref, a.contact_email, a.external_id, a.tracked_by, a.stage_plan, a.archived_at, a.version, a.created_at, a.updated_at, r.title, r.location, r.salary_text, r.salary_min_cents, r.salary_max_cents, r.fit, r.posting_url, r.source, r.job_type, r.company_id, c.name, COALESCE(pc.status, ''), pc.checked_at FROM ` +
 		joined + ` ` + w.sql() + ` ORDER BY ` + orderCol + ` IS NULL, ` + orderCol + ` ` + dir + `, a.id LIMIT ?`
 	rows, err := s.query(ctx, selectSQL, append(joinArgs, limit)...)
 	if err != nil {
@@ -923,8 +929,8 @@ func (s *Store) UpdateApplication(ctx context.Context, a domain.Application) err
 	if domain.IsOutcome(a.Status) {
 		outcome = a.Status
 	}
-	res, err := s.exec(ctx, `UPDATE applications SET status=CASE WHEN ?='' THEN ? ELSE status END, outcome=?, applied_date=?, next_step=?, notes=?, resume_version=?, resume_file_ref=?, contact_email=?, tracked_by=?, version=version+1, updated_at=? WHERE id=? AND user_id=? AND version=?`,
-		outcome, a.Status, outcome, nullString(a.AppliedDateValue()), a.NextStep, a.Notes, a.ResumeVersion, a.ResumeFileRef, a.ContactEmail, a.TrackedBy, formatTime(a.UpdatedAt), a.ID, a.UserID, a.Version)
+	res, err := s.exec(ctx, `UPDATE applications SET status=CASE WHEN ?='' THEN ? ELSE status END, outcome=?, applied_date=?, next_step=?, notes=?, resume_version=?, resume_file_ref=?, contact_email=?, tracked_by=?, stage_plan=?, version=version+1, updated_at=? WHERE id=? AND user_id=? AND version=?`,
+		outcome, a.Status, outcome, nullString(a.AppliedDateValue()), a.NextStep, a.Notes, a.ResumeVersion, a.ResumeFileRef, a.ContactEmail, a.TrackedBy, a.StagePlan.Encode(), formatTime(a.UpdatedAt), a.ID, a.UserID, a.Version)
 	if err != nil {
 		return mapWriteErr(err)
 	}

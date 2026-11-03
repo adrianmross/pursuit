@@ -508,4 +508,11 @@ var migrations = []migration{{
 		// A task can belong to one round of its stage; empty means the stage.
 		`ALTER TABLE tasks ADD COLUMN round_id TEXT NOT NULL DEFAULT ''`,
 	},
+}, {
+	version: "018",
+	stmts: []string{
+		// This application's own names for its stages, and the stages its
+		// process skips, as JSON {labels, off}. Empty means the defaults.
+		`ALTER TABLE applications ADD COLUMN stage_plan TEXT NOT NULL DEFAULT ''`,
+	},
 }}

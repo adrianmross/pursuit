@@ -83,6 +83,21 @@ func TestRoundNotes(t *testing.T) {
 		t.Fatalf("round gone, task stays on the stage: %#v", rt)
 	}
 
+	// An application can name its own stages and skip some; statuses stay.
+	appPath := "/v1/applications/" + app["id"].(string)
+	_, cur := e.json(t, http.MethodGet, appPath, e.token, nil)
+	code, planned := e.json(t, http.MethodPatch, appPath, e.token, map[string]any{"version": cur["version"], "stage_plan": map[string]any{"labels": map[string]any{"Screening": "Phone screen"}, "off": []any{"final", "final"}}})
+	plan, _ := planned["stage_plan"].(map[string]any)
+	if code != 200 || plan == nil || plan["labels"].(map[string]any)["screening"] != "Phone screen" || len(plan["off"].([]any)) != 1 || planned["status"] != "screening" {
+		t.Fatalf("stage plan: %d %#v", code, planned)
+	}
+	if code, bad := e.json(t, http.MethodPatch, appPath, e.token, map[string]any{"version": planned["version"], "stage_plan": map[string]any{"off": []any{"offer"}}}); code != 400 {
+		t.Fatalf("offer is not a round stage: %d %#v", code, bad)
+	}
+	if code, planned = e.json(t, http.MethodPatch, appPath, e.token, map[string]any{"version": planned["version"], "stage_plan": map[string]any{}}); code != 200 || planned["stage_plan"] != nil {
+		t.Fatalf("empty plan resets: %d %#v", code, planned)
+	}
+
 	code, bank := e.json(t, http.MethodGet, "/v1/questions?q=query+engine", e.token, nil)
 	rows := bank["data"].([]any)
 	if code != 200 || len(rows) != 1 || rows[0].(map[string]any)["company"] != "Snowflake" || rows[0].(map[string]any)["round_id"] != round["id"] {

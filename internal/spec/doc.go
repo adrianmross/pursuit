@@ -149,7 +149,7 @@ func build() []byte {
 	add("/v1/applications/capture", "post", "save the posting the user is viewing. dedupes by URL and creates status to_apply", true, nil)
 	add("/v1/applications", "post", "create an application", true, nil)
 	add("/v1/applications/{id}", "get", "get an application", false, nil)
-	add("/v1/applications/{id}", "patch", "update an application. status changes obey the approval rule", true, nil)
+	add("/v1/applications/{id}", "patch", "update an application. status changes obey the approval rule. tracked_by links it to another application at the same company. stage_plan {labels: {stage: name}, off: [stage]} renames this application's round stages (prepared through final) and skips some; the statuses underneath do not change, and {} resets it", true, nil)
 	add("/v1/applications/{id}", "delete", "delete an application", true, nil)
 	add("/v1/applications/{id}/transition", "post", "change status. a stage replaces the status and clears any outcome; waiting, needs_input, failed, rejected, withdrawn and ghosted are outcomes that keep the stage. approved requires the approve scope. submitting requires a stored approval", true, nil)
 	add("/v1/applications/{id}/archive", "post", "archive an application; body.version is required", true, nil)
