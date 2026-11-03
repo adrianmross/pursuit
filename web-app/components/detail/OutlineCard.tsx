@@ -35,7 +35,7 @@ const STAGE_KEYS = [ANYTIME, ...STAGE_STOPS.map(([k]) => k)]
 // What the card shows. Layout (outline now; board and timeline to come) is a
 // separate choice in the view options, so the tabs stay about content.
 type View = "all" | "rounds" | "tasks" | "questions" | "notes"
-type Prefs = { view: View; showDone: boolean; hideLeftOut: boolean; sort: "stage" | "date"; layout: "outline" }
+type Prefs = { view: View; showDone: boolean; hideLeftOut: boolean; sort: "stage" | "date"; layout: "outline" | "board" | "timeline" }
 const DEFAULT_PREFS: Prefs = { view: "all", showDone: false, hideLeftOut: false, sort: "stage", layout: "outline" }
 const PREFS_KEY = "pursuit.outline"
 
@@ -572,18 +572,18 @@ function ViewOptions({ prefs, onChange }: { prefs: Prefs; onChange: (p: Partial<
         </div>
         <div className="flex flex-col gap-1.5 border-t pt-3">
           <span className="text-xs text-muted-foreground">Layout</span>
-          <ToggleGroup type="single" variant="outline" size="sm" value={prefs.layout}>
+          <ToggleGroup type="single" variant="outline" size="sm" value={prefs.layout} onValueChange={(v) => v && onChange({ layout: v as Prefs["layout"] })}>
             <ToggleGroupItem value="outline" className="px-2.5 text-xs">
               Outline
             </ToggleGroupItem>
-            <ToggleGroupItem value="board" disabled className="px-2.5 text-xs">
+            <ToggleGroupItem value="board" className="px-2.5 text-xs">
               Board
             </ToggleGroupItem>
-            <ToggleGroupItem value="timeline" disabled className="px-2.5 text-xs">
+            <ToggleGroupItem value="timeline" className="px-2.5 text-xs">
               Timeline
             </ToggleGroupItem>
           </ToggleGroup>
-          <span className="text-xs text-muted-foreground">Board and Timeline are on the way.</span>
+          <span className="text-xs text-muted-foreground">How All lays out stages and rounds.</span>
         </div>
       </PopoverContent>
     </Popover>
@@ -1213,6 +1213,143 @@ export function OutlineCard({ application, writable, onChange, onSaveNotes, onPa
     </nav>
   )
 
+  // Board and Timeline share these: whether a round shows, what opens under
+  // it, and its details on double-click.
+  const shownRound = (r: Interview) => prefs.showDone || !r.done_at
+  const roundBody = (r: Interview, n: number) => {
+    const rt = allTasks.filter((t) => t.round_id === r.id && (prefs.showDone || !t.done_at))
+    const rq = (r.questions ?? []).filter((q) => prefs.showDone || !q.answer?.trim())
+    return (
+      <div className="flex flex-col gap-1 pt-1">
+        {rt.map((t, i) => taskRow(t, i, true))}
+        {rq.map((q, i) => (
+          <QuestionRow key={q.prompt} q={q} index={rt.length + i} writable={writable} onSave={(prompt, answer) => saveQuestion(r.id, q.prompt, prompt, answer)} onDelete={() => void deleteQuestion(r.id, q.prompt)} />
+        ))}
+        <NoteBody md={r.notes || ""} writable={writable} label={`${roundName(r, n)} notes`} placeholder={"## Prep\n\n### A question they asked?\nYour answer.\n\n## Notes"} onSave={(notes) => patch(r, { notes })} reveal={justOpened === r.id} />
+      </div>
+    )
+  }
+  // dot false on the timeline, whose lane already has one.
+  const roundHead = (r: Interview, n: number, sub: string, dot = true) => (
+    <RoundDetails r={r} name={roundName(r, n)} writable={writable} onPatch={(body) => patch(r, body)} onDelete={() => void remove(r)} onOpenNotes={() => go("notes", r.id)} open={detailsFor === r.id} onOpenChange={(o) => setDetailsFor(o ? r.id : null)}>
+      <button type="button" title="Click to open · double-click to edit" aria-expanded={isOpen(r.id)} onClick={() => toggle(r.id)} onDoubleClick={() => setDetailsFor(r.id)} className="flex w-full min-w-0 flex-col rounded-sm text-left outline-none focus-visible:ring-2 focus-visible:ring-ring">
+        <span className="flex items-center gap-2 text-[13px] font-medium">
+          {dot && <span aria-hidden className={cn("size-2 shrink-0 rounded-full border border-foreground", r.done_at && "bg-foreground")} />}
+          <span className="truncate">{roundName(r, n)}</span>
+        </span>
+        {sub && <span className={cn("truncate text-xs text-muted-foreground", dot && "pl-4")}>{sub}</span>}
+      </button>
+    </RoundDetails>
+  )
+  const openCounts = (r: Interview) => {
+    const t = allTasks.filter((x) => x.round_id === r.id && !x.done_at).length
+    const q = (r.questions ?? []).filter((x) => !x.answer?.trim()).length
+    return [t && `${t} ${t === 1 ? "task" : "tasks"}`, q && `${q}?`].filter(Boolean).join(" · ")
+  }
+
+  // Board: a column per stage, its rounds as cards. Click a card to open it
+  // in place; drop a task on a column or a card to move it there.
+  const board = (
+    <div className="-mx-1 flex gap-3 overflow-x-auto px-1 pb-2">
+      {STAGE_STOPS.map(([key], i) => {
+        if (isOff(key)) return null
+        const stored = rounds.storedFor(all, key)
+        const cards = stored.map((r, n) => ({ r, n })).filter(({ r }) => shownRound(r))
+        const own = allTasks.filter((t) => t.stage === key && !t.round_id && (prefs.showDone || !t.done_at))
+        return (
+          <section key={key} {...dropTarget(`stage:${key}`)} style={stagger(i).style} className={cn("group flex shrink-0 flex-col gap-2 rounded-xl bg-muted/50 p-2", cards.length || own.length ? "w-56" : "w-36", i === current && "ring-1 ring-foreground/20", dropAt === `stage:${key}` && "ring-1 ring-foreground/40", stagger(i).className)}>
+            <h3 className="flex h-6 items-center gap-2 px-1 text-xs">
+              <RoundPie className="size-3.5 shrink-0" total={Math.max(1, stored.length)} done={stored.length ? stored.filter((r) => r.done_at).length : i <= current ? 1 : 0} />
+              <span className={cn("flex-1 truncate", i === current ? "font-semibold" : "text-muted-foreground")}>{stageName(key)}</span>
+              {writable && (
+                <Button size="icon-xs" variant="ghost" className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100" aria-label={`Add to ${stageName(key)}`} title="Add a task" onClick={() => setAddingAt(`stage:${key}`)}>
+                  <ListPlus />
+                </Button>
+              )}
+            </h3>
+            {cards.map(({ r, n }) => (
+              <div key={r.id} {...dropTarget(`round:${r.id}`)} className={cn("rounded-lg border bg-background p-2.5 shadow-xs", dropAt === `round:${r.id}` && "ring-1 ring-foreground/40")}>
+                {roundHead(r, n, [short(r.scheduled_at), r.interviewer, openCounts(r)].filter(Boolean).join(" · "))}
+                {isOpen(r.id) && roundBody(r, n)}
+              </div>
+            ))}
+            {own.length > 0 && <div className="flex flex-col px-2">{own.map((t, k) => taskRow(t, k, true))}</div>}
+            {/* An empty stage stays narrow: just its name and whether it is behind you. */}
+            {!cards.length && !own.length && <p className="px-1 text-xs text-muted-foreground/60">{i < current ? "Done" : "Nothing yet"}</p>}
+          </section>
+        )
+      })}
+      {inboxTasks.length > 0 && (
+        <section {...dropTarget(`stage:${ANYTIME}`)} className="flex w-56 shrink-0 flex-col gap-2 rounded-xl border border-dashed p-2">
+          <h3 className="flex h-6 items-center gap-2 px-1 text-xs text-muted-foreground">
+            <Inbox className="size-3.5" /> Inbox
+          </h3>
+          <div className="flex flex-col px-2">{inboxTasks.map((t, k) => taskRow(t, k, true))}</div>
+        </section>
+      )}
+    </div>
+  )
+
+  // Timeline: rounds and tasks with a date, oldest first, with today marked;
+  // rounds with no date wait at the end.
+  const today = new Date().toISOString().slice(0, 10)
+  const events = [
+    ...ordered.filter(({ r }) => shownRound(r) && r.scheduled_at).map(({ r, n }) => ({ at: day(r.scheduled_at), r, n })),
+    ...allTasks.filter((t) => t.due_at && (prefs.showDone || !t.done_at)).map((t) => ({ at: day(t.due_at), t })),
+  ].sort((a, b) => a.at.localeCompare(b.at))
+  const undated = ordered.filter(({ r }) => shownRound(r) && !r.scheduled_at)
+  const todayAt = events.findIndex((e) => e.at >= today)
+  const lane = (key: string, date: string, dot: ReactNode, body: ReactNode, k: number) => (
+    <li key={key} style={stagger(k).style} className={cn("grid grid-cols-[56px_16px_minmax(0,1fr)] gap-x-2", stagger(k).className)}>
+      <span className="pt-0.5 text-right text-xs text-muted-foreground tabular-nums">{date}</span>
+      <span className="relative flex justify-center pt-1.5">
+        <span aria-hidden className="absolute inset-y-0 w-px bg-border" />
+        <span className="relative">{dot}</span>
+      </span>
+      <div className="min-w-0 pb-4">{body}</div>
+    </li>
+  )
+  const timeline = (
+    <ol className="flex flex-col">
+      {events.map((e, k) => {
+        const mark =
+          k === todayAt ? (
+            <li key="today" className="grid grid-cols-[56px_16px_minmax(0,1fr)] gap-x-2 pb-3">
+              <span className="text-right text-[11px] font-semibold tracking-wider text-foreground">TODAY</span>
+              <span className="flex justify-center">
+                <span aria-hidden className="mt-1 size-2.5 rounded-full bg-foreground ring-4 ring-foreground/10" />
+              </span>
+              <span className="mt-[9px] h-px bg-foreground/30" />
+            </li>
+          ) : null
+        const row =
+          "r" in e && e.r
+            ? lane(e.r.id, short(e.r.scheduled_at), <span className={cn("block size-2.5 rounded-full border-2 border-foreground bg-background", e.r.done_at && "bg-foreground")} />, <>{roundHead(e.r, e.n, [stageName(e.r.stage), e.r.interviewer, openCounts(e.r)].filter(Boolean).join(" · "), false)}{isOpen(e.r.id) && roundBody(e.r, e.n)}</>, k)
+            : "t" in e && e.t
+              ? lane(e.t.id, short(e.t.due_at), <span className="block size-2.5 rounded-[3px] border border-muted-foreground bg-background" />, taskRow(e.t, 0, true), k)
+              : null
+        return [mark, row]
+      })}
+      {todayAt < 0 &&
+        lane("today", "", <span className="block size-2.5 rounded-full bg-foreground ring-4 ring-foreground/10" />, <span className="text-[11px] font-semibold tracking-wider">TODAY</span>, events.length)}
+      {undated.length > 0 && (
+        <li className="grid grid-cols-[56px_16px_minmax(0,1fr)] gap-x-2 pt-2">
+          <span className="text-right text-xs text-muted-foreground">No date</span>
+          <span />
+          <div className="flex min-w-0 flex-col gap-3">
+            {undated.map(({ r, n }) => (
+              <div key={r.id}>
+                {roundHead(r, n, [stageName(r.stage), r.interviewer, openCounts(r)].filter(Boolean).join(" · "))}
+                {isOpen(r.id) && <div className="pl-4">{roundBody(r, n)}</div>}
+              </div>
+            ))}
+          </div>
+        </li>
+      )}
+      {!events.length && !undated.length && <p className="text-sm text-muted-foreground">No rounds yet.</p>}
+    </ol>
+  )
+
   // All: the inbox and each round's notes as folds beside the outline.
   const allNotes = (
     <article aria-label="Notes" className="min-w-0">
@@ -1510,10 +1647,16 @@ export function OutlineCard({ application, writable, onChange, onSaveNotes, onPa
                 </button>
               )}
             </div>
-            <div className="grid gap-8 pt-2 md:grid-cols-[230px_minmax(0,1fr)]">
-              {outline}
-              {allNotes}
-            </div>
+            {prefs.layout === "board" ? (
+              <div className="pt-2">{board}</div>
+            ) : prefs.layout === "timeline" ? (
+              <div className="pt-2">{timeline}</div>
+            ) : (
+              <div className="grid gap-8 pt-2 md:grid-cols-[230px_minmax(0,1fr)]">
+                {outline}
+                {allNotes}
+              </div>
+            )}
           </>
         )}
         {prefs.view === "rounds" && roundsView}
