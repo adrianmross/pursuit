@@ -15,7 +15,7 @@ import { Die, Sketch, Track } from "@/components/Sketch"
 const noop = () => () => {}
 const HINTS: Pref[] = ["hintProfile", "hintAgent", "hintTerminal", "hintExtension"]
 
-type Tip = { pref: Pref; icon: ReactNode; title: string; description?: ReactNode; action: ReactNode; footer?: ReactNode; stays?: boolean }
+type Tip = { pref: Pref; icon: ReactNode; art: ReactNode; title: string; description?: ReactNode; action: ReactNode; footer?: ReactNode; stays?: boolean }
 
 // One card in the Get started deck, like Robinhood's news cards: icon, title,
 // a line or two, and its action along the bottom.
@@ -37,13 +37,89 @@ function TipCard({ tip, depth, leaving, onDismiss }: { tip: Tip; depth: number; 
       <Button size="icon-sm" variant="ghost" className="absolute top-2 right-2 text-muted-foreground" aria-label={`Dismiss ${tip.title}`} onClick={onDismiss}>
         <X />
       </Button>
-      <div className="flex items-center gap-2.5 pr-8">
-        <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-muted [&_svg]:size-3.5">{tip.icon}</span>
-        <p className="min-w-0 flex-1 truncate font-medium">{tip.title}</p>
-        {tip.action}
+      <div className="flex h-full gap-4">
+        <div className="w-16 shrink-0 self-center">{tip.art}</div>
+        <div className="flex min-w-0 flex-1 flex-col gap-2.5">
+          <div className="flex items-center gap-2.5 pr-8">
+            <p className="min-w-0 flex-1 truncate font-medium">{tip.title}</p>
+            {tip.action}
+          </div>
+          {tip.footer ?? <p className="line-clamp-2 text-muted-foreground">{tip.description}</p>}
+        </div>
       </div>
-      {tip.footer ?? <p className="line-clamp-2 text-muted-foreground">{tip.description}</p>}
     </div>
+  )
+}
+
+// Each card's drawing, in the error pages' hand-drawn style: plain strokes in
+// currentColor with the brand gold and forest, roughened by <Sketch>.
+const ART_STROKE = { stroke: "currentColor", strokeWidth: 2.5, strokeLinecap: "round", strokeLinejoin: "round" } as const
+
+// A résumé with a head-and-shoulders photo and a gold sparkle.
+function ProfileArt() {
+  return (
+    <Sketch viewBox="0 0 64 64" roughness={1.5} className="w-full">
+      <g {...ART_STROKE} transform="rotate(-6 32 34)">
+        <path d="M16 8 H40 L50 18 V58 H16 Z" className="fill-background" />
+        <path d="M40 8 V18 H50" />
+        <circle cx="27" cy="25" r="5" />
+        <path d="M19 38 C19 31 35 31 35 38" />
+        <path d="M21 46 H45 M21 52 H38" />
+      </g>
+      <path d="M52 4 V14 M47 9 H57" stroke="var(--brand-gold)" strokeWidth="3" strokeLinecap="round" />
+    </Sketch>
+  )
+}
+
+// A pawn that's turned robot: two eyes and a gold-tipped antenna, on a forest base.
+function AgentArt() {
+  return (
+    <Sketch viewBox="0 0 64 64" roughness={1.5} className="w-full">
+      <g {...ART_STROKE}>
+        <path d="M32 14 V7" />
+        <path d="M24 34 C22 42 18 48 16 54 H48 C46 48 42 42 40 34" className="fill-background" />
+        <rect x="20" y="14" width="24" height="20" rx="7" className="fill-background" />
+        <path d="M14 54 H50" stroke="var(--brand-forest)" strokeWidth="5" />
+      </g>
+      <circle cx="32" cy="6" r="3.5" fill="var(--brand-gold)" />
+      <circle cx="27" cy="24" r="2.2" fill="currentColor" />
+      <circle cx="37" cy="24" r="2.2" fill="currentColor" />
+    </Sketch>
+  )
+}
+
+// A terminal window with a prompt and a blinking gold cursor.
+function TerminalArt() {
+  return (
+    <Sketch viewBox="0 0 64 64" roughness={1.5} className="w-full">
+      <g {...ART_STROKE} transform="rotate(4 32 32)">
+        <rect x="6" y="12" width="52" height="40" rx="6" className="fill-background" />
+        <path d="M6 22 H58" />
+        <path d="M15 31 L22 37 L15 43" />
+      </g>
+      <g transform="rotate(4 32 32)">
+        <circle cx="12" cy="17" r="1.6" fill="currentColor" />
+        <circle cx="17.5" cy="17" r="1.6" fill="currentColor" />
+        <path d="M27 43 H38" stroke="var(--brand-gold)" strokeWidth="3.5" strokeLinecap="round" className="animate-pulse" />
+      </g>
+    </Sketch>
+  )
+}
+
+// A gold puzzle piece clicking into a browser window.
+function ExtensionArt() {
+  return (
+    <Sketch viewBox="0 0 64 64" roughness={1.5} className="w-full">
+      <g {...ART_STROKE}>
+        <rect x="4" y="10" width="44" height="36" rx="5" className="fill-background" />
+        <path d="M4 19 H48" />
+        <path
+          d="M28 30 H35 A4.5 4.5 0 1 1 44 30 H51 V37 A4.5 4.5 0 1 1 51 46 V54 H28 V46 A4.5 4.5 0 1 0 28 37 Z"
+          fill="var(--brand-gold)"
+          transform="rotate(10 40 42)"
+        />
+      </g>
+    </Sketch>
   )
 }
 
@@ -79,6 +155,7 @@ export function GetStarted() {
           {
             pref: "hintProfile" as Pref,
             icon: <Sparkles />,
+            art: <ProfileArt />,
             title: "Finish your profile",
             description: `Add ${missing.join(" and ")} so prepared applications fill themselves in.`,
             action: (
@@ -94,6 +171,7 @@ export function GetStarted() {
     {
       pref: "hintAgent",
       icon: <Bot />,
+      art: <AgentArt />,
       title: "Connect an agent",
       description: "Copy one prompt into your coding agent. It installs the CLI and signs in with a code you type here.",
       action: (
@@ -108,6 +186,7 @@ export function GetStarted() {
       pref: "hintTerminal",
       stays: true,
       icon: <Terminal />,
+      art: <TerminalArt />,
       title: "Use the terminal",
       // The command is the description: install it, then sign in to this server.
       footer: <CommandBlock command={`brew install adrianmross/tap/pursuit\npursuit auth login${server ? ` --server ${server}` : ""}`} />,
@@ -123,6 +202,7 @@ export function GetStarted() {
       pref: "hintExtension",
       stays: true,
       icon: <Puzzle />,
+      art: <ExtensionArt />,
       title: "Browser extension",
       description: "Save the posting you have open and autofill Greenhouse, Ashby, and Lever forms from this server.",
       action: (
@@ -162,21 +242,19 @@ export function GetStarted() {
       ) : (
         <AllClear />
       )}
-      {kept.length > 0 && (
-        // Quiet rows like the calendar's day list, muted until hovered.
-        <div className="flex flex-col gap-0.5">
+      {(kept.length > 0 || !open.length) && (
+        // Small muted buttons: each kept card brings itself back, and once the deck is empty, See them again brings them all.
+        <div className={`-mt-1 flex flex-wrap gap-1 ${open.length ? "" : "justify-center"}`}>
           {kept.map((t) => (
-            <button
-              key={t.pref}
-              type="button"
-              onClick={() => setPref(t.pref, "on")}
-              className="flex items-center gap-2.5 rounded-md px-1.5 py-1 text-left text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground [&_svg]:size-3.5"
-            >
-              {t.icon}
-              <span className="flex-1">{t.title}</span>
-              <span className="text-xs text-muted-foreground/70">Show</span>
-            </button>
+            <Button key={t.pref} variant="ghost" size="sm" className="text-muted-foreground" onClick={() => setPref(t.pref, "on")}>
+              {t.icon} {t.title}
+            </Button>
           ))}
+          {!open.length && (
+            <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={() => HINTS.forEach((p) => setPref(p, "on"))}>
+              <RotateCcw /> See them again
+            </Button>
+          )}
         </div>
       )}
     </div>
@@ -202,9 +280,6 @@ function AllClear() {
       </Sketch>
       <p className="font-medium">Nothing more to see</p>
       <p className="text-sm text-muted-foreground">You&apos;re all set up.</p>
-      <Button variant="ghost" size="sm" className="mt-1 text-muted-foreground" onClick={() => HINTS.forEach((p) => setPref(p, "on"))}>
-        <RotateCcw /> See them again
-      </Button>
     </div>
   )
 }
