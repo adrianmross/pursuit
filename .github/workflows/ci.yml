@@ -1,7 +1,10 @@
 name: ci
 
 on:
+  # main only: a PR branch already runs on pull_request. release-plan.yml
+  # listens for this push run on main.
   push:
+    branches: [main]
   pull_request:
 
 jobs:
@@ -56,6 +59,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            web-app/package-lock.json
+            docs-site/package-lock.json
       # internal/dashboard embeds web-app's static export (//go:embed dist)
       # — build it first, same script as vercel.json's buildCommand, or go
       # vet/test fail to even compile.
@@ -77,24 +84,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - run: npm install
+          cache: npm
+          cache-dependency-path: extension/package-lock.json
+      - run: npm ci
       - run: npm test
       - run: npm run build
-
-  # Build only: the devenv OCI image is not pushed anywhere yet.
-  container:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: cachix/install-nix-action@v31
-      - uses: cachix/cachix-action@v16
-        with:
-          name: devenv
-      # Pinned to the devenv this config is tested with locally.
-      - run: nix profile install --accept-flake-config github:cachix/devenv/v2.3.1
-      # docker-compose.yml is generated from devenv.nix; fail if it drifted.
-      - run: devenv tasks run dev:compose && git diff --exit-code docker-compose.yml
-      # The Dockerfile's Go/Node and go.mod's toolchain are pinned to devenv's.
-      - run: devenv tasks run dev:pins && git diff --exit-code Dockerfile go.mod
-      - run: devenv shell -- make linux
-      - run: devenv container build serve

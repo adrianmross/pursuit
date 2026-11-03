@@ -14,10 +14,10 @@ set -e
 # set at build time. The Neon integration provides the URL under other names.
 NEXT_PUBLIC_NEON_AUTH_URL=${NEXT_PUBLIC_NEON_AUTH_URL:-${VITE_NEON_AUTH_URL:-$NEON_AUTH_BASE_URL}}
 export NEXT_PUBLIC_NEON_AUTH_URL
-(cd web-app && npm install && npm run build:self-hosted)
+(cd web-app && npm ci && npm run build:self-hosted)
 rm -rf internal/dashboard/dist
 cp -r web-app/out internal/dashboard/dist
-(cd docs-site && npm install && npm run build)
+(cd docs-site && npm ci && npm run build)
 cp -r docs-site/out internal/dashboard/dist/docs
 # Hashed assets also go to public/, which Vercel serves from the CDN before
 # the catch-all rewrite. Otherwise a page load fans out a few dozen function
