@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useRef, useState, type ComponentProps, type ReactNode } from "react"
-import { Check, ChevronLeft, ChevronRight, Copy, FileText, Inbox, ListPlus, Pencil, Plus, SlidersHorizontal, Trash2, X } from "lucide-react"
+import { Check, ChevronLeft, ChevronRight, Copy, FilePlus, FileText, Inbox, ListPlus, Pencil, Plus, SlidersHorizontal, Trash2, X } from "lucide-react"
 import { api } from "@/lib/api-client"
 import { cn } from "@/lib/utils"
 import { label, STAGE_STOPS, type Application, type Interview, type Note, type Page, type Question, type Task } from "@/lib/types"
@@ -15,9 +15,9 @@ import { RoundCounter } from "@/components/detail/notes/RoundCounter"
 import { SegmentedTabs } from "@/components/detail/notes/SegmentedTabs"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Input } from "@/components/ui/input"
+import { Popover as PopoverPrimitive } from "radix-ui"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet"
@@ -66,6 +66,13 @@ function withQuestion(md: string, prompt: string, answer: string) {
 }
 
 // Rows arrive one after another, like the rows in the landing demo.
+// What New file starts from.
+const TEMPLATES = [
+  { name: "Blank", body: "" },
+  { name: "Interview prep", body: "## Prep\n\n## Questions\n\n### A question they might ask?\nYour answer.\n\n## Notes\n" },
+  { name: "Questions", body: "### A question?\nIts answer.\n" },
+]
+
 const stagger = (i = 0) => ({ className: "animate-in fade-in slide-in-from-bottom-1 fill-mode-both duration-300", style: { animationDelay: `${Math.min(i, 12) * 60}ms` } })
 
 // A row that lights up on hover, like the questions list: a title and a line under it.
@@ -240,8 +247,8 @@ function NoteEditor({ md, label: name, placeholder, onSave, onDone }: { md: stri
 }
 
 // A note read as formatted text; Edit on hover swaps in its markdown.
-function NoteBody({ md, writable, label: name, placeholder, onSave, reveal }: { md: string; writable: boolean; label: string; placeholder: string; onSave: (next: string) => Promise<unknown>; reveal: boolean }) {
-  const [editing, setEditing] = useState(false)
+function NoteBody({ md, writable, label: name, placeholder, onSave, reveal, autoEdit = false }: { md: string; writable: boolean; label: string; placeholder: string; onSave: (next: string) => Promise<unknown>; reveal: boolean; autoEdit?: boolean }) {
+  const [editing, setEditing] = useState(autoEdit && writable)
   if (editing) return <NoteEditor md={md} label={name} placeholder={placeholder} onSave={onSave} onDone={() => setEditing(false)} />
   return (
     <div className="group/note relative min-h-6">
@@ -255,9 +262,27 @@ function NoteBody({ md, writable, label: name, placeholder, onSave, reveal }: { 
   )
 }
 
-// One line of the notes: ▸ Title ─── meta, opening to the note. The Show in notes
-// checkbox shows once it is open.
-function Fold({ id, title, meta, open, onToggle, included, onInclude, writable, children }: { id: string; title: string; meta?: string; open: boolean; onToggle: () => void; included?: boolean; onInclude?: (next: boolean) => void; writable: boolean; children: ReactNode }) {
+// A round with no notes offers to start them (Show in notes); once it has
+// some, whether they go into overall.md (Show in overall). The same control
+// in All, the round's details and the Notes tab.
+function NotesToggle({ r, writable, onStart, onPatch }: { r: Interview; writable: boolean; onStart: () => void; onPatch: (body: Record<string, unknown>) => Promise<unknown> }) {
+  if (!r.notes?.trim())
+    return writable ? (
+      <Button variant="ghost" size="xs" className="shrink-0 text-muted-foreground" onClick={onStart}>
+        <FilePlus /> Show in notes
+      </Button>
+    ) : null
+  return (
+    <label className="flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground">
+      <Checkbox checked={r.in_notes !== false} disabled={!writable} onCheckedChange={(v) => void onPatch({ in_notes: v === true })} />
+      Show in overall
+    </label>
+  )
+}
+
+// One line of the notes: ▸ Title ─── meta, opening to the note, with an
+// action such as NotesToggle beside it.
+function Fold({ id, title, meta, open, onToggle, dim, action, children }: { id: string; title: string; meta?: string; open: boolean; onToggle: () => void; dim?: boolean; action?: ReactNode; children: ReactNode }) {
   return (
     <div id={`note-${id}`} className="scroll-mt-24">
       <div className="flex items-center gap-2">
@@ -265,16 +290,11 @@ function Fold({ id, title, meta, open, onToggle, included, onInclude, writable, 
           <span aria-hidden className="w-3 shrink-0 font-mono text-xs text-muted-foreground">
             {open ? "▾" : "▸"}
           </span>
-          <span className={cn("truncate text-sm font-medium", included === false && "font-normal text-muted-foreground")}>{title}</span>
+          <span className={cn("truncate text-sm font-medium", dim && "font-normal text-muted-foreground")}>{title}</span>
           <span aria-hidden className="h-px min-w-4 flex-1 bg-border" />
           <span className="shrink-0 text-xs text-muted-foreground">{meta}</span>
         </button>
-        {onInclude && open && (
-          <label className="flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground">
-            <Checkbox checked={included} disabled={!writable} onCheckedChange={(v) => onInclude(v === true)} />
-            Show in notes
-          </label>
-        )}
+        {action}
       </div>
       {open && <div className="pt-1 pb-3 pl-5">{children}</div>}
     </div>
@@ -298,10 +318,9 @@ function RoundDetails({ r, name, writable, onPatch, onDelete, onOpenNotes, child
           <Checkbox checked={!!r.done_at} disabled={!writable} onCheckedChange={(v) => void onPatch({ done: v === true })} />
           Done
         </label>
-        <label className="flex items-center gap-2">
-          <Checkbox checked={r.in_notes !== false} disabled={!writable} onCheckedChange={(v) => void onPatch({ in_notes: v === true })} />
-          Show in notes
-        </label>
+        <div className="flex items-center justify-between">
+          <NotesToggle r={r} writable={writable} onStart={onOpenNotes} onPatch={onPatch} />
+        </div>
         <div className="flex items-center justify-between">
           <Button variant="outline" size="sm" onClick={onOpenNotes}>
             <FileText /> Open notes
@@ -710,7 +729,14 @@ export function OutlineCard({ application, writable, onChange, onSaveNotes, onPa
   }
   const go = (view: View, noteId?: string) => {
     setPrefs({ view })
-    if (noteId) reveal(noteId)
+    if (view === "notes" && noteId) setNoteFile(noteId)
+    else if (noteId) reveal(noteId)
+  }
+  // Show in notes on a round with none: open it in All, already editing.
+  const [started, setStarted] = useState<string | null>(null)
+  const startNotes = (id: string) => {
+    setStarted(id)
+    reveal(id)
   }
   const addQuestion = (where: string, prompt: string, answer: string): Promise<unknown> => {
     if (where === "about") return onSaveNotes(withQuestion(application.notes || "", prompt, answer))
@@ -1033,7 +1059,7 @@ export function OutlineCard({ application, writable, onChange, onSaveNotes, onPa
   // All: the inbox and each round's notes as folds beside the outline.
   const allNotes = (
     <article aria-label="Notes" className="min-w-0">
-      <Fold id="inbox" title="Inbox" meta={[inboxTasks.length ? `${inboxTasks.length} tasks` : "", looseQuestions.length ? `${looseQuestions.length}?` : ""].filter(Boolean).join(" · ") || "empty"} open={isOpen("inbox")} onToggle={() => toggle("inbox")} writable={writable}>
+      <Fold id="inbox" title="Inbox" meta={[inboxTasks.length ? `${inboxTasks.length} tasks` : "", looseQuestions.length ? `${looseQuestions.length}?` : ""].filter(Boolean).join(" · ") || "empty"} open={isOpen("inbox")} onToggle={() => toggle("inbox")}>
         <div className="flex flex-col">
           {inboxTasks.map((t, i) => taskRow(t, i))}
           {looseQuestions.map((q, i) => (
@@ -1048,12 +1074,21 @@ export function OutlineCard({ application, writable, onChange, onSaveNotes, onPa
           )}
         </div>
       </Fold>
-      <Fold id="about" title="About this application" meta={application.notes ? "" : "empty"} open={isOpen("about")} onToggle={() => toggle("about")} writable={writable}>
+      <Fold id="about" title="About this application" meta={application.notes ? "" : "empty"} open={isOpen("about")} onToggle={() => toggle("about")}>
         <NoteBody md={application.notes || ""} writable={writable} label="Application notes" placeholder={"Anything worth remembering.\n\n### A question not tied to a round?\nIts answer."} onSave={onSaveNotes} reveal={justOpened === "about"} />
       </Fold>
       {notesRounds.map(({ r, n }) => (
-        <Fold key={r.id} id={r.id} title={roundName(r, n)} meta={r.in_notes === false ? "hidden" : meta(r)} open={isOpen(r.id)} onToggle={() => toggle(r.id)} included={r.in_notes !== false} onInclude={(v) => void patch(r, { in_notes: v })} writable={writable}>
-          <NoteBody md={r.notes || ""} writable={writable} label={`${roundName(r, n)} notes`} placeholder={"## Prep\n\n### A question they asked?\nYour answer.\n\n## Notes"} onSave={(notes) => patch(r, { notes })} reveal={justOpened === r.id} />
+        <Fold
+          key={r.id}
+          id={r.id}
+          title={roundName(r, n)}
+          meta={!r.notes?.trim() ? "" : r.in_notes === false ? "not in overall" : meta(r)}
+          open={isOpen(r.id)}
+          onToggle={() => toggle(r.id)}
+          dim={!r.notes?.trim() || r.in_notes === false}
+          action={(isOpen(r.id) || !r.notes?.trim()) && started !== r.id && <NotesToggle r={r} writable={writable} onStart={() => startNotes(r.id)} onPatch={(body) => patch(r, body)} />}
+        >
+          <NoteBody md={r.notes || ""} writable={writable} label={`${roundName(r, n)} notes`} placeholder={"## Prep\n\n### A question they asked?\nYour answer.\n\n## Notes"} onSave={(notes) => patch(r, { notes })} reveal={justOpened === r.id} autoEdit={started === r.id} />
         </Fold>
       ))}
     </article>
@@ -1091,11 +1126,11 @@ export function OutlineCard({ application, writable, onChange, onSaveNotes, onPa
     ...noteFiles.map((f) => ({ id: f.id, name: slug(f.name), md: f.body, file: f })),
     ...writtenRounds.map(({ r, n }) => ({ id: r.id, name: slug(roundName(r, n)), md: r.notes || "", dim: r.in_notes === false, round: r })),
   ]
-  const newBlank = () => {
+  const newFile = (body: string) => {
     const taken = new Set(noteFiles.map((n) => n.name.toLowerCase()))
     let name = "Untitled"
     for (let i = 2; taken.has(name.toLowerCase()); i++) name = `Untitled ${i}`
-    void createFile(name, "").then((n) => setFresh(n.id))
+    void createFile(name, body).then((n) => setFresh(n.id))
   }
   // A new # heading in overall.md named like a round with no notes yet is
   // that round's notes, not a new file.
@@ -1169,32 +1204,39 @@ export function OutlineCard({ application, writable, onChange, onSaveNotes, onPa
           )}
         </div>
       ))}
-      {writable &&
-        (!aboutWritten || unwritten.length ? (
-          // Rounds with no notes have no file yet; New file can start one.
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>{newTile({})}</DropdownMenuTrigger>
-            <DropdownMenuContent side="bottom" className="font-mono text-xs">
-              <DropdownMenuItem onSelect={newBlank}>
-                <FileText /> Blank file
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuLabel className="font-sans text-[11px] font-normal text-muted-foreground">Notes for</DropdownMenuLabel>
-              {!aboutWritten && (
-                <DropdownMenuItem onSelect={() => setNoteFile("about")}>
-                  <FileText /> about.md
-                </DropdownMenuItem>
-              )}
-              {unwritten.map(({ r, n }) => (
-                <DropdownMenuItem key={r.id} onSelect={() => setNoteFile(r.id)}>
-                  <FileText /> {slug(roundName(r, n))}
-                </DropdownMenuItem>
+      {writable && (
+        // Like a word processor's new document: a template, or notes for a
+        // round that has none yet.
+        <Popover>
+          <PopoverTrigger asChild>{newTile({})}</PopoverTrigger>
+          <PopoverContent align="start" side="bottom" className="flex w-80 flex-col gap-3">
+            <div className="grid grid-cols-3 gap-2">
+              {TEMPLATES.map((t) => (
+                <PopoverPrimitive.Close asChild key={t.name}>
+                  <button type="button" onClick={() => newFile(t.body)} className="flex flex-col items-center gap-1.5 rounded-md p-2 text-xs outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring">
+                    <span className="flex h-14 w-11 flex-col gap-1 overflow-hidden rounded-sm border bg-background p-1.5 text-left font-mono text-[5px] leading-tight text-muted-foreground">
+                      {t.body ? t.body.split("\n").filter(Boolean).slice(0, 5).map((l, k) => <span key={k} className="truncate">{l}</span>) : <Plus className="m-auto size-3" />}
+                    </span>
+                    {t.name}
+                  </button>
+                </PopoverPrimitive.Close>
               ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        ) : (
-          newTile({ onClick: newBlank })
-        ))}
+            </div>
+            {(!aboutWritten || unwritten.length > 0) && (
+              <div className="flex flex-col">
+                <span className="px-2 pb-1 text-[11px] text-muted-foreground">Notes for</span>
+                {[...(!aboutWritten ? [{ id: "about", name: "about.md" }] : []), ...unwritten.map(({ r, n }) => ({ id: r.id, name: slug(roundName(r, n)) }))].map((o) => (
+                  <PopoverPrimitive.Close asChild key={o.id}>
+                    <button type="button" onClick={() => setNoteFile(o.id)} className="flex h-7 items-center gap-2 rounded-md px-2 text-left font-mono text-xs outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring">
+                      <FileText className="size-3.5 text-muted-foreground" /> {o.name}
+                    </button>
+                  </PopoverPrimitive.Close>
+                ))}
+              </div>
+            )}
+          </PopoverContent>
+        </Popover>
+      )}
     </nav>
   ) : (
     <div key={picked.id} className={cn("flex min-w-0 flex-col gap-2", stagger().className)}>
@@ -1237,11 +1279,10 @@ export function OutlineCard({ application, writable, onChange, onSaveNotes, onPa
         )}
         {picked.round && <span className="font-sans">· {meta(picked.round)}</span>}
         <span className="flex-1" />
-        {picked.round && writable && (
-          <label className="flex items-center gap-1.5 font-sans">
-            <Checkbox checked={picked.round.in_notes !== false} onCheckedChange={(v) => void patch(picked.round!, { in_notes: v === true })} />
-            Show in overall
-          </label>
+        {picked.round?.notes?.trim() && (
+          <span className="font-sans">
+            <NotesToggle r={picked.round} writable={writable} onStart={() => {}} onPatch={(body) => patch(picked.round!, body)} />
+          </span>
         )}
         {picked.id === "overall" && (
           <button type="button" className="flex items-center gap-1 font-sans hover:text-foreground" onClick={() => setCompiled(true)}>
