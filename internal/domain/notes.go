@@ -137,6 +137,24 @@ func SetRoundQuestion(md, prompt, answer string) string {
 	return appendBlock(md, "## Questions\n\n"+block)
 }
 
+// DemoteHeadings moves every heading outside a code fence one level down, so
+// a round's document can sit under its own heading in the compiled notes.
+func DemoteHeadings(md string) string {
+	lines := strings.Split(md, "\n")
+	fence := false
+	for i, l := range lines {
+		t := strings.TrimSpace(l)
+		if strings.HasPrefix(t, "```") || strings.HasPrefix(t, "~~~") {
+			fence = !fence
+			continue
+		}
+		if !fence && strings.HasPrefix(t, "#") && !strings.HasPrefix(t, "######") {
+			lines[i] = "#" + t
+		}
+	}
+	return strings.Join(lines, "\n")
+}
+
 // AppendNotes adds text at the end as its own paragraph. When the document
 // ends inside a question, the text goes under a new "Notes" heading so it
 // never becomes part of that question's answer.

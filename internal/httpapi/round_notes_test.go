@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"net/http"
+	"strings"
 	"testing"
 )
 
@@ -38,6 +39,29 @@ func TestRoundNotes(t *testing.T) {
 	}
 	if code, stale := e.json(t, http.MethodPatch, path, e.token, map[string]any{"version": 1, "append": "late"}); code != 409 {
 		t.Fatalf("stale version still checked: %d %#v", code, stale)
+	}
+
+	// Compiled notes leave out a round with in_notes false, then take it back.
+	code, compiled := e.json(t, http.MethodGet, "/v1/applications/"+app["id"].(string)+"/notes", e.token, nil)
+	if code != 200 || compiled["left_out"].(float64) != 1 || strings.Contains(compiled["markdown"].(string), "Recruiter call") {
+		t.Fatalf("compiled without the round: %d %#v", code, compiled)
+	}
+	if code, _ = e.json(t, http.MethodPatch, path, e.token, map[string]any{"in_notes": true}); code != 200 {
+		t.Fatal(code)
+	}
+	_, compiled = e.json(t, http.MethodGet, "/v1/applications/"+app["id"].(string)+"/notes", e.token, nil)
+	if md := compiled["markdown"].(string); !strings.Contains(md, "## Recruiter call · Screening") || !strings.Contains(md, "### Prep") || !strings.Contains(md, "#### Why Snowflake?") {
+		t.Fatalf("compiled with the round:\n%s", md)
+	}
+
+	// A task can belong to no stage.
+	code, task := e.json(t, http.MethodPost, "/v1/applications/"+app["id"].(string)+"/tasks", e.token, map[string]any{"title": "Ask about team match", "stage": "anytime"})
+	if code != 201 || task["stage"] != "anytime" {
+		t.Fatalf("anytime task: %d %#v", code, task)
+	}
+	_, got := e.json(t, http.MethodGet, "/v1/applications/"+app["id"].(string), e.token, nil)
+	if tasks := got["tasks"].(map[string]any); tasks["-1"] == nil || tasks["0"] != nil {
+		t.Fatalf("anytime counts apart from Apply: %#v", tasks)
 	}
 
 	code, bank := e.json(t, http.MethodGet, "/v1/questions?q=query+engine", e.token, nil)

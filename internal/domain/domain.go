@@ -750,14 +750,20 @@ type Task struct {
 
 // ParseTaskStage accepts to_apply or any stage a round can sit in. It
 // returns the stored key.
+// TaskAnytime is the stage of a task that belongs to no stage.
+const TaskAnytime = "anytime"
+
 func ParseTaskStage(s string) (string, error) {
+	if strings.EqualFold(strings.TrimSpace(s), TaskAnytime) {
+		return TaskAnytime, nil
+	}
 	if st, err := ParseStatus(s); err == nil && st == StatusToApply {
 		return StatusToApply, nil
 	}
 	if key, err := ParseInterviewStage(s); err == nil {
 		return key, nil
 	}
-	return "", Validation("invalid task stage %q", s).WithHint("stage is to_apply, prepared, applied, screening, interviewing, final, or offer")
+	return "", Validation("invalid task stage %q", s).WithHint("stage is anytime, to_apply, prepared, applied, screening, interviewing, final, or offer")
 }
 
 // TaskStageKey is the stage a task joins by default: the application's

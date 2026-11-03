@@ -1628,6 +1628,67 @@
         "summary": "deprecated alias of POST /v1/applications/{id}/rounds"
       }
     },
+    "/v1/applications/{id}/notes": {
+      "get": {
+        "operationId": "get__v1_applications__id__notes",
+        "responses": {
+          "200": {
+            "description": "JSON body"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "error"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "error"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "error"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "error"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "error"
+          }
+        },
+        "summary": "the application's compiled notes as one markdown document: its own notes, then each round with in_notes true under a ## Kind · Stage · date heading (the round's headings move one level down). Returns {application_id, markdown, rounds, left_out}"
+      }
+    },
     "/v1/applications/{id}/prepare": {
       "post": {
         "operationId": "post__v1_applications__id__prepare",
@@ -2149,7 +2210,7 @@
             "description": "error"
           }
         },
-        "summary": "add a task. title is required. stage is to_apply, prepared, applied, screening, interviewing, final, or offer and defaults to the current stage. due_at is RFC3339 or YYYY-MM-DD"
+        "summary": "add a task. title is required. stage is anytime (no stage), to_apply, prepared, applied, screening, interviewing, final, or offer and defaults to the current stage. due_at is RFC3339 or YYYY-MM-DD"
       }
     },
     "/v1/applications/{id}/transition": {

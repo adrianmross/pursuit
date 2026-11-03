@@ -542,6 +542,10 @@ func (s *Store) stageCounts(ctx context.Context, table string, apps []domain.App
 			byApp[appID] = map[int]domain.InterviewCount{}
 		}
 		n := domain.StageOf(stage)
+		// Anytime tasks have no stage; they count under -1, not Apply.
+		if stage == domain.TaskAnytime {
+			n = -1
+		}
 		sum := byApp[appID][n]
 		byApp[appID][n] = domain.InterviewCount{Done: sum.Done + c.Done, Total: sum.Total + c.Total}
 	}

@@ -232,6 +232,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("PATCH /v1/rounds/{id}", s.updateInterview)
 	mux.HandleFunc("DELETE /v1/rounds/{id}", s.deleteInterview)
 	mux.HandleFunc("GET /v1/questions", s.listRoundQuestions)
+	mux.HandleFunc("GET /v1/applications/{id}/notes", s.compiledNotes)
 	mux.HandleFunc("GET /v1/applications/{id}/tasks", s.listTasks)
 	mux.HandleFunc("POST /v1/applications/{id}/tasks", s.addTask)
 	mux.HandleFunc("GET /v1/tasks/{id}", s.getTask)
@@ -1480,6 +1481,12 @@ func (s *Server) deleteRole(w http.ResponseWriter, r *http.Request) {
 func (s *Server) listInterviews(w http.ResponseWriter, r *http.Request) {
 	pageSlice(w, r, domain.InterviewFields, func(ctx context.Context) ([]domain.Interview, error) {
 		return s.Svc.ListInterviews(ctx, r.PathValue("id"))
+	})
+}
+
+func (s *Server) compiledNotes(w http.ResponseWriter, r *http.Request) {
+	s.getOne(w, r, nil, func(ctx context.Context, id string) (any, error) {
+		return s.Svc.CompiledNotes(ctx, id)
 	})
 }
 

@@ -224,6 +224,23 @@ func cmdApps() *Command {
 			{Name: "delete", Summary: "delete an application", Mutating: true, Usage: "pursuit apps delete <id>", Args: []Arg{{Name: "id", Required: true}}, Flags: []Flag{{Name: "version", Type: "string", Help: "object version"}}, Run: func(e *exec) error {
 				return e.delete("/v1/applications/" + url.PathEscape(e.args[0]))
 			}},
+			{Name: "notes", Summary: "print an application's compiled notes as markdown: its notes, then each round in notes", Usage: "pursuit apps notes <id> > notes.md", Args: []Arg{{Name: "id", Required: true}}, Run: func(e *exec) error {
+				resp, err := e.client.Do(nil, "GET", "/v1/applications/"+url.PathEscape(e.args[0])+"/notes", nil, nil, "", apiclient.Options{})
+				if err != nil {
+					return &exitError{code: 1, message: err.Error(), hint: "check that pursuit serve is running and PURSUIT_SERVER is correct"}
+				}
+				if resp.Status >= 400 {
+					return &exitError{code: exitStatus(resp.Status), raw: resp.Body}
+				}
+				var doc struct {
+					Markdown string `json:"markdown"`
+				}
+				if err := json.Unmarshal(resp.Body, &doc); err != nil {
+					return err
+				}
+				_, err = fmt.Fprint(e.stdout, doc.Markdown)
+				return err
+			}},
 			{Name: "transition", Summary: "change status and append an event", Mutating: true, Usage: "pursuit apps transition <id> --status <status>", Args: []Arg{{Name: "id", Required: true}}, Flags: []Flag{
 				{Name: "status", Type: "string", Help: "target status"},
 				{Name: "version", Type: "string", Help: "object version"},
@@ -662,7 +679,7 @@ func roundCommands() []*Command {
 func cmdTasks() *Command {
 	fields := []Flag{
 		{Name: "title", Type: "string", Help: "what needs doing"},
-		{Name: "stage", Type: "string", Help: "to_apply, prepared, applied, screening, interviewing, final, or offer (default: the application's current stage)"},
+		{Name: "stage", Type: "string", Help: "anytime (no stage), to_apply, prepared, applied, screening, interviewing, final, or offer (default: the application's current stage)"},
 		{Name: "notes", Type: "string", Help: "details"},
 		{Name: "due", Type: "string", Help: "RFC3339 or YYYY-MM-DD"},
 	}

@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"strconv"
 	"strings"
 	"time"
 
@@ -104,6 +105,48 @@ func (s *Service) AddInterview(ctx context.Context, appID string, in InterviewIn
 		return s.audit(ctx, a, "interview.create", "interview", iv.ID, iv.Stage+" "+app.Title, map[string]any{"application_id": appID})
 	})
 	return iv, err
+}
+
+// CompiledNotes is one markdown document for an application: its own notes,
+// then each round with in_notes set, under a heading naming the round.
+func (s *Service) CompiledNotes(ctx context.Context, appID string) (map[string]any, error) {
+	a, err := s.actor(ctx, false)
+	if err != nil {
+		return nil, err
+	}
+	app, err := s.DB.GetApplication(ctx, a.UserID, appID)
+	if err != nil {
+		return nil, err
+	}
+	rounds, err := s.DB.ListInterviews(ctx, a.UserID, appID)
+	if err != nil {
+		return nil, err
+	}
+	var b strings.Builder
+	b.WriteString("# " + app.Company + " · " + app.Title + "\n")
+	if n := strings.TrimSpace(app.Notes); n != "" {
+		b.WriteString("\n" + n + "\n")
+	}
+	included := 0
+	for i, r := range rounds {
+		if !r.InNotes {
+			continue
+		}
+		included++
+		title := r.Kind
+		if title == "" {
+			title = "Round " + strconv.Itoa(i+1)
+		}
+		parts := []string{title, domain.StatusLabel(r.Stage)}
+		if r.ScheduledAt != nil {
+			parts = append(parts, r.ScheduledAt.Format("2006-01-02"))
+		}
+		b.WriteString("\n## " + strings.Join(parts, " · ") + "\n")
+		if n := strings.TrimSpace(r.Notes); n != "" {
+			b.WriteString("\n" + domain.DemoteHeadings(n) + "\n")
+		}
+	}
+	return map[string]any{"application_id": app.ID, "markdown": b.String(), "rounds": included, "left_out": len(rounds) - included}, nil
 }
 
 func (s *Service) ListInterviews(ctx context.Context, appID string) ([]domain.Interview, error) {

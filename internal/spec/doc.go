@@ -160,6 +160,7 @@ func build() []byte {
 	add("/v1/applications/{id}/rounds", "post", "add a round. stage is prepared, applied, screening, interviewing, final, or offer and defaults to the current stage. notes is the round's markdown document; prep is written as its ## Prep section", true, nil)
 	add("/v1/rounds/{id}", "get", "get a round. notes is one markdown document (prep, transcript, questions). questions [{prompt, answer}] is parsed from it: a heading ending in ? is a question, the text under it until the next heading is the answer", false, nil)
 	add("/v1/rounds/{id}", "patch", "update a round. notes replaces the whole document and requires body.version. These edit part of it and take version only as an optional check, applied in this order: prep sets the ## Prep section; set_question {prompt, answer} replaces that question's answer or adds it under ## Questions (a missing ? is added); append adds text at the end of the document, under a new ## Notes heading when it would otherwise extend the last question's answer. in_notes false folds the round to one line in the application's notes outline. done true/false marks it done", true, nil)
+	add("/v1/applications/{id}/notes", "get", "the application's compiled notes as one markdown document: its own notes, then each round with in_notes true under a ## Kind · Stage · date heading (the round's headings move one level down). Returns {application_id, markdown, rounds, left_out}", false, nil)
 	add("/v1/questions", "get", "the question bank: every question in every round's notes, newest round first, with round_id, application_id, company, title, stage and kind. q filters prompt, answer, company and title; limit, cursor, fields", false, nil)
 	add("/v1/rounds/{id}", "delete", "delete a round; version query or If-Match", true, nil)
 	deprecated := map[string]any{"deprecated": true}
@@ -169,7 +170,7 @@ func build() []byte {
 	add("/v1/interviews/{id}", "patch", "deprecated alias of PATCH /v1/rounds/{id}", true, deprecated)
 	add("/v1/interviews/{id}", "delete", "deprecated alias of DELETE /v1/rounds/{id}", true, deprecated)
 	add("/v1/applications/{id}/tasks", "get", "list an application's tasks, the things waiting on you. limit, cursor, fields; no limit returns all", false, nil)
-	add("/v1/applications/{id}/tasks", "post", "add a task. title is required. stage is to_apply, prepared, applied, screening, interviewing, final, or offer and defaults to the current stage. due_at is RFC3339 or YYYY-MM-DD", true, nil)
+	add("/v1/applications/{id}/tasks", "post", "add a task. title is required. stage is anytime (no stage), to_apply, prepared, applied, screening, interviewing, final, or offer and defaults to the current stage. due_at is RFC3339 or YYYY-MM-DD", true, nil)
 	add("/v1/tasks/{id}", "get", "get a task", false, nil)
 	add("/v1/tasks/{id}", "patch", "update a task; body.version is required. done true/false marks it done", true, nil)
 	add("/v1/tasks/{id}", "delete", "delete a task; version query or If-Match", true, nil)
