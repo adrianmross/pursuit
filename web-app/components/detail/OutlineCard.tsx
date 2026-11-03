@@ -1086,7 +1086,12 @@ export function OutlineCard({ application, writable, onChange, onSaveNotes, onPa
           return (
             <li key={key} className="flex flex-col">
               <div {...dropTarget(`stage:${key}`)} className={cn("group flex h-8 items-center gap-1 rounded-md px-2 hover:bg-muted", dropAt === `stage:${key}` && "bg-muted ring-1 ring-foreground/30")}>
-                <button type="button" className="flex min-w-0 flex-1 items-center gap-2 rounded-sm text-left text-[13px] outline-none focus-visible:ring-2 focus-visible:ring-ring" aria-expanded={hasKids ? !shut[key] : undefined} onClick={() => hasKids && setShut((x) => ({ ...x, [key]: !x[key] }))}>
+                <button type="button" className="flex min-w-0 flex-1 items-center gap-2 rounded-sm text-left text-[13px] outline-none focus-visible:ring-2 focus-visible:ring-ring" aria-expanded={hasKids ? !shut[key] : undefined} onClick={() => {
+                    if (!hasKids) return
+                    // Folding a stage folds its rounds on the right too.
+                    if (!shut[key]) setOpen((o) => ({ ...o, ...Object.fromEntries(stored.map((r) => [r.id, false])) }))
+                    setShut((x) => ({ ...x, [key]: !x[key] }))
+                  }}>
                   <RoundPie className="size-4 shrink-0" total={offer ? 1 : Math.max(1, stored.length)} done={stored.length ? stored.filter((r) => r.done_at).length : i <= current ? 1 : 0} />
                   <span className={cn("truncate", i === current ? "font-semibold" : i > current && "text-muted-foreground")}>{name}</span>
                 </button>
