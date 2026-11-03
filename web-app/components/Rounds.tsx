@@ -153,8 +153,10 @@ export function useTasks(appId: string, stage: number, onChange?: () => Promise<
   const toggle = (t: Task) =>
     run(() => api(`/v1/tasks/${encodeURIComponent(t.id)}`, { method: "PATCH", body: { version: t.version, done: !t.done_at } }))
   const remove = (t: Task) => run(() => api(`/v1/tasks/${encodeURIComponent(t.id)}?version=${t.version}`, { method: "DELETE" }))
+  const rename = (t: Task, title: string) =>
+    run(() => api(`/v1/tasks/${encodeURIComponent(t.id)}`, { method: "PATCH", body: { version: t.version, title } }))
 
-  return { list, busy, error, fetchTasks, forStage, add, toggle, remove }
+  return { list, busy, error, fetchTasks, forStage, add, toggle, remove, rename }
 }
 
 export type TasksApi = ReturnType<typeof useTasks>

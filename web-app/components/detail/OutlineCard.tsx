@@ -65,6 +65,87 @@ function withQuestion(md: string, prompt: string, answer: string) {
   return `${md.trimEnd()}${md.trim() ? "\n\n" : ""}### ${p}\n${answer.trim()}\n`
 }
 
+// One question changed in place: its heading renamed and the text under it,
+// up to the next heading, replaced. A question not there yet is added.
+function editQuestion(md: string, from: string, prompt: string, answer: string) {
+  const p = prompt.trim().endsWith("?") ? prompt.trim() : `${prompt.trim()}?`
+  const lines = md.split("\n")
+  const heading = (l: string) => l.match(/^\s*(#{1,6})\s+(.*?)\s*#*\s*$/)
+  const i = lines.findIndex((l) => heading(l)?.[2] === from)
+  if (i < 0) return withQuestion(md, p, answer)
+  let j = i + 1
+  while (j < lines.length && !heading(lines[j])) j++
+  const body = answer.trim() ? [answer.trim(), ""] : [""]
+  return [...lines.slice(0, i), `${heading(lines[i])![1]} ${p}`, ...body, ...lines.slice(j)].join("\n").replace(/\n{3,}/g, "\n\n")
+}
+
+// A question as a row: click shows the whole answer, double-click edits the
+// question and its answer right there.
+function QuestionRow({ q, index, writable, onSave, onOpen }: { q: Q; index: number; writable: boolean; onSave: (prompt: string, answer: string) => Promise<unknown>; onOpen?: () => void }) {
+  const [open, setOpen] = useState(false)
+  const [editing, setEditing] = useState(false)
+  const [prompt, setPrompt] = useState(q.prompt)
+  const [answer, setAnswer] = useState(q.answer)
+  const anim = stagger(index)
+  const start = () => {
+    if (!writable) return
+    setPrompt(q.prompt)
+    setAnswer(q.answer)
+    cancelled.current = false
+    setEditing(true)
+  }
+  // Esc unmounts the fields, which can blur them: that must not save.
+  const cancelled = useRef(false)
+  const save = async () => {
+    if (cancelled.current) return
+    setEditing(false)
+    if (prompt.trim() && (prompt.trim() !== q.prompt || answer.trim() !== q.answer.trim())) await onSave(prompt, answer)
+  }
+  if (editing)
+    return (
+      <div
+        className="-mx-2 flex flex-col gap-1 rounded-md bg-muted px-2 py-1.5"
+        onBlur={(e) => !e.currentTarget.contains(e.relatedTarget) && void save()}
+        onKeyDown={(e) => {
+          if (e.key === "Escape") {
+            cancelled.current = true
+            setEditing(false)
+          }
+          if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) void save()
+        }}
+      >
+        <input autoFocus aria-label="Question" className="bg-transparent text-sm font-medium outline-none" value={prompt} onChange={(e) => setPrompt(e.target.value)} onKeyDown={(e) => e.key === "Enter" && !e.metaKey && (e.preventDefault(), (e.currentTarget.nextElementSibling as HTMLElement | null)?.focus())} />
+        <textarea aria-label="Answer" placeholder="Your answer" className="field-sizing-content min-h-6 resize-none bg-transparent text-sm text-muted-foreground outline-none placeholder:italic" value={answer} onChange={(e) => setAnswer(e.target.value)} />
+        <span className="text-[11px] text-muted-foreground/70">⌘↵ or click out saves · Esc cancels</span>
+      </div>
+    )
+  return (
+    <div style={anim.style} className={cn("group -mx-2 rounded-md px-2 py-1.5 hover:bg-muted", anim.className)} onDoubleClick={start}>
+      <button type="button" className="flex w-full flex-col text-left outline-none focus-visible:ring-2 focus-visible:ring-ring" onClick={() => setOpen((o) => !o)} aria-expanded={open} title={writable ? "Double-click to edit" : undefined}>
+        <span className="truncate text-sm font-medium">{q.prompt}</span>
+        {!open && <span className={cn("line-clamp-2 text-sm text-muted-foreground", !q.answer && "italic")}>{q.answer || "No answer yet"}</span>}
+      </button>
+      {open && (
+        <div className="flex flex-col gap-1 pt-1">
+          {q.answer ? <Markdown md={q.answer} className="text-muted-foreground" /> : <p className="text-sm text-muted-foreground italic">No answer yet</p>}
+          <span className="flex gap-3 text-xs text-muted-foreground">
+            {writable && (
+              <button type="button" className="hover:text-foreground" onClick={start}>
+                Edit
+              </button>
+            )}
+            {onOpen && (
+              <button type="button" className="hover:text-foreground" onClick={onOpen}>
+                Open in notes
+              </button>
+            )}
+          </span>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // Rows arrive one after another, like the rows in the landing demo.
 // What New file starts from.
 const TEMPLATES = [
@@ -553,6 +634,7 @@ export function OutlineCard({ application, writable, onChange, onSaveNotes, onPa
   const [open, setOpen] = useState<Record<string, boolean>>({})
   const [justOpened, setJustOpened] = useState<string | null>(null)
   const [marked, setMarked] = useState<string | null>(null)
+  const [editTask, setEditTask] = useState<string | null>(null)
   const [addingAt, setAddingAt] = useState<string | null>(null)
   // Switching to a shorter view would pull the page up under you when you are
   // scrolled near the bottom. Hold the old height, then let it go only as far
@@ -743,6 +825,12 @@ export function OutlineCard({ application, writable, onChange, onSaveNotes, onPa
     const r = all.find((x) => x.id === where)
     return r ? patch(r, { set_question: { prompt, answer } }) : Promise.resolve()
   }
+  const saveQuestion = (where: string, from: string, prompt: string, answer: string): Promise<unknown> => {
+    if (where === "about") return onSaveNotes(editQuestion(application.notes || "", from, prompt, answer))
+    const r = all.find((x) => x.id === where)
+    if (!r) return Promise.resolve()
+    return prompt.trim().replace(/\?*$/, "?") === from ? patch(r, { set_question: { prompt: from, answer } }) : patch(r, { notes: editQuestion(r.notes || "", from, prompt, answer) })
+  }
   const places = [{ id: "about", name: "Not tied to a round" }, ...ordered.map(({ r, n }) => ({ id: r.id, name: `${roundName(r, n)} · ${stageName(r.stage)}` }))]
   const meta = (r: Interview) => [stageName(r.stage), short(r.scheduled_at), r.questions?.length ? `${r.questions.length}?` : ""].filter(Boolean).join(" · ")
 
@@ -757,7 +845,7 @@ export function OutlineCard({ application, writable, onChange, onSaveNotes, onPa
       <div
         key={t.id}
         id={`task-${t.id}`}
-        draggable={writable}
+        draggable={writable && editTask !== t.id}
         onDragStart={(e) => {
           e.dataTransfer.setData("text/x-pursuit-task", t.id)
           e.dataTransfer.effectAllowed = "move"
@@ -767,7 +855,30 @@ export function OutlineCard({ application, writable, onChange, onSaveNotes, onPa
         className={cn("group relative -mx-2 flex scroll-mt-24 items-center gap-2.5 rounded-md px-2 hover:bg-muted", compact ? "min-h-7 text-[13px]" : "min-h-9 text-sm", anim.className, isMarked && "marked-glow")}
       >
         <Checkbox aria-label={`Done: ${t.title}`} checked={!!t.done_at} disabled={!writable} onCheckedChange={() => void tasks.toggle(t)} />
-        <span className={cn("min-w-0 flex-1 truncate", t.done_at && "text-muted-foreground line-through")}>{t.title}</span>
+        {editTask === t.id ? (
+          <input
+            autoFocus
+            aria-label="Task"
+            defaultValue={t.title}
+            className="min-w-0 flex-1 rounded-sm bg-background px-1 outline-none"
+            onBlur={(e) => {
+              const v = e.currentTarget.value.trim()
+              setEditTask(null)
+              if (v && v !== t.title) void tasks.rename(t, v)
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") e.currentTarget.blur()
+              if (e.key === "Escape") {
+                e.currentTarget.value = t.title
+                e.currentTarget.blur()
+              }
+            }}
+          />
+        ) : (
+          <span onDoubleClick={() => writable && setEditTask(t.id)} title={writable ? "Double-click to edit" : undefined} className={cn("min-w-0 flex-1 truncate", writable && "cursor-text", t.done_at && "text-muted-foreground line-through")}>
+            {t.title}
+          </span>
+        )}
         {!compact && t.round_id && <span className="shrink-0 text-xs text-muted-foreground">{roundOf(t)}</span>}
         {!compact && t.id === nextTask?.id && <span className="text-[10px] font-semibold tracking-wider text-muted-foreground">NEXT</span>}
         {writable && (
@@ -841,7 +952,7 @@ export function OutlineCard({ application, writable, onChange, onSaveNotes, onPa
         <section key={g.id} id={`mark-${g.id}`} onMouseEnter={() => marked === g.id && setMarked(null)} className={cn("-mx-2 flex scroll-mt-24 flex-col rounded-lg px-2 py-1", marked === g.id && "marked-glow")}>
           <h3 className="pb-1 text-xs text-muted-foreground">{g.title}</h3>
           {g.items.map((q, i) => (
-            <Row key={q.prompt} index={i} title={q.prompt} sub={<span className={cn(!q.answer && "italic")}>{q.answer || "No answer yet"}</span>} onClick={() => go("notes", g.id)} />
+            <QuestionRow key={q.prompt} q={q} index={i} writable={writable} onSave={(prompt, answer) => saveQuestion(g.id, q.prompt, prompt, answer)} onOpen={() => go("notes", g.id)} />
           ))}
         </section>
       ))}
@@ -1063,7 +1174,7 @@ export function OutlineCard({ application, writable, onChange, onSaveNotes, onPa
         <div className="flex flex-col">
           {inboxTasks.map((t, i) => taskRow(t, i))}
           {looseQuestions.map((q, i) => (
-            <Row key={q.prompt} index={inboxTasks.length + i} title={q.prompt} sub={<span className={cn(!q.answer && "italic")}>{q.answer || "No answer yet"}</span>} onClick={() => reveal("about")} />
+            <QuestionRow key={q.prompt} q={q} index={inboxTasks.length + i} writable={writable} onSave={(prompt, answer) => saveQuestion("about", q.prompt, prompt, answer)} onOpen={() => reveal("about")} />
           ))}
           {!inboxTasks.length && !looseQuestions.length && <p className="text-sm text-muted-foreground">Tasks with no stage and questions not tied to a round land here.</p>}
           {writable && (
