@@ -552,7 +552,7 @@ function ViewOptions({ prefs, onChange }: { prefs: Prefs; onChange: (p: Partial<
       </PopoverTrigger>
       <PopoverContent align="end" className="flex w-64 flex-col gap-3">
         <label className={row}>
-          Show done tasks
+          Show done and answered
           <Switch checked={prefs.showDone} onCheckedChange={(v) => onChange({ showDone: v })} />
         </label>
         <label className={row}>
@@ -1082,7 +1082,9 @@ export function OutlineCard({ application, writable, onChange, onSaveNotes, onPa
           const stored = rounds.storedFor(all, key)
           const offer = i === STAGE_STOPS.length - 1
           const own = allTasks.filter((t) => t.stage === key && !t.round_id && (prefs.showDone || !t.done_at))
-          const hasKids = stored.length > 0 || own.length > 0
+          // Done rounds leave the outline (the pie still counts them) unless Show done is on.
+          const shown = (r: Interview) => prefs.showDone || !r.done_at
+          const hasKids = stored.some(shown) || own.length > 0
           return (
             <li key={key} className="flex flex-col">
               <div {...dropTarget(`stage:${key}`)} className={cn("group flex h-8 items-center gap-1 rounded-md px-2 hover:bg-muted", dropAt === `stage:${key}` && "bg-muted ring-1 ring-foreground/30")}>
@@ -1098,7 +1100,7 @@ export function OutlineCard({ application, writable, onChange, onSaveNotes, onPa
                 {shut[key] && hasKids && (
                   // Folded: what is under it, until hover brings the actions back.
                   (() => {
-                    const q = stored.reduce((m, r) => m + (r.questions?.length ?? 0), 0)
+                    const q = stored.filter(shown).reduce((m, r) => m + (r.questions ?? []).filter((x) => prefs.showDone || !x.answer?.trim()).length, 0)
                     const t = allTasks.filter((x) => x.stage === key && !x.done_at).length
                     const full = [stored.length && `${stored.length} ${stored.length === 1 ? "round" : "rounds"}`, q && `${q} ${q === 1 ? "question" : "questions"}`, t && `${t} open ${t === 1 ? "task" : "tasks"}`].filter(Boolean).join(", ")
                     return (
@@ -1141,7 +1143,9 @@ export function OutlineCard({ application, writable, onChange, onSaveNotes, onPa
               {!shut[key] && (
                 <div className="ml-[15px] flex flex-col border-l pl-3">
                   {stored.map((r, n) => {
+                    if (!shown(r)) return null
                     const rt = allTasks.filter((t) => t.round_id === r.id && (prefs.showDone || !t.done_at))
+                    const rq = (r.questions ?? []).filter((q) => prefs.showDone || !q.answer?.trim())
                     return (
                       <div key={r.id} className="flex flex-col">
                         <div {...dropTarget(`round:${r.id}`)} className={cn("group flex h-7 items-center gap-1 rounded-md pr-2 hover:bg-muted", dropAt === `round:${r.id}` && "bg-muted ring-1 ring-foreground/30")}>
@@ -1174,10 +1178,10 @@ export function OutlineCard({ application, writable, onChange, onSaveNotes, onPa
                             </span>
                           )}
                         </div>
-                        {(rt.length > 0 || !!r.questions?.length) && (
+                        {(rt.length > 0 || rq.length > 0) && (
                           <div className="flex flex-col pl-6">
                             {rt.map((t, k) => taskRow(t, k, true))}
-                            {(r.questions ?? []).map((q, k) => (
+                            {rq.map((q, k) => (
                               <div key={q.prompt} style={stagger(rt.length + k).style} className={cn("group -mx-2 flex min-h-7 items-center gap-1 rounded-md px-2 hover:bg-muted", stagger(rt.length + k).className)}>
                                 <button type="button" className="flex min-w-0 flex-1 items-center gap-2.5 rounded-sm text-left text-[13px] outline-none focus-visible:ring-2 focus-visible:ring-ring" onClick={() => reveal(r.id)}>
                                   <span aria-hidden className={cn("flex size-4 shrink-0 items-center justify-center rounded-full border text-[10px] font-semibold", q.answer ? "border-foreground/40 text-muted-foreground" : "border-dashed border-foreground")}>?</span>
