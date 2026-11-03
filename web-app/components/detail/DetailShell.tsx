@@ -177,7 +177,7 @@ export function DetailShell({ id, initial, children }: { id: string; initial: De
   if (notFound) return <p className="text-sm text-destructive">That application doesn&apos;t exist.</p>
 
   return (
-    <div className="mx-auto flex max-w-3xl flex-col gap-4">
+    <div className="mx-auto flex max-w-4xl flex-col gap-4">
       {!application ? (
         <>
           <HeaderSkeleton />
