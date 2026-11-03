@@ -19,5 +19,10 @@ rm -rf internal/dashboard/dist
 cp -r web-app/out internal/dashboard/dist
 (cd docs-site && npm install && npm run build)
 cp -r docs-site/out internal/dashboard/dist/docs
-mkdir -p public
-echo 'served by api/index.go' > public/.keep
+# Hashed assets also go to public/, which Vercel serves from the CDN before
+# the catch-all rewrite. Otherwise a page load fans out a few dozen function
+# invocations that all queue behind one cold boot. Pages stay on the function.
+mkdir -p public/docs
+echo 'pages are served by api/index.go' > public/.keep
+cp -r web-app/out/_next web-app/out/brand public/
+cp -r docs-site/out/_next public/docs/

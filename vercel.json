@@ -7,6 +7,16 @@
   "rewrites": [
     { "source": "/(.*)", "destination": "/api/index.go" }
   ],
+  "headers": [
+    {
+      "source": "/_next/static/(.*)",
+      "headers": [{ "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }]
+    },
+    {
+      "source": "/docs/_next/static/(.*)",
+      "headers": [{ "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }]
+    }
+  ],
   "crons": [
     { "path": "/v1/cron/links", "schedule": "0 8 * * *" }
   ],
