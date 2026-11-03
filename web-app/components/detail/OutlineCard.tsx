@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useRef, useState, type ComponentProps, type ReactNode } from "react"
-import { Check, ChevronLeft, ChevronRight, Copy, FilePlus, FileText, Inbox, ListPlus, Pencil, Plus, SlidersHorizontal, Trash2, X } from "lucide-react"
+import { Check, ChevronLeft, ChevronRight, Copy, FilePlus, FileText, Inbox, ListPlus, Plus, SlidersHorizontal, Trash2, X } from "lucide-react"
 import { api } from "@/lib/api-client"
 import { cn } from "@/lib/utils"
 import { label, STAGE_STOPS, type Application, type Interview, type Note, type Page, type Question, type Task } from "@/lib/types"
@@ -18,7 +18,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Input } from "@/components/ui/input"
 import { Popover as PopoverPrimitive } from "radix-ui"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Popover, PopoverAnchor, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { Switch } from "@/components/ui/switch"
@@ -79,9 +79,21 @@ function editQuestion(md: string, from: string, prompt: string, answer: string) 
   return [...lines.slice(0, i), `${heading(lines[i])![1]} ${p}`, ...body, ...lines.slice(j)].join("\n").replace(/\n{3,}/g, "\n\n")
 }
 
+// A question taken out: its heading and the text under it, up to the next
+// heading.
+function dropQuestion(md: string, prompt: string) {
+  const lines = md.split("\n")
+  const heading = (l: string) => /^\s*#{1,6}\s/.test(l)
+  const i = lines.findIndex((l) => heading(l) && l.replace(/^\s*#+\s+/, "").replace(/\s*#*\s*$/, "") === prompt)
+  if (i < 0) return md
+  let j = i + 1
+  while (j < lines.length && !heading(lines[j])) j++
+  return [...lines.slice(0, i), ...lines.slice(j)].join("\n").replace(/\n{3,}/g, "\n\n").trim()
+}
+
 // A question as a row: click shows the whole answer, double-click edits the
 // question and its answer right there.
-function QuestionRow({ q, index, writable, onSave, onOpen }: { q: Q; index: number; writable: boolean; onSave: (prompt: string, answer: string) => Promise<unknown>; onOpen?: () => void }) {
+function QuestionRow({ q, index, writable, onSave, onDelete, onOpen }: { q: Q; index: number; writable: boolean; onSave: (prompt: string, answer: string) => Promise<unknown>; onDelete: () => void; onOpen?: () => void }) {
   const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState(false)
   const [prompt, setPrompt] = useState(q.prompt)
@@ -120,8 +132,13 @@ function QuestionRow({ q, index, writable, onSave, onOpen }: { q: Q; index: numb
       </div>
     )
   return (
-    <div style={anim.style} className={cn("group -mx-2 rounded-md px-2 py-1.5 hover:bg-muted", anim.className)} onDoubleClick={start}>
-      <button type="button" className="flex w-full flex-col text-left outline-none focus-visible:ring-2 focus-visible:ring-ring" onClick={() => setOpen((o) => !o)} aria-expanded={open} title={writable ? "Double-click to edit" : undefined}>
+    <div style={anim.style} className={cn("group relative -mx-2 rounded-md px-2 py-1.5 hover:bg-muted", anim.className)} onDoubleClick={start}>
+      {writable && (
+        <Button variant="ghost" size="icon-xs" className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 focus-visible:opacity-100" aria-label={`Delete ${q.prompt}`} onClick={onDelete} onDoubleClick={(e) => e.stopPropagation()}>
+          <X />
+        </Button>
+      )}
+      <button type="button" className="flex w-full flex-col pr-6 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring" onClick={() => setOpen((o) => !o)} aria-expanded={open} title={writable ? "Double-click to edit" : undefined}>
         <span className="truncate text-sm font-medium">{q.prompt}</span>
         {!open && <span className={cn("line-clamp-2 text-sm text-muted-foreground", !q.answer && "italic")}>{q.answer || "No answer yet"}</span>}
       </button>
@@ -296,49 +313,49 @@ function AddQuestionRow({ places, onAdd }: { places: { id: string; name: string 
   )
 }
 
-function NoteEditor({ md, label: name, placeholder, onSave, onDone }: { md: string; label: string; placeholder?: string; onSave: (next: string) => Promise<unknown>; onDone: () => void }) {
-  const [draft, setDraft] = useState(md)
-  const [saving, setSaving] = useState(false)
-  return (
-    <div className="flex flex-col gap-2">
-      <Textarea autoFocus aria-label={name} className="min-h-28 font-mono text-[13px] leading-relaxed" rows={Math.max(5, draft.split("\n").length + 1)} placeholder={placeholder} value={draft} onChange={(e) => setDraft(e.target.value)} />
-      <div className="flex items-center gap-2">
-        <Button
-          size="xs"
-          disabled={saving}
-          onClick={async () => {
-            setSaving(true)
-            try {
-              await onSave(draft)
-              onDone()
-            } finally {
-              setSaving(false)
-            }
-          }}
-        >
-          Save
-        </Button>
-        <Button size="xs" variant="ghost" onClick={onDone}>
-          Cancel
-        </Button>
-        <span className="flex-1 text-right text-xs text-muted-foreground">Markdown. A heading that ends in ? is a question.</span>
-      </div>
-    </div>
-  )
-}
 
-// A note read as formatted text; Edit on hover swaps in its markdown.
+// A note read as formatted text; double-click edits its markdown right
+// there, like a question. Click out or ⌘↵ saves, Esc cancels.
 function NoteBody({ md, writable, label: name, placeholder, onSave, reveal, autoEdit = false }: { md: string; writable: boolean; label: string; placeholder: string; onSave: (next: string) => Promise<unknown>; reveal: boolean; autoEdit?: boolean }) {
   const [editing, setEditing] = useState(autoEdit && writable)
-  if (editing) return <NoteEditor md={md} label={name} placeholder={placeholder} onSave={onSave} onDone={() => setEditing(false)} />
+  const [draft, setDraft] = useState(md)
+  const cancelled = useRef(false)
+  const start = () => {
+    if (!writable) return
+    setDraft(md)
+    cancelled.current = false
+    setEditing(true)
+  }
+  const save = () => {
+    if (cancelled.current) return
+    setEditing(false)
+    if (draft.trim() !== md.trim()) void onSave(draft.trim())
+  }
+  if (editing)
+    return (
+      <div className="-mx-2 flex flex-col gap-1 rounded-md bg-muted px-2 py-1.5">
+        <textarea
+          autoFocus
+          aria-label={name}
+          placeholder={placeholder}
+          className="field-sizing-content min-h-6 resize-none bg-transparent text-sm leading-relaxed outline-none placeholder:text-muted-foreground/60"
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={save}
+          onKeyDown={(e) => {
+            if (e.key === "Escape") {
+              cancelled.current = true
+              setEditing(false)
+            }
+            if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) save()
+          }}
+        />
+        <span className="text-[11px] text-muted-foreground/70">Markdown · a heading that ends in ? is a question · ⌘↵ or click out saves · Esc cancels</span>
+      </div>
+    )
   return (
-    <div className="group/note relative min-h-6">
-      <Markdown md={md} active={reveal} />
-      {writable && (
-        <Button variant="outline" size="xs" className="absolute top-0 right-0 opacity-0 group-hover/note:opacity-100 focus-visible:opacity-100" onClick={() => setEditing(true)}>
-          <Pencil /> Edit
-        </Button>
-      )}
+    <div className={cn("-mx-2 min-h-6 rounded-md px-2 py-1", writable && "cursor-text hover:bg-muted/60")} onDoubleClick={start} title={writable ? "Double-click to edit" : undefined}>
+      {md.trim() ? <Markdown md={md} active={reveal} /> : <p className="text-sm text-muted-foreground italic">{writable ? "Double-click to write" : "Nothing written yet."}</p>}
     </div>
   )
 }
@@ -383,10 +400,10 @@ function Fold({ id, title, meta, open, onToggle, dim, action, children }: { id: 
 }
 
 // A round's details, one click away instead of on the page.
-function RoundDetails({ r, name, writable, onPatch, onDelete, onOpenNotes, children }: { r: Interview; name: string; writable: boolean; onPatch: (body: Record<string, unknown>) => Promise<unknown>; onDelete: () => void; onOpenNotes: () => void; children: ReactNode }) {
+function RoundDetails({ r, name, writable, onPatch, onDelete, onOpenNotes, open, onOpenChange, children }: { r: Interview; name: string; writable: boolean; onPatch: (body: Record<string, unknown>) => Promise<unknown>; onDelete: () => void; onOpenNotes: () => void; open?: boolean; onOpenChange?: (open: boolean) => void; children: ReactNode }) {
   return (
-    <Popover>
-      <PopoverTrigger asChild>{children}</PopoverTrigger>
+    <Popover open={open} onOpenChange={onOpenChange}>
+      {open === undefined ? <PopoverTrigger asChild>{children}</PopoverTrigger> : <PopoverAnchor asChild>{children}</PopoverAnchor>}
       <PopoverContent align="start" side="right" className="flex w-72 flex-col gap-3 text-sm">
         <InlineText value={r.kind || ""} placeholder={name} label="Round name" disabled={!writable} className="font-medium" onSave={(v) => onPatch({ kind: v })} />
         <div className="grid grid-cols-[64px_1fr] items-center gap-x-3 gap-y-2 text-muted-foreground">
@@ -635,6 +652,8 @@ export function OutlineCard({ application, writable, onChange, onSaveNotes, onPa
   const [justOpened, setJustOpened] = useState<string | null>(null)
   const [marked, setMarked] = useState<string | null>(null)
   const [editTask, setEditTask] = useState<string | null>(null)
+  // The round whose details popover the outline opened by double-click.
+  const [detailsFor, setDetailsFor] = useState<string | null>(null)
   const [addingAt, setAddingAt] = useState<string | null>(null)
   // Switching to a shorter view would pull the page up under you when you are
   // scrolled near the bottom. Hold the old height, then let it go only as far
@@ -831,6 +850,11 @@ export function OutlineCard({ application, writable, onChange, onSaveNotes, onPa
     if (!r) return Promise.resolve()
     return prompt.trim().replace(/\?*$/, "?") === from ? patch(r, { set_question: { prompt: from, answer } }) : patch(r, { notes: editQuestion(r.notes || "", from, prompt, answer) })
   }
+  const deleteQuestion = (where: string, prompt: string): Promise<unknown> => {
+    if (where === "about") return onSaveNotes(dropQuestion(application.notes || "", prompt))
+    const r = all.find((x) => x.id === where)
+    return r ? patch(r, { notes: dropQuestion(r.notes || "", prompt) }) : Promise.resolve()
+  }
   const places = [{ id: "about", name: "Not tied to a round" }, ...ordered.map(({ r, n }) => ({ id: r.id, name: `${roundName(r, n)} · ${stageName(r.stage)}` }))]
   const meta = (r: Interview) => [stageName(r.stage), short(r.scheduled_at), r.questions?.length ? `${r.questions.length}?` : ""].filter(Boolean).join(" · ")
 
@@ -952,7 +976,7 @@ export function OutlineCard({ application, writable, onChange, onSaveNotes, onPa
         <section key={g.id} id={`mark-${g.id}`} onMouseEnter={() => marked === g.id && setMarked(null)} className={cn("-mx-2 flex scroll-mt-24 flex-col rounded-lg px-2 py-1", marked === g.id && "marked-glow")}>
           <h3 className="pb-1 text-xs text-muted-foreground">{g.title}</h3>
           {g.items.map((q, i) => (
-            <QuestionRow key={q.prompt} q={q} index={i} writable={writable} onSave={(prompt, answer) => saveQuestion(g.id, q.prompt, prompt, answer)} onOpen={() => go("notes", g.id)} />
+            <QuestionRow key={q.prompt} q={q} index={i} writable={writable} onSave={(prompt, answer) => saveQuestion(g.id, q.prompt, prompt, answer)} onDelete={() => void deleteQuestion(g.id, q.prompt)} onOpen={() => go("notes", g.id)} />
           ))}
         </section>
       ))}
@@ -1056,7 +1080,12 @@ export function OutlineCard({ application, writable, onChange, onSaveNotes, onPa
           return (
             <li key={key} className="flex flex-col">
               <div {...dropTarget(`stage:${key}`)} className={cn("group flex h-8 items-center gap-1 rounded-md px-2 hover:bg-muted", dropAt === `stage:${key}` && "bg-muted ring-1 ring-foreground/30")}>
-                <button type="button" className="flex min-w-0 flex-1 items-center gap-2 rounded-sm text-left text-[13px] outline-none focus-visible:ring-2 focus-visible:ring-ring" aria-expanded={hasKids ? !shut[key] : undefined} onClick={() => hasKids && setShut((x) => ({ ...x, [key]: !x[key] }))}>
+                <button type="button" className="flex min-w-0 flex-1 items-center gap-2 rounded-sm text-left text-[13px] outline-none focus-visible:ring-2 focus-visible:ring-ring" aria-expanded={hasKids ? !shut[key] : undefined} onClick={() => {
+                    if (!hasKids) return
+                    const opening = !!shut[key]
+                    setShut((x) => ({ ...x, [key]: !x[key] }))
+                    if (opening || !stored.some((r) => isOpen(r.id))) setOpen((o) => ({ ...o, ...Object.fromEntries(stored.map((r) => [r.id, true])) }))
+                  }}>
                   <RoundPie className="size-4 shrink-0" total={offer ? 1 : Math.max(1, stored.length)} done={stored.length ? stored.filter((r) => r.done_at).length : i <= current ? 1 : 0} />
                   <span className={cn("truncate", i === current ? "font-semibold" : i > current && "text-muted-foreground")}>{name}</span>
                 </button>
@@ -1110,8 +1139,8 @@ export function OutlineCard({ application, writable, onChange, onSaveNotes, onPa
                     return (
                       <div key={r.id} className="flex flex-col">
                         <div {...dropTarget(`round:${r.id}`)} className={cn("group flex h-7 items-center gap-1 rounded-md pr-2 hover:bg-muted", dropAt === `round:${r.id}` && "bg-muted ring-1 ring-foreground/30")}>
-                          <RoundDetails r={r} name={roundName(r, n)} writable={writable} onPatch={(body) => patch(r, body)} onDelete={() => void remove(r)} onOpenNotes={() => reveal(r.id)}>
-                            <button type="button" className="flex min-w-0 flex-1 items-center gap-2 rounded-md pl-1 text-left text-[13px] outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                          <RoundDetails r={r} name={roundName(r, n)} writable={writable} onPatch={(body) => patch(r, body)} onDelete={() => void remove(r)} onOpenNotes={() => reveal(r.id)} open={detailsFor === r.id} onOpenChange={(o) => setDetailsFor(o ? r.id : null)}>
+                            <button type="button" title="Click to open on the right · double-click for details" onClick={() => reveal(r.id)} onDoubleClick={() => setDetailsFor(r.id)} className="flex min-w-0 flex-1 items-center gap-2 rounded-md pl-1 text-left text-[13px] outline-none focus-visible:ring-2 focus-visible:ring-ring">
                               <span aria-hidden className={cn("size-1.5 shrink-0 rounded-full border border-foreground", r.done_at && "bg-foreground")} />
                               <span className={cn("min-w-0 flex-1 truncate", r.in_notes === false && "text-muted-foreground")}>{roundName(r, n)}</span>
                             </button>
@@ -1134,7 +1163,7 @@ export function OutlineCard({ application, writable, onChange, onSaveNotes, onPa
                                 }}
                                 onMouseLeave={() => armedDel === r.id && setArmedDel(null)}
                               >
-                                <X className="size-3.5" />
+                                <X />
                               </Button>
                             </span>
                           )}
@@ -1143,10 +1172,17 @@ export function OutlineCard({ application, writable, onChange, onSaveNotes, onPa
                           <div className="flex flex-col pl-6">
                             {rt.map((t, k) => taskRow(t, k, true))}
                             {(r.questions ?? []).map((q, k) => (
-                              <button key={q.prompt} type="button" style={stagger(rt.length + k).style} className={cn("-mx-2 flex min-h-7 items-center gap-2.5 rounded-md px-2 text-left text-[13px] outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring", stagger(rt.length + k).className)} onClick={() => reveal(r.id)}>
-                                <span aria-hidden className={cn("flex size-4 shrink-0 items-center justify-center rounded-full border text-[10px] font-semibold", q.answer ? "border-foreground/40 text-muted-foreground" : "border-dashed border-foreground")}>?</span>
-                                <span className={cn("min-w-0 flex-1 truncate", q.answer && "text-muted-foreground")}>{q.prompt}</span>
-                              </button>
+                              <div key={q.prompt} style={stagger(rt.length + k).style} className={cn("group -mx-2 flex min-h-7 items-center gap-1 rounded-md px-2 hover:bg-muted", stagger(rt.length + k).className)}>
+                                <button type="button" className="flex min-w-0 flex-1 items-center gap-2.5 rounded-sm text-left text-[13px] outline-none focus-visible:ring-2 focus-visible:ring-ring" onClick={() => reveal(r.id)}>
+                                  <span aria-hidden className={cn("flex size-4 shrink-0 items-center justify-center rounded-full border text-[10px] font-semibold", q.answer ? "border-foreground/40 text-muted-foreground" : "border-dashed border-foreground")}>?</span>
+                                  <span className={cn("min-w-0 flex-1 truncate", q.answer && "text-muted-foreground")}>{q.prompt}</span>
+                                </button>
+                                {writable && (
+                                  <Button variant="ghost" size="icon-xs" className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100" aria-label={`Delete ${q.prompt}`} onClick={() => void deleteQuestion(r.id, q.prompt)}>
+                                    <X />
+                                  </Button>
+                                )}
+                              </div>
                             ))}
                           </div>
                         )}
@@ -1174,7 +1210,7 @@ export function OutlineCard({ application, writable, onChange, onSaveNotes, onPa
         <div className="flex flex-col">
           {inboxTasks.map((t, i) => taskRow(t, i))}
           {looseQuestions.map((q, i) => (
-            <QuestionRow key={q.prompt} q={q} index={inboxTasks.length + i} writable={writable} onSave={(prompt, answer) => saveQuestion("about", q.prompt, prompt, answer)} onOpen={() => reveal("about")} />
+            <QuestionRow key={q.prompt} q={q} index={inboxTasks.length + i} writable={writable} onSave={(prompt, answer) => saveQuestion("about", q.prompt, prompt, answer)} onDelete={() => void deleteQuestion("about", q.prompt)} onOpen={() => reveal("about")} />
           ))}
           {!inboxTasks.length && !looseQuestions.length && <p className="text-sm text-muted-foreground">Tasks with no stage and questions not tied to a round land here.</p>}
           {writable && (
@@ -1199,6 +1235,9 @@ export function OutlineCard({ application, writable, onChange, onSaveNotes, onPa
           dim={!r.notes?.trim() || r.in_notes === false}
           action={(isOpen(r.id) || !r.notes?.trim()) && started !== r.id && <NotesToggle r={r} writable={writable} onStart={() => startNotes(r.id)} onPatch={(body) => patch(r, body)} />}
         >
+          {allTasks.some((t) => t.round_id === r.id && (prefs.showDone || !t.done_at)) && (
+            <div className="flex flex-col pb-1">{allTasks.filter((t) => t.round_id === r.id && (prefs.showDone || !t.done_at)).map((t, i) => taskRow(t, i))}</div>
+          )}
           <NoteBody md={r.notes || ""} writable={writable} label={`${roundName(r, n)} notes`} placeholder={"## Prep\n\n### A question they asked?\nYour answer.\n\n## Notes"} onSave={(notes) => patch(r, { notes })} reveal={justOpened === r.id} autoEdit={started === r.id} />
         </Fold>
       ))}
