@@ -113,7 +113,8 @@ const bare = "h-auto min-w-0 flex-1 rounded-none border-0 bg-transparent p-0 sha
 
 // Adding a task looks like the task it becomes: the same row, a dashed box
 // where the checkbox will be. Enter adds and stays open; Esc closes.
-function AddTaskRow({ where: initial, places, onAdd, startOpen = false, compact = false, closeOnAdd = false, onClose }: { where: string; places: { id: string; name: string; indent?: boolean }[]; onAdd: (title: string, where: string) => Promise<unknown>; startOpen?: boolean; compact?: boolean; closeOnAdd?: boolean; onClose?: () => void }) {
+function AddTaskRow({ where: initial, places, onAdd, onAddQuestion, startOpen = false, compact = false, closeOnAdd = false, onClose }: { where: string; places: { id: string; name: string; indent?: boolean }[]; onAdd: (title: string, where: string) => Promise<unknown>; onAddQuestion?: (prompt: string, where: string) => Promise<unknown>; startOpen?: boolean; compact?: boolean; closeOnAdd?: boolean; onClose?: () => void }) {
+  const [asQuestion, setAsQuestion] = useState(false)
   const [open, setOpenState] = useState(startOpen)
   const [title, setTitle] = useState("")
   const [where, setWhere] = useState(initial)
@@ -136,14 +137,26 @@ function AddTaskRow({ where: initial, places, onAdd, startOpen = false, compact 
       onSubmit={(e) => {
         e.preventDefault()
         if (title.trim())
-          void onAdd(title.trim(), where).then(() => {
+          void (asQuestion && onAddQuestion ? onAddQuestion(title.trim(), where) : onAdd(title.trim(), where)).then(() => {
             setTitle("")
             if (closeOnAdd) setOpen(false)
           })
       }}
     >
-      <span aria-hidden className="size-4 shrink-0 rounded-[4px] border border-dashed border-muted-foreground" />
-      <Input autoFocus className={cn(bare, compact ? "text-[13px]" : "text-sm")} placeholder="What needs doing?" aria-label="New task" value={title} onChange={(e) => setTitle(e.target.value)} onKeyDown={(e) => e.key === "Escape" && setOpen(false)} onBlur={(e) => !title.trim() && !e.currentTarget.form?.contains(e.relatedTarget) && setOpen(false)} />
+      {onAddQuestion ? (
+        <button
+          type="button"
+          aria-label={asQuestion ? "Adding a question; switch to a task" : "Adding a task; switch to a question"}
+          title={asQuestion ? "Question. Click for a task." : "Task. Click for a question."}
+          onClick={() => setAsQuestion((v) => !v)}
+          className={cn("flex size-4 shrink-0 items-center justify-center border border-dashed border-muted-foreground text-[10px] font-semibold text-muted-foreground outline-none hover:border-foreground hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring", asQuestion ? "rounded-full" : "rounded-[4px]")}
+        >
+          {asQuestion ? "?" : ""}
+        </button>
+      ) : (
+        <span aria-hidden className="size-4 shrink-0 rounded-[4px] border border-dashed border-muted-foreground" />
+      )}
+      <Input autoFocus className={cn(bare, compact ? "text-[13px]" : "text-sm")} placeholder={asQuestion ? "The question they asked?" : "What needs doing?"} aria-label={asQuestion ? "New question" : "New task"} value={title} onChange={(e) => setTitle(e.target.value)} onKeyDown={(e) => e.key === "Escape" && setOpen(false)} onBlur={(e) => !title.trim() && !e.currentTarget.form?.contains(e.relatedTarget) && setOpen(false)} />
       {!compact && <WherePicker value={where} options={places} onChange={setWhere} label="Where the task goes" />}
     </form>
   )
@@ -608,6 +621,36 @@ export function OutlineCard({ application, writable, onChange, onSaveNotes, onPa
   useFocus(prefs.view === "tasks" ? nextTask?.id : undefined)
   // NEXT in All jumps to the task in the outline, under its stage or round,
   // and marks it until the pointer finds it.
+  // Drag a task onto a stage or a round in the outline to move it there.
+  const [dropAt, setDropAt] = useState<string | null>(null)
+  const [armedDel, setArmedDel] = useState<string | null>(null)
+  const moveTask = async (id: string, where: string) => {
+    const t = allTasks.find((x) => x.id === id)
+    if (!t) return
+    const body = where.startsWith("round:") ? { round_id: where.slice(6) } : { stage: where.slice(6), round_id: "" }
+    const already = where.startsWith("round:") ? t.round_id === where.slice(6) : !t.round_id && t.stage === where.slice(6)
+    if (already) return
+    await api(`/v1/tasks/${encodeURIComponent(id)}`, { method: "PATCH", body: { version: t.version, ...body } })
+    await tasks.fetchTasks()
+    await onChange()
+  }
+  const dropTarget = (where: string) =>
+    writable
+      ? {
+          onDragOver: (e: React.DragEvent) => {
+            if (!e.dataTransfer.types.includes("text/x-pursuit-task")) return
+            e.preventDefault()
+            if (dropAt !== where) setDropAt(where)
+          },
+          onDragLeave: () => dropAt === where && setDropAt(null),
+          onDrop: (e: React.DragEvent) => {
+            const id = e.dataTransfer.getData("text/x-pursuit-task")
+            setDropAt(null)
+            if (id) void moveTask(id, where)
+          },
+        }
+      : {}
+
   // From a round's counts to its questions or tasks: switch view, scroll, glow.
   const jumpTo = (view: View, target: string) => {
     if (!target) return
@@ -663,6 +706,11 @@ export function OutlineCard({ application, writable, onChange, onSaveNotes, onPa
       <div
         key={t.id}
         id={`task-${t.id}`}
+        draggable={writable}
+        onDragStart={(e) => {
+          e.dataTransfer.setData("text/x-pursuit-task", t.id)
+          e.dataTransfer.effectAllowed = "move"
+        }}
         onMouseEnter={() => isMarked && setMarked(null)}
         style={anim.style}
         className={cn("group relative -mx-2 flex scroll-mt-24 items-center gap-2.5 rounded-md px-2 hover:bg-muted", compact ? "min-h-7 text-[13px]" : "min-h-9 text-sm", anim.className, isMarked && "marked-glow")}
@@ -683,6 +731,9 @@ export function OutlineCard({ application, writable, onChange, onSaveNotes, onPa
     { id: `stage:${ANYTIME}`, name: "Inbox" },
     ...STAGE_STOPS.filter(([key]) => !isOff(key)).flatMap(([key]) => [{ id: `stage:${key}`, name: stageName(key) }, ...rounds.storedFor(all, key).map((r, n) => ({ id: `round:${r.id}`, name: roundName(r, n), indent: true }))]),
   ]
+  // Where a question added from a task row goes: the round itself, else the
+  // application's notes (Inbox and stages without a round).
+  const questionPlace = (where: string) => (where.startsWith("round:") ? where.slice(6) : "about")
   const addTask = (title: string, where: string) => (where.startsWith("round:") ? tasks.add(title, undefined, where.slice(6)) : tasks.add(title, where.slice(6)))
 
   // Tasks, grouped Inbox first, with answers waiting where they belong.
@@ -842,7 +893,7 @@ export function OutlineCard({ application, writable, onChange, onSaveNotes, onPa
           const hasKids = stored.length > 0 || own.length > 0
           return (
             <li key={key} className="flex flex-col">
-              <div className="group flex h-8 items-center gap-1 rounded-md px-2 hover:bg-muted">
+              <div {...dropTarget(`stage:${key}`)} className={cn("group flex h-8 items-center gap-1 rounded-md px-2 hover:bg-muted", dropAt === `stage:${key}` && "bg-muted ring-1 ring-foreground/30")}>
                 <button type="button" className="flex min-w-0 flex-1 items-center gap-2 rounded-sm text-left text-[13px] outline-none focus-visible:ring-2 focus-visible:ring-ring" aria-expanded={hasKids ? !shut[key] : undefined} onClick={() => hasKids && setShut((x) => ({ ...x, [key]: !x[key] }))}>
                   <RoundPie className="size-4 shrink-0" total={offer ? 1 : Math.max(1, stored.length)} done={stored.length ? stored.filter((r) => r.done_at).length : i <= current ? 1 : 0} />
                   <span className={cn("truncate", i === current ? "font-semibold" : i > current && "text-muted-foreground")}>{name}</span>
@@ -866,7 +917,7 @@ export function OutlineCard({ application, writable, onChange, onSaveNotes, onPa
                     const rt = allTasks.filter((t) => t.round_id === r.id && (prefs.showDone || !t.done_at))
                     return (
                       <div key={r.id} className="flex flex-col">
-                        <div className="group flex h-7 items-center gap-1 rounded-md pr-2 hover:bg-muted">
+                        <div {...dropTarget(`round:${r.id}`)} className={cn("group flex h-7 items-center gap-1 rounded-md pr-2 hover:bg-muted", dropAt === `round:${r.id}` && "bg-muted ring-1 ring-foreground/30")}>
                           <RoundDetails r={r} name={roundName(r, n)} writable={writable} onPatch={(body) => patch(r, body)} onDelete={() => void remove(r)} onOpenNotes={() => reveal(r.id)}>
                             <button type="button" className="flex min-w-0 flex-1 items-center gap-2 rounded-md pl-1 text-left text-[13px] outline-none focus-visible:ring-2 focus-visible:ring-ring">
                               <span aria-hidden className={cn("size-1.5 shrink-0 rounded-full border border-foreground", r.done_at && "bg-foreground")} />
@@ -874,14 +925,37 @@ export function OutlineCard({ application, writable, onChange, onSaveNotes, onPa
                             </button>
                           </RoundDetails>
                           {writable && (
-                            <Button size="icon-xs" variant="ghost" className="shrink-0 opacity-0 group-focus-within:opacity-100 group-hover:opacity-100" aria-label={`Add a task to ${roundName(r, n)}`} title="Add a task" onClick={() => setAddingAt(`round:${r.id}`)}>
-                              <ListPlus className="size-3.5" />
-                            </Button>
+                            <span className="flex shrink-0 gap-0.5 opacity-0 group-focus-within:opacity-100 group-hover:opacity-100">
+                              <Button size="icon-xs" variant="ghost" aria-label={`Add to ${roundName(r, n)}`} title="Add a task or question" onClick={() => setAddingAt(`round:${r.id}`)}>
+                                <ListPlus className="size-3.5" />
+                              </Button>
+                              <Button
+                                size="icon-xs"
+                                variant="ghost"
+                                className={cn(armedDel === r.id && "text-destructive hover:text-destructive")}
+                                aria-label={armedDel === r.id ? `Confirm deleting ${roundName(r, n)}` : `Delete ${roundName(r, n)}`}
+                                title={armedDel === r.id ? "It has notes. Click again to delete." : "Delete round"}
+                                onClick={() => {
+                                  if (r.notes?.trim() && armedDel !== r.id) return setArmedDel(r.id)
+                                  setArmedDel(null)
+                                  void remove(r)
+                                }}
+                                onMouseLeave={() => armedDel === r.id && setArmedDel(null)}
+                              >
+                                <X className="size-3.5" />
+                              </Button>
+                            </span>
                           )}
                         </div>
-                        {rt.length > 0 && (
+                        {(rt.length > 0 || !!r.questions?.length) && (
                           <div className="flex flex-col pl-6">
                             {rt.map((t, k) => taskRow(t, k, true))}
+                            {(r.questions ?? []).map((q, k) => (
+                              <button key={q.prompt} type="button" style={stagger(rt.length + k).style} className={cn("-mx-2 flex min-h-7 items-center gap-2.5 rounded-md px-2 text-left text-[13px] outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring", stagger(rt.length + k).className)} onClick={() => reveal(r.id)}>
+                                <span aria-hidden className={cn("flex size-4 shrink-0 items-center justify-center rounded-full border text-[10px] font-semibold", q.answer ? "border-foreground/40 text-muted-foreground" : "border-dashed border-foreground")}>?</span>
+                                <span className={cn("min-w-0 flex-1 truncate", q.answer && "text-muted-foreground")}>{q.prompt}</span>
+                              </button>
+                            ))}
                           </div>
                         )}
                       </div>
@@ -979,8 +1053,8 @@ export function OutlineCard({ application, writable, onChange, onSaveNotes, onPa
           // Adding from the outline: the card blurs and the task row floats on top.
           <div className="absolute inset-0 z-20 flex items-start justify-center rounded-lg bg-background/60 pt-24 backdrop-blur-sm animate-in fade-in duration-150" onMouseDown={(e) => e.target === e.currentTarget && setAddingAt(null)}>
             <div className="w-full max-w-xl rounded-xl border bg-background p-3 shadow-lg animate-in fade-in zoom-in-95 duration-150">
-              <AddTaskRow where={addingAt} places={taskPlaces} onAdd={addTask} startOpen closeOnAdd onClose={() => setAddingAt(null)} />
-              <p className="px-2 pt-1 text-xs text-muted-foreground">Enter adds · Esc cancels</p>
+              <AddTaskRow where={addingAt} places={taskPlaces} onAdd={addTask} onAddQuestion={(prompt, where) => addQuestion(questionPlace(where), prompt, "")} startOpen closeOnAdd onClose={() => setAddingAt(null)} />
+              <p className="px-2 pt-1 text-xs text-muted-foreground">Enter adds · Esc cancels · the box at the start switches between a task and a question</p>
             </div>
           </div>
         )}

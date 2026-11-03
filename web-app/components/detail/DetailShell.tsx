@@ -7,7 +7,7 @@ import { useAuth } from "@/lib/auth"
 import type { Application, Artifact, CustomField, Event, Page } from "@/lib/types"
 import { DetailHeader } from "@/components/detail/DetailHeader"
 import { DetailAttributes } from "@/components/detail/DetailAttributes"
-import { RelatedCard } from "@/components/detail/RelatedCard"
+import { RejectChoice, RelatedCard } from "@/components/detail/RelatedCard"
 import { OutlineCard } from "@/components/detail/OutlineCard"
 import { EventsHistoryCard } from "@/components/detail/EventsHistoryCard"
 import { ArtifactsCard } from "@/components/detail/ArtifactsCard"
@@ -118,10 +118,24 @@ export function DetailShell({ id, initial, children }: { id: string; initial: De
     return enqueue((version) => api<Application>(path, { method: "PATCH", body: { version, ...patch } }))
   }
 
+  // Rejecting an application that is tracked with others asks first whether
+  // the rest go too; rejecting just this one stays the default.
+  const [rejectAsk, setRejectAsk] = useState<{ others: Application[]; send: () => Promise<unknown> } | null>(null)
+  async function guardReject(patch: Record<string, unknown>, send: () => Promise<unknown>) {
+    const app = latest.current
+    if (patch.status !== "rejected" || !app?.company_id) return send()
+    const primary = app.tracked_by || app.id
+    const page = await api<Page<Application>>(`/v1/applications?company_id=${encodeURIComponent(app.company_id)}&limit=100`).catch(() => null)
+    const others = (page?.data ?? []).filter((a) => a.id !== app.id && (a.id === primary || a.tracked_by === primary) && !["rejected", "withdrawn", "ghosted", "failed"].includes(a.outcome || ""))
+    if (!others.length) return send()
+    setRejectAsk({ others, send })
+  }
+  const guardedPatch = (patch: Record<string, unknown>) => guardReject(patch, () => patchApp(patch))
+
   // Status changes from the header keep their visible error.
   function onSaveField(patch: Record<string, string>) {
     setFieldError(null)
-    patchApp(patch).catch((err) => setFieldError(err instanceof ApiError ? err.message : "Failed to save"))
+    guardReject(patch, () => patchApp(patch)).catch((err) => setFieldError(err instanceof ApiError ? err.message : "Failed to save"))
   }
 
   function onSaveCustomFieldValue(fieldID: string, value: string) {
@@ -190,7 +204,7 @@ export function DetailShell({ id, initial, children }: { id: string; initial: De
             writable={writable}
             canApprove={can("approve")}
             onSaveField={onSaveField}
-            onPatch={patchApp}
+            onPatch={guardedPatch}
             onArchive={onArchive}
             onUnarchive={onUnarchive}
             onDecide={onDecide}
@@ -210,6 +224,25 @@ export function DetailShell({ id, initial, children }: { id: string; initial: De
           <OutlineCard key={roundsTick} application={application} writable={writable} onChange={reload} onSaveNotes={(notes) => patchApp({ notes })} onPatch={patchApp} />
         </>
       )}
+
+      <RejectChoice
+        open={!!rejectAsk}
+        onOpenChange={(v) => !v && setRejectAsk(null)}
+        name={application?.title || "this application"}
+        company={application?.company || ""}
+        others={rejectAsk?.others.length ?? 0}
+        onOne={() => {
+          const ask = rejectAsk
+          setRejectAsk(null)
+          void ask?.send()
+        }}
+        onAll={() => {
+          const ask = rejectAsk
+          setRejectAsk(null)
+          if (!ask) return
+          void Promise.all([ask.send(), ...ask.others.map((a) => api(`/v1/applications/${encodeURIComponent(a.id)}`, { method: "PATCH", body: { version: a.version, status: "rejected" } }))]).then(() => reload())
+        }}
+      />
 
       {exportMode ? (
         <>
