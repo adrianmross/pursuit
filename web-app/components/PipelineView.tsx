@@ -617,6 +617,13 @@ export function PipelineView({ initial }: { initial: PipelineInitial | null }) {
   const [checkingAll, setCheckingAll] = useState(false)
   const [fields, setFields] = useState<CustomField[]>(initial?.fields ?? [])
   const loadGen = useRef(0)
+  // Set after the first paint on screen, which starts the rows' fade. An effect, not a CSS animation on mount:
+  // a page rendered ahead of a navigation has already played its animation by the time it's shown.
+  const [onScreen, setOnScreen] = useState(false)
+  useEffect(() => {
+    const id = requestAnimationFrame(() => setOnScreen(true))
+    return () => cancelAnimationFrame(id)
+  }, [])
   const columnCount = (selecting ? 7 : 6) + fields.length
 
   // The server already fetched the first page (and fields) for this exact
@@ -1011,9 +1018,9 @@ export function PipelineView({ initial }: { initial: PipelineInitial | null }) {
 
       <div className="rounded-md border">
         {/* Fixed column widths: a longer status, a tag, or the approve/reject icons never shift the other columns. */}
-        <Table className="min-w-[56rem] table-fixed">
+        <Table className="min-w-[56rem] table-fixed border-separate border-spacing-0">
           <TableHeader>
-            <TableRow>
+            <TableRow className="[&>th]:border-b">
               {selecting && (
                 <TableHead className="w-10">
                   <Checkbox
@@ -1104,9 +1111,9 @@ export function PipelineView({ initial }: { initial: PipelineInitial | null }) {
                   <TableRow
                     data-cursor={row.id === cursorId}
                     onClick={() => setCursor(row.id)}
-                    // Rows fade in one after another when they first appear, like the start page's day list; a sort only reorders them, so it doesn't replay.
-                    style={{ animationDelay: `${Math.min(i, 15) * 30}ms` }}
-                    className="duration-300 animate-in fill-mode-both fade-in slide-in-from-top-1 data-[cursor=true]:bg-muted data-[cursor=true]:shadow-[inset_2px_0_0_var(--primary)]"
+                    // Rows fade in one after another once the page is on screen, like the start page's day list. Lines are on the cells so they fade too.
+                    style={{ opacity: onScreen ? 1 : 0, transform: onScreen ? "none" : "translateY(-4px)", transitionDelay: `${Math.min(i, 15) * 30}ms` }}
+                    className="transition-[opacity,transform] duration-300 ease-out [&>td]:border-b [&:last-child>td]:border-b-0 data-[cursor=true]:bg-muted data-[cursor=true]:shadow-[inset_2px_0_0_var(--primary)]"
                   >
                     {selecting && (
                       <TableCell>
