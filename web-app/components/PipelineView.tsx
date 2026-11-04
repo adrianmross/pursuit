@@ -32,6 +32,7 @@ import { useShortcuts } from "@/lib/keybindings"
 import { Kbd } from "@/components/ui/kbd"
 import { getDefaultSort, getDefaultStatus } from "@/lib/settings"
 import { usePref } from "@/lib/use-pref"
+import { cn } from "@/lib/utils"
 import { buildApplicationsQuery } from "@/lib/pipeline-query"
 import { applicationHref } from "@/lib/links"
 import {
@@ -504,7 +505,8 @@ function RowActions({
   const href = safeURL(row.posting_url)
 
   return (
-    <span className="flex w-[5.5rem] items-center justify-end gap-0.5">
+    // The column is 5.5rem; full width inside its padding, so it never pokes past the table.
+    <span className="flex w-full items-center justify-end gap-0.5">
       {shown(row) === "awaiting_review" && can("approve") && (
         <>
           <IconAction label="Approve" onClick={() => decide("approve")} disabled={busy}>
@@ -624,7 +626,7 @@ export function PipelineView({ initial }: { initial: PipelineInitial | null }) {
     const id = requestAnimationFrame(() => setOnScreen(true))
     return () => cancelAnimationFrame(id)
   }, [])
-  const columnCount = (selecting ? 7 : 6) + fields.length
+  const columnCount = 7 + fields.length
 
   // The server already fetched the first page (and fields) for this exact
   // URL — skip the redundant client refetch on mount, but still refetch
@@ -1021,24 +1023,25 @@ export function PipelineView({ initial }: { initial: PipelineInitial | null }) {
         <Table className="min-w-[56rem] table-fixed border-separate border-spacing-0">
           <TableHeader>
             <TableRow className="[&>th]:border-b">
-              {selecting && (
-                <TableHead className="w-10">
+              {/* Always there, zero wide until Select: it widens and the row scoots right, never past the table's width. */}
+              <TableHead style={{ width: selecting ? "2.5rem" : 0 }} className={cn("overflow-hidden transition-[width,padding] duration-200 ease-out", !selecting && "px-0")}>
+                {selecting && (
                   <Checkbox
                     checked={visibleRows.length > 0 && selected.size === visibleRows.length}
                     onCheckedChange={toggleSelectAll}
                     aria-label="Select all"
+                    className="duration-200 animate-in fill-mode-both fade-in"
                   />
-                </TableHead>
-              )}
+                )}
+              </TableHead>
               <TableHead className="w-[22%]">
                 <SortHeader text="Company" field="company" sort={sort} onSort={(next) => patch({ sort: next })} />
               </TableHead>
               <TableHead className="w-[22%]">
                 <SortHeader text="Role" field="title" sort={sort} onSort={(next) => patch({ sort: next })} />
               </TableHead>
-              <TableHead className="w-72">
-                Status
-              </TableHead>
+              {/* No width: Status takes what's left, so the select column comes out of it. */}
+              <TableHead>Status</TableHead>
               {fields.map((f) => (
                 <TableHead key={f.id} className="w-36">
                   <SortHeader text={f.name} field={`field:${f.name}`} sort={sort} onSort={(next) => patch({ sort: next })} />
@@ -1115,11 +1118,18 @@ export function PipelineView({ initial }: { initial: PipelineInitial | null }) {
                     style={{ opacity: onScreen ? 1 : 0, transform: onScreen ? "none" : "translateY(-4px)", transitionDelay: `${Math.min(i, 15) * 30}ms` }}
                     className="transition-[opacity,transform] duration-300 ease-out [&>td]:border-b [&:last-child>td]:border-b-0 data-[cursor=true]:bg-muted data-[cursor=true]:shadow-[inset_2px_0_0_var(--primary)]"
                   >
-                    {selecting && (
-                      <TableCell>
-                        <Checkbox checked={selected.has(row.id)} onCheckedChange={() => toggleSelected(row.id)} aria-label="Select row" />
-                      </TableCell>
-                    )}
+                    <TableCell className={cn("overflow-hidden transition-[padding] duration-200 ease-out", !selecting && "px-0")}>
+                      {selecting && (
+                        // Bottom row first, rising to the top.
+                        <Checkbox
+                          checked={selected.has(row.id)}
+                          onCheckedChange={() => toggleSelected(row.id)}
+                          aria-label="Select row"
+                          style={{ animationDelay: `${Math.min(visibleRows.length - 1 - i, 15) * 25}ms` }}
+                          className="duration-200 animate-in fill-mode-both fade-in slide-in-from-bottom-1"
+                        />
+                      )}
+                    </TableCell>
                     <TableCell className="overflow-hidden font-medium">
                       <span className="flex items-center gap-2">
                         <ProgressMark {...markOf(row)} size={20} />
