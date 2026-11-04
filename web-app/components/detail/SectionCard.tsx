@@ -26,11 +26,13 @@ export function SectionCard({
   description,
   defaultOpen = true,
   className,
+  actions,
   children,
 }: {
   id: string
   title: string
   summary?: ReactNode
+  actions?: ReactNode
   description?: ReactNode
   defaultOpen?: boolean
   className?: string
@@ -54,16 +56,20 @@ export function SectionCard({
   return (
     <Collapsible open={open} onOpenChange={toggle}>
       <Card id={id} className={cn("scroll-mt-4", className)}>
-        <CollapsibleTrigger className="flex w-full items-baseline justify-between gap-3 px-(--card-spacing) text-left outline-none focus-visible:ring-2 focus-visible:ring-ring">
-          <span className="flex min-w-0 flex-col gap-1">
-            <CardTitle className="text-base">{title}</CardTitle>
-            {description && open && <CardDescription>{description}</CardDescription>}
-          </span>
-          <span className="flex shrink-0 items-center gap-2 text-xs text-muted-foreground">
-            {summary}
+        {/* Actions sit outside the trigger (no button inside a button), just left of the chevron, and only while open. */}
+        <div className="flex items-center gap-1 px-(--card-spacing)">
+          <CollapsibleTrigger className="flex min-w-0 flex-1 items-baseline justify-between gap-3 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring">
+            <span className="flex min-w-0 flex-col gap-1">
+              <CardTitle className="text-base">{title}</CardTitle>
+              {description && open && <CardDescription>{description}</CardDescription>}
+            </span>
+            <span className="shrink-0 text-xs text-muted-foreground">{summary}</span>
+          </CollapsibleTrigger>
+          {actions && open && <span className="flex shrink-0 items-center duration-200 animate-in fade-in">{actions}</span>}
+          <CollapsibleTrigger aria-label={open ? `Collapse ${title}` : `Expand ${title}`} className="-mr-1 rounded-sm p-1 text-muted-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring">
             <ChevronDown className={cn("size-4 transition-transform", !open && "-rotate-90")} />
-          </span>
-        </CollapsibleTrigger>
+          </CollapsibleTrigger>
+        </div>
         <CollapsibleContent>
           <CardContent className="flex flex-col gap-3">{children}</CardContent>
         </CollapsibleContent>

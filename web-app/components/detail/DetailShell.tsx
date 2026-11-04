@@ -8,7 +8,7 @@ import { OUTLINE_TABS, type Pref } from "@/lib/settings"
 import { usePref } from "@/lib/use-pref"
 import type { Application, Artifact, CustomField, Event, Page } from "@/lib/types"
 import { DetailHeader } from "@/components/detail/DetailHeader"
-import { DetailAttributes } from "@/components/detail/DetailAttributes"
+import { ListingCard } from "@/components/detail/ListingCard"
 import { RejectChoice, RelatedCard } from "@/components/detail/RelatedCard"
 import { OutlineCard } from "@/components/detail/OutlineCard"
 import { EventsHistoryCard } from "@/components/detail/EventsHistoryCard"
@@ -156,8 +156,8 @@ export function DetailShell({ id, initial, children }: { id: string; initial: De
     await reload()
   }
 
-  // Settings, Details: which cards show, and which outline tabs have a card of their own.
-  const showAttributes = usePref("cardAttributes") === "on"
+  // Settings, Details: which cards show, and which Details tabs have a card of their own.
+  const showListing = usePref("cardListing") === "on"
   const showRelated = usePref("cardRelated") === "on"
   const showArtifacts = usePref("cardArtifacts") === "on"
   const showHistory = usePref("cardHistory") === "on"
@@ -231,8 +231,8 @@ export function DetailShell({ id, initial, children }: { id: string; initial: De
             onDelete={onDelete}
             onRoundsChange={onRoundsChange}
           />
-          {showAttributes && (
-            <DetailAttributes
+          {showListing && (
+            <ListingCard
               application={application}
               fields={fields}
               writable={writable}
@@ -242,11 +242,11 @@ export function DetailShell({ id, initial, children }: { id: string; initial: De
               fieldError={fieldError}
             />
           )}
-          {showRelated && <RelatedCard application={application} writable={writable} onChange={reload} />}
-          {/* The overview, then each tab Settings moved out to a card of its own. */}
+          {/* Details under the Listing, then each tab Settings moved out to a card of its own. */}
           {([undefined, ...OUTLINE_TABS.filter((_, i) => places[i] === "card").map(([v]) => v)] as const).map((only) => (
             <OutlineCard key={`${only}-${roundsTick}`} only={only} tick={outlineTick} application={application} writable={writable} onChange={onOutlineChange} onSaveNotes={(notes) => patchApp({ notes })} onPatch={patchApp} />
           ))}
+          {showRelated && <RelatedCard application={application} writable={writable} onChange={reload} />}
         </>
       )}
 

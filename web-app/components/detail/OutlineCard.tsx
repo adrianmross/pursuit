@@ -5,7 +5,7 @@ import { createPortal } from "react-dom"
 import { Check, ChevronLeft, ChevronRight, Copy, FilePlus, FileText, Inbox, ListPlus, Plus, SlidersHorizontal, Trash2, X } from "lucide-react"
 import { api } from "@/lib/api-client"
 import { cn } from "@/lib/utils"
-import { OUTLINE_TABS, type TabPlace } from "@/lib/settings"
+import { getPref, OUTLINE_TABS, type TabPlace } from "@/lib/settings"
 import { usePref } from "@/lib/use-pref"
 import { label, STAGE_STOPS, type Application, type Interview, type Note, type Page, type Question, type Task } from "@/lib/types"
 import { AddRoundIcon, RoundPie, useRounds, useTasks } from "@/components/Rounds"
@@ -740,6 +740,23 @@ export function OutlineCard({ application, writable, onChange, onSaveNotes, onPa
   const tabNotes = usePref<TabPlace>("tabNotes")
   const place: Record<View, TabPlace> = { all: "tab", rounds: tabRounds, tasks: tabTasks, questions: tabQuestions, notes: tabNotes }
   const view: View = only ?? (place[prefs.view] === "tab" ? prefs.view : "all")
+  // Esc with a note open goes back to the files first; the next Esc leaves the
+  // page as usual. Capture runs before the app's shortcuts, which skip a handled key.
+  const noteOpen = view === "notes" && !!noteFile
+  useEffect(() => {
+    if (!noteOpen) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape" || e.defaultPrevented || document.querySelector('[role="dialog"], [role="menu"], [role="listbox"]')) return
+      if (e.target instanceof HTMLElement && e.target.closest("input, textarea")) return
+      // Vim keys use Esc to leave insert mode, so inside the editor it stays theirs.
+      if (getPref("vimKeys") === "on" && e.target instanceof HTMLElement && e.target.closest(".cm-editor")) return
+      e.preventDefault()
+      ;(document.activeElement as HTMLElement | null)?.blur()
+      setNoteFile(null)
+    }
+    window.addEventListener("keydown", onKey, true)
+    return () => window.removeEventListener("keydown", onKey, true)
+  }, [noteOpen])
   useEffect(() => {
     // Read after hydration so the server render matches the first client one.
     try {
@@ -1759,11 +1776,12 @@ export function OutlineCard({ application, writable, onChange, onSaveNotes, onPa
   return (
     <SectionCard
       id={only ? `outline-${only}` : "outline"}
-      title={only ? OUTLINE_TABS.find(([v]) => v === only)![1] : "Rounds, tasks and notes"}
+      title={only ? OUTLINE_TABS.find(([v]) => v === only)![1] : "Details"}
       summary={only === "rounds" ? rounds.summary() : only === "questions" ? questionCount || undefined : only === "notes" ? undefined : waiting ? `${waiting} waiting on you` : rounds.summary()}
+      actions={<ViewOptions prefs={prefs} onChange={setPrefs} layouts={!only} />}
     >
-      <div className="flex items-center gap-2">
-        {!only && (
+      {!only && (
+        <div className="flex">
           <SegmentedTabs
             label="Show"
             value={view}
@@ -1778,10 +1796,8 @@ export function OutlineCard({ application, writable, onChange, onSaveNotes, onPa
               ] as const
             ).filter((o) => place[o.value] === "tab")}
           />
-        )}
-        <span className="flex-1" />
-        <ViewOptions prefs={prefs} onChange={setPrefs} layouts={!only} />
-      </div>
+        </div>
+      )}
 
       {/* Holds its height while a shorter view would move the page; see hold. */}
       <div ref={bodyRef} style={{ minHeight: hold || undefined }} className="relative flex flex-col">

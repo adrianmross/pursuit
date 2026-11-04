@@ -26,7 +26,8 @@ function safeURL(raw?: string) {
   }
 }
 
-export function DetailAttributes({
+// The Listing card: the posting's link, dates and custom fields, under the header.
+export function ListingCard({
   application,
   fields,
   writable,

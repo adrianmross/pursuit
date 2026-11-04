@@ -190,11 +190,11 @@ function Appearance() {
 }
 
 // What an application's page shows: each card on or off, and each tab of
-// Rounds, tasks and notes kept as a tab, given a card of its own, or hidden.
+// the Details card kept as a tab, given a card of its own, or hidden.
 function DetailsPanel() {
   return (
     <FieldGroup>
-      <Row label="Rounds, tasks and notes" hint="A tab stays inside the card. Own card moves it out to a card of its own below, and All becomes an overview of the rest.">
+      <Row label="Details tabs" hint="A tab stays inside the card. Own card moves it out to a card of its own below, and All becomes an overview of the rest.">
         <div className="flex flex-col gap-2">
           {OUTLINE_TABS.map(([, label, pref]) => (
             <div key={pref} className="flex items-center justify-between gap-4 text-sm">
@@ -334,8 +334,8 @@ const SECTIONS: (Section & { items: [string, string][] })[] = [
     sub: true,
     render: () => <DetailsPanel />,
     items: [
-      ["Application page cards", "details related documents history hide show"],
-      ["Rounds, tasks and notes tabs", "tasks questions notes rounds own card separate overview"],
+      ["Application page cards", "listing related documents history hide show"],
+      ["Details tabs", "rounds tasks questions notes own card separate overview"],
     ],
   },
   {
