@@ -6,6 +6,24 @@
     <title>pursuit API reference</title>
     <style>
       body { margin: 0; font-family: system-ui, sans-serif; }
+      /* The dashboard's palette (web-app/app/globals.css) on Scalar's variables. */
+      .light-mode {
+        --scalar-background-1: #FFFFFF; --scalar-background-2: #F6F6F4; --scalar-background-3: #ECECE8;
+        --scalar-color-1: #141615; --scalar-color-2: #5D615E; --scalar-color-3: #8A8E8A;
+        --scalar-color-accent: #173A2E; --scalar-background-accent: #173A2E1a;
+        --scalar-border-color: #DCDCD6;
+      }
+      .dark-mode {
+        --scalar-background-1: #0E0F0F; --scalar-background-2: #161817; --scalar-background-3: #1F2120;
+        --scalar-color-1: #F1F1EE; --scalar-color-2: #A3A7A4; --scalar-color-3: #6B706C;
+        --scalar-color-accent: #E8C547; --scalar-background-accent: #E8C5471f;
+        --scalar-border-color: #2E312F;
+      }
+      .light-mode, .dark-mode {
+        --scalar-font: "Inter Variable", system-ui, -apple-system, "Segoe UI", sans-serif;
+        --scalar-font-code: "JetBrains Mono Variable", ui-monospace, Menlo, monospace;
+        --scalar-radius: 6px; --scalar-radius-lg: 10px; --scalar-radius-xl: 16px;
+      }
       .pursuit-xref { display: flex; gap: 1rem; align-items: center; padding: 0.5rem 1rem; background: #141615; color: #f1f1ee; font-size: 0.8rem; }
       .pursuit-xref a { color: inherit; text-decoration: none; opacity: 0.8; }
       .pursuit-xref a:hover { opacity: 1; text-decoration: underline; }
@@ -63,28 +81,28 @@
     <!-- Pinned with SRI: the bare package URL follows @latest, so a Scalar release could change this page without a deploy. -->
     <script src="https://cdn.jsdelivr.net/npm/@scalar/api-reference@1.76.4/dist/browser/standalone.js" integrity="sha384-hwB9WroDTpZaI38gr+u9CXA6ksz5gUYgD2GxXazKl/agT1L2GWUiRFWGJYNiFu4Q" crossorigin="anonymous"></script>
     <script>
-      // The gate is client-side: /v1/me answers from the dashboard's
-      // pursuit_session cookie (or a token an older build left in
-      // localStorage). Anyone without a working session, or whose check
-      // doesn't answer in time, is sent to sign in and back. A stored token
-      // is handed to Scalar so "Try it" calls this origin as that user;
-      // otherwise the cookie rides along on its same-origin requests.
-      (async function () {
-        var token = "";
-        try { token = localStorage.getItem("pursuit.token") || ""; } catch (e) {}
-        var headers = token ? { Authorization: "Bearer " + token } : {};
-        var ok = false;
-        try { ok = (await fetch("/v1/me", { headers: headers, signal: AbortSignal.timeout(10000) })).ok; } catch (e) {}
-        if (!ok || typeof Scalar === "undefined") {
-          if (!ok) location.replace("/sign-in?next=" + encodeURIComponent("/reference"));
-          else document.getElementById("app").textContent = "The API reference viewer didn't load. The raw spec is at /openapi.json.";
+      // The page is public, like /openapi.json it renders. "Try it" calls this
+      // origin: a signed-in dashboard's pursuit_session cookie rides along on
+      // those same-origin requests, and a token an older build left in
+      // localStorage is handed to Scalar as the bearer token.
+      (function () {
+        if (typeof Scalar === "undefined") {
+          document.getElementById("app").textContent = "The API reference viewer didn't load. The raw spec is at /openapi.json.";
           return;
         }
+        var token = "";
+        try { token = localStorage.getItem("pursuit.token") || ""; } catch (e) {}
+        // Within a group: by path, then list, create, update, delete.
+        var rank = { get: 0, post: 1, put: 2, patch: 2, delete: 3 };
         Scalar.createApiReference("#app", {
           url: "/openapi.json",
           theme: "none",
           showDeveloperTools: "never",
           hideModels: true,
+          agent: { disabled: true },
+          operationsSorter: function (a, b) {
+            return a.path === b.path ? rank[a.method.toLowerCase()] - rank[b.method.toLowerCase()] : a.path < b.path ? -1 : 1;
+          },
           servers: [{ url: location.origin }],
           authentication: {
             preferredSecurityScheme: "bearerAuth",
