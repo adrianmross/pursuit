@@ -1,0 +1,8 @@
+{
+  "name": "pursuit-openapi-lint",
+  "private": true,
+  "description": "Pins the Redocly CLI that lints api/openapi.json (make lint-openapi).",
+  "devDependencies": {
+    "@redocly/cli": "2.73.0"
+  }
+}
