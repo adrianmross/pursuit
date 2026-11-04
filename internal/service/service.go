@@ -15,6 +15,7 @@ import (
 	"github.com/pursuit/pursuit/internal/auth"
 	"github.com/pursuit/pursuit/internal/billing"
 	"github.com/pursuit/pursuit/internal/blobstore"
+	"github.com/pursuit/pursuit/internal/embed"
 	"github.com/pursuit/pursuit/internal/domain"
 	"github.com/pursuit/pursuit/internal/links"
 	"github.com/pursuit/pursuit/internal/sqlstore"
@@ -41,6 +42,8 @@ type Service struct {
 	PublicURL string
 	// Capabilities is which Features this deployment is set up for, by key.
 	Capabilities map[string]bool
+	// Embedder powers smart search; nil means it isn't configured.
+	Embedder embed.Embedder
 	// Blobs holds new document files when a bucket is configured; nil keeps them in the database.
 	Blobs blobstore.Store
 }
