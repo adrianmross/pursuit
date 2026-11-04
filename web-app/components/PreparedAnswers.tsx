@@ -1,17 +1,23 @@
 "use client"
 
 import { useState } from "react"
-import { Check } from "lucide-react"
+import Link from "next/link"
+import { Check, Sparkles } from "lucide-react"
 import type { Question } from "@/lib/types"
 import { api } from "@/lib/api-client"
 import { useAuth } from "@/lib/auth"
 import { Badge } from "@/components/ui/badge"
-import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from "@/components/ui/input-group"
+import { Button } from "@/components/ui/button"
+import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupTextarea } from "@/components/ui/input-group"
 import { Item, ItemContent, ItemDescription, ItemFooter, ItemGroup, ItemTitle } from "@/components/ui/item"
 
+const humanize = (key: string) => key.replaceAll("_", " ").replace(/^./, (c) => c.toUpperCase())
+
 // An unanswered question saves as a standing answer keyed by its prompt, so
-// the next prepare of this or any other application fills it.
-function Unanswered({ prompt }: { prompt: string }) {
+// the next prepare of this or any other application fills it. Smart
+// search's closest saved answer is offered, never saved on its own.
+function Unanswered({ q }: { q: Question }) {
+  const prompt = q.prompt || ""
   const [answer, setAnswer] = useState("")
   const [state, setState] = useState<"" | "saved" | string>("")
   async function save() {
@@ -25,8 +31,12 @@ function Unanswered({ prompt }: { prompt: string }) {
   }
   if (state === "saved")
     return (
-      <ItemDescription className="flex items-center gap-1.5">
-        <Check className="size-3.5 text-emerald-600" /> {answer} · saved to your profile, prepare again to apply it
+      <ItemDescription className="flex flex-wrap items-center gap-1.5">
+        <Check className="size-3.5 text-emerald-600" /> Saved to your{" "}
+        <Link href="/profile/questions" className="underline underline-offset-2">
+          questions
+        </Link>
+        . Prepare again to fill it in here and on every other form that asks.
       </ItemDescription>
     )
   return (
@@ -37,8 +47,33 @@ function Unanswered({ prompt }: { prompt: string }) {
         void save()
       }}
     >
+      {q.suggested_answer && answer !== q.suggested_answer && (
+        <div className="flex items-start gap-2 rounded-md bg-muted/60 px-2.5 py-2 text-sm">
+          <Sparkles className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" />
+          <div className="min-w-0 flex-1">
+            <p className="text-xs text-muted-foreground">Like your answer to “{humanize(q.suggested_source || "")}”</p>
+            <p className="line-clamp-3">{q.suggested_answer}</p>
+          </div>
+          <Button type="button" size="xs" variant="outline" onClick={() => setAnswer(q.suggested_answer || "")}>
+            Use this
+          </Button>
+        </div>
+      )}
       <InputGroup>
-        <InputGroupInput aria-label={prompt} placeholder="Answer once, reuse everywhere" value={answer} onChange={(e) => setAnswer(e.target.value)} />
+        <InputGroupTextarea
+          aria-label={prompt}
+          rows={answer.length > 80 ? 4 : 1}
+          className="min-h-0"
+          placeholder="Answer once, reuse everywhere"
+          value={answer}
+          onChange={(e) => setAnswer(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault()
+              void save()
+            }
+          }}
+        />
         <InputGroupAddon align="inline-end">
           {/* Not disabled when empty: a disabled control greys out the whole InputGroup. */}
           <InputGroupButton type="submit" variant="secondary">
@@ -79,7 +114,7 @@ export function PreparedAnswers({ questions }: { questions: Question[] }) {
             </ItemContent>
             {open && q.prompt && can("write") && (
               <ItemFooter className="basis-full">
-                <Unanswered prompt={q.prompt} />
+                <Unanswered q={q} />
               </ItemFooter>
             )}
           </Item>

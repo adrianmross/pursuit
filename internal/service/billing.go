@@ -460,7 +460,8 @@ func (s *Service) ConfigureFromEnv(getenv func(string) string, publicURL string)
 	}
 	s.PublicURL = publicURL
 	if key := env("AI_GATEWAY_API_KEY"); key != "" {
-		s.Embedder = &embed.Gateway{Key: key, HTTP: s.HTTP}
+		// AI_GATEWAY_BASE_URL is for a proxy in front of the gateway; empty is the gateway itself.
+		s.Embedder = &embed.Gateway{Key: key, HTTP: s.HTTP, Base: env("AI_GATEWAY_BASE_URL")}
 	}
 	if bucket, err := blobstore.FromEnv(getenv); err != nil {
 		warnings = append(warnings, err.Error()+": documents stay in the database")
