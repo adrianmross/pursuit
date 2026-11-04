@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, type ComponentProps, type ReactNode } from "react"
 import { createPortal } from "react-dom"
-import { Check, ChevronLeft, ChevronRight, Copy, FilePlus, FileText, Inbox, ListPlus, Plus, SlidersHorizontal, Trash2, X } from "lucide-react"
+import { Check, ChevronLeft, ChevronRight, Copy, FilePlus, FileText, Inbox, ListPlus, Plus, SlidersHorizontal, SquareCheckBig, Trash2, X } from "lucide-react"
 import { api } from "@/lib/api-client"
 import { cn } from "@/lib/utils"
 import { getPref, OUTLINE_TABS, type TabPlace } from "@/lib/settings"
@@ -26,7 +26,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
+import { Toggle } from "@/components/ui/toggle"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
+import { ConfirmDialog } from "@/components/ConfirmDialog"
 
 const ANYTIME = "anytime"
 const day = (value?: string) => (value ? value.slice(0, 10) : "")
@@ -702,6 +704,11 @@ export function OutlineCard({ application, writable, onChange, onSaveNotes, onPa
   const [noteFiles, setNoteFiles] = useState<Note[]>([])
   // null shows the files as a grid; an id opens that file.
   const [noteFile, setNoteFile] = useState<string | null>(null)
+  // Select in the title bar: tick files on the grid, then delete them behind a confirm.
+  const [selectingNotes, setSelectingNotes] = useState(false)
+  const [notesPicked, setNotesPicked] = useState<Set<string>>(new Set())
+  const [confirmNotes, setConfirmNotes] = useState(false)
+  const [notesBusy, setNotesBusy] = useState(false)
   // A file just made with New file, whose name field starts selected.
   const [fresh, setFresh] = useState<string | null>(null)
   const [copied, setCopied] = useState<string | null>(null)
@@ -1619,6 +1626,12 @@ export function OutlineCard({ application, writable, onChange, onSaveNotes, onPa
   }
   // A deleted file falls back to the grid.
   const picked = fileList.find((f) => f.id === noteFile)
+  const toggleNotePick = (id: string) =>
+    setNotesPicked((s) => {
+      const next = new Set(s)
+      if (!next.delete(id)) next.add(id)
+      return next
+    })
   const newTile = (props: ComponentProps<"button">) => (
     <button type="button" {...props} style={stagger(fileList.length).style} className={cn(tile, "text-muted-foreground hover:text-foreground", stagger(fileList.length).className)}>
       <span className="flex size-10 items-center justify-center rounded-md border border-dashed">
@@ -1641,71 +1654,96 @@ export function OutlineCard({ application, writable, onChange, onSaveNotes, onPa
           : [aboutSection]
   const tile = "flex w-full flex-col items-center gap-1.5 rounded-lg px-2 pt-3 pb-2 text-center outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
   const notesView = !picked ? (
-    // Like Finder's icon view: a file per tile, click one to open it.
-    <nav aria-label="Notes files" className="grid grid-cols-[repeat(auto-fill,minmax(7rem,1fr))] gap-2">
-      {fileList.map((f, i) => (
-        <div key={f.id} style={stagger(i).style} className={cn("group relative", stagger(i).className)}>
-          <button type="button" onClick={() => setNoteFile(f.id)} className={cn(tile, f.dim && "opacity-50")}>
-            <FileText strokeWidth={1.25} className={cn("size-10", f.id === "overall" ? "text-foreground" : "text-muted-foreground")} />
-            <span className={cn("line-clamp-2 w-full font-mono text-xs break-all", f.id === "overall" && "italic")} title={f.name}>
-              {f.name}
-            </span>
-            <span className="h-3.5 w-full truncate text-[11px] leading-none text-muted-foreground">{f.hint ?? (f.round ? meta(f.round) : f.dim ? "hidden" : "")}</span>
-          </button>
-          {writable && (
-            <Button
-              size="icon-xs"
-              variant="ghost"
-              className={cn("absolute top-1 right-1 opacity-0 group-hover:opacity-100 focus-visible:opacity-100", armedDel === f.id && "text-destructive opacity-100 hover:text-destructive")}
-              aria-label={armedDel === f.id ? `Confirm clearing ${f.name}` : `Delete ${f.name}`}
-              title={armedDel === f.id ? "Click again: deletes every file and clears every note" : "Delete"}
-              onMouseLeave={() => armedDel === f.id && setArmedDel(null)}
-              onClick={() => {
-                // overall.md is everything at once, so it asks first.
-                if (f.id === "overall" && armedDel !== f.id) return setArmedDel(f.id)
-                setArmedDel(null)
-                void clearFile(f)
-              }}
-            >
-              <X />
-            </Button>
-          )}
+    <div className="flex flex-col gap-2">
+      {selectingNotes && (
+        // Like the applications table: pick files, then delete them behind a confirm.
+        <div className="flex items-center gap-2 text-sm duration-150 animate-in fade-in">
+          <span className="text-muted-foreground tabular-nums">{notesPicked.size} selected</span>
+          <span className="flex-1" />
+          <Button size="sm" variant="outline" className="text-destructive hover:text-destructive" disabled={!notesPicked.size} onClick={() => setConfirmNotes(true)}>
+            <Trash2 /> Delete
+          </Button>
         </div>
-      ))}
-      {writable && (
-        // Like a word processor's new document: a template, or notes for a
-        // round that has none yet.
-        <Popover>
-          <PopoverTrigger asChild>{newTile({})}</PopoverTrigger>
-          <PopoverContent align="start" side="bottom" className="flex w-80 flex-col gap-3">
-            <div className="grid grid-cols-3 gap-2">
-              {TEMPLATES.map((t) => (
-                <PopoverPrimitive.Close asChild key={t.name}>
-                  <button type="button" onClick={() => newFile(t.body)} className="flex flex-col items-center gap-1.5 rounded-md p-2 text-xs outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring">
-                    <span className="flex h-14 w-11 flex-col gap-1 overflow-hidden rounded-sm border bg-background p-1.5 text-left font-mono text-[5px] leading-tight text-muted-foreground">
-                      {t.body ? t.body.split("\n").filter(Boolean).slice(0, 5).map((l, k) => <span key={k} className="truncate">{l}</span>) : <Plus className="m-auto size-3" />}
-                    </span>
-                    {t.name}
-                  </button>
-                </PopoverPrimitive.Close>
-              ))}
-            </div>
-            {(!aboutWritten || unwritten.length > 0) && (
-              <div className="flex flex-col">
-                <span className="px-2 pb-1 text-[11px] text-muted-foreground">Notes for</span>
-                {[...(!aboutWritten ? [{ id: "about", name: "about.md" }] : []), ...unwritten.map(({ r, n }) => ({ id: r.id, name: slug(roundName(r, n)) }))].map((o) => (
-                  <PopoverPrimitive.Close asChild key={o.id}>
-                    <button type="button" onClick={() => setNoteFile(o.id)} className="flex h-7 items-center gap-2 rounded-md px-2 text-left font-mono text-xs outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring">
-                      <FileText className="size-3.5 text-muted-foreground" /> {o.name}
+      )}
+      {/* Like Finder's icon view: a file per tile, click one to open it. */}
+      <nav aria-label="Notes files" className="grid grid-cols-[repeat(auto-fill,minmax(7rem,1fr))] gap-2">
+        {fileList.map((f, i) => (
+          <div key={f.id} style={stagger(i).style} className={cn("group relative", stagger(i).className)}>
+            {/* Selecting, a click ticks the tile instead of opening it. */}
+            <button
+              type="button"
+              aria-pressed={selectingNotes ? notesPicked.has(f.id) : undefined}
+              onClick={() => (selectingNotes ? toggleNotePick(f.id) : setNoteFile(f.id))}
+              className={cn(tile, f.dim && "opacity-50", selectingNotes && notesPicked.has(f.id) && "bg-muted ring-1 ring-foreground/15")}
+            >
+              <FileText strokeWidth={1.25} className={cn("size-10", f.id === "overall" ? "text-foreground" : "text-muted-foreground")} />
+              <span className={cn("line-clamp-2 w-full font-mono text-xs break-all", f.id === "overall" && "italic")} title={f.name}>
+                {f.name}
+              </span>
+              <span className="h-3.5 w-full truncate text-[11px] leading-none text-muted-foreground">{f.hint ?? (f.round ? meta(f.round) : f.dim ? "hidden" : "")}</span>
+            </button>
+            {selectingNotes && <Checkbox tabIndex={-1} aria-hidden checked={notesPicked.has(f.id)} className="pointer-events-none absolute top-2 left-2 duration-150 animate-in fade-in" />}
+          </div>
+        ))}
+        {writable && !selectingNotes && (
+          // Like a word processor's new document: a template, or notes for a
+          // round that has none yet.
+          <Popover>
+            <PopoverTrigger asChild>{newTile({})}</PopoverTrigger>
+            <PopoverContent align="start" side="bottom" className="flex w-80 flex-col gap-3">
+              <div className="grid grid-cols-3 gap-2">
+                {TEMPLATES.map((t) => (
+                  <PopoverPrimitive.Close asChild key={t.name}>
+                    <button type="button" onClick={() => newFile(t.body)} className="flex flex-col items-center gap-1.5 rounded-md p-2 text-xs outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring">
+                      <span className="flex h-14 w-11 flex-col gap-1 overflow-hidden rounded-sm border bg-background p-1.5 text-left font-mono text-[5px] leading-tight text-muted-foreground">
+                        {t.body ? t.body.split("\n").filter(Boolean).slice(0, 5).map((l, k) => <span key={k} className="truncate">{l}</span>) : <Plus className="m-auto size-3" />}
+                      </span>
+                      {t.name}
                     </button>
                   </PopoverPrimitive.Close>
                 ))}
               </div>
-            )}
-          </PopoverContent>
-        </Popover>
-      )}
-    </nav>
+              {(!aboutWritten || unwritten.length > 0) && (
+                <div className="flex flex-col">
+                  <span className="px-2 pb-1 text-[11px] text-muted-foreground">Notes for</span>
+                  {[...(!aboutWritten ? [{ id: "about", name: "about.md" }] : []), ...unwritten.map(({ r, n }) => ({ id: r.id, name: slug(roundName(r, n)) }))].map((o) => (
+                    <PopoverPrimitive.Close asChild key={o.id}>
+                      <button type="button" onClick={() => setNoteFile(o.id)} className="flex h-7 items-center gap-2 rounded-md px-2 text-left font-mono text-xs outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring">
+                        <FileText className="size-3.5 text-muted-foreground" /> {o.name}
+                      </button>
+                    </PopoverPrimitive.Close>
+                  ))}
+                </div>
+              )}
+            </PopoverContent>
+          </Popover>
+        )}
+      </nav>
+      <ConfirmDialog
+        open={confirmNotes}
+        onOpenChange={setConfirmNotes}
+        title={notesPicked.size === 1 ? `Delete ${fileList.find((f) => notesPicked.has(f.id))?.name ?? "1 note"}` : `Delete ${notesPicked.size} notes`}
+        description={
+          notesPicked.has("overall")
+            ? "overall.md is every note at once: this deletes every file and clears the notes of every round and about.md. This can't be undone."
+            : "Files are deleted. A round's or about.md's notes are cleared, and the round stays. This can't be undone."
+        }
+        confirmLabel="Delete"
+        danger
+        busy={notesBusy}
+        onConfirm={async () => {
+          setNotesBusy(true)
+          try {
+            await Promise.all(fileList.filter((f) => notesPicked.has(f.id)).map(clearFile))
+          } finally {
+            setNotesBusy(false)
+            setConfirmNotes(false)
+            setSelectingNotes(false)
+            setNotesPicked(new Set())
+          }
+        }}
+      />
+    </div>
   ) : (
     <div key={picked.id} className={cn("flex min-w-0 flex-col gap-2", stagger().className)}>
       <div className="flex items-center gap-2 font-mono text-xs text-muted-foreground">
@@ -1778,7 +1816,26 @@ export function OutlineCard({ application, writable, onChange, onSaveNotes, onPa
       id={only ? `outline-${only}` : "outline"}
       title={only ? OUTLINE_TABS.find(([v]) => v === only)![1] : "Details"}
       summary={only === "rounds" ? rounds.summary() : only === "questions" ? questionCount || undefined : only === "notes" ? undefined : waiting ? `${waiting} waiting on you` : rounds.summary()}
-      actions={<ViewOptions prefs={prefs} onChange={setPrefs} layouts={!only} />}
+      actions={
+        <>
+          {view === "notes" && !picked && writable && (
+            <Toggle
+              variant="outline"
+              size="sm"
+              aria-label="Select notes"
+              pressed={selectingNotes}
+              onPressedChange={(on) => {
+                setSelectingNotes(on)
+                if (!on) setNotesPicked(new Set())
+              }}
+              className="mr-1"
+            >
+              <SquareCheckBig /> Select
+            </Toggle>
+          )}
+          <ViewOptions prefs={prefs} onChange={setPrefs} layouts={!only} />
+        </>
+      }
     >
       {!only && (
         <div className="flex">
