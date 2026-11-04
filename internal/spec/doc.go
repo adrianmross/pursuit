@@ -130,6 +130,7 @@ func build() []byte {
 	add("/v1/demo", "post","mint a token for a fresh, isolated demo sandbox when demo mode is on", false, open)
 	add("/v1/me", "get", "current user and token", false, nil)
 	add("/v1/me", "patch", "set display name or avatar (png, jpeg, or webp data URL under 256KB; empty clears it). email is accepted only from the PURSUIT_TRUST_PROXY_AUTH owner (GET /v1/me returns proxy: true)", true, nil)
+	add("/v1/answers/similar", "get", "smart search: saved answers, interview rounds' prep and notes, and text documents close in meaning to q, best first. [{source (answer, round, document), source_id, title, snippet, score 0-1, link, answer}]. limit (default 10, max 50). needs the smart_search feature: 403 feature_unavailable otherwise", false, nil)
 	add("/v1/features", "get", "every feature with configured (this server is set up for it), entitled (your plan includes it, always true without billing), enabled (your on/off; experimental ones start off) and available (all three)", false, nil)
 	add("/v1/features/{id}", "patch", "turn a feature on or off for yourself. body {enabled}. an endpoint behind a feature answers 403 feature_unavailable with details.reason not_configured, not_entitled or disabled", true, nil)
 	add("/v1/billing", "get", "your plan: enabled (this server sells plans), status (Stripe subscription status or none), active, current_period_end, cancel_at_period_end, entitlements", false, nil)

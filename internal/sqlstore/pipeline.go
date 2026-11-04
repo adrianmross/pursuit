@@ -48,6 +48,11 @@ type Question struct {
 	Unknown       bool
 	Source        string
 	CreatedAt     string
+	// SuggestedAnswer is the closest saved answer by meaning, when smart
+	// search is on; SuggestedSource names where it came from.
+	SuggestedAnswer string
+	SuggestedSource string
+	SuggestedScore  float64
 }
 
 type StandingAnswer struct {
@@ -299,8 +304,8 @@ func (s *Store) ReplaceQuestions(ctx context.Context, userID, applicationID stri
 		if q.Unknown {
 			unk = 1
 		}
-		if _, err := s.exec(ctx, `INSERT INTO questions (id, user_id, application_id, prompt, answer, required, unknown, source, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-			q.ID, userID, applicationID, q.Prompt, q.Answer, req, unk, q.Source, q.CreatedAt); err != nil {
+		if _, err := s.exec(ctx, `INSERT INTO questions (id, user_id, application_id, prompt, answer, required, unknown, source, created_at, suggested_answer, suggested_source, suggested_score) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			q.ID, userID, applicationID, q.Prompt, q.Answer, req, unk, q.Source, q.CreatedAt, q.SuggestedAnswer, q.SuggestedSource, q.SuggestedScore); err != nil {
 			return err
 		}
 	}
@@ -308,7 +313,7 @@ func (s *Store) ReplaceQuestions(ctx context.Context, userID, applicationID stri
 }
 
 func (s *Store) ListQuestions(ctx context.Context, userID, applicationID string) ([]Question, error) {
-	rows, err := s.query(ctx, `SELECT id, user_id, application_id, prompt, answer, required, unknown, source, created_at FROM questions WHERE user_id=? AND application_id=? ORDER BY created_at, id`, userID, applicationID)
+	rows, err := s.query(ctx, `SELECT id, user_id, application_id, prompt, answer, required, unknown, source, created_at, suggested_answer, suggested_source, suggested_score FROM questions WHERE user_id=? AND application_id=? ORDER BY created_at, id`, userID, applicationID)
 	if err != nil {
 		return nil, err
 	}
@@ -317,7 +322,7 @@ func (s *Store) ListQuestions(ctx context.Context, userID, applicationID string)
 	for rows.Next() {
 		var q Question
 		var req, unk int
-		if err := rows.Scan(&q.ID, &q.UserID, &q.ApplicationID, &q.Prompt, &q.Answer, &req, &unk, &q.Source, &q.CreatedAt); err != nil {
+		if err := rows.Scan(&q.ID, &q.UserID, &q.ApplicationID, &q.Prompt, &q.Answer, &req, &unk, &q.Source, &q.CreatedAt, &q.SuggestedAnswer, &q.SuggestedSource, &q.SuggestedScore); err != nil {
 			return nil, err
 		}
 		q.Required, q.Unknown = req == 1, unk == 1

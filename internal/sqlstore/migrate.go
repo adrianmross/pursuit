@@ -542,4 +542,29 @@ var migrations = []migration{{
 			SELECT d2.id FROM documents d2 WHERE d2.user_id = documents.user_id AND d2.kind = documents.kind
 			ORDER BY d2.created_at DESC, d2.id DESC LIMIT 1)`,
 	},
+}, {
+	version: "022",
+	stmts: []string{
+		// Smart search: one row per chunk of a source (an answer, a round's
+		// notes, a text document), with its embedding. hash covers the
+		// model and text, so a change to either re-embeds just that chunk.
+		// vector is base64 of little-endian float32s.
+		`CREATE TABLE IF NOT EXISTS search_chunks (
+			user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+			source TEXT NOT NULL,
+			source_id TEXT NOT NULL,
+			idx INTEGER NOT NULL,
+			title TEXT NOT NULL,
+			text TEXT NOT NULL,
+			hash TEXT NOT NULL,
+			vector TEXT NOT NULL,
+			updated_at TEXT NOT NULL,
+			PRIMARY KEY (user_id, source, source_id, idx)
+		)`,
+		// The closest saved answer to a form question prepare couldn't
+		// match exactly. A suggestion only: the question stays unknown.
+		`ALTER TABLE questions ADD COLUMN suggested_answer TEXT NOT NULL DEFAULT ''`,
+		`ALTER TABLE questions ADD COLUMN suggested_source TEXT NOT NULL DEFAULT ''`,
+		`ALTER TABLE questions ADD COLUMN suggested_score REAL NOT NULL DEFAULT 0`,
+	},
 }}

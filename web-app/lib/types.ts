@@ -102,6 +102,10 @@ export type Question = {
   required?: boolean
   unknown?: boolean
   source?: string
+  // Smart search's closest saved answer, for a human to accept.
+  suggested_answer?: string
+  suggested_source?: string
+  suggested_score?: number
 }
 
 export type Artifact = {

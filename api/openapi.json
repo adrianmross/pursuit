@@ -513,6 +513,67 @@
         "summary": "Agent Skill for the pursuit CLI"
       }
     },
+    "/v1/answers/similar": {
+      "get": {
+        "operationId": "get__v1_answers_similar",
+        "responses": {
+          "200": {
+            "description": "JSON body"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "error"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "error"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "error"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "error"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "error"
+          }
+        },
+        "summary": "smart search: saved answers, interview rounds' prep and notes, and text documents close in meaning to q, best first. [{source (answer, round, document), source_id, title, snippet, score 0-1, link, answer}]. limit (default 10, max 50). needs the smart_search feature: 403 feature_unavailable otherwise"
+      }
+    },
     "/v1/applications": {
       "get": {
         "operationId": "get__v1_applications",
