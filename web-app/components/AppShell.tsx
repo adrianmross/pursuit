@@ -13,6 +13,11 @@ import { SearchBox } from "@/components/SearchBox"
 import { SiteFooter } from "@/components/SiteFooter"
 import { UserAvatar, displayName } from "@/components/UserAvatar"
 import { ProfileNudge } from "@/components/profile/ProfilePage"
+import { NotificationBell, describe, eventMeta } from "@/components/Notifications"
+import { Toaster } from "@/components/ui/sonner"
+import { toast } from "sonner"
+import { LiveProvider, type LiveEvent } from "@/lib/live"
+import { applicationHref } from "@/lib/links"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -91,7 +96,18 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   })
   const identity = displayName(me)
 
+  // A change made somewhere else (an agent, the extension, another tab) gets a toast; your own don't.
+  const toastEvent = (ev: LiveEvent) => {
+    if (me?.token?.id && ev.actor?.token_id === me.token.id) return
+    const { text } = describe(ev)
+    toast(text, {
+      description: eventMeta(ev),
+      action: ev.application_id ? { label: "Open", onClick: () => router.push(applicationHref(ev.application_id!)) } : undefined,
+    })
+  }
+
   return (
+    <LiveProvider onEvent={toastEvent}>
     <div className="flex min-h-svh flex-col">
       <header className="flex items-center gap-3 border-b px-4 py-2.5">
         {narrow && searching ? (
@@ -142,6 +158,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <div className="flex shrink-0 items-center justify-end gap-2">
           <CommandPalette onOpenSettings={openSettings} />
           <Kbd className="hidden sm:inline-flex" title="Command palette">{keyLabels("mod+p").join(" ")}</Kbd>
+          <NotificationBell />
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="icon" className="rounded-full" aria-label="Account">
@@ -190,6 +207,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </main>
       <SiteFooter />
       <SettingsDialog key={settingsKey} initial={settingsSection} open={settingsOpen} onOpenChange={setSettingsOpen} />
+      <Toaster position="bottom-right" />
     </div>
+    </LiveProvider>
   )
 }
