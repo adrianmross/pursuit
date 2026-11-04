@@ -1096,7 +1096,7 @@ export function PipelineView({ initial }: { initial: PipelineInitial | null }) {
                 </TableCell>
               </TableRow>
             )}
-            {visibleRows.map((row) => {
+            {visibleRows.map((row, i) => {
               const href = safeURL(row.posting_url)
               const when = row.applied_date || row.updated_at
               return (
@@ -1104,7 +1104,9 @@ export function PipelineView({ initial }: { initial: PipelineInitial | null }) {
                   <TableRow
                     data-cursor={row.id === cursorId}
                     onClick={() => setCursor(row.id)}
-                    className="data-[cursor=true]:bg-muted data-[cursor=true]:shadow-[inset_2px_0_0_var(--primary)]"
+                    // Rows fade in one after another when they first appear, like the start page's day list; a sort only reorders them, so it doesn't replay.
+                    style={{ animationDelay: `${Math.min(i, 15) * 30}ms` }}
+                    className="duration-300 animate-in fill-mode-both fade-in slide-in-from-top-1 data-[cursor=true]:bg-muted data-[cursor=true]:shadow-[inset_2px_0_0_var(--primary)]"
                   >
                     {selecting && (
                       <TableCell>
