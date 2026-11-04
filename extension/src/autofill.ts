@@ -78,11 +78,29 @@ export function matchAnswer(label: string, answers: Record<string, string>): str
   return hit;
 }
 
-export function autofillDocument(doc: Document, answers: Record<string, string>, files: FillFiles = {}): FillReport {
+// `pace` runs after each field is filled, with how many fields are still to
+// visit, so the panel can show the fill as it happens.
+export async function autofillDocument(
+  doc: Document,
+  answers: Record<string, string>,
+  files: FillFiles = {},
+  pace?: (report: FillReport, left: number) => Promise<void>,
+): Promise<FillReport> {
   const report: FillReport = { filled: [], missed: [], fields: [] };
   const fields = [...doc.querySelectorAll("input, textarea, select")] as Field[];
+  const uploads = [...doc.querySelectorAll('input[type="file"]')] as HTMLInputElement[];
   const groups = new Set<string>();
+  let left = fields.length + uploads.length + 1;
+  let shown = 0;
+  const step = async () => {
+    left--;
+    if (pace && report.filled.length > shown) {
+      shown = report.filled.length;
+      await pace(report, left);
+    }
+  };
   for (const el of fields) {
+    await step();
     if (skip(el)) continue;
     const type = (el.getAttribute("type") || "").toLowerCase();
     if (type === "radio") {
@@ -113,8 +131,8 @@ export function autofillDocument(doc: Document, answers: Record<string, string>,
     el.classList.remove("pursuit-unfilled");
     report.filled.push(label);
   }
-  const uploads = [...doc.querySelectorAll('input[type="file"]')] as HTMLInputElement[];
   for (const input of uploads) {
+    await step();
     const label = fieldLabel(input) || "Résumé";
     if (!/resume|résumé|curriculum|cv\b/i.test(label + " " + (input.name || "") + " " + (input.id || ""))) continue;
     if (files.resume && attach(input, files.resume)) {
@@ -126,6 +144,7 @@ export function autofillDocument(doc: Document, answers: Record<string, string>,
     miss(report, label + " (add a base résumé in Pursuit)", input);
     mark(input);
   }
+  await step();
   ensureStyle(doc);
   return report;
 }

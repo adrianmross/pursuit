@@ -29,13 +29,13 @@ test("prepared prompts match by the same key as standing answers", () => {
   assert.equal(matchAnswer("Full name", profile), "Ada Lovelace");
 });
 
-test("Greenhouse form fills contact and prepared answers and never submits", () => {
+test("Greenhouse form fills contact and prepared answers and never submits", async () => {
   const doc = form("greenhouse-form.html");
   let submitted = 0;
   doc.getElementById("submit").addEventListener("click", () => {
     submitted += 1;
   });
-  const report = autofillDocument(doc, {
+  const report = await autofillDocument(doc, {
     ...profile,
     "Why us?": "Prepared for this role.",
     why_us: "Prepared for this role.",
@@ -54,13 +54,13 @@ test("Greenhouse form fills contact and prepared answers and never submits", () 
   assert.equal(doc.getElementById("phone").classList.contains("pursuit-unfilled"), false);
 });
 
-test("Ashby form fills name, email, and the prepared prompt", () => {
+test("Ashby form fills name, email, and the prepared prompt", async () => {
   const doc = form("ashby-form.html");
   let submitted = 0;
   doc.querySelector("button")!.addEventListener("click", () => {
     submitted += 1;
   });
-  const report = autofillDocument(doc, { ...profile, "Why Ashby?": "I like the product." });
+  const report = await autofillDocument(doc, { ...profile, "Why Ashby?": "I like the product." });
   assert.equal(submitted, 0);
   assert.equal((doc.getElementById("name") as HTMLInputElement).value, "Ada Lovelace");
   assert.equal((doc.getElementById("email") as HTMLInputElement).value, "person@example.com");
@@ -69,9 +69,9 @@ test("Ashby form fills name, email, and the prepared prompt", () => {
   assert.ok(report.missed.some((label) => /base résumé/.test(label)));
 });
 
-test("Lever form fills wrapped labels and leaves the file input empty", () => {
+test("Lever form fills wrapped labels and leaves the file input empty", async () => {
   const doc = form("lever-form.html");
-  const report = autofillDocument(doc, profile);
+  const report = await autofillDocument(doc, profile);
   const inputs = [...doc.querySelectorAll("input")] as HTMLInputElement[];
   assert.equal(inputs.find((el) => el.name === "name")!.value, "Ada Lovelace");
   assert.equal(inputs.find((el) => el.name === "email")!.value, "person@example.com");

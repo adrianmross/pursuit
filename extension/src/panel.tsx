@@ -78,13 +78,14 @@ async function resumeFile(app?: App): Promise<File | undefined> {
   return decodeFile(doc.body, doc.filename, doc.content_type, !/^text\/|json/i.test(doc.content_type || ""))
 }
 
-// A hand-drawn edge around the panel, the same roughness as the error pages' sketches.
+// A hand-drawn edge around the panel: low-frequency noise bends the line in a
+// few long, smooth waves instead of roughing up every pixel.
 function RoughFrame() {
   return (
     <svg aria-hidden className="pointer-events-none absolute inset-0 size-full overflow-visible">
       <filter id="pursuit-rough" x="-5%" y="-5%" width="110%" height="110%">
-        <feTurbulence type="fractalNoise" baseFrequency="0.035" numOctaves="2" seed="7" />
-        <feDisplacementMap in="SourceGraphic" scale="3" />
+        <feTurbulence type="fractalNoise" baseFrequency="0.006" numOctaves="1" seed="3" />
+        <feDisplacementMap in="SourceGraphic" scale="4" />
       </filter>
       <rect x="2" y="2" rx="14" filter="url(#pursuit-rough)" className="fill-card stroke-foreground" strokeWidth="2" style={{ width: "calc(100% - 4px)", height: "calc(100% - 4px)" }} />
     </svg>
@@ -102,35 +103,34 @@ function Tick({ children, faded }: { children: ReactNode; faded?: boolean }) {
   )
 }
 
-// The roll: a die, "Rolled n of m", a bar, then each filled field ticks past and the list settles.
-function Roll({ report }: { report: FillReport }) {
-  const total = report.filled.length + report.missed.length
-  const pips = Math.max(1, Math.min(6, Math.round((6 * report.filled.length) / Math.max(1, total))))
+// How long each filled field stays on screen before the next one.
+const PACE_MS = 350
+
+// The roll: the die spins and the bar fills while the form fills, the field just
+// filled ticks in, then it lands on "Rolled n of m" and the list settles.
+function Roll({ report, left }: { report: FillReport; left: number | null }) {
+  const rolling = left !== null
+  const filled = report.filled.length
+  const total = filled + report.missed.length
+  // While rolling, fields not reached yet count against the bar, so it only grows.
+  const out = total + (left ?? 0)
+  const pips = rolling ? (filled % 6) + 1 : Math.max(1, Math.min(6, Math.round((6 * filled) / Math.max(1, total))))
   const fields = report.filled.filter((f) => !report.attached || !/resume|résumé|cv/i.test(f))
-  const [step, setStep] = useState(0)
-  useEffect(() => {
-    setStep(0)
-    const t = setInterval(() => setStep((s) => (s > fields.length ? s : s + 1)), 160)
-    return () => clearInterval(t)
-  }, [report, fields.length])
-  const passing = step <= fields.length ? fields[step - 1] : undefined
   return (
     <div className="flex flex-col gap-2.5">
       <div className="flex items-center gap-2.5">
-        <Sketch viewBox="0 0 44 44" roughness={2} className="size-8 shrink-0">
+        <Sketch viewBox="0 0 44 44" roughness={2} className={`size-8 shrink-0 ${rolling ? "animate-[spin_1.1s_linear_infinite] motion-reduce:animate-none" : ""}`}>
           <Die x={22} y={22} size={30} tilt={-8} pips={pips} />
         </Sketch>
-        <span className="flex-1 text-sm">Rolled</span>
-        <b className="text-sm font-semibold">
-          {report.filled.length} of {total}
-        </b>
+        <span className="flex-1 text-sm">{rolling ? "Rolling…" : "Rolled"}</span>
+        <b className="text-sm font-semibold">{rolling ? filled : `${filled} of ${total}`}</b>
       </div>
-      <div className="h-1.5 overflow-hidden rounded-full bg-border" role="progressbar" aria-valuemin={0} aria-valuemax={total} aria-valuenow={report.filled.length} aria-label="Fields filled">
-        <div className="h-full bg-foreground transition-[width] duration-700" style={{ width: `${(100 * report.filled.length) / Math.max(1, total)}%` }} />
+      <div className="h-1.5 overflow-hidden rounded-full bg-border" role="progressbar" aria-valuemin={0} aria-valuemax={out} aria-valuenow={filled} aria-label="Fields filled">
+        <div className="h-full bg-foreground transition-[width] duration-300 ease-out" style={{ width: `${(100 * filled) / Math.max(1, out)}%` }} />
       </div>
       <div className="flex flex-col gap-1.5">
         {report.attached && <Tick>Attached {report.attached}</Tick>}
-        {passing ? <Tick key={passing}>{passing}</Tick> : fields.length > 0 && <Tick faded>Profile fields filled</Tick>}
+        {rolling ? fields.length > 0 && <Tick key={fields.length}>{fields.at(-1)}</Tick> : fields.length > 0 && <Tick faded>Profile fields filled</Tick>}
       </div>
     </div>
   )
@@ -216,6 +216,10 @@ function Panel({ host, events }: { host: HTMLElement; events: Bus }) {
   const [error, setError] = useState("")
   const [note, setNote] = useState("")
   const [report, setReport] = useState<FillReport | null>(null)
+  // Fields still to visit while a fill runs; null once it lands.
+  const [left, setLeft] = useState<number | null>(null)
+  // The posting this panel just saved, until something else happens: Undo deletes it.
+  const [justSaved, setJustSaved] = useState(false)
   const [submitted, setSubmitted] = useState(false)
   const [dark, setDark] = useState(() => matchMedia("(prefers-color-scheme: dark)").matches)
   const loaded = useRef(false)
@@ -250,6 +254,7 @@ function Panel({ host, events }: { host: HTMLElement; events: Bus }) {
       setJob(extractJob(document, location.href))
       setForm(hasForm())
       setReport(null)
+      setJustSaved(false)
       setSubmitted(false)
       setApp(undefined)
       loaded.current = false
@@ -285,6 +290,7 @@ function Panel({ host, events }: { host: HTMLElement; events: Bus }) {
     setBusy(name)
     setError("")
     setNote("")
+    setJustSaved(false)
     try {
       await fn()
     } catch (err) {
@@ -306,7 +312,13 @@ function Panel({ host, events }: { host: HTMLElement; events: Bus }) {
         source: source(job.url),
       })
       setApp(saved.application)
-      setNote(saved.created ? "Saved to your tracker." : "Already tracked.")
+      setJustSaved(saved.created)
+    })
+
+  const undoSave = () =>
+    act("undo", async () => {
+      await call("DELETE", `/v1/applications/${app!.id}?version=${app!.version}`)
+      setApp(undefined)
     })
 
   const markApplied = () =>
@@ -327,8 +339,16 @@ function Panel({ host, events }: { host: HTMLElement; events: Bus }) {
           answers[normalizeKey(q.prompt)] = q.answer
         }
       }
-      const r = autofillDocument(document, answers, { resume: await resumeFile(app) })
+      host.dataset.pursuitState = "filling"
+      setReport(null)
+      setLeft(0)
+      const r = await autofillDocument(document, answers, { resume: await resumeFile(app) }, async (live, rest) => {
+        setReport({ ...live, filled: [...live.filled], missed: [...live.missed] })
+        setLeft(rest)
+        await new Promise((done) => setTimeout(done, PACE_MS))
+      })
       setReport(r)
+      setLeft(null)
       host.dataset.pursuitState = "filled"
       host.dataset.pursuitFilled = String(r.filled.length)
       host.dataset.pursuitMissed = String(r.missed.length)
@@ -409,6 +429,11 @@ function Panel({ host, events }: { host: HTMLElement; events: Bus }) {
                       <>
                         <StatusBadge status={shown} />
                         <span className="text-xs text-muted-foreground">Saved {ago(app.created_at)}</span>
+                        {justSaved && (
+                          <Button variant="link" size="sm" className="h-auto px-0 text-xs" disabled={busy === "undo"} onClick={undoSave}>
+                            Undo
+                          </Button>
+                        )}
                       </>
                     ) : (
                       <Button variant="outline" size="sm" disabled={busy === "save" || !job.title} onClick={saveJob}>
@@ -423,9 +448,9 @@ function Panel({ host, events }: { host: HTMLElement; events: Bus }) {
                     <Button size="lg" className="h-11 text-[15px]" variant={report ? "outline" : "default"} disabled={busy === "fill"} onClick={autofill}>
                       {busy === "fill" ? "Filling…" : report ? "Fill again" : "Autofill this form"}
                     </Button>
-                    {report && <Roll report={report} />}
+                    {(report || left !== null) && <Roll report={report || { filled: [], missed: [], fields: [] }} left={left} />}
                     {noResume && <p className="text-xs text-muted-foreground">No résumé to attach. Add a base résumé in Pursuit.</p>}
-                    {report && missedQuestions.length > 0 && <LeftForYou key={report.missed.join("|")} fields={missedQuestions} onSaved={setNote} />}
+                    {report && left === null && missedQuestions.length > 0 && <LeftForYou key={report.missed.join("|")} fields={missedQuestions} onSaved={setNote} />}
                     {submitted && app && !["approved", "submitting", "submitted", "applied"].includes(app.status) && (
                       <div className="flex items-center gap-3 text-sm">
                         <span className="flex-1">Sent it?</span>

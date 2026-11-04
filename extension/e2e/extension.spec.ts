@@ -47,15 +47,22 @@ test("a person saves the posting, autofills, attaches the résumé, and nothing 
   await expect(p.getByRole("heading", { name: "Backend Engineer" })).toBeVisible();
   await expect(p.getByText("Acme Robotics · New York, NY · $160K–$190K")).toBeVisible();
 
+  // Undo takes a fresh save back off the tracker.
   await p.getByRole("button", { name: "Save job" }).click();
-  await expect(p.getByText("Saved to your tracker.")).toBeVisible();
+  await p.getByRole("button", { name: "Undo" }).click();
+  await expect(p.getByRole("button", { name: "Save job" })).toBeVisible();
+  await expect(h.call("GET", "/v1/applications/by-url?url=" + encodeURIComponent("https://job-boards.greenhouse.io/acme/jobs/111"))).rejects.toThrow(/404/);
+
+  await p.getByRole("button", { name: "Save job" }).click();
   await expect(p.locator("[data-slot=badge]")).toHaveText("Apply");
   await expect(p.getByRole("link", { name: /Backend Engineer.*Open in Pursuit/ })).toBeVisible();
   const app = await h.call("GET", "/v1/applications/by-url?url=" + encodeURIComponent("https://job-boards.greenhouse.io/acme/jobs/111"));
   expect(app).toMatchObject({ company: "Acme Robotics", title: "Backend Engineer", status: "to_apply", source: "greenhouse" });
 
   await p.getByRole("button", { name: "Autofill this form" }).click();
-  await expect(p.getByText("8 of 9")).toBeVisible();
+  // The fill is paced so a person can watch it: the die rolls, then lands.
+  await expect(p.getByText("Rolling…")).toBeVisible();
+  await expect(p.getByText("8 of 9")).toBeVisible({ timeout: 10_000 });
   await expect(p.getByText("Attached ada-resume.pdf")).toBeVisible();
   await expect(page.locator("#first_name")).toHaveValue("Ada");
   await expect(page.locator("#last_name")).toHaveValue("Lovelace");
@@ -112,7 +119,7 @@ test("an agent claims approved work through the CLI and drives the same panel", 
   const p = panel(page);
   await expect(p.locator("[data-slot=badge]")).toHaveText("Approved");
   await p.getByRole("button", { name: "Autofill this form" }).click();
-  await expect(p).toHaveAttribute("data-pursuit-state", "filled");
+  await expect(p).toHaveAttribute("data-pursuit-state", "filled", { timeout: 10_000 });
   await expect(p).toHaveAttribute("data-pursuit-missed", "0");
   await expect(page.locator("#why")).toHaveValue("You build the robots I want to program.");
   const file = await page.locator("#resume").evaluate((el: HTMLInputElement) => el.files?.[0]?.name);
