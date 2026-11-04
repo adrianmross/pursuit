@@ -3,7 +3,8 @@
 import Link from "next/link"
 import { RotateCcw } from "lucide-react"
 import { useAuth } from "@/lib/auth"
-import { Die, ErrorScene, Ring, Sketch, Track } from "@/components/Sketch"
+import { Die, Ring, Sketch, Track } from "@/components/Sketch"
+import { ErrorScene } from "@/components/ErrorScene"
 import { Button, buttonVariants } from "@/components/ui/button"
 
 // Any render or fetch failure below the root layout lands here. reset()

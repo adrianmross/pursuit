@@ -89,3 +89,34 @@ jobs:
       - run: npm ci
       - run: npm test
       - run: npm run build
+
+  # The built extension in Chromium against a real `pursuit serve`. The spec
+  # compiles ./cmd/pursuit, which embeds the dashboard, so build that first.
+  extension-e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            web-app/package-lock.json
+            docs-site/package-lock.json
+            extension/package-lock.json
+      - run: sh scripts/vercel-build.sh
+      - working-directory: extension
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+          npm run e2e
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: extension-e2e
+          path: |
+            extension/test-results/
+            extension/playwright-report/

@@ -1,4 +1,4 @@
-import { outcomeKind } from "@/lib/types"
+import { outcomeKind } from "@/lib/status"
 
 // The logo's p as a game piece: five ring segments plus a sixth, gold tail
 // on an offer. Geometry from the Hire Pursuit design system's ProgressMark.
