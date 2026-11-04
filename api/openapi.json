@@ -3441,7 +3441,7 @@
             "description": "error"
           }
         },
-        "summary": "start a subscription; returns {url} of a Stripe Checkout page. 409 if you already have a plan"
+        "summary": "start a subscription; returns {url} of a Stripe Checkout page. Optional body {code} applies an invite (a Stripe promotion code). 409 if you already have a plan or are comped"
       }
     },
     "/v1/billing/portal": {

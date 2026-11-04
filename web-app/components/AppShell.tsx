@@ -72,6 +72,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     setSettingsKey((k) => k + 1)
     setSettingsOpen(true)
   }
+  // An invite link (?invite=CODE) opens the plan, which offers to accept it.
+  useEffect(() => {
+    if (!new URLSearchParams(window.location.search).has("invite")) return
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setSettingsSection("plan")
+    setSettingsOpen(true)
+  }, [])
   const narrow = useMedia("(max-width: 639px)")
   const medium = useMedia("(max-width: 719px)")
   const [searching, setSearching] = useState(false)

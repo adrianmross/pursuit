@@ -21,6 +21,8 @@ export default function proxy(request: NextRequest) {
   if (!hasToken) {
     const url = request.nextUrl.clone()
     url.pathname = "/sign-in"
+    // Come back here after signing in, e.g. to an invite link.
+    url.search = "?" + new URLSearchParams({ next: pathname + request.nextUrl.search })
     return NextResponse.redirect(url)
   }
   return NextResponse.next()

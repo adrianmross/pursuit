@@ -21,6 +21,8 @@ export type Billing = {
   enabled: boolean
   status: string
   active: boolean
+  // Every feature without a plan: the owner, or PURSUIT_COMP_EMAILS.
+  comped?: boolean
   current_period_end?: string
   cancel_at_period_end: boolean
 }
@@ -41,7 +43,8 @@ export function useFeatures() {
 }
 
 // Send the browser to a Stripe page the server opens (checkout or portal).
-export async function goToStripe(path: "/v1/billing/checkout" | "/v1/billing/portal") {
-  const { url } = await api<{ url: string }>(path, { method: "POST" })
+// code is an invite's promotion code, applied at checkout.
+export async function goToStripe(path: "/v1/billing/checkout" | "/v1/billing/portal", code?: string) {
+  const { url } = await api<{ url: string }>(path, { method: "POST", body: code ? { code } : undefined })
   window.location.assign(url)
 }

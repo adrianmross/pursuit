@@ -133,7 +133,7 @@ func build() []byte {
 	add("/v1/features", "get", "every feature with configured (this server is set up for it), entitled (your plan includes it, always true without billing), enabled (your on/off; experimental ones start off) and available (all three)", false, nil)
 	add("/v1/features/{id}", "patch", "turn a feature on or off for yourself. body {enabled}. an endpoint behind a feature answers 403 feature_unavailable with details.reason not_configured, not_entitled or disabled", true, nil)
 	add("/v1/billing", "get", "your plan: enabled (this server sells plans), status (Stripe subscription status or none), active, current_period_end, cancel_at_period_end, entitlements", false, nil)
-	add("/v1/billing/checkout", "post", "start a subscription; returns {url} of a Stripe Checkout page. 409 if you already have a plan", true, nil)
+	add("/v1/billing/checkout", "post", "start a subscription; returns {url} of a Stripe Checkout page. Optional body {code} applies an invite (a Stripe promotion code). 409 if you already have a plan or are comped", true, nil)
 	add("/v1/billing/portal", "post", "returns {url} of the Stripe customer portal to change payment or cancel", true, nil)
 	add("/v1/billing/sync", "post", "re-read your plan from Stripe now (the page Checkout returns to calls this before the webhook lands); returns the plan", true, nil)
 	add("/v1/billing/webhook", "post", "Stripe webhook endpoint. authenticated by the Stripe-Signature header, not a token; re-reads the customer's plan from Stripe", false, open)

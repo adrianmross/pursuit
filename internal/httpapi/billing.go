@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"bytes"
 	"context"
 	"io"
 	"net/http"
@@ -38,7 +39,18 @@ func (s *Server) getBilling(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) billingCheckout(w http.ResponseWriter, r *http.Request) {
-	url, err := s.Svc.Checkout(r.Context(), s.Svc.BaseURL(publicBase(r)))
+	var in struct {
+		Code string `json:"code"`
+	}
+	body, err := io.ReadAll(io.LimitReader(r.Body, 4096))
+	if err == nil && len(bytes.TrimSpace(body)) > 0 {
+		err = decode(body, &in)
+	}
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	url, err := s.Svc.Checkout(r.Context(), s.Svc.BaseURL(publicBase(r)), in.Code)
 	if err != nil {
 		writeErr(w, err)
 		return

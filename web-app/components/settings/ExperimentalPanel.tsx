@@ -76,13 +76,16 @@ export function PlanPanel() {
       .then(setBilling)
       .catch(() => setBilling({ enabled: false, status: "none", active: false, cancel_at_period_end: false }))
   }, [])
+  // From an invite link: /start?invite=CODE.
+  const [invite] = useState(() => (typeof window === "undefined" ? "" : new URLSearchParams(window.location.search).get("invite") || ""))
   if (!billing) return <Spinner className="mx-auto my-6 text-muted-foreground" />
   if (!billing.enabled) return <p className="text-sm text-muted-foreground">This server doesn&apos;t sell plans: every feature it&apos;s set up for is included.</p>
-  const go = async (path: "/v1/billing/checkout" | "/v1/billing/portal") => {
+  if (billing.comped) return <p className="text-sm text-muted-foreground">Your account has every feature included, no plan needed.</p>
+  const go = async (path: "/v1/billing/checkout" | "/v1/billing/portal", code?: string) => {
     setBusy(true)
     setError("")
     try {
-      await goToStripe(path)
+      await goToStripe(path, code)
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not open Stripe")
       setBusy(false)
@@ -91,6 +94,19 @@ export function PlanPanel() {
   const end = billing.current_period_end ? new Date(billing.current_period_end).toLocaleDateString() : ""
   return (
     <div className="flex flex-col gap-3">
+      {invite && !billing.active && (
+        <Item size="sm" variant="muted">
+          <ItemContent>
+            <ItemTitle>You&apos;ve been invited to Plus</ItemTitle>
+            <ItemDescription>Stripe shows what it costs with the invite before you confirm. No card when it&apos;s free.</ItemDescription>
+          </ItemContent>
+          <ItemActions>
+            <Button size="sm" disabled={busy} onClick={() => go("/v1/billing/checkout", invite)}>
+              Accept invite
+            </Button>
+          </ItemActions>
+        </Item>
+      )}
       <Item size="sm" variant="outline">
         <ItemContent>
           <ItemTitle>

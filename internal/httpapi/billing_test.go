@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -21,8 +22,9 @@ import (
 // fakeStripe answers the calls billing makes. ents is what the customer
 // is entitled to right now; reads counts the entitlement reads (one per sync).
 type fakeStripe struct {
-	ents  atomic.Value // []string
-	reads atomic.Int32
+	ents     atomic.Value // []string
+	reads    atomic.Int32
+	checkout atomic.Value // the last Checkout form
 }
 
 func (f *fakeStripe) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -30,7 +32,15 @@ func (f *fakeStripe) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case "/v1/customers":
 		_, _ = w.Write([]byte(`{"id":"cus_1"}`))
 	case "/v1/checkout/sessions":
+		_ = r.ParseForm()
+		f.checkout.Store(r.PostForm)
 		_, _ = w.Write([]byte(`{"url":"https://checkout.stripe.test/s"}`))
+	case "/v1/promotion_codes":
+		if r.URL.Query().Get("code") == "FRIEND" && r.URL.Query().Get("active") == "true" {
+			_, _ = w.Write([]byte(`{"data":[{"id":"promo_1"}]}`))
+			return
+		}
+		_, _ = w.Write([]byte(`{"data":[]}`))
 	case "/v1/billing_portal/sessions":
 		_, _ = w.Write([]byte(`{"url":"https://billing.stripe.test/p"}`))
 	case "/v1/subscriptions":
@@ -209,6 +219,42 @@ func TestBillingSyncFromStripe(t *testing.T) {
 	f := e.features(t, e.token)
 	if f["smart_search"].Entitled || !f["tailored_documents"].Entitled {
 		t.Fatalf("after cancel: smart_search %+v tailored_documents %+v", f["smart_search"], f["tailored_documents"])
+	}
+}
+
+// An invite is a Stripe promotion code applied at Checkout; an unknown or
+// used-up one is refused before Stripe is asked for a session.
+func TestBillingInvite(t *testing.T) {
+	e := newBillingEnv(t, true)
+	if code := e.call(t, e.token, "POST", "/v1/billing/checkout", `{"code":"NOPE"}`, nil); code != 400 {
+		t.Fatalf("unknown invite: %d", code)
+	}
+	if code := e.call(t, e.token, "POST", "/v1/billing/checkout", `{"code":"FRIEND"}`, nil); code != 200 {
+		t.Fatalf("invite checkout: %d", code)
+	}
+	form := e.stripe.checkout.Load().(url.Values)
+	if form.Get("discounts[0][promotion_code]") != "promo_1" || form.Get("allow_promotion_codes") != "" || form.Get("payment_method_collection") != "if_required" {
+		t.Fatalf("invite form: %v", form)
+	}
+	e.call(t, e.token, "POST", "/v1/billing/checkout", "", nil)
+	if form := e.stripe.checkout.Load().(url.Values); form.Get("allow_promotion_codes") != "true" {
+		t.Fatalf("plain checkout should take a code: %v", form)
+	}
+}
+
+// PURSUIT_COMP_EMAILS gets every feature without paying, and has nothing to buy.
+func TestBillingComp(t *testing.T) {
+	e := newBillingEnv(t, true)
+	e.svc.CompEmails = map[string]bool{"owner@example.com": true}
+	if f := e.features(t, e.token)["smart_search"]; !f.Entitled {
+		t.Fatalf("comped not entitled: %+v", f)
+	}
+	var b service.BillingView
+	if e.call(t, e.token, "GET", "/v1/billing", "", &b); !b.Comped {
+		t.Fatalf("billing: %+v", b)
+	}
+	if code := e.call(t, e.token, "POST", "/v1/billing/checkout", "", nil); code != 409 {
+		t.Fatalf("comped checkout: %d", code)
 	}
 }
 

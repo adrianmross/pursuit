@@ -59,7 +59,27 @@ func findFeature(key string) (Feature, bool) {
 // alone: a missing price must break Checkout, not hand everyone the plan.
 func (s *Service) billingOn() bool { return s.Stripe != nil }
 
+// comped is a user who gets every feature without paying: the
+// PURSUIT_TRUST_PROXY_AUTH owner, or an email listed in PURSUIT_COMP_EMAILS.
+func (s *Service) comped(ctx context.Context, a domain.Actor) (bool, error) {
+	if a.Proxy {
+		return true, nil
+	}
+	if len(s.CompEmails) == 0 {
+		return false, nil
+	}
+	u, err := s.DB.GetUser(ctx, a.UserID)
+	if err != nil {
+		return false, err
+	}
+	return s.CompEmails[strings.ToLower(strings.TrimSpace(u.Email))], nil
+}
+
 func (s *Service) featureViews(ctx context.Context, a domain.Actor) ([]FeatureView, error) {
+	comp, err := s.comped(ctx, a)
+	if err != nil {
+		return nil, err
+	}
 	ents, err := s.DB.ListEntitlements(ctx, a.UserID)
 	if err != nil {
 		return nil, err
@@ -77,7 +97,7 @@ func (s *Service) featureViews(ctx context.Context, a domain.Actor) ([]FeatureVi
 		v := FeatureView{Key: f.Key, Name: f.Name, Description: f.Description, Premium: f.Premium, Experimental: f.Experimental}
 		v.Configured = s.Capabilities[f.Key]
 		// A demo sandbox shows off what the deployment has; it can't buy anything.
-		v.Entitled = !f.Premium || !s.billingOn() || a.Demo || has[f.Key]
+		v.Entitled = !f.Premium || !s.billingOn() || a.Demo || comp || has[f.Key]
 		v.Enabled = !f.Experimental
 		if on, ok := prefs[f.Key]; ok {
 			v.Enabled = on
@@ -165,11 +185,13 @@ func (s *Service) SetFeature(ctx context.Context, key string, in FeaturePatch) (
 }
 
 // BillingView is the user's plan. Enabled is false when this server doesn't
-// sell plans, and the rest is then empty.
+// sell plans, and the rest is then empty. Comped has every feature without
+// a plan: the owner or PURSUIT_COMP_EMAILS.
 type BillingView struct {
 	Enabled           bool                   `json:"enabled"`
 	Status            string                 `json:"status"`
 	Active            bool                   `json:"active"`
+	Comped            bool                   `json:"comped"`
 	CurrentPeriodEnd  string                 `json:"current_period_end,omitempty"`
 	CancelAtPeriodEnd bool                   `json:"cancel_at_period_end"`
 	Entitlements      []sqlstore.Entitlement `json:"entitlements"`
@@ -188,7 +210,12 @@ func (s *Service) Billing(ctx context.Context) (BillingView, error) {
 	if err != nil {
 		return BillingView{}, err
 	}
-	return s.billingView(ctx, a.UserID)
+	v, err := s.billingView(ctx, a.UserID)
+	if err != nil {
+		return v, err
+	}
+	v.Comped, err = s.comped(ctx, a)
+	return v, err
 }
 
 func (s *Service) billingView(ctx context.Context, userID string) (BillingView, error) {
@@ -251,11 +278,17 @@ func (s *Service) customer(ctx context.Context, a domain.Actor) (string, error) 
 }
 
 // Checkout returns a Stripe Checkout URL for the plan. base is the
-// dashboard's origin, where Stripe sends the user back.
-func (s *Service) Checkout(ctx context.Context, base string) (string, error) {
+// dashboard's origin, where Stripe sends the user back. code is an invite:
+// a Stripe promotion code applied up front, so a 100%-off one needs no card.
+func (s *Service) Checkout(ctx context.Context, base, code string) (string, error) {
 	a, err := s.billingActor(ctx)
 	if err != nil {
 		return "", err
+	}
+	if comp, err := s.comped(ctx, a); err != nil {
+		return "", err
+	} else if comp {
+		return "", domain.Conflict("your account already has every feature", "nothing to buy")
 	}
 	if v, err := s.billingView(ctx, a.UserID); err != nil {
 		return "", err
@@ -269,7 +302,16 @@ func (s *Service) Checkout(ctx context.Context, base string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return s.Stripe.CheckoutURL(ctx, cus, s.StripePrice, base+"/start?billing=success", base+"/start?billing=cancel")
+	promo := ""
+	if code = strings.TrimSpace(code); code != "" {
+		if promo, err = s.Stripe.PromotionCode(ctx, code); err != nil {
+			return "", err
+		}
+		if promo == "" {
+			return "", domain.Validation("this invite has expired or been used up").WithHint("ask whoever sent it for a new link")
+		}
+	}
+	return s.Stripe.CheckoutURL(ctx, cus, s.StripePrice, promo, base+"/start?billing=success", base+"/start?billing=cancel")
 }
 
 // Portal returns a Stripe customer portal URL.
@@ -455,6 +497,12 @@ func (s *Service) ConfigureFromEnv(getenv func(string) string, publicURL string)
 		}
 	}
 	s.PublicURL = publicURL
+	s.CompEmails = map[string]bool{}
+	for _, e := range strings.Split(env("PURSUIT_COMP_EMAILS"), ",") {
+		if e = strings.ToLower(strings.TrimSpace(e)); e != "" {
+			s.CompEmails[e] = true
+		}
+	}
 	s.Capabilities = map[string]bool{
 		"smart_search": env("AI_GATEWAY_API_KEY") != "",
 		// Needs nothing beyond the server itself.

@@ -111,21 +111,47 @@ func (c *Client) CreateCustomer(ctx context.Context, userID, email, name string)
 	return out.ID, err
 }
 
-// CheckoutURL starts a subscription Checkout for one price.
-func (c *Client) CheckoutURL(ctx context.Context, customer, price, successURL, cancelURL string) (string, error) {
+// CheckoutURL starts a subscription Checkout for one price. promo is a
+// promotion code ID applied up front; without one the page takes a code.
+// A card is asked for only when something is due, so a 100%-off invite
+// needs none.
+func (c *Client) CheckoutURL(ctx context.Context, customer, price, promo, successURL, cancelURL string) (string, error) {
 	form := url.Values{
-		"mode":                    {"subscription"},
-		"customer":                {customer},
-		"line_items[0][price]":    {price},
-		"line_items[0][quantity]": {"1"},
-		"success_url":             {successURL},
-		"cancel_url":              {cancelURL},
+		"mode":                      {"subscription"},
+		"customer":                  {customer},
+		"line_items[0][price]":      {price},
+		"line_items[0][quantity]":   {"1"},
+		"payment_method_collection": {"if_required"},
+		"success_url":               {successURL},
+		"cancel_url":                {cancelURL},
+	}
+	if promo != "" {
+		form.Set("discounts[0][promotion_code]", promo)
+	} else {
+		form.Set("allow_promotion_codes", "true")
 	}
 	var out struct {
 		URL string `json:"url"`
 	}
 	err := c.do(ctx, http.MethodPost, "/v1/checkout/sessions", form, "", &out)
 	return out.URL, err
+}
+
+// PromotionCode returns the ID of the active promotion code a customer
+// types, or "" when there's none (unknown, expired, or used up).
+func (c *Client) PromotionCode(ctx context.Context, code string) (string, error) {
+	var out struct {
+		Data []struct {
+			ID string `json:"id"`
+		} `json:"data"`
+	}
+	if err := c.do(ctx, http.MethodGet, "/v1/promotion_codes", url.Values{"code": {code}, "active": {"true"}, "limit": {"1"}}, "", &out); err != nil {
+		return "", err
+	}
+	if len(out.Data) == 0 {
+		return "", nil
+	}
+	return out.Data[0].ID, nil
 }
 
 // PortalURL opens the customer portal, where the plan is changed or cancelled.
