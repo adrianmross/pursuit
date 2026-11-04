@@ -1030,7 +1030,9 @@ export function PipelineView({ initial }: { initial: PipelineInitial | null }) {
                     checked={visibleRows.length > 0 && selected.size === visibleRows.length}
                     onCheckedChange={toggleSelectAll}
                     aria-label="Select all"
-                    className="duration-200 animate-in fill-mode-both fade-in"
+                    // Last in the bottom-up wave, one step after the top row.
+                    style={{ animationDelay: `${Math.min(visibleRows.length, 16) * 25}ms` }}
+                    className="duration-200 animate-in fill-mode-both fade-in slide-in-from-bottom-1"
                   />
                 )}
               </TableHead>
