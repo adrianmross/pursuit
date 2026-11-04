@@ -78,6 +78,7 @@ Exit code 5 means auth. The JSON error on stderr has `code`, `message` and `hint
 
 - 401 `unauthorized`, "invalid or revoked token": the token is wrong, revoked, or for another server. Check `pursuit auth status` and `PURSUIT_SERVER`. Then ask the human for a new token. Do not retry in a loop.
 - 403 `forbidden`, "token is missing the X scope": your token is not allowed to do that. If X is `approve`, the step is a human's: leave the item at `awaiting_review` and tell them. If X is `write`, ask for a `write` token. Never try to mint the missing scope.
+- 403 `feature_unavailable`: the token is fine; the feature isn't on for this user. `details.reason` is `disabled` (the user can turn it on in Settings › Experimental), `not_entitled` (it needs a plan; tell the human, never start a checkout yourself), or `not_configured` (this server can't do it). `GET /v1/features` lists what's available. Carry on without it.
 
 ## Rotate and revoke
 

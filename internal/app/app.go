@@ -60,6 +60,13 @@ func Run(ctx context.Context, cfg config.Config) error {
 	svc.Hooks = func(userID string, ev domain.Event) {
 		go svc.DeliverWebhooks(context.Background(), userID, ev)
 	}
+	// Only an explicit PURSUIT_SERVER: the default 127.0.0.1 address isn't where a browser came from.
+	for _, w := range svc.ConfigureFromEnv(os.Getenv, os.Getenv("PURSUIT_SERVER")) {
+		log.Warn("billing", "problem", w)
+	}
+	if svc.Stripe != nil {
+		log.Info("billing on")
+	}
 
 	origins := cfg.WebAuthnOrigins
 	if len(origins) == 0 {

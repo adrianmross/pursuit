@@ -1031,6 +1031,14 @@ func RateLimited(hint string) *Error {
 	return &Error{Code: "rate_limited", Message: "too many requests", Hint: hint, Status: 429}
 }
 
+// FeatureUnavailable is a feature this user can't use right now. reason is
+// "not_configured" (the deployment lacks it), "not_entitled" (needs a plan),
+// or "disabled" (the user turned it off).
+func FeatureUnavailable(feature, reason, hint string) *Error {
+	return &Error{Code: "feature_unavailable", Message: feature + " is unavailable: " + strings.ReplaceAll(reason, "_", " "), Hint: hint, Status: 403,
+		Details: map[string]any{"feature": feature, "reason": reason}}
+}
+
 func CapExceeded(company string, used, max, windowDays int) *Error {
 	return Conflict(
 		fmt.Sprintf("%s application cap reached (%d/%d in %d days)", company, used, max, windowDays),
