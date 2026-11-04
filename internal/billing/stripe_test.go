@@ -49,6 +49,9 @@ func TestVerify(t *testing.T) {
 func TestClient(t *testing.T) {
 	var idem string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if v := r.Header.Get("Stripe-Version"); v != APIVersion {
+			t.Errorf("Stripe-Version %q", v)
+		}
 		if u, _, _ := r.BasicAuth(); u != "sk_test" {
 			w.WriteHeader(401)
 			_, _ = w.Write([]byte(`{"error":{"type":"invalid_request_error","message":"bad key"}}`))
@@ -64,7 +67,7 @@ func TestClient(t *testing.T) {
 			if r.URL.Query().Get("starting_after") == "" {
 				_, _ = w.Write([]byte(`{"data":[{"id":"ent_1","lookup_key":"smart_search"}],"has_more":true}`))
 			} else {
-				_, _ = w.Write([]byte(`{"data":[{"id":"ent_2","lookup_key":"document_storage"}],"has_more":false}`))
+				_, _ = w.Write([]byte(`{"data":[{"id":"ent_2","lookup_key":"tailored_documents"}],"has_more":false}`))
 			}
 		}
 	}))
@@ -79,7 +82,7 @@ func TestClient(t *testing.T) {
 		t.Fatalf("subscription %+v %v", sub, err)
 	}
 	keys, err := c.ActiveEntitlements(ctx, "cus_1")
-	if err != nil || len(keys) != 2 || keys[1] != "document_storage" {
+	if err != nil || len(keys) != 2 || keys[1] != "tailored_documents" {
 		t.Fatalf("entitlements %v %v", keys, err)
 	}
 	var se *Error

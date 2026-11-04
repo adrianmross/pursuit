@@ -67,6 +67,7 @@ const STATUS: Record<string, string> = {
 
 // The plan, on a server that sells one. Stripe's own pages change or cancel it.
 export function PlanPanel() {
+  const { features } = useFeatures()
   const [billing, setBilling] = useState<Billing | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState("")
@@ -101,7 +102,7 @@ export function PlanPanel() {
               ? billing.cancel_at_period_end
                 ? `Ends ${end}.`
                 : end && `Renews ${end}.`
-              : "Plus adds smart search and document storage."}
+              : `Plus adds ${(features ?? []).filter((f) => f.premium).map((f) => f.name.toLowerCase()).join(" and ") || "more features"}.`}
           </ItemDescription>
         </ItemContent>
         <ItemActions>

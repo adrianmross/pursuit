@@ -22,6 +22,11 @@ import (
 	"time"
 )
 
+// APIVersion pins response shapes instead of following the account's
+// default. Since 2025-03-31.basil the billing period is on subscription
+// items, which is where LatestSubscription reads it.
+const APIVersion = "2026-10-28.endive"
+
 // Client talks to the Stripe API with a secret key.
 type Client struct {
 	Key  string
@@ -58,6 +63,7 @@ func (c *Client) do(ctx context.Context, method, path string, form url.Values, i
 		return err
 	}
 	req.SetBasicAuth(c.Key, "")
+	req.Header.Set("Stripe-Version", APIVersion)
 	if method == http.MethodPost {
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	}

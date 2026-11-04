@@ -28,8 +28,8 @@ type Feature struct {
 var Features = []Feature{
 	{Key: "smart_search", Name: "Smart search", Premium: true, Experimental: true,
 		Description: "Find answers, notes and documents by meaning, and fill form questions from the closest saved answer."},
-	{Key: "document_storage", Name: "Document storage", Premium: true, Experimental: true,
-		Description: "Keep résumés, cover letters and their tailored versions in file storage, and compare a tailored one with your default."},
+	{Key: "tailored_documents", Name: "Tailored documents", Premium: true, Experimental: true,
+		Description: "Keep a tailored résumé and cover letter per application and compare each with your default."},
 }
 
 // FeatureView is one feature as this user sees it. Available is the gate:
@@ -55,8 +55,9 @@ func findFeature(key string) (Feature, bool) {
 	return Feature{}, false
 }
 
-// billingOn is true when this deployment sells plans.
-func (s *Service) billingOn() bool { return s.Stripe != nil && s.StripePrice != "" }
+// billingOn is true when this deployment sells plans. It hangs on the key
+// alone: a missing price must break Checkout, not hand everyone the plan.
+func (s *Service) billingOn() bool { return s.Stripe != nil }
 
 func (s *Service) featureViews(ctx context.Context, a domain.Actor) ([]FeatureView, error) {
 	ents, err := s.DB.ListEntitlements(ctx, a.UserID)
@@ -261,6 +262,9 @@ func (s *Service) Checkout(ctx context.Context, base string) (string, error) {
 	} else if v.Active {
 		return "", domain.Conflict("you already have a plan", "manage it in the billing portal: POST /v1/billing/portal")
 	}
+	if s.StripePrice == "" {
+		return "", domain.FeatureUnavailable("billing", "not_configured", "the server has no STRIPE_PRICE_ID; try again later")
+	}
 	cus, err := s.customer(ctx, a)
 	if err != nil {
 		return "", err
@@ -324,12 +328,29 @@ func (s *Service) syncCustomer(ctx context.Context, b sqlstore.BillingAccount) e
 			next.CurrentPeriodEnd = sub.CurrentPeriodEnd.Format(time.RFC3339)
 		}
 	}
+	before, err := s.DB.ListEntitlements(ctx, b.UserID)
+	if err != nil {
+		return err
+	}
+	had := map[string]bool{}
+	for _, e := range before {
+		had[e.Feature] = true
+	}
 	return s.DB.WithTx(ctx, func(ctx context.Context) error {
 		if err := s.DB.PutBilling(ctx, next); err != nil {
 			return err
 		}
 		if err := s.DB.ReplaceEntitlements(ctx, b.UserID, "stripe", keys, now); err != nil {
 			return err
+		}
+		// Paying for a feature is opting in: turn on what was just bought,
+		// so the user doesn't come back from Checkout to switches still off.
+		for _, k := range keys {
+			if _, known := findFeature(k); known && !had[k] {
+				if err := s.DB.SetUserFeature(ctx, b.UserID, k, true, now); err != nil {
+					return err
+				}
+			}
 		}
 		sys := domain.Actor{UserID: b.UserID, Name: "stripe"}
 		return s.audit(ctx, sys, "billing.sync", "user", b.UserID, "plan is "+next.Status, map[string]any{"status": next.Status, "entitlements": keys})
@@ -407,25 +428,39 @@ func (s *Service) GrantFeature(ctx context.Context, userID, key string, on bool)
 	if on {
 		keys = append(keys, key)
 	}
-	return s.DB.ReplaceEntitlements(ctx, userID, "manual", keys, domain.FormatTime(s.now()))
+	return s.DB.WithTx(ctx, func(ctx context.Context) error {
+		if err := s.DB.ReplaceEntitlements(ctx, userID, "manual", keys, domain.FormatTime(s.now())); err != nil {
+			return err
+		}
+		return s.audit(ctx, domain.Actor{UserID: userID, Name: "operator"}, "entitlement.grant", "feature", key, "manual "+key, map[string]any{"on": on})
+	})
 }
 
 // ConfigureFromEnv sets billing and feature capabilities from the
 // environment, the same for `pursuit serve` and the Vercel function.
 // Billing needs STRIPE_SECRET_KEY and STRIPE_PRICE_ID; the webhook also
-// needs STRIPE_WEBHOOK_SECRET.
-func (s *Service) ConfigureFromEnv(getenv func(string) string, publicURL string) {
+// needs STRIPE_WEBHOOK_SECRET. It returns what's half set up, for the
+// caller to log loudly.
+func (s *Service) ConfigureFromEnv(getenv func(string) string, publicURL string) (warnings []string) {
 	env := func(k string) string { return strings.TrimSpace(getenv(k)) }
 	if key := env("STRIPE_SECRET_KEY"); key != "" {
 		s.Stripe = &billing.Client{Key: key, HTTP: s.HTTP}
 		s.StripePrice = env("STRIPE_PRICE_ID")
 		s.StripeWebhookSecret = env("STRIPE_WEBHOOK_SECRET")
+		if s.StripePrice == "" {
+			warnings = append(warnings, "STRIPE_SECRET_KEY is set but STRIPE_PRICE_ID isn't: nobody can upgrade")
+		}
+		if s.StripeWebhookSecret == "" {
+			warnings = append(warnings, "STRIPE_SECRET_KEY is set but STRIPE_WEBHOOK_SECRET isn't: renewals and cancellations won't sync")
+		}
 	}
 	s.PublicURL = publicURL
 	s.Capabilities = map[string]bool{
-		"smart_search":     env("AI_GATEWAY_API_KEY") != "",
-		"document_storage": env("PURSUIT_S3_BUCKET") != "",
+		"smart_search": env("AI_GATEWAY_API_KEY") != "",
+		// Needs nothing beyond the server itself.
+		"tailored_documents": true,
 	}
+	return warnings
 }
 
 // BaseURL is where Stripe returns the user: the configured public URL, else

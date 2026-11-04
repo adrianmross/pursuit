@@ -143,8 +143,8 @@ func TestFeaturesWithoutBilling(t *testing.T) {
 	if s := f["smart_search"]; !s.Configured || !s.Entitled || s.Enabled || s.Available {
 		t.Fatalf("smart_search before opting in: %+v", s)
 	}
-	if d := f["document_storage"]; d.Configured || d.Available {
-		t.Fatalf("document_storage without S3 should be unconfigured: %+v", d)
+	if d := e.features(t, e.token); !d["tailored_documents"].Configured || d["smart_search"].Configured != true {
+		t.Fatalf("capabilities: %+v", d)
 	}
 	var v service.FeatureView
 	if code := e.call(t, e.token, "PATCH", "/v1/features/smart_search", `{"enabled":true}`, &v); code != 200 || !v.Available {
@@ -193,13 +193,13 @@ func TestBillingSyncFromStripe(t *testing.T) {
 	if e.call(t, e.token, "GET", "/v1/billing", "", &b); !b.Active || b.Status != "active" || len(b.Entitlements) != 1 {
 		t.Fatalf("billing after webhook: %+v", b)
 	}
-	if f := e.features(t, e.token)["smart_search"]; !f.Entitled {
-		t.Fatalf("not entitled after paying: %+v", f)
+	if f := e.features(t, e.token)["smart_search"]; !f.Entitled || !f.Enabled || !f.Available {
+		t.Fatalf("paying should entitle and turn it on: %+v", f)
 	}
 
 	// A comp survives the sync that follows a cancellation; the paid feature doesn't.
 	me := meViaToken(t, e.srv, e.token)
-	if err := e.svc.GrantFeature(ctx, me.User.ID, "document_storage", true); err != nil {
+	if err := e.svc.GrantFeature(ctx, me.User.ID, "tailored_documents", true); err != nil {
 		t.Fatal(err)
 	}
 	e.stripe.ents.Store([]string{})
@@ -207,8 +207,8 @@ func TestBillingSyncFromStripe(t *testing.T) {
 		t.Fatalf("sync after cancel: %d %+v", code, b)
 	}
 	f := e.features(t, e.token)
-	if f["smart_search"].Entitled || !f["document_storage"].Entitled {
-		t.Fatalf("after cancel: smart_search %+v document_storage %+v", f["smart_search"], f["document_storage"])
+	if f["smart_search"].Entitled || !f["tailored_documents"].Entitled {
+		t.Fatalf("after cancel: smart_search %+v tailored_documents %+v", f["smart_search"], f["tailored_documents"])
 	}
 }
 

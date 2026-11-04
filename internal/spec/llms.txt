@@ -27,6 +27,7 @@ Bulk: `POST /v1/batch` (`pursuit batch <file|->`) runs up to 100 requests, each 
 
 OpenAPI: GET /openapi.json. One command's flags: `pursuit schema <command>`.
 Auth guide for agents (tokens, scopes, approval, 401/403): GET /auth.md.
+Features: GET /v1/features. A feature that is off, not in the user's plan, or not set up on this server answers 403 `feature_unavailable` with `details.reason`; carry on without it and never start a checkout.
 Agent Skill (setup, commands, approval boundary): GET /skill.md, or `npx skills add adrianmross/pursuit --skill pursuit`.
 SQLite is the default database. Postgres is for more than one replica.
 

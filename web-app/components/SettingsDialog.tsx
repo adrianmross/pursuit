@@ -370,7 +370,7 @@ const SECTIONS: (Section & { items: [string, string][] })[] = [
     items: [
       ["Experimental features", "labs beta preview early try enable disable toggle"],
       ["Smart search", "vector semantic meaning answers notes documents ai"],
-      ["Document storage", "resume cover letter files s3 upload tailored diff"],
+      ["Tailored documents", "resume cover letter tailored per application compare diff default"],
     ],
   },
   {
