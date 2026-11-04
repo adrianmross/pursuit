@@ -10,6 +10,8 @@
 /extension/node_modules/
 /scripts/openapi-lint/node_modules/
 /extension/dist/
+/extension/test-results/
+/extension/playwright-report/
 /internal/dashboard/dist/
 /.vercel/
 .devenv/

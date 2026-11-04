@@ -118,6 +118,8 @@ in
   '';
   scripts.pursuit-extension-build.exec = "cd extension && npm install && npm run build";
   scripts.pursuit-extension-test.exec = "cd extension && npm install && npm test";
+  # The spec compiles ./cmd/pursuit, which embeds the dashboard: run make web first.
+  scripts.pursuit-extension-e2e.exec = "cd extension && npm install && npx playwright install chromium && npm run e2e";
 
   tasks = {
     "dev:versions".exec = "versions";
@@ -125,8 +127,9 @@ in
     "dev:vet".exec = "go vet ./...";
     "dev:test".exec = "make test";
     "dev:extension".exec = "pursuit-extension-test";
+    "dev:extension-e2e".exec = "make web && pursuit-extension-e2e";
     "dev:release-check".exec = "goreleaser check && actionlint && changelogger check --base origin/main";
-    "dev:validate".exec = "make test && go vet ./... && pursuit-extension-test && goreleaser check && actionlint";
+    "dev:validate".exec = "make test && go vet ./... && pursuit-extension-test && pursuit-extension-e2e && goreleaser check && actionlint";
     "dev:compose".exec = "{ echo '# Generated from devenv.nix by: devenv tasks run dev:compose'; cat ${compose}; } > docker-compose.yml";
     # Pin the Dockerfile's images and go.mod's toolchain to devenv's Go and Node.
     "dev:pins".exec = ''
