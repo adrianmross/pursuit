@@ -104,11 +104,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </>
         ) : (
           <>
-            <Link href="/start" aria-label="Hire Pursuit" className="shrink-0">
-              {/* eslint-disable-next-line @next/next/no-img-element -- drawn SVG wordmark, not a photo next/image needs to optimize */}
-              <img src="/brand/hire-pursuit-wordmark.svg" alt="" className="h-5 w-auto dark:hidden" />
+            {/* The mark goes to the start page, or from the start page to the table, like the link beside it. */}
+            <Link href={pathname === "/start" ? PARENT : "/start"} aria-label={pathname === "/start" ? "Applications" : "Start"} className="shrink-0">
+              {/* eslint-disable-next-line @next/next/no-img-element -- drawn SVG mark, not a photo next/image needs to optimize */}
+              <img src="/brand/hire-pursuit-mark.svg" alt="" className="h-6 w-auto dark:hidden" />
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/brand/hire-pursuit-wordmark-reverse.svg" alt="" className="hidden h-5 w-auto dark:block" />
+              <img src="/brand/hire-pursuit-mark-reverse.svg" alt="" className="hidden h-6 w-auto dark:block" />
             </Link>
             {pathname === PARENT ? (
               // The table's own way back, so the logo isn't the only road to the start page.
