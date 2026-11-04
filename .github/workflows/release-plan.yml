@@ -11,6 +11,8 @@ on:
   workflow_run:
     workflows: [ci]
     types: [completed]
+    # Without this, every ci run on every PR branch starts a (skipped) release-plan run.
+    branches: [main]
   workflow_dispatch:
 
 permissions:
