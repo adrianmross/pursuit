@@ -98,6 +98,15 @@ export function LiveProvider({ children, onEvent }: { children: ReactNode; onEve
         if (stopped) return
         setEvents(recent)
         after = recent[0]?.id || ""
+        // First visit with notifications: what already happened isn't news.
+        if (!readSeen() && after) {
+          setSeen(after)
+          try {
+            localStorage.setItem(SEEN_KEY, after)
+          } catch {
+            // Private mode: the badge starts from zero on each visit.
+          }
+        }
         setConnected(true)
       } catch {
         setConnected(false)
