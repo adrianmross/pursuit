@@ -36,8 +36,6 @@ type Service struct {
 	Stripe              *billing.Client
 	StripePrice         string
 	StripeWebhookSecret string
-	// CompEmails get every feature without a plan (PURSUIT_COMP_EMAILS), lowercased.
-	CompEmails map[string]bool
 	// PublicURL is where Stripe sends the user back; empty uses the request's origin.
 	PublicURL string
 	// Capabilities is which Features this deployment is set up for, by key.

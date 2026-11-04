@@ -59,20 +59,12 @@ func findFeature(key string) (Feature, bool) {
 // alone: a missing price must break Checkout, not hand everyone the plan.
 func (s *Service) billingOn() bool { return s.Stripe != nil }
 
-// comped is a user who gets every feature without paying: the
-// PURSUIT_TRUST_PROXY_AUTH owner, or an email listed in PURSUIT_COMP_EMAILS.
-func (s *Service) comped(ctx context.Context, a domain.Actor) (bool, error) {
-	if a.Proxy {
-		return true, nil
-	}
-	if len(s.CompEmails) == 0 {
-		return false, nil
-	}
-	u, err := s.DB.GetUser(ctx, a.UserID)
-	if err != nil {
-		return false, err
-	}
-	return s.CompEmails[strings.ToLower(strings.TrimSpace(u.Email))], nil
+// comped is a user who gets every feature without paying: only the
+// PURSUIT_TRUST_PROXY_AUTH owner. Anyone else, the operator included, is
+// comped in Stripe (a $0 price or a 100%-off coupon on their customer), so
+// the grant is tied to the account and not to a claim like an email.
+func (s *Service) comped(_ context.Context, a domain.Actor) (bool, error) {
+	return a.Proxy, nil
 }
 
 func (s *Service) featureViews(ctx context.Context, a domain.Actor) ([]FeatureView, error) {
@@ -186,7 +178,7 @@ func (s *Service) SetFeature(ctx context.Context, key string, in FeaturePatch) (
 
 // BillingView is the user's plan. Enabled is false when this server doesn't
 // sell plans, and the rest is then empty. Comped has every feature without
-// a plan: the owner or PURSUIT_COMP_EMAILS.
+// a plan: the PURSUIT_TRUST_PROXY_AUTH owner.
 type BillingView struct {
 	Enabled           bool                   `json:"enabled"`
 	Status            string                 `json:"status"`
@@ -497,12 +489,6 @@ func (s *Service) ConfigureFromEnv(getenv func(string) string, publicURL string)
 		}
 	}
 	s.PublicURL = publicURL
-	s.CompEmails = map[string]bool{}
-	for _, e := range strings.Split(env("PURSUIT_COMP_EMAILS"), ",") {
-		if e = strings.ToLower(strings.TrimSpace(e)); e != "" {
-			s.CompEmails[e] = true
-		}
-	}
 	s.Capabilities = map[string]bool{
 		"smart_search": env("AI_GATEWAY_API_KEY") != "",
 		// Needs nothing beyond the server itself.

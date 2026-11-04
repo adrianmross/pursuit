@@ -242,22 +242,6 @@ func TestBillingInvite(t *testing.T) {
 	}
 }
 
-// PURSUIT_COMP_EMAILS gets every feature without paying, and has nothing to buy.
-func TestBillingComp(t *testing.T) {
-	e := newBillingEnv(t, true)
-	e.svc.CompEmails = map[string]bool{"owner@example.com": true}
-	if f := e.features(t, e.token)["smart_search"]; !f.Entitled {
-		t.Fatalf("comped not entitled: %+v", f)
-	}
-	var b service.BillingView
-	if e.call(t, e.token, "GET", "/v1/billing", "", &b); !b.Comped {
-		t.Fatalf("billing: %+v", b)
-	}
-	if code := e.call(t, e.token, "POST", "/v1/billing/checkout", "", nil); code != 409 {
-		t.Fatalf("comped checkout: %d", code)
-	}
-}
-
 // The tutorial shows off configured features but can't buy anything.
 func TestBillingDemo(t *testing.T) {
 	e := newBillingEnv(t, true)

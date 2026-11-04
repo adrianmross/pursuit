@@ -21,7 +21,7 @@ export type Billing = {
   enabled: boolean
   status: string
   active: boolean
-  // Every feature without a plan: the owner, or PURSUIT_COMP_EMAILS.
+  // Every feature without a plan: the PURSUIT_TRUST_PROXY_AUTH owner.
   comped?: boolean
   current_period_end?: string
   cancel_at_period_end: boolean
