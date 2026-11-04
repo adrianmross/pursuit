@@ -8,6 +8,7 @@
 /dist/
 /uploads/
 /extension/node_modules/
+/scripts/openapi-lint/node_modules/
 /extension/dist/
 /internal/dashboard/dist/
 /.vercel/

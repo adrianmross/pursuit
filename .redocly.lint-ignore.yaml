@@ -1,0 +1,13 @@
+# This file instructs Redocly's linter to ignore the rules contained for specific parts of your API.
+# See https://redocly.com/docs/cli/ for more information.
+api/openapi.json:
+  operation-4xx-response:
+    - '#/paths/~1auth.md/get/responses'
+    - '#/paths/~1healthz/get/responses'
+    - '#/paths/~1llms.txt/get/responses'
+    - '#/paths/~1openapi.json/get/responses'
+    - '#/paths/~1readyz/get/responses'
+    - '#/paths/~1reference/get/responses'
+    - '#/paths/~1skill.md/get/responses'
+    - '#/paths/~1v1~1auth~1providers/get/responses'
+    - '#/paths/~1version/get/responses'
