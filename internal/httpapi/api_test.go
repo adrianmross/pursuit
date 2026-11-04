@@ -435,6 +435,9 @@ func TestQueueLeaseApproveAndCaps(t *testing.T) {
 	if code != 201 {
 		t.Fatalf("document %d %#v", code, doc)
 	}
+	if code, doc = e.json(t, http.MethodPost, "/v1/documents", e.token, map[string]any{"kind": "cover_letter", "filename": "letter.md", "content_type": "text/markdown", "body": "Dear team"}); code != 201 {
+		t.Fatalf("cover letter %d %#v", code, doc)
+	}
 	code, prepared = e.json(t, http.MethodPost, "/v1/applications/"+id+"/prepare", e.token, nil)
 	if code != 200 || prepared["application"].(map[string]any)["status"] != domain.StatusAwaitingReview {
 		t.Fatalf("second prepare %#v", prepared)
@@ -447,7 +450,7 @@ func TestQueueLeaseApproveAndCaps(t *testing.T) {
 	for _, item := range arts["data"].([]any) {
 		kinds[item.(map[string]any)["kind"].(string)] = true
 	}
-	if !kinds["form_snapshot"] || !kinds["answers_json"] || !kinds["resume_pdf"] {
+	if !kinds["form_snapshot"] || !kinds["answers_json"] || !kinds["resume_pdf"] || !kinds["cover_letter"] {
 		t.Fatalf("artifacts %#v", arts)
 	}
 

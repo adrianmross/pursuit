@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/pursuit/pursuit/internal/billing"
+	"github.com/pursuit/pursuit/internal/blobstore"
 	"github.com/pursuit/pursuit/internal/domain"
 	"github.com/pursuit/pursuit/internal/sqlstore"
 )
@@ -436,8 +437,8 @@ func (s *Service) GrantFeature(ctx context.Context, userID, key string, on bool)
 	})
 }
 
-// ConfigureFromEnv sets billing and feature capabilities from the
-// environment, the same for `pursuit serve` and the Vercel function.
+// ConfigureFromEnv sets billing, document storage and feature capabilities
+// from the environment, the same for `pursuit serve` and the Vercel function.
 // Billing needs STRIPE_SECRET_KEY and STRIPE_PRICE_ID; the webhook also
 // needs STRIPE_WEBHOOK_SECRET. It returns what's half set up, for the
 // caller to log loudly.
@@ -455,6 +456,12 @@ func (s *Service) ConfigureFromEnv(getenv func(string) string, publicURL string)
 		}
 	}
 	s.PublicURL = publicURL
+	if bucket, err := blobstore.FromEnv(getenv); err != nil {
+		warnings = append(warnings, err.Error()+": documents stay in the database")
+	} else if bucket != nil {
+		// Only a real bucket: a nil *S3 in the interface would read as configured.
+		s.Blobs = bucket
+	}
 	s.Capabilities = map[string]bool{
 		"smart_search": env("AI_GATEWAY_API_KEY") != "",
 		// Needs nothing beyond the server itself.

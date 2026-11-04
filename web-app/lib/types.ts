@@ -83,7 +83,18 @@ export type Me = {
 
 export type StandingAnswer = { key: string; answer: string; updated_at?: string }
 
-export type Document = { id: string; kind: string; filename?: string; content_type?: string; created_at?: string }
+export type Document = {
+  id: string
+  kind: string
+  filename?: string
+  content_type?: string
+  created_at?: string
+  label?: string
+  // The main résumé or cover letter: the one prepare attaches.
+  primary?: boolean
+  size?: number
+  storage?: "db" | "s3"
+}
 
 export type Question = {
   prompt?: string

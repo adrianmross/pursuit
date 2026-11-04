@@ -4337,7 +4337,7 @@
             "description": "error"
           }
         },
-        "summary": "upload a document as multipart (kind, file) or JSON text. prepare attaches the newest base_resume"
+        "summary": "upload a document as multipart (kind, label, file) or JSON text {kind, filename, content_type, label, body}. the first base_resume and the first cover_letter become primary: the main ones prepare attaches. stored in the S3 bucket when the server has one (storage: s3), else in the database"
       }
     },
     "/v1/documents/{id}": {
@@ -4465,7 +4465,74 @@
             "description": "error"
           }
         },
-        "summary": "document with body; binary bodies are base64"
+        "summary": "document with body, label and primary; binary bodies are base64"
+      },
+      "patch": {
+        "operationId": "patch__v1_documents__id_",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          },
+          {
+            "$ref": "#/components/parameters/DryRun"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "JSON body"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "error"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "error"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "error"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "error"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "error"
+          }
+        },
+        "summary": "body {label?, primary?, body?}. primary: true makes it the main one of its kind. body replaces a text document's content (a cover letter written in place)"
       }
     },
     "/v1/events": {

@@ -501,6 +501,9 @@ func (s *Service) Prepare(ctx context.Context, id, worker string) (PrepareResult
 			return err
 		}
 		now := domain.FormatTime(s.now())
+		if err := s.attachCoverLetter(ctx, a.UserID, app.ID, now, standing); err != nil {
+			return err
+		}
 		qs := make([]sqlstore.Question, 0, len(form))
 		views := make([]QuestionView, 0, len(form))
 		unknowns := 0
@@ -540,14 +543,6 @@ func (s *Service) Prepare(ctx context.Context, id, worker string) (PrepareResult
 			Filename: "answers.json", ContentType: "application/json", Body: string(answersBody), CreatedAt: now,
 		}); err != nil {
 			return err
-		}
-		if letter := standing["cover_letter"]; letter != "" {
-			if err := s.DB.CreateArtifact(ctx, sqlstore.Artifact{
-				ID: s.NewID(), UserID: a.UserID, ApplicationID: app.ID, Kind: "cover_letter",
-				Filename: "cover-letter.txt", ContentType: "text/plain", Body: letter, CreatedAt: now,
-			}); err != nil {
-				return err
-			}
 		}
 		if err := s.attachResume(ctx, a.UserID, app.ID, now); err != nil {
 			return err
@@ -630,11 +625,30 @@ func (s *Service) standingMap(ctx context.Context, userID string) (map[string]st
 	return out, nil
 }
 
-// attachResume copies the newest base_resume document onto the application,
-// falling back to PURSUIT_RESUME_FILE. Serverless deployments have no disk,
-// so the document is the only route there.
+// attachCoverLetter copies the main cover letter onto the application. A
+// text one also answers a form's "cover letter" question.
+func (s *Service) attachCoverLetter(ctx context.Context, userID, appID, now string, standing map[string]string) error {
+	doc, err := s.primaryDocument(ctx, userID, "cover_letter")
+	if domain.IsCode(err, "not_found") {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if isText(doc.ContentType) {
+		standing["cover_letter"] = doc.Body
+	}
+	return s.DB.CreateArtifact(ctx, sqlstore.Artifact{
+		ID: s.NewID(), UserID: userID, ApplicationID: appID, Kind: "cover_letter",
+		Filename: doc.Filename, ContentType: doc.ContentType, Body: doc.Body, CreatedAt: now,
+	})
+}
+
+// attachResume copies the main résumé onto the application, falling back
+// to PURSUIT_RESUME_FILE. Serverless deployments have no disk, so the
+// document is the only route there.
 func (s *Service) attachResume(ctx context.Context, userID, appID, now string) error {
-	doc, err := s.DB.LatestDocument(ctx, userID, "base_resume")
+	doc, err := s.primaryDocument(ctx, userID, "base_resume")
 	if err == nil {
 		body := doc.Body
 		if isText(doc.ContentType) {
