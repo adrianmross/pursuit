@@ -3,8 +3,15 @@
 export type FillReport = {
   filled: string[];
   missed: string[];
+  // The field behind each missed label, in the same order, so the panel can walk them.
+  fields: Element[];
   attached?: string;
 };
+
+function miss(report: FillReport, label: string, el: Element): void {
+  report.missed.push(label);
+  report.fields.push(el);
+}
 
 export type FillFiles = { resume?: File };
 
@@ -72,7 +79,7 @@ export function matchAnswer(label: string, answers: Record<string, string>): str
 }
 
 export function autofillDocument(doc: Document, answers: Record<string, string>, files: FillFiles = {}): FillReport {
-  const report: FillReport = { filled: [], missed: [] };
+  const report: FillReport = { filled: [], missed: [], fields: [] };
   const fields = [...doc.querySelectorAll("input, textarea, select")] as Field[];
   const groups = new Set<string>();
   for (const el of fields) {
@@ -89,7 +96,7 @@ export function autofillDocument(doc: Document, answers: Record<string, string>,
     const value = matchAnswer(label, answers);
     if (!value) {
       if (required(el, label)) {
-        report.missed.push(label);
+        miss(report, label, el);
         mark(el);
       }
       continue;
@@ -99,7 +106,7 @@ export function autofillDocument(doc: Document, answers: Record<string, string>,
     else if (el.getAttribute("role") === "combobox") ok = chooseCombobox(el as HTMLInputElement, value);
     else setValue(el as HTMLInputElement | HTMLTextAreaElement, value);
     if (!ok) {
-      report.missed.push(label);
+      miss(report, label, el);
       mark(el);
       continue;
     }
@@ -116,7 +123,7 @@ export function autofillDocument(doc: Document, answers: Record<string, string>,
       report.filled.push(label);
       continue;
     }
-    report.missed.push(label + " (add a base résumé in Pursuit)");
+    miss(report, label + " (add a base résumé in Pursuit)", input);
     mark(input);
   }
   ensureStyle(doc);
@@ -126,22 +133,38 @@ export function autofillDocument(doc: Document, answers: Record<string, string>,
 // Values typed into fields autofill marked, keyed for standing answers.
 export function typedAnswers(doc: Document): Record<string, string> {
   const out: Record<string, string> = {};
-  for (const el of [...doc.querySelectorAll(".pursuit-unfilled")] as Field[]) {
-    const type = (el.getAttribute("type") || "").toLowerCase();
-    if (type === "file") continue;
-    if (type === "radio") {
-      const input = el as HTMLInputElement;
-      if (!input.checked) continue;
-      const box = input.closest("fieldset, [role=radiogroup]");
-      const question = groupQuestion(input, box);
-      if (question) out[normalizeKey(question)] = fieldLabel(input) || input.value;
-      continue;
-    }
-    const value = el.tagName === "SELECT" ? selectedText(el as HTMLSelectElement) : el.value;
-    const key = normalizeKey(fieldLabel(el).replace(/\*/g, ""));
-    if (key && value.trim()) out[key] = value.trim();
+  for (const el of doc.querySelectorAll(".pursuit-unfilled")) {
+    const hit = answerFor(el);
+    if (hit) out[hit[0]] = hit[1];
   }
   return out;
+}
+
+// The standing-answer key and value a person typed into one field, if any.
+export function answerFor(el: Element): [string, string] | null {
+  const field = el as Field;
+  const type = (field.getAttribute("type") || "").toLowerCase();
+  if (type === "file") return null;
+  if (type === "radio") {
+    const input = field as HTMLInputElement;
+    const box = input.closest("fieldset, [role=radiogroup]");
+    const scope = box || input.ownerDocument;
+    const checked = ([...scope.querySelectorAll("input[type=radio]")] as HTMLInputElement[]).find(
+      (r) => r.checked && (!input.name || r.name === input.name),
+    );
+    const question = groupQuestion(input, box);
+    return checked && question ? [normalizeKey(question.replace(/\*/g, "")), fieldLabel(checked) || checked.value] : null;
+  }
+  const value = (field.tagName === "SELECT" ? selectedText(field as HTMLSelectElement) : field.value || "").trim();
+  const key = normalizeKey(fieldLabel(field).replace(/\*/g, ""));
+  return key && value ? [key, value] : null;
+}
+
+// The question a missed field asks, as the form labels it.
+export function questionFor(el: Element): string {
+  const input = el as HTMLInputElement;
+  if ((input.getAttribute("type") || "").toLowerCase() === "radio") return groupQuestion(input, input.closest("fieldset, [role=radiogroup]"));
+  return fieldLabel(el as Field);
 }
 
 function selectedText(el: HTMLSelectElement): string {
@@ -192,7 +215,7 @@ function fillRadio(el: HTMLInputElement, answers: Record<string, string>, groups
     : undefined;
   if (!hit) {
     if (options.some((r) => r.required) || question.includes("*")) {
-      report.missed.push(question);
+      miss(report, question, options[0] || el);
       options.forEach(mark);
     }
     return;

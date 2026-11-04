@@ -46,16 +46,17 @@ test("a person saves the posting, autofills, attaches the résumé, and nothing 
   const p = panel(page);
   await expect(p.getByRole("heading", { name: "Backend Engineer" })).toBeVisible();
   await expect(p.getByText("Acme Robotics · New York, NY · $160K–$190K")).toBeVisible();
-  await expect(p.getByText("Not tracked yet.")).toBeVisible();
 
   await p.getByRole("button", { name: "Save job" }).click();
   await expect(p.getByText("Saved to your tracker.")).toBeVisible();
-  await expect(p.locator(".chip")).toHaveText("Apply");
+  await expect(p.locator("[data-slot=badge]")).toHaveText("Apply");
+  await expect(p.getByRole("link", { name: /Backend Engineer.*Open in Pursuit/ })).toBeVisible();
   const app = await h.call("GET", "/v1/applications/by-url?url=" + encodeURIComponent("https://job-boards.greenhouse.io/acme/jobs/111"));
   expect(app).toMatchObject({ company: "Acme Robotics", title: "Backend Engineer", status: "to_apply", source: "greenhouse" });
 
-  await p.getByRole("button", { name: "Autofill application" }).click();
-  await expect(p.getByText(/Filled \d+ fields\. Attached ada-resume\.pdf\./)).toBeVisible();
+  await p.getByRole("button", { name: "Autofill this form" }).click();
+  await expect(p.getByText("8 of 9")).toBeVisible();
+  await expect(p.getByText("Attached ada-resume.pdf")).toBeVisible();
   await expect(page.locator("#first_name")).toHaveValue("Ada");
   await expect(page.locator("#last_name")).toHaveValue("Lovelace");
   await expect(page.locator("#email")).toHaveValue("ada@example.com");
@@ -65,23 +66,27 @@ test("a person saves the posting, autofills, attaches the résumé, and nothing 
   await expect(page.locator("#sponsor-value")).toHaveValue("No");
   const file = await page.locator("#resume").evaluate((el: HTMLInputElement) => ({ name: el.files?.[0]?.name, size: el.files?.[0]?.size }));
   expect(file).toEqual({ name: "ada-resume.pdf", size: h.resume.length });
-  await expect(p.getByRole("listitem")).toHaveText(["Why Acme Robotics?*"]);
+  const left = p.getByRole("region", { name: "Left for you" });
+  await expect(left).toContainText("1 of 1");
+  await expect(left).toContainText("Why Acme Robotics?*");
   await expect(page.locator("#why")).toHaveClass(/pursuit-unfilled/);
+  await expect(page.locator("#why")).toBeFocused();
   expect(await page.evaluate(() => (window as unknown as { submissions: number }).submissions)).toBe(0);
-  await p.screenshot({ path: test.info().outputPath("panel.png") });
+  await p.getByRole("dialog").screenshot({ path: test.info().outputPath("panel.png") });
 
   const events = await h.call("GET", `/v1/applications/${app.id}/events`);
   expect(events.data.map((e: { title: string }) => e.title)).toContain("Autofilled 8 fields, 1 left");
 
   await page.locator("#why").fill("You build the robots I want to program.");
-  await p.getByRole("button", { name: "Save my answers" }).click();
-  await expect(p.getByText("Saved 1 answer to your profile.", { exact: false })).toBeVisible();
+  await p.getByRole("button", { name: "Save my answer" }).click();
+  await expect(p.getByText("Saved. Every later form reuses your answers.")).toBeVisible();
+  await expect(left).toHaveCount(0);
   const profile = await h.call("GET", "/v1/profile");
   expect(profile.answers.why_acme_robotics).toBe("You build the robots I want to program.");
 
   await page.getByRole("button", { name: "Submit application" }).click();
   await p.getByRole("button", { name: "Mark applied" }).click();
-  await expect(p.locator(".chip")).toHaveText("Applied");
+  await expect(p.locator("[data-slot=badge]")).toHaveText("Applied");
   expect((await h.call("GET", `/v1/applications/${app.id}`)).status).toBe("applied");
   await page.close();
 });
@@ -105,8 +110,8 @@ test("an agent claims approved work through the CLI and drives the same panel", 
   await page.goto(claimed.application.posting_url);
   await page.getByRole("button", { name: "Open Pursuit: Autofill" }).click();
   const p = panel(page);
-  await expect(p.locator(".chip")).toHaveText("Approved");
-  await p.getByRole("button", { name: "Autofill application" }).click();
+  await expect(p.locator("[data-slot=badge]")).toHaveText("Approved");
+  await p.getByRole("button", { name: "Autofill this form" }).click();
   await expect(p).toHaveAttribute("data-pursuit-state", "filled");
   await expect(p).toHaveAttribute("data-pursuit-missed", "0");
   await expect(page.locator("#why")).toHaveValue("You build the robots I want to program.");
@@ -123,4 +128,25 @@ test("an agent claims approved work through the CLI and drives the same panel", 
   const events = await h.call("GET", `/v1/applications/${app.id}/events`);
   expect(events.data.map((e: { title: string }) => e.title)).toContain("Autofilled 9 fields");
   await page.close();
+});
+
+test("the dashboard updates in place and notifies when an agent saves a posting", async () => {
+  const dash = await h.context.newPage();
+  // The embedded dashboard keeps the session in a cookie; sign in the way its form does.
+  expect((await dash.request.post(h.base + "/v1/auth/session", { data: { token: OWNER }, headers: { Origin: h.base } })).ok()).toBe(true);
+  await dash.goto(h.base + "/applications");
+  await expect(dash.getByRole("link", { name: "Backend Engineer" }).first()).toBeVisible();
+
+  await h.call("POST", "/v1/applications/capture", { company: "Globex", title: "Data Engineer", posting_url: "https://jobs.lever.co/globex/9" }, h.agentToken);
+
+  // No reload: the long poll picks it up.
+  await expect(dash.getByRole("link", { name: "Data Engineer" })).toBeVisible({ timeout: 15_000 });
+  await expect(dash.getByText("Saved Data Engineer.").first()).toBeVisible();
+  await dash.getByRole("button", { name: /Notifications/ }).click();
+  await dash.getByRole("tab", { name: "Everything" }).click();
+  await expect(dash.getByRole("tab", { name: "Everything" })).toHaveAttribute("data-state", "active");
+  await expect(dash.getByRole("dialog").getByText("Saved Data Engineer.")).toBeVisible();
+  await dash.waitForTimeout(400); // let the tab transition finish so the screenshot is readable
+  await dash.screenshot({ path: test.info().outputPath("dashboard.png") });
+  await dash.close();
 });

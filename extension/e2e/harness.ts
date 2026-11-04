@@ -72,8 +72,9 @@ export async function start(opts: { headless?: boolean; port?: number } = {}) {
     env,
     stdio: ["ignore", "inherit", "inherit"],
   });
-  for (let i = 0; i < 100; i++) {
+  for (let i = 0; ; i++) {
     if (await fetch(base + "/readyz").then((r) => r.ok, () => false)) break;
+    if (i === 100) throw new Error(`pursuit serve never became ready at ${base} (is the port taken?)`);
     await new Promise((r) => setTimeout(r, 100));
   }
 
