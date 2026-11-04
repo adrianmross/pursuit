@@ -2724,7 +2724,7 @@
     }
   },
   "info": {
-    "description": "The HTTP API behind the Pursuit dashboard and the `pursuit` CLI. Agents should prefer the CLI: `pursuit schema \u003ccommand\u003e` describes one command. The short agent guide is [/llms.txt](/llms.txt).\n\n## Authentication\n\nSend `Authorization: Bearer pst_...`. A token holds the scopes `read`, `write`, and `approve`. `write` does not include `approve`, and only `approve` can move an application toward submission. Tokens, scopes, and OAuth login are in [/auth.md](/auth.md).\n\n## Errors\n\nErrors are JSON: `{\"error\": {\"code\", \"message\", \"hint\", \"details\"}}`. 400 is validation, 401 a missing or bad token, 403 a missing scope, 404 not found, 409 a version or cap conflict.\n\n## Writes\n\nEvery write accepts `Idempotency-Key`, which replays a successful response, and `X-Dry-Run: true`, which validates and writes nothing. Updates and deletes of versioned records take `version` in the body, the query, or `If-Match`.\n\n## Pagination\n\nLists take `limit` (1-200) and `cursor`, and return `next_cursor` until the last page. `POST /v1/batch` runs up to 100 requests in one call.",
+    "description": "The HTTP API behind the Pursuit dashboard and the `pursuit` CLI. Agents should prefer the CLI: `pursuit schema \u003ccommand\u003e` describes one command. The short agent guide is [/llms.txt](/llms.txt).\n\n## Authentication\n\nSend `Authorization: Bearer pst_...`. A token holds the scopes `read`, `write`, and `approve`. `write` does not include `approve`, and only `approve` can move an application toward submission. Tokens, scopes, and OAuth login are in [/auth.md](/auth.md).\n\n## Errors\n\nErrors are JSON: `{\"error\": {\"code\", \"message\", \"hint\", \"details\"}}`. 400 is validation, 401 a missing or bad token, 403 a missing scope, 404 not found, 409 a version or cap conflict.\n\n## Writes\n\nEvery write accepts `Idempotency-Key`, which replays a successful response, and `X-Dry-Run: true` (or `?dry_run=true`), which validates and writes nothing. A dry run answers `{\"dry_run\": true, \"hint\", \"data\"}` instead of the response shown. Creates answer 201. Updates and deletes of versioned records take `version` in the body, the query, or `If-Match`.\n\n## Pagination\n\nLists answer `{\"data\": [...], \"page\": {\"limit\", \"has_more\", \"next_cursor\", \"total\"}}`. They take `limit` (1-200) and `cursor`; pass `page.next_cursor` back unchanged until `has_more` is false. `fields=id,company` trims each record to those fields. `POST /v1/batch` runs up to 100 requests in one call.\n\n## Webhooks\n\nA registered webhook receives every new event as a POST; see **Webhooks** at the end of this page for the payload.",
     "license": {
       "identifier": "MIT",
       "name": "MIT"
@@ -3956,7 +3956,8 @@
         "summary": "List rounds",
         "tags": [
           "Rounds"
-        ]
+        ],
+        "x-internal": true
       },
       "post": {
         "deprecated": true,
@@ -4013,7 +4014,8 @@
         "summary": "Add a round",
         "tags": [
           "Rounds"
-        ]
+        ],
+        "x-internal": true
       }
     },
     "/v1/applications/{id}/prepare": {
@@ -6767,7 +6769,8 @@
         "summary": "Delete a round",
         "tags": [
           "Rounds"
-        ]
+        ],
+        "x-internal": true
       },
       "get": {
         "deprecated": true,
@@ -6811,7 +6814,8 @@
         "summary": "Get a round",
         "tags": [
           "Rounds"
-        ]
+        ],
+        "x-internal": true
       },
       "patch": {
         "deprecated": true,
@@ -6868,7 +6872,8 @@
         "summary": "Update a round",
         "tags": [
           "Rounds"
-        ]
+        ],
+        "x-internal": true
       }
     },
     "/v1/links": {

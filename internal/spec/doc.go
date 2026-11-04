@@ -302,7 +302,8 @@ func build() []byte {
 	add("/v1/rounds/{id}", "get", "Get a round", false, x{"q": q("fields"), "out": domain.Interview{}})
 	add("/v1/rounds/{id}", "patch", "Update a round. body.version is required. done true or false marks it done", true, x{"in": service.InterviewPatch{}, "out": domain.Interview{}, "cli": "pursuit rounds done ROUND_ID --notes 'Went well'"})
 	add("/v1/rounds/{id}", "delete", "Delete a round", true, x{"q": q("version"), "out": domain.Deleted{}, "cli": "pursuit rounds delete ROUND_ID"})
-	deprecated := x{"deprecated": true}
+	// The /interviews aliases stay callable and in the document, but out of /reference.
+	deprecated := x{"deprecated": true, "x-internal": true}
 	add("/v1/applications/{id}/interviews", "get", "List rounds. Deprecated alias of GET /v1/applications/{id}/rounds", false, with(deprecated, "q", q("limit", "cursor", "fields"), "list", domain.Interview{}, "id", "listInterviews"))
 	add("/v1/applications/{id}/interviews", "post", "Add a round. Deprecated alias of POST /v1/applications/{id}/rounds", true, with(deprecated, "in", service.InterviewInput{}, "out", domain.Interview{}, "status", 201, "id", "addInterview"))
 	add("/v1/interviews/{id}", "get", "Get a round. Deprecated alias of GET /v1/rounds/{id}", false, with(deprecated, "q", q("fields"), "out", domain.Interview{}, "id", "getInterview"))
@@ -508,11 +509,15 @@ Errors are JSON: ` + "`{\"error\": {\"code\", \"message\", \"hint\", \"details\"
 
 ## Writes
 
-Every write accepts ` + "`Idempotency-Key`" + `, which replays a successful response, and ` + "`X-Dry-Run: true`" + `, which validates and writes nothing. Updates and deletes of versioned records take ` + "`version`" + ` in the body, the query, or ` + "`If-Match`" + `.
+Every write accepts ` + "`Idempotency-Key`" + `, which replays a successful response, and ` + "`X-Dry-Run: true`" + ` (or ` + "`?dry_run=true`" + `), which validates and writes nothing. A dry run answers ` + "`{\"dry_run\": true, \"hint\", \"data\"}`" + ` instead of the response shown. Creates answer 201. Updates and deletes of versioned records take ` + "`version`" + ` in the body, the query, or ` + "`If-Match`" + `.
 
 ## Pagination
 
-Lists take ` + "`limit`" + ` (1-200) and ` + "`cursor`" + `, and return ` + "`next_cursor`" + ` until the last page. ` + "`POST /v1/batch`" + ` runs up to 100 requests in one call.`
+Lists answer ` + "`{\"data\": [...], \"page\": {\"limit\", \"has_more\", \"next_cursor\", \"total\"}}`" + `. They take ` + "`limit`" + ` (1-200) and ` + "`cursor`" + `; pass ` + "`page.next_cursor`" + ` back unchanged until ` + "`has_more`" + ` is false. ` + "`fields=id,company`" + ` trims each record to those fields. ` + "`POST /v1/batch`" + ` runs up to 100 requests in one call.
+
+## Webhooks
+
+A registered webhook receives every new event as a POST; see **Webhooks** at the end of this page for the payload.`
 
 // tags is the sidebar order. tagOf maps each path to one of them.
 var tags = []any{
