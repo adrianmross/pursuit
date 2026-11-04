@@ -201,6 +201,8 @@ func build() []byte {
 	add("/v1/documents", "get", "list user documents: base_resume, cover_letter, other. limit, cursor; no limit returns all", false, nil)
 	add("/v1/documents", "post", "upload a document as multipart (kind, label, file) or JSON text {kind, filename, content_type, label, body}. the first base_resume and the first cover_letter become primary: the main ones prepare attaches. stored in the S3 bucket when the server has one (storage: s3), else in the database", true, nil)
 	add("/v1/documents/{id}", "get", "document with body, label and primary; binary bodies are base64", false, nil)
+	add("/v1/applications/{id}/documents", "post", "use one of your documents as this application's résumé or cover letter. body {document_id}. copies it as a resume_pdf or cover_letter artifact (source_document_id says which); the newest of a kind is the one sent. the main document is free; another version needs the tailored_documents feature", true, nil)
+	add("/v1/applications/{id}/compare", "get", "kind=resume_pdf|cover_letter: the application's file next to your main document, as plain text extracted from PDF, Word or text: {default, current: {title, text, source: default|version|upload}, same}. needs tailored_documents", false, nil)
 	add("/v1/documents/{id}", "patch", "body {label?, primary?, body?}. primary: true makes it the main one of its kind. body replaces a text document's content (a cover letter written in place)", true, nil)
 	add("/v1/documents/{id}", "delete", "delete a document", true, nil)
 	add("/v1/standing", "get", "list standing answers. limit, cursor; no limit returns all", false, nil)
