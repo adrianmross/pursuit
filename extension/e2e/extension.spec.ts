@@ -137,8 +137,8 @@ test("a person saves the posting, autofills, attaches the résumé, and nothing 
   await expect(p.getByText("Not tracked yet.")).toBeVisible();
 
   await p.getByRole("button", { name: "Save job" }).click();
-  await expect(p.getByText("Saved as To apply.")).toBeVisible();
-  await expect(p.locator(".chip")).toHaveText("To apply");
+  await expect(p.getByText("Saved to your tracker.")).toBeVisible();
+  await expect(p.locator(".chip")).toHaveText("Apply");
   const app = await call("GET", "/v1/applications/by-url?url=" + encodeURIComponent("https://job-boards.greenhouse.io/acme/jobs/111"));
   expect(app).toMatchObject({ company: "Acme Robotics", title: "Backend Engineer", status: "to_apply", source: "greenhouse" });
 

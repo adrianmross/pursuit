@@ -81,7 +81,7 @@ npm run build
 
 `npm run e2e` loads the built extension in Chromium against a real `pursuit serve` (it compiles `./cmd/pursuit`, so run `make web` first) and walks both paths: a person saving and filling, and an agent claiming approved work with the CLI and driving the same panel.
 
-Chrome: open `chrome://extensions`, turn on Developer mode, choose Load unpacked, and select `extension/dist`. Firefox: open `about:debugging#/runtime/this-firefox`, choose Load Temporary Add-on, and select `extension/dist/manifest.json`.
+Chrome: open `chrome://extensions`, turn on Developer mode, choose Load unpacked, and select `extension/dist`. Firefox (untested; the e2e covers Chromium only): open `about:debugging#/runtime/this-firefox`, choose Load Temporary Add-on, and select `extension/dist/manifest.json`.
 
 Pair it from the popup with the server URL (`http://127.0.0.1:8787`) and a token that has `write` and not `approve`. Mint that token with `pursuit tokens create`. Pairing checks the token against `GET /v1/me` before it is saved.
 

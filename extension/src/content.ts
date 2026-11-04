@@ -110,7 +110,7 @@ async function saveJob() {
       source: source(job.url),
     });
     state.app = saved.application;
-    state.note = saved.created ? "Saved as To apply." : "Already tracked.";
+    state.note = saved.created ? "Saved to your tracker." : "Already tracked.";
   });
 }
 

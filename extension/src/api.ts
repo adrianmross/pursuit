@@ -43,7 +43,7 @@ export async function api(p: Pairing, method: string, path: string, body?: unkno
 // Status labels match the dashboard (web-app/lib/types.ts).
 export const LABELS: Record<string, string> = {
   saved: "Saved",
-  to_apply: "To apply",
+  to_apply: "Apply",
   preparing: "Preparing",
   awaiting_review: "Prepared",
   approved: "Approved",
@@ -55,7 +55,7 @@ export const LABELS: Record<string, string> = {
   applied: "Applied",
   screening: "Screening",
   interviewing: "Interviewing",
-  final: "Final round",
+  final: "Final",
   waiting: "Waiting",
   offer: "Offer",
   rejected: "Rejected",
