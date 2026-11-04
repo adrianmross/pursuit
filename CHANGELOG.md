@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.4.0](https://github.com/adrianmross/pursuit/compare/v0.3.1...v0.4.0) (2026-11-04)
+
+
+### Features
+
+* **pursuit:** Fill applications from an in-page extension panel, and see changes in the dashboard live with notifications ([#107](https://github.com/adrianmross/pursuit/issues/107)) ([c97177c](https://github.com/adrianmross/pursuit/commit/c97177ca20b33516e6755ee54b64d943d9dd58d4))
+
+
+### Bug Fixes
+
+* **pursuit:** Install the dashboard and docs build dependencies from the committed lockfiles ([#95](https://github.com/adrianmross/pursuit/issues/95)) ([4ef5bf7](https://github.com/adrianmross/pursuit/commit/4ef5bf7d231453ff113965ae6efc06dd84d68f7a))
+* **pursuit:** Organize the API reference by resource and describe every route's parameters, bodies, responses, and pursuit command ([#104](https://github.com/adrianmross/pursuit/issues/104)) ([f8daf62](https://github.com/adrianmross/pursuit/commit/f8daf62be910bde3cc7af10cd3fc071a8625e36f))
+
 ## [0.3.1](https://github.com/adrianmross/pursuit/compare/v0.3.0...v0.3.1) (2026-11-03)
 
 
