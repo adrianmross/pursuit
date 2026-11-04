@@ -50,7 +50,7 @@ test("Greenhouse form fills contact and prepared answers and never submits", () 
   assert.ok(doc.getElementById("resume").classList.contains("pursuit-unfilled"));
   assert.ok(report.filled.some((label) => label.startsWith("Email")));
   assert.ok(report.missed.some((label) => label.startsWith("LinkedIn")));
-  assert.ok(report.missed.some((label) => /prepared PDF/.test(label)));
+  assert.ok(report.missed.some((label) => /base résumé/.test(label)));
   assert.equal(doc.getElementById("phone").classList.contains("pursuit-unfilled"), false);
 });
 
@@ -66,7 +66,7 @@ test("Ashby form fills name, email, and the prepared prompt", () => {
   assert.equal((doc.getElementById("email") as HTMLInputElement).value, "person@example.com");
   assert.equal((doc.getElementById("why") as HTMLTextAreaElement).value, "I like the product.");
   assert.equal((doc.getElementById("website") as HTMLInputElement).value, "https://example.com");
-  assert.ok(report.missed.some((label) => /prepared PDF/.test(label)));
+  assert.ok(report.missed.some((label) => /base résumé/.test(label)));
 });
 
 test("Lever form fills wrapped labels and leaves the file input empty", () => {
@@ -78,6 +78,6 @@ test("Lever form fills wrapped labels and leaves the file input empty", () => {
   assert.equal(inputs.find((el) => el.name === "phone")!.value, "555-0100");
   assert.equal((doc.querySelector("textarea") as HTMLTextAreaElement).value, "I build reliable systems.");
   assert.equal(inputs.find((el) => el.type === "file")!.value, "");
-  assert.ok(report.missed.some((label) => /prepared PDF/.test(label)));
+  assert.ok(report.missed.some((label) => /base résumé/.test(label)));
   assert.equal(doc.querySelectorAll("button[type=submit]").length, 1);
 });
