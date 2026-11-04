@@ -31,6 +31,8 @@ The base résumé is a document: `pursuit documents add --kind base_resume --fil
 
 `GET /v1/profile` is those standing answers as one map. `POST /v1/applications/capture` saves a posting the user is viewing as `to_apply` and dedupes on the URL. The browser extension calls those. It is not a dashboard.
 
+Driving the browser. When the person's browser has the Pursuit extension paired, fill forms through it instead of typing field by field. Open the application's `posting_url`, click the page's "Open Pursuit" button (or press Alt+Shift+P), then "Autofill application". It fills the profile and prepared answers and attaches the résumé. The panel lives in an open shadow root on `[data-pursuit-panel]`; after a fill that element carries `data-pursuit-filled` and `data-pursuit-missed`, and the panel lists what is left. Each fill is also an event on the application (`GET /v1/applications/APP_ID/events`). Save new answers with `pursuit standing set` and fill again. Click Submit only while you hold that application's submit work from `pursuit queue claim`, then `pursuit queue complete WORK_ID --status submitted`. Never click Submit on a role that is not approved.
+
 Debugging with the audit log. Every successful change records who did what and when, with details in `metadata`.
 
 ```bash

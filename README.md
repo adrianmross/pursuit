@@ -68,7 +68,7 @@ oras pull ghcr.io/adrianmross/pursuit-release:<ver>
 
 ## Browser extension
 
-`extension/` is a Manifest V3 extension. It saves the posting you have open and fills Greenhouse, Ashby, and Lever application forms from this server. It does not crawl, and it never clicks Submit.
+`extension/` is a Manifest V3 extension. On a job posting or application form it shows a Pursuit button in the corner of the page (or press Alt+Shift+P). The panel saves the posting, shows its status and progress mark, fills the form from your profile and that application's prepared answers, and attaches your résumé. It does not crawl, and it never clicks Submit.
 
 Build it once (Node 22), then load the unpacked `extension/dist` directory:
 
@@ -79,9 +79,11 @@ npm test
 npm run build
 ```
 
+`npm run e2e` loads the built extension in Chromium against a real `pursuit serve` (it compiles `./cmd/pursuit`, so run `make web` first) and walks both paths: a person saving and filling, and an agent claiming approved work with the CLI and driving the same panel.
+
 Chrome: open `chrome://extensions`, turn on Developer mode, choose Load unpacked, and select `extension/dist`. Firefox: open `about:debugging#/runtime/this-firefox`, choose Load Temporary Add-on, and select `extension/dist/manifest.json`.
 
-Pair it from the popup with the server URL (`http://127.0.0.1:8787`) and a token that has `write` and not `approve`. Mint that token with `pursuit tokens create`. The popup asks for permission to call that origin.
+Pair it from the popup with the server URL (`http://127.0.0.1:8787`) and a token that has `write` and not `approve`. Mint that token with `pursuit tokens create`. Pairing checks the token against `GET /v1/me` before it is saved.
 
 The daemon only answers the extension when the origin is allowed:
 
@@ -90,7 +92,7 @@ export PURSUIT_CORS_ORIGINS='chrome-extension://*,moz-extension://*'
 pursuit serve
 ```
 
-Use the extension's real id (`chrome-extension://<id>`) instead of the wildcard if you want a tighter list. Save job creates a `to_apply` application and dedupes on the posting URL. Autofill uses `GET /v1/profile` plus that application's prepared answers. A résumé file is not uploaded; the popup downloads the `resume_pdf` artifact when one exists.
+Use the extension's real id (`chrome-extension://<id>`) instead of the wildcard if you want a tighter list. Save job creates a `to_apply` application and dedupes on the posting URL (a form at `/apply` or `/application` finds its posting). Autofill fills text fields, selects, radio groups, and typeahead selects, then attaches the application's `resume_pdf` artifact or, failing that, your newest `base_resume` document. Fields it could not answer are outlined; type them in and Save my answers stores them as standing answers. Each fill is recorded on the application as an event, so an agent following along with `pursuit` sees what was left. After you submit, Mark applied moves a hand-applied role to Applied; approved roles are completed by the agent holding the submit work.
 
 What the extension copies from other trackers, and what it skips, is in [docs/inspiration.md](docs/inspiration.md).
 
