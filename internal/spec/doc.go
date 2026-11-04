@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -139,7 +140,28 @@ func build() []byte {
 		case extra["raw"] != nil:
 			ok["content"] = x{extra["raw"].(string): x{"schema": x{"type": "string"}}}
 		}
-		op["responses"] = x{strconv.Itoa(status): ok, "default": errRef()}
+		responses := x{strconv.Itoa(status): ok, "default": errRef()}
+		// The 4xx a route can answer, from what it takes: input can fail
+		// validation, a token can be missing or lack the scope, an {id} can be
+		// unknown, and a versioned write can lose a race. errors adds others.
+		if extra["in"] != nil || len(qs) > 0 {
+			responses["400"] = errorRef("BadRequest")
+		}
+		if _, public := extra["security"]; !public {
+			responses["401"] = errorRef("Unauthorized")
+			responses["403"] = errorRef("Forbidden")
+		}
+		if strings.Contains(path, "{") {
+			responses["404"] = errorRef("NotFound")
+		}
+		if method == "patch" || slices.Contains(qs, "version") || extra["in"] == (VersionInput{}) || strings.HasSuffix(path, "/transition") {
+			responses["409"] = errorRef("Conflict")
+		}
+		codes, _ := extra["errors"].([]int)
+		for _, c := range codes {
+			responses[strconv.Itoa(c)] = errorRef(errorNames[c])
+		}
+		op["responses"] = responses
 
 		if cli, _ := extra["cli"].(string); cli != "" {
 			op["x-codeSamples"] = []any{x{"lang": "shell", "label": "pursuit CLI", "source": cli}}
@@ -156,7 +178,7 @@ func build() []byte {
 
 		for k, v := range extra {
 			switch k {
-			case "in", "out", "list", "raw", "q", "status", "cli", "id":
+			case "in", "out", "list", "raw", "q", "status", "cli", "id", "errors":
 			default:
 				op[k] = v
 			}
@@ -208,7 +230,7 @@ func build() []byte {
 	// Meta routes stay in the document for agents; x-internal hides them in /reference.
 	hidden := x{"security": []any{}, "x-internal": true}
 	add("/healthz", "get", "Liveness", false, with(hidden, "out", Status{}))
-	add("/readyz", "get", "Readiness", false, with(hidden, "out", Status{}))
+	add("/readyz", "get", "Readiness", false, with(hidden, "out", Status{}, "errors", []int{503}))
 	add("/version", "get", "Version", false, with(hidden, "out", VersionInfo{}))
 	add("/openapi.json", "get", "This document", false, with(hidden, "raw", "application/json", "id", "getOpenAPI"))
 	add("/llms.txt", "get", "Short agent guide", false, with(hidden, "raw", "text/plain"))
@@ -255,15 +277,15 @@ func build() []byte {
 	add("/v1/auth/providers", "get", "List sign-in options. passkeys is true when PURSUIT_WEBAUTHN_RP_ID is set", false, with(open, "out", Providers{}))
 	add("/v1/auth/{provider}/start", "get", "Start an OIDC sign-in. Redirects to the provider", false, with(open, "status", 302))
 	add("/v1/auth/{provider}/callback", "get", "Finish an OIDC sign-in. Redirects to /#token=<secret>", false, with(open, "status", 302))
-	add("/v1/auth/session", "post", "Sign in. Verify a token (pst_, or a Better Auth JWT exchanged for a pst_ login token) and store the pst_ token in the httpOnly pursuit_session cookie, then answer like GET /v1/me. requires Content-Type application/json and Sec-Fetch-Site same-origin or a matching Origin. agents send Authorization: Bearer instead", false, with(open, "in", SessionInput{}, "out", domain.Me{}))
-	add("/v1/auth/session", "delete", "Sign out. Clear the pursuit_session cookie and revoke it when sign-in minted it (token name login). any other token stays valid; revoke it with POST /v1/auth/revoke. same-origin only", false, with(open, "status", 204))
-	add("/v1/auth/passkey/login/begin", "post", "Start a passkey sign-in. WebAuthn, usernameless. body {}. publicKey is for PublicKeyCredential.parseRequestOptionsFromJSON with no allowCredentials, so nothing reveals which accounts exist. the challenge is single-use and lasts 5 minutes. 404 when passkeys are off (PURSUIT_WEBAUTHN_RP_ID unset). requires Content-Type application/json and Sec-Fetch-Site same-origin or a matching Origin. begin and finish together are limited to 20 a minute per client IP (429)", false, with(open, "out", WebAuthnOptions{}))
-	add("/v1/auth/passkey/login/finish", "post", "Finish a passkey sign-in. body is the browser's PublicKeyCredential.toJSON(). verifies challenge, origin, RP ID, signature, user verification and sign count, then mints a pst_ login token (name login, read,write,approve) into the httpOnly pursuit_session cookie and answers like GET /v1/me. never creates a user: an unknown, removed or replayed passkey is 401. same-origin JSON only", false, with(open, "in", x{}, "out", domain.Me{}))
+	add("/v1/auth/session", "post", "Sign in. Verify a token (pst_, or a Better Auth JWT exchanged for a pst_ login token) and store the pst_ token in the httpOnly pursuit_session cookie, then answer like GET /v1/me. requires Content-Type application/json and Sec-Fetch-Site same-origin or a matching Origin. agents send Authorization: Bearer instead", false, with(open, "in", SessionInput{}, "out", domain.Me{}, "errors", []int{401, 403}))
+	add("/v1/auth/session", "delete", "Sign out. Clear the pursuit_session cookie and revoke it when sign-in minted it (token name login). any other token stays valid; revoke it with POST /v1/auth/revoke. same-origin only", false, with(open, "status", 204, "errors", []int{403}))
+	add("/v1/auth/passkey/login/begin", "post", "Start a passkey sign-in. WebAuthn, usernameless. body {}. publicKey is for PublicKeyCredential.parseRequestOptionsFromJSON with no allowCredentials, so nothing reveals which accounts exist. the challenge is single-use and lasts 5 minutes. 404 when passkeys are off (PURSUIT_WEBAUTHN_RP_ID unset). requires Content-Type application/json and Sec-Fetch-Site same-origin or a matching Origin. begin and finish together are limited to 20 a minute per client IP (429)", false, with(open, "out", WebAuthnOptions{}, "errors", []int{403, 404, 429}))
+	add("/v1/auth/passkey/login/finish", "post", "Finish a passkey sign-in. body is the browser's PublicKeyCredential.toJSON(). verifies challenge, origin, RP ID, signature, user verification and sign count, then mints a pst_ login token (name login, read,write,approve) into the httpOnly pursuit_session cookie and answers like GET /v1/me. never creates a user: an unknown, removed or replayed passkey is 401. same-origin JSON only", false, with(open, "in", x{}, "out", domain.Me{}, "errors", []int{401, 403, 429}))
 	add("/v1/passkeys", "get", "List passkeys. requires a signed-in human with approve (not a demo sandbox or the PURSUIT_TRUST_PROXY_AUTH owner)", false, x{"q": q("limit", "cursor"), "list": service.PasskeyView{}})
 	add("/v1/passkeys/register/begin", "post", "Start adding a passkey. body {}. publicKey is for PublicKeyCredential.parseCreationOptionsFromJSON (resident key and user verification required, existing passkeys excluded). requires approve, not demo or proxy owner, and same-origin JSON", false, x{"out": WebAuthnOptions{}})
 	add("/v1/passkeys/register/finish", "post", "Finish adding a passkey. credential is PublicKeyCredential.toJSON(). writes a passkey.create audit entry. same-origin JSON only", false, x{"in": PasskeyInput{}, "out": service.PasskeyView{}, "status": 201})
 	add("/v1/passkeys/{id}", "delete", "Remove a passkey. It no longer signs in. sessions it started stay valid until revoked under /v1/tokens. writes a passkey.delete audit entry", true, x{"out": domain.Deleted{}})
-	add("/v1/demo", "post", "Start a demo. Mint a token for a fresh, isolated demo sandbox when demo mode is on", false, with(open, "out", DemoSession{}, "status", 201))
+	add("/v1/demo", "post", "Start a demo. Mint a token for a fresh, isolated demo sandbox when demo mode is on", false, with(open, "out", DemoSession{}, "status", 201, "errors", []int{404, 429}))
 
 	add("/v1/me", "get", "Get the current user. Returns the user and the token making the call", false, x{"q": q("fields"), "out": domain.Me{}, "cli": "pursuit auth status"})
 	add("/v1/me", "patch", "Update the current user. Set display name or avatar (png, jpeg, or webp data URL under 256KB; empty clears it). email is accepted only from the PURSUIT_TRUST_PROXY_AUTH owner (GET /v1/me returns proxy: true)", true, x{"in": service.MePatch{}, "out": domain.User{}})
@@ -373,6 +395,7 @@ func build() []byte {
 	components := x{
 		"securitySchemes": x{"bearerAuth": x{"type": "http", "scheme": "bearer"}},
 		"parameters":      params,
+		"responses":       errorResponses,
 		"schemas":         g,
 	}
 	g["OAuthError"] = x{
@@ -522,22 +545,22 @@ A registered webhook receives every new event as a POST; see **Webhooks** at the
 // tags is the sidebar order. tagOf maps each path to one of them.
 var tags = []any{
 	map[string]any{"name": "Applications", "description": "A posting you are tracking or applying to, and its status."},
-	map[string]any{"name": "Companies"},
-	map[string]any{"name": "Roles"},
+	map[string]any{"name": "Companies", "description": "Employers. Creating an application creates its company by name when needed."},
+	map[string]any{"name": "Roles", "description": "A position at a company. Applications point at one."},
 	map[string]any{"name": "Rounds", "description": "Interview rounds, per stage. `/interviews` routes are deprecated aliases."},
 	map[string]any{"name": "Tasks", "description": "To-dos, per stage."},
 	map[string]any{"name": "Events", "description": "The activity feed. `GET /v1/events` long-polls with `after` and `wait_ms`."},
-	map[string]any{"name": "Tags"},
-	map[string]any{"name": "Custom fields"},
+	map[string]any{"name": "Tags", "description": "Labels to group and filter applications."},
+	map[string]any{"name": "Custom fields", "description": "Your own text, number, or date attributes on applications."},
 	map[string]any{"name": "Applying", "description": "Prepare drafts answers and stops at `awaiting_review`. A human approves; then a worker claims the submit work."},
 	map[string]any{"name": "Queue", "description": "Workers lease work, heartbeat before the 2 minute lease expires, and complete it."},
 	map[string]any{"name": "Artifacts", "description": "Files attached to one application: tailored résumé, cover letter, form snapshots."},
 	map[string]any{"name": "Documents", "description": "Your files, such as the base résumé that prepare attaches."},
 	map[string]any{"name": "Standing answers", "description": "Answers reused to fill every form."},
 	map[string]any{"name": "Postings", "description": "Link checks for closed or changed postings."},
-	map[string]any{"name": "Batch"},
-	map[string]any{"name": "Import and export"},
-	map[string]any{"name": "Webhooks"},
+	map[string]any{"name": "Batch", "description": "Many API requests in one call."},
+	map[string]any{"name": "Import and export", "description": "Bring postings in from CSV, JSON, or Markdown, and take applications out."},
+	map[string]any{"name": "Webhooks", "description": "URLs that receive every new event. The payload is under Webhooks at the end of this page."},
 	map[string]any{"name": "Audit log", "description": "Who changed what and when."},
 	map[string]any{"name": "Account", "description": "The current user and API tokens."},
 	map[string]any{"name": "OAuth", "description": "Login for the CLI: `pursuit auth login`, with or without `--device`. OAuth never grants `approve`."},
@@ -615,3 +638,27 @@ func upper(s string) string {
 func errRef() map[string]any {
 	return map[string]any{"description": "error", "content": map[string]any{"application/json": map[string]any{"schema": map[string]any{"$ref": "#/components/schemas/Error"}}}}
 }
+
+var errorNames = map[int]string{400: "BadRequest", 401: "Unauthorized", 403: "Forbidden", 404: "NotFound", 409: "Conflict", 429: "TooManyRequests", 503: "Unavailable"}
+
+func errorRef(name string) x {
+	return x{"$ref": "#/components/responses/" + name}
+}
+
+// errorResponses are the shared 4xx and 5xx answers, all in the Error shape.
+var errorResponses = func() x {
+	desc := map[string]string{
+		"BadRequest":      "Validation failed: a bad body, query parameter, or value.",
+		"Unauthorized":    "No token, or one that is unknown, revoked, or expired.",
+		"Forbidden":       "The token lacks the scope this route needs.",
+		"NotFound":        "Nothing with that ID, or the feature is off.",
+		"Conflict":        "The version is stale, or a company cap would be exceeded.",
+		"TooManyRequests": "Rate limited; wait and retry.",
+		"Unavailable":     "Not ready yet.",
+	}
+	out := x{}
+	for _, name := range errorNames {
+		out[name] = x{"description": desc[name], "content": x{"application/json": x{"schema": x{"$ref": "#/components/schemas/Error"}}}}
+	}
+	return out
+}()
