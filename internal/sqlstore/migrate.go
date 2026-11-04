@@ -542,4 +542,12 @@ var migrations = []migration{{
 			SELECT d2.id FROM documents d2 WHERE d2.user_id = documents.user_id AND d2.kind = documents.kind
 			ORDER BY d2.created_at DESC, d2.id DESC LIMIT 1)`,
 	},
+}, {
+	// 022 is smart search (#105), on a sibling branch.
+	version: "023",
+	stmts: []string{
+		// Which of the user's documents an application's résumé or cover
+		// letter was copied from; empty for a file uploaded to the application.
+		`ALTER TABLE artifacts ADD COLUMN source_document_id TEXT NOT NULL DEFAULT ''`,
+	},
 }}

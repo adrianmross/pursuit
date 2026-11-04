@@ -640,7 +640,7 @@ func (s *Service) attachCoverLetter(ctx context.Context, userID, appID, now stri
 	}
 	return s.DB.CreateArtifact(ctx, sqlstore.Artifact{
 		ID: s.NewID(), UserID: userID, ApplicationID: appID, Kind: "cover_letter",
-		Filename: doc.Filename, ContentType: doc.ContentType, Body: doc.Body, CreatedAt: now,
+		Filename: doc.Filename, ContentType: doc.ContentType, Body: doc.Body, CreatedAt: now, SourceDocumentID: doc.ID,
 	})
 }
 
@@ -657,7 +657,7 @@ func (s *Service) attachResume(ctx context.Context, userID, appID, now string) e
 		}
 		return s.DB.CreateArtifact(ctx, sqlstore.Artifact{
 			ID: s.NewID(), UserID: userID, ApplicationID: appID, Kind: "resume_pdf",
-			Filename: doc.Filename, ContentType: doc.ContentType, Body: body, CreatedAt: now,
+			Filename: doc.Filename, ContentType: doc.ContentType, Body: body, CreatedAt: now, SourceDocumentID: doc.ID,
 		})
 	}
 	if !domain.IsCode(err, "not_found") {
@@ -811,6 +811,9 @@ type ArtifactView struct {
 	Filename      string `json:"filename"`
 	ContentType   string `json:"content_type"`
 	CreatedAt     string `json:"created_at"`
+	// SourceDocumentID is the document a résumé or cover letter was copied
+	// from; empty for one uploaded to this application (tailored).
+	SourceDocumentID string `json:"source_document_id,omitempty"`
 }
 
 func (s *Service) AddArtifact(ctx context.Context, appID, kind, filename, contentType string, body []byte) (ArtifactView, error) {
@@ -868,7 +871,7 @@ func (s *Service) ListArtifacts(ctx context.Context, appID string) ([]ArtifactVi
 	}
 	out := make([]ArtifactView, len(rows))
 	for i, row := range rows {
-		out[i] = ArtifactView{ID: row.ID, ApplicationID: row.ApplicationID, Kind: row.Kind, Filename: row.Filename, ContentType: row.ContentType, CreatedAt: row.CreatedAt}
+		out[i] = ArtifactView{ID: row.ID, ApplicationID: row.ApplicationID, Kind: row.Kind, Filename: row.Filename, ContentType: row.ContentType, CreatedAt: row.CreatedAt, SourceDocumentID: row.SourceDocumentID}
 	}
 	return out, nil
 }
