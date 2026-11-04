@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState, type KeyboardEvent, type ReactNode } from "react"
-import { Database, Download, History, Info, Keyboard, KeyRound, ScanSearch, Palette, Rows3, Search, SlidersHorizontal, User } from "lucide-react"
+import { CreditCard, Database, Download, FlaskConical, History, Info, Keyboard, KeyRound, ScanSearch, Palette, Rows3, Search, SlidersHorizontal, User } from "lucide-react"
 import { FILTERS, MORE, SORTS } from "@/lib/types"
 import { getDefaultSort, getDefaultStatus, ACCENTS, getPref, setPref, setDefaultSort, setDefaultStatus, type Accent, type Density, type TextSize } from "@/lib/settings"
 import { useShortcuts } from "@/lib/keybindings"
@@ -13,6 +13,7 @@ import { SearchPanel } from "@/components/settings/SearchPanel"
 import { KeyboardPanel } from "@/components/settings/KeyboardPanel"
 import { AuditPanel } from "@/components/settings/AuditPanel"
 import { AboutPanel } from "@/components/settings/AboutPanel"
+import { ExperimentalPanel, PlanPanel } from "@/components/settings/ExperimentalPanel"
 import { AccountPanel } from "@/components/settings/AccountPanel"
 import { TokensPanel } from "@/components/settings/TokensPanel"
 import { Button } from "@/components/ui/button"
@@ -360,6 +361,24 @@ const SECTIONS: (Section & { items: [string, string][] })[] = [
     icon: <History />,
     render: () => <AuditPanel />,
     items: [["Audit log", "activity history changes who did what"]],
+  },
+  {
+    id: "experimental",
+    label: "Experimental",
+    icon: <FlaskConical />,
+    render: () => <ExperimentalPanel />,
+    items: [
+      ["Experimental features", "labs beta preview early try enable disable toggle"],
+      ["Smart search", "vector semantic meaning answers notes documents ai"],
+      ["Document storage", "resume cover letter files s3 upload tailored diff"],
+    ],
+  },
+  {
+    id: "plan",
+    label: "Plan",
+    icon: <CreditCard />,
+    render: () => <PlanPanel />,
+    items: [["Plan", "billing subscription upgrade plus premium pay stripe cancel invoice"]],
   },
   { id: "data", label: "Data", icon: <Database />, render: () => <DataPanel />, items: [["Export", "download backup json"]] },
   {
