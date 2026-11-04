@@ -610,7 +610,7 @@
             "description": "error"
           }
         },
-        "summary": "List events for an application",
+        "summary": "List events",
         "tags": [
           "Events"
         ]
@@ -814,7 +814,7 @@
             "description": "error"
           }
         },
-        "summary": "List rounds for an application",
+        "summary": "List rounds",
         "tags": [
           "Rounds"
         ]

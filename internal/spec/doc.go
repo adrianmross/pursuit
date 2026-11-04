@@ -171,9 +171,9 @@ func build() []byte {
 	add("/v1/applications/{id}/transition", "post", "Change status. A stage replaces the status and clears any outcome; waiting, needs_input, failed, rejected, withdrawn and ghosted are outcomes that keep the stage. approved requires the approve scope. submitting requires a stored approval", true, nil)
 	add("/v1/applications/{id}/archive", "post", "archive an application; body.version is required", true, nil)
 	add("/v1/applications/{id}/unarchive", "post", "unarchive an application; body.version is required", true, nil)
-	add("/v1/applications/{id}/events", "get", "list events for an application", false, nil)
+	add("/v1/applications/{id}/events", "get", "list events", false, nil)
 	add("/v1/applications/{id}/events", "post", "Add an event. Append email_received, interview_scheduled, or note", true, nil)
-	add("/v1/applications/{id}/rounds", "get", "list rounds for an application. limit, cursor, fields; no limit returns all", false, nil)
+	add("/v1/applications/{id}/rounds", "get", "list rounds. limit, cursor, fields; no limit returns all", false, nil)
 	add("/v1/applications/{id}/rounds", "post", "add a round. stage is prepared, applied, screening, interviewing, final, or offer and defaults to the current stage. prep holds what to rehearse", true, nil)
 	add("/v1/rounds/{id}", "get", "get a round", false, nil)
 	add("/v1/rounds/{id}", "patch", "update a round; body.version is required. done true/false marks it done", true, nil)
@@ -378,8 +378,11 @@ func tagOf(path string) string {
 		case "device_authorization", "token", "revoke":
 			return "OAuth"
 		}
+		return "Dashboard sign-in"
+	case "oauth", "passkeys", "demo":
+		return "Dashboard sign-in"
 	}
-	return "Dashboard sign-in"
+	return upper(seg[0]) // not in tags yet: shows up on its own in the sidebar
 }
 
 // upper capitalizes s unless it opens on an identifier such as body.version.
