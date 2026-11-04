@@ -27,6 +27,8 @@ pursuit list --stale --fields id,company,title,link_status
 
 A round's `notes` is one markdown document (prep, transcript, questions). A heading ending in `?` is a question, and the text under it is the answer. The round returns them parsed as `questions`. Edit with `pursuit rounds set ID --question "...?" --answer "..."` or `--append "..."`, which need no version. `--notes-file` replaces the whole document. `pursuit questions list --q TEXT` (`GET /v1/questions`) searches every round's questions. These are not standing answers: copy one over with `pursuit standing set` only when the user asks.
 
+An application can name its own stages and skip some with `stage_plan` on `PATCH /v1/applications/{id}`: `{"labels": {"screening": "Phone screen"}, "off": ["final"]}`. Only Prepared through Final take part. The statuses underneath never change, so filters, caps and agents keep using `screening`. `{}` resets it.
+
 When one process at a company covers several postings, `pursuit apps update ID --tracked-by PRIMARY_ID` marks the others as tracked with it (`tracked_by` on the application, same company, one level). A tracked application is not prepared or applied on its own and does not count against company caps. `--tracked-by ""` clears it. Reject one posting with `apps transition ID --status rejected`; the link stays.
 
 Standing answers (`pursuit standing set`) fill form questions. Unknown required questions become `needs_input`. Company caps return a conflict when exceeded.

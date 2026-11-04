@@ -8,10 +8,9 @@ export function SiteFooter() {
   return (
     <footer className="border-t text-sm text-muted-foreground">
       <div className="mx-auto flex max-w-6xl flex-col items-center gap-4 px-5 py-8 md:grid md:grid-cols-[1fr_auto_1fr] md:gap-6">
-        <Link href="/" className="flex items-center gap-2 text-foreground md:justify-self-start">
-          <img src="/brand/hire-pursuit-mark.svg" alt="" className="h-5 w-auto dark:hidden" />
-          <img src="/brand/hire-pursuit-mark-reverse.svg" alt="" className="hidden h-5 w-auto dark:block" />
-          Hire Pursuit
+        <Link href="/" aria-label="Hire Pursuit" className="flex items-center text-foreground md:justify-self-start">
+          <img src="/brand/hire-pursuit-wordmark.svg" alt="" className="h-5 w-auto dark:hidden" />
+          <img src="/brand/hire-pursuit-wordmark-reverse.svg" alt="" className="hidden h-5 w-auto dark:block" />
         </Link>
         <p className="order-last flex flex-wrap items-center justify-center gap-x-1.5 gap-y-1 text-center text-xs md:order-none">
           <span className="inline-flex items-center gap-1.5">

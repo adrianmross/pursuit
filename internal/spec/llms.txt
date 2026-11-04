@@ -40,7 +40,11 @@ pursuit rounds set ROUND_ID --notes-file notes.md
 pursuit rounds set ROUND_ID --question "Why Snowflake?" --answer "Query engine work at scale."
 pursuit rounds set ROUND_ID --append "Recruiter said next step is a system design round."
 pursuit questions list --q "migration" --fields prompt,answer,company,round_id
+pursuit apps notes APP_ID
+pursuit tasks add APP_ID --title "Ask about team match" --stage anytime
 ```
+
+An application can also hold notes files of its own (`pursuit notes add APP_ID --name "Salary research" --file notes.md`, `GET|POST /v1/applications/{id}/notes/files`, `PATCH /v1/notes/{id}` with the same `append` and `set_question` as a round). `pursuit apps notes` (`GET /v1/applications/{id}/notes`) prints one document: the application's notes, its notes files, then every round with `in_notes` true. Questions not tied to a round are headings ending in `?` in the application's own notes. A task with stage `anytime` belongs to no stage.
 
 The browser extension uses GET /v1/profile, GET /v1/applications/by-url?url=, and POST /v1/applications/capture. It needs a write token and PURSUIT_CORS_ORIGINS. It does not approve or submit.
 

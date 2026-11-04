@@ -44,6 +44,7 @@ func rootCommand() *Command {
 			{Name: "rounds", Summary: "rounds within any of an application's stages", Children: roundCommands()},
 			{Name: "interviews", Summary: "alias of rounds", Children: roundCommands()},
 			cmdTasks(),
+			cmdNotes(),
 			{Name: "questions", Summary: "the question bank: every question in your round notes", Children: []*Command{
 				{Name: "list", Summary: "list questions across applications", Usage: "pursuit questions list [--q text]", Example: "pursuit questions list --q \"why snowflake\" --fields prompt,answer,company", Flags: []Flag{{Name: "q", Type: "string", Help: "filter prompt, answer, company and title"}, {Name: "limit", Type: "string", Help: "page size"}, {Name: "cursor", Type: "string", Help: "cursor"}}, Run: func(e *exec) error {
 					q := url.Values{}
@@ -223,6 +224,23 @@ func cmdApps() *Command {
 			}, Run: runAppUpdate},
 			{Name: "delete", Summary: "delete an application", Mutating: true, Usage: "pursuit apps delete <id>", Args: []Arg{{Name: "id", Required: true}}, Flags: []Flag{{Name: "version", Type: "string", Help: "object version"}}, Run: func(e *exec) error {
 				return e.delete("/v1/applications/" + url.PathEscape(e.args[0]))
+			}},
+			{Name: "notes", Summary: "print an application's compiled notes as markdown: its notes, then each round in notes", Usage: "pursuit apps notes <id> > notes.md", Args: []Arg{{Name: "id", Required: true}}, Run: func(e *exec) error {
+				resp, err := e.client.Do(nil, "GET", "/v1/applications/"+url.PathEscape(e.args[0])+"/notes", nil, nil, "", apiclient.Options{})
+				if err != nil {
+					return &exitError{code: 1, message: err.Error(), hint: "check that pursuit serve is running and PURSUIT_SERVER is correct"}
+				}
+				if resp.Status >= 400 {
+					return &exitError{code: exitStatus(resp.Status), raw: resp.Body}
+				}
+				var doc struct {
+					Markdown string `json:"markdown"`
+				}
+				if err := json.Unmarshal(resp.Body, &doc); err != nil {
+					return err
+				}
+				_, err = fmt.Fprint(e.stdout, doc.Markdown)
+				return err
 			}},
 			{Name: "transition", Summary: "change status and append an event", Mutating: true, Usage: "pursuit apps transition <id> --status <status>", Args: []Arg{{Name: "id", Required: true}}, Flags: []Flag{
 				{Name: "status", Type: "string", Help: "target status"},
@@ -552,7 +570,7 @@ func cmdFields() *Command {
 // roundCommands are the children of rounds and of its alias interviews.
 func roundCommands() []*Command {
 	fields := []Flag{
-		{Name: "stage", Type: "string", Help: "prepared, applied, screening, interviewing, final, or offer (default: the application's current stage)"},
+		{Name: "stage", Type: "string", Help: "prepared, applied, screening, interviewing, or final (default: the application's current stage; an offer has no rounds)"},
 		{Name: "kind", Type: "string", Help: "the round, e.g. Recruiter call or System design"},
 		{Name: "interviewer", Type: "string", Help: "who you meet"},
 		{Name: "when", Type: "string", Help: "RFC3339 or YYYY-MM-DD"},
@@ -563,6 +581,7 @@ func roundCommands() []*Command {
 		{Name: "append", Type: "string", Help: "add text at the end of the notes, e.g. a transcript"},
 		{Name: "question", Type: "string", Help: "set one question under ## Questions (a missing ? is added); use with --answer"},
 		{Name: "answer", Type: "string", Help: "the answer for --question"},
+		{Name: "in-notes", Type: "string", Help: "true or false: show the round expanded in the application's notes outline"},
 	}
 	read := func(path, flag string) (string, error) {
 		var b []byte
@@ -593,6 +612,9 @@ func roundCommands() []*Command {
 				}
 				payload[key] = text
 			}
+		}
+		if v, ok := e.flags["in-notes"]; ok {
+			payload["in_notes"] = len(v) == 0 || v[0] != "false"
 		}
 		if _, ok := e.flags["question"]; ok {
 			payload["set_question"] = map[string]string{"prompt": e.flag("question"), "answer": e.flag("answer")}
@@ -655,15 +677,78 @@ func roundCommands() []*Command {
 	}
 }
 
+// cmdNotes manages an application's notes files: markdown of their own,
+// beside its notes and its rounds' notes.
+func cmdNotes() *Command {
+	put := func(e *exec, payload map[string]any) error {
+		for key, flag := range map[string]string{"name": "name", "body": "body", "append": "append"} {
+			if _, ok := e.flags[flag]; ok {
+				payload[key] = e.flag(flag)
+			}
+		}
+		if path := e.flag("file"); path != "" {
+			var b []byte
+			var err error
+			if path == "-" {
+				b, err = io.ReadAll(os.Stdin)
+			} else {
+				b, err = os.ReadFile(path)
+			}
+			if err != nil {
+				return &exitError{code: 2, message: err.Error(), hint: "check --file"}
+			}
+			payload["body"] = string(b)
+		}
+		if _, ok := e.flags["question"]; ok {
+			payload["set_question"] = map[string]string{"prompt": e.flag("question"), "answer": e.flag("answer")}
+		}
+		return nil
+	}
+	fields := []Flag{
+		{Name: "name", Type: "string", Help: "the file's name"},
+		{Name: "body", Type: "string", Help: "replace the markdown"},
+		{Name: "file", Type: "string", Help: "replace the markdown from a file (- for stdin)"},
+		{Name: "append", Type: "string", Help: "add text at the end"},
+		{Name: "question", Type: "string", Help: "set one question (a missing ? is added); use with --answer"},
+		{Name: "answer", Type: "string", Help: "the answer for --question"},
+	}
+	return &Command{Name: "notes", Summary: "an application's notes files: markdown beside its notes and rounds", Children: []*Command{
+		{Name: "list", Summary: "list an application's notes files", Usage: "pursuit notes list <application-id>", Args: []Arg{{Name: "application-id", Required: true}}, Run: func(e *exec) error {
+			return e.send("GET", "/v1/applications/"+url.PathEscape(e.args[0])+"/notes/files", nil, nil, "", false, true)
+		}},
+		{Name: "add", Summary: "add a notes file", Mutating: true, Usage: "pursuit notes add <application-id> --name \"Salary research\" [--file notes.md]", Args: []Arg{{Name: "application-id", Required: true}}, Flags: fields, Run: func(e *exec) error {
+			payload := map[string]any{}
+			if err := put(e, payload); err != nil {
+				return err
+			}
+			body, err := e.jsonBody(payload)
+			if err != nil {
+				return err
+			}
+			return e.send("POST", "/v1/applications/"+url.PathEscape(e.args[0])+"/notes/files", nil, body, "application/json", true, true)
+		}},
+		{Name: "get", Summary: "get a notes file", Args: []Arg{{Name: "id", Required: true}}, Run: func(e *exec) error {
+			return e.send("GET", "/v1/notes/"+url.PathEscape(e.args[0]), nil, nil, "", false, true)
+		}},
+		{Name: "set", Summary: "change a notes file", Mutating: true, Usage: "pursuit notes set <id> [--append ...] [--question ... --answer ...] [--file notes.md] [--name ...]", Args: []Arg{{Name: "id", Required: true}}, Flags: append(append([]Flag{}, fields...), Flag{Name: "version", Type: "string", Help: "object version"}), Run: func(e *exec) error {
+			return patchDone(e, "/v1/notes/"+url.PathEscape(e.args[0]), put)
+		}},
+		{Name: "delete", Summary: "delete a notes file", Mutating: true, Args: []Arg{{Name: "id", Required: true}}, Flags: []Flag{{Name: "version", Type: "string", Help: "object version"}}, Run: func(e *exec) error {
+			return e.delete("/v1/notes/" + url.PathEscape(e.args[0]))
+		}},
+	}}
+}
+
 func cmdTasks() *Command {
 	fields := []Flag{
 		{Name: "title", Type: "string", Help: "what needs doing"},
-		{Name: "stage", Type: "string", Help: "to_apply, prepared, applied, screening, interviewing, final, or offer (default: the application's current stage)"},
+		{Name: "stage", Type: "string", Help: "anytime (no stage), to_apply, prepared, applied, screening, interviewing, final, or offer (default: the application's current stage)"},
 		{Name: "notes", Type: "string", Help: "details"},
 		{Name: "due", Type: "string", Help: "RFC3339 or YYYY-MM-DD"},
+		{Name: "round", Type: "string", Help: "round id: the task belongs to that round and takes its stage; empty to untie"},
 	}
 	put := func(e *exec, payload map[string]any) error {
-		for key, flag := range map[string]string{"title": "title", "stage": "stage", "notes": "notes", "due_at": "due"} {
+		for key, flag := range map[string]string{"title": "title", "stage": "stage", "notes": "notes", "due_at": "due", "round_id": "round"} {
 			if _, ok := e.flags[flag]; ok {
 				payload[key] = e.flag(flag)
 			}

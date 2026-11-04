@@ -8,7 +8,7 @@ import (
 	"github.com/pursuit/pursuit/internal/domain"
 )
 
-const interviewCols = `id, user_id, application_id, stage, kind, interviewer, scheduled_at, done_at, notes, version, created_at, updated_at`
+const interviewCols = `id, user_id, application_id, stage, kind, interviewer, scheduled_at, done_at, notes, in_notes, version, created_at, updated_at`
 
 func timeText(t *time.Time) string {
 	if t == nil {
@@ -28,12 +28,21 @@ func parseTimeText(raw string) (*time.Time, error) {
 	return &t, nil
 }
 
+func boolInt(b bool) int {
+	if b {
+		return 1
+	}
+	return 0
+}
+
 func scanInterview(row scanner) (domain.Interview, error) {
 	var i domain.Interview
 	var scheduled, done, created, updated string
-	if err := row.Scan(&i.ID, &i.UserID, &i.ApplicationID, &i.Stage, &i.Kind, &i.Interviewer, &scheduled, &done, &i.Notes, &i.Version, &created, &updated); err != nil {
+	var inNotes int
+	if err := row.Scan(&i.ID, &i.UserID, &i.ApplicationID, &i.Stage, &i.Kind, &i.Interviewer, &scheduled, &done, &i.Notes, &inNotes, &i.Version, &created, &updated); err != nil {
 		return domain.Interview{}, err
 	}
+	i.InNotes = inNotes == 1
 	var err error
 	if i.ScheduledAt, err = parseTimeText(scheduled); err != nil {
 		return domain.Interview{}, err
@@ -50,8 +59,8 @@ func scanInterview(row scanner) (domain.Interview, error) {
 }
 
 func (s *Store) CreateInterview(ctx context.Context, i domain.Interview) error {
-	_, err := s.exec(ctx, `INSERT INTO interviews (`+interviewCols+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		i.ID, i.UserID, i.ApplicationID, i.Stage, i.Kind, i.Interviewer, timeText(i.ScheduledAt), timeText(i.DoneAt), i.Notes, i.Version, formatTime(i.CreatedAt), formatTime(i.UpdatedAt))
+	_, err := s.exec(ctx, `INSERT INTO interviews (`+interviewCols+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		i.ID, i.UserID, i.ApplicationID, i.Stage, i.Kind, i.Interviewer, timeText(i.ScheduledAt), timeText(i.DoneAt), i.Notes, boolInt(i.InNotes), i.Version, formatTime(i.CreatedAt), formatTime(i.UpdatedAt))
 	return mapWriteErr(err)
 }
 
@@ -112,8 +121,8 @@ func (s *Store) ListInterviews(ctx context.Context, userID, appID string) ([]dom
 }
 
 func (s *Store) UpdateInterview(ctx context.Context, i domain.Interview) error {
-	res, err := s.exec(ctx, `UPDATE interviews SET stage=?, kind=?, interviewer=?, scheduled_at=?, done_at=?, notes=?, version=version+1, updated_at=? WHERE id=? AND user_id=? AND version=?`,
-		i.Stage, i.Kind, i.Interviewer, timeText(i.ScheduledAt), timeText(i.DoneAt), i.Notes, formatTime(i.UpdatedAt), i.ID, i.UserID, i.Version)
+	res, err := s.exec(ctx, `UPDATE interviews SET stage=?, kind=?, interviewer=?, scheduled_at=?, done_at=?, notes=?, in_notes=?, version=version+1, updated_at=? WHERE id=? AND user_id=? AND version=?`,
+		i.Stage, i.Kind, i.Interviewer, timeText(i.ScheduledAt), timeText(i.DoneAt), i.Notes, boolInt(i.InNotes), formatTime(i.UpdatedAt), i.ID, i.UserID, i.Version)
 	if err != nil {
 		return mapWriteErr(err)
 	}
@@ -130,6 +139,12 @@ func (s *Store) DeleteInterview(ctx context.Context, userID, id string, version 
 	res, err := s.exec(ctx, `DELETE FROM interviews WHERE id=? AND user_id=? AND version=?`, id, userID, version)
 	if err != nil {
 		return err
+	}
+	if n, _ := res.RowsAffected(); n > 0 {
+		// Its tasks stay on the stage.
+		if _, err := s.exec(ctx, `UPDATE tasks SET round_id='' WHERE user_id=? AND round_id=?`, userID, id); err != nil {
+			return err
+		}
 	}
 	return changed(res, func() (int, error) {
 		cur, err := s.GetInterview(ctx, userID, id)
