@@ -12,7 +12,7 @@ Looked at Simplify Copilot, Teal's Job Search Chrome extension, and Huntr's clip
 - Show whether this page is already tracked, and let the status change from the page. Huntr asks which stage to save into. Pursuit shows the current status, the progress mark, and a dropdown that writes through the existing application update.
 - Work on the page, not in a popup. Simplify puts a button on the posting and a panel beside the form. Pursuit does the same: a corner button on postings and application forms opens a panel (Alt+Shift+P). The popup is only for pairing.
 - Attach the résumé. Simplify drops your résumé into the upload field. Pursuit builds the file through `DataTransfer`, the same path a drag and drop uses: the application's tailored `resume_pdf`, else the newest `base_resume`.
-- Learn answers as you go. Simplify offers to save what you typed. Pursuit's Save my answers stores the outlined fields you filled as standing answers, so the next form gets them.
+- Learn answers as you go. Simplify offers to save what you typed. Pursuit stacks the questions it could not answer as notes, scrolls to each outlined field in turn, and Save my answer keeps what you typed as a standing answer, so the next form gets them.
 - Mark it applied after you submit. Simplify tracks the submit. Pursuit offers Mark applied once the form is sent, and leaves approved roles to the agent holding the submit work.
 
 ## Left out
