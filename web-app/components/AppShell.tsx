@@ -110,7 +110,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src="/brand/hire-pursuit-wordmark-reverse.svg" alt="" className="hidden h-5 w-auto dark:block" />
             </Link>
-            {pathname !== PARENT && (
+            {pathname === PARENT ? (
+              // The table's own way back, so the logo isn't the only road to the start page.
+              <Button variant="ghost" size="sm" className="shrink-0 text-muted-foreground" asChild>
+                <Link href="/start" aria-label="Back to start">
+                  <ArrowLeft />
+                  <span className="hidden md:inline">Start</span>
+                </Link>
+              </Button>
+            ) : (
               <Button variant="ghost" size="sm" className="shrink-0 text-muted-foreground" asChild>
                 <Link
                   href={PARENT}
