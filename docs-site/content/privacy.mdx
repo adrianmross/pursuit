@@ -1,0 +1,28 @@
+# Privacy
+
+This covers the Pursuit browser extension. Pursuit has no hosted service that collects data on its own: the extension talks only to the Pursuit server you pair it with.
+
+## What the extension stores
+
+- The server URL and access token you enter when you pair it, in the browser's extension storage (`chrome.storage.local`) on your device.
+
+## What it reads
+
+- On a page that looks like a job posting or an application form, it reads the posting (title, company, location, salary, URL) and the form's fields so it can save the job and fill the form. It looks at nothing else on the page and does not crawl.
+
+## What it sends
+
+- The posting you choose to save, and requests for your profile, prepared answers, and résumé, go to the server you paired, and nowhere else.
+- Your profile, answers, and résumé are fetched from that server only when you fill a form, and are written into the page's fields on your device.
+
+## What it does not do
+
+- It does not send data to the extension's authors, to analytics, or to advertisers.
+- It does not sell or share data, or use it for anything other than saving jobs and filling forms for you.
+- It does not press Submit. You do.
+
+## Why it runs on every site
+
+Job postings and application forms are hosted on company sites and on boards such as Greenhouse, Lever, and Ashby, often inside embedded frames. The extension has to check each page to know whether it is one. The check runs on your device and sends nothing.
+
+To remove everything it stores, open its popup and unpair, or remove the extension.

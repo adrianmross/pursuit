@@ -3,6 +3,8 @@
 // posting-URL dedupe run on real-shaped URLs. Nothing leaves the machine.
 
 import { test, expect, type Page } from "@playwright/test";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { OWNER, fixture, start, type Harness } from "./harness.ts";
 
 let h: Harness;
@@ -95,6 +97,29 @@ test("a person saves the posting, autofills, attaches the résumé, and nothing 
   await p.getByRole("button", { name: "Mark applied" }).click();
   await expect(p.locator("[data-slot=badge]")).toHaveText("Applied");
   expect((await h.call("GET", `/v1/applications/${app.id}`)).status).toBe("applied");
+  await page.close();
+});
+
+// The tutorial's practice application is the dashboard's own static page, so
+// the walkthrough in the docs and /start can't drift from what the extension fills.
+test("the practice application saves and fills as the tutorial says", async () => {
+  const body = readFileSync(resolve(import.meta.dirname, "../../web-app/public/practice.html"), "utf8");
+  await h.context.route("https://pursuit.example/practice.html", (route) => route.fulfill({ contentType: "text/html", body }));
+  const page = await h.context.newPage();
+  await page.goto("https://pursuit.example/practice.html");
+
+  await page.getByRole("button", { name: "Open Pursuit: Autofill" }).click();
+  const p = panel(page);
+  await expect(p.getByRole("heading", { name: "Staff Platform Engineer" })).toBeVisible();
+  await expect(p.getByText("Acme Robotics · Pittsburgh, PA · $210K–$245K")).toBeVisible();
+  await p.getByRole("button", { name: "Save job" }).click();
+  await expect(p.locator("[data-slot=badge]")).toHaveText("Apply");
+
+  await p.getByRole("button", { name: "Autofill this form" }).click();
+  await expect(page.locator("#first_name")).toHaveValue("Ada", { timeout: 10_000 });
+  await expect(page.locator("#email")).toHaveValue("ada@example.com");
+  await expect(page.locator("#first")).toHaveClass(/pursuit-unfilled/);
+  expect(await page.evaluate(() => (window as unknown as { submissions: number }).submissions)).toBe(0);
   await page.close();
 });
 

@@ -7,12 +7,11 @@ import { PRODUCT_NAME } from "@/lib/brand"
 // `approved` because this build enqueues submit work but never clicks Submit.
 const SCRIPT: { text: string; kind: "cmd" | "out" | "note" }[] = [
   { kind: "cmd", text: "pursuit list --status to_apply --fields id,company,title" },
-  { kind: "out", text: "a_4f2  Halcyon      Staff Platform Engineer" },
-  { kind: "out", text: "a_91c  Northwind    Backend Engineer" },
-  { kind: "cmd", text: "pursuit apply a_4f2 --async" },
+  { kind: "out", text: "a_91c  Northwind  Backend Engineer" },
+  { kind: "cmd", text: "pursuit apply a_91c --async" },
   { kind: "out", text: "preparing → awaiting_review   (form filled from your standing answers)" },
   { kind: "note", text: "agent stops here — you decide" },
-  { kind: "cmd", text: "pursuit approve a_4f2 --note 'good fit'" },
+  { kind: "cmd", text: "pursuit approve a_91c --note 'good fit'" },
   { kind: "out", text: "approved · submit work enqueued" },
 ]
 

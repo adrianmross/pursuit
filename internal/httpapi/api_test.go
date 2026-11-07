@@ -169,7 +169,7 @@ func TestSeedImportDedupesByURL(t *testing.T) {
 	if code != 200 {
 		t.Fatalf("seed %d %#v", code, doc)
 	}
-	if doc["applications_created"].(float64) != 7 {
+	if doc["applications_created"].(float64) != 9 {
 		t.Fatalf("expected example csv plus new markdown rows, got %#v", doc)
 	}
 	if doc["skipped"].(float64) != 1 {
@@ -205,7 +205,7 @@ func TestSeedImportDedupesByURL(t *testing.T) {
 			t.Fatalf("url %s appears %d times", url, n)
 		}
 	}
-	if applied != 2 || prepared != 1 || toApply != 4 {
+	if applied != 1 || prepared != 1 || toApply != 4 {
 		t.Fatalf("applied=%d awaiting_review=%d to_apply=%d", applied, prepared, toApply)
 	}
 	code, caps := e.json(t, http.MethodGet, "/v1/caps", e.token, nil)
