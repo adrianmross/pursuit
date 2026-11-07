@@ -295,7 +295,7 @@ func build() []byte {
 	add("/v1/billing/checkout", "post", "Start a subscription; returns {url} of a Stripe Checkout page. Optional body {code} applies an invite (a Stripe promotion code). 409 if you already have a plan or are comped", true, x{})
 	add("/v1/billing/portal", "post", "Returns {url} of the Stripe customer portal to change payment or cancel", true, x{})
 	add("/v1/billing/sync", "post", "Re-read your plan from Stripe now (the page Checkout returns to calls this before the webhook lands); returns the plan", true, x{"out": service.BillingView{}})
-	add("/v1/billing/webhook", "post", "Stripe webhook endpoint. authenticated by the Stripe-Signature header, not a token; re-reads the customer's plan from Stripe", false, with(open))
+	add("/v1/billing/webhook", "post", "Stripe webhook endpoint. authenticated by the Stripe-Signature header, not a token; re-reads the customer's plan from Stripe", false, with(open, "errors", []int{400, 401}))
 	add("/v1/tokens", "get", "List tokens", false, x{"q": q("limit", "cursor", "sort", "fields"), "list": domain.Token{}, "cli": "pursuit tokens list"})
 	add("/v1/tokens", "post", "Create a token. The secret is returned once. a token can only grant scopes it holds", true, x{"in": service.TokenInput{}, "out": domain.IssuedToken{}, "status": 201, "cli": "pursuit tokens create --name agent-1 --scope read --scope write"})
 	add("/v1/tokens/{id}", "delete", "Revoke a token", true, x{"out": domain.Token{}, "cli": "pursuit tokens revoke TOKEN_ID"})
