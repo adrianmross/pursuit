@@ -166,6 +166,8 @@ test("the dashboard updates in place and notifies when an agent saves a posting"
   const dash = await h.context.newPage();
   // The embedded dashboard keeps the session in a cookie; sign in the way its form does.
   expect((await dash.request.post(h.base + "/v1/auth/session", { data: { token: OWNER }, headers: { Origin: h.base } })).ok()).toBe(true);
+  // A new account gets the welcome tour; this test is about the dashboard under it.
+  await dash.addInitScript(() => localStorage.setItem("pursuit.tour", "off"))
   await dash.goto(h.base + "/applications");
   await expect(dash.getByRole("link", { name: "Backend Engineer" }).first()).toBeVisible();
 
