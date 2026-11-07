@@ -582,7 +582,7 @@ export function SignInForm({
         </div>
         {proxySignedOut && <ContinueAsOwner />}
         {demoAvailable && <TryDemo />}
-        {authClient ? <AccountSignIn initialMode={initialMode} /> : <PasskeySignIn />}
+        {authClient ? <AccountSignIn key={initialMode} initialMode={initialMode} /> : <PasskeySignIn />}
         {allowTokenLogin && <TokenSignIn />}
       </div>
     </div>

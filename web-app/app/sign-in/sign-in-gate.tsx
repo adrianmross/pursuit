@@ -1,19 +1,23 @@
 "use client"
 
-import { useEffect } from "react"
+import { useEffect, useSyncExternalStore } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/lib/auth"
 import { SignInForm } from "@/components/SignInForm"
 
+const noop = () => () => {}
+const modeFromUrl = () => (new URLSearchParams(window.location.search).get("mode") === "sign-up" ? ("sign-up" as const) : ("sign-in" as const))
+
 export function SignInGate({
   allowTokenLogin,
   demoAvailable,
-  initialMode,
 }: {
   allowTokenLogin: boolean
   demoAvailable: boolean
-  initialMode?: "sign-in" | "sign-up"
 }) {
+  // ?mode=sign-up opens the create-account form. Read in the browser: this page is statically exported,
+  // so it can't read search params on the server.
+  const initialMode = useSyncExternalStore(noop, modeFromUrl, () => "sign-in" as const)
   const { me } = useAuth()
   const router = useRouter()
 
