@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState, type FormEvent } from "react"
+import Link from "next/link"
 import { api, EXPORT_MODE } from "@/lib/api-client"
 import { useAuth } from "@/lib/auth"
 import { authClient } from "@/lib/betterauth"
@@ -13,6 +14,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { CommandBlock } from "@/components/CommandBlock"
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp"
 import { SnakeEyes } from "@/components/Sketch"
+import { SiteFooter } from "@/components/SiteFooter"
 import { ThemeToggle } from "@/components/ThemeToggle"
 import { cn } from "@/lib/utils"
 import { passkeyError, passkeysUsable, signInWithPasskey } from "@/lib/passkeys"
@@ -400,7 +402,7 @@ function AccountSignIn({ initialMode = "sign-in" }: { initialMode?: "sign-in" | 
   )
 }
 
-function TokenSignIn() {
+function TokenSignIn({ bare = false }: { bare?: boolean }) {
   const { signIn, error } = useAuth()
   const [token, setTokenValue] = useState("")
   const [submitting, setSubmitting] = useState(false)
@@ -420,10 +422,10 @@ function TokenSignIn() {
   }
 
   return (
-    <Card>
+    <Card className={bare ? "border-0 bg-transparent shadow-none ring-0" : undefined}>
       <CardHeader>
-        <CardTitle className="text-base">Or paste an API token</CardTitle>
-        <CardDescription>From the daemon&apos;s bootstrap log, or issued on demand.</CardDescription>
+        {!bare && <CardTitle className="text-base">Sign in with an API token</CardTitle>}
+        <CardDescription>Paste the token your server printed on first start, or create one with the CLI.</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-4 pt-0">
         <CommandBlock command={"pursuit serve\npursuit tokens create"} />
@@ -441,7 +443,7 @@ function TokenSignIn() {
                 onChange={(event) => setTokenValue(event.target.value)}
               />
             </Field>
-            <Button type="submit" variant="secondary" disabled={submitting}>
+            <Button type="submit" disabled={submitting}>
               Continue
             </Button>
           </FieldGroup>
@@ -475,7 +477,7 @@ function TryDemo() {
         {submitting ? "Starting…" : "Try it without an account"}
       </Button>
       <p className="text-xs text-muted-foreground">
-        A throwaway sandbox pre-loaded with example data — nothing you do there touches a real account.
+        A throwaway sandbox with example data. Nothing you do there touches a real account.
       </p>
     </div>
   )
@@ -572,19 +574,57 @@ export function SignInForm({
       .catch(() => {})
   }, [])
 
+  // Account sign-in (multi-tenant) leads; the token form is the way in otherwise, and tucks away behind it.
+  const primary = authClient ? <AccountSignIn key={initialMode} initialMode={initialMode} /> : <PasskeySignIn />
   return (
-    <div className="relative flex min-h-svh items-center justify-center bg-brand-forest p-4">
-      <ThemeToggle className="absolute top-4 right-4 text-brand-cream/80 hover:bg-white/10 hover:text-brand-cream dark:hover:bg-white/10" />
-      <div className="flex w-full max-w-md flex-col gap-4">
-        <div className="flex flex-col items-center gap-3 pb-2 text-center">
-          <img src="/brand/wordmark-reverse.svg" alt={PRODUCT_NAME} className="h-8 w-auto" />
-          <p className="text-sm text-brand-cream/80">A job application tracker you drive from the CLI or from here.</p>
+    <div className="relative flex min-h-svh flex-col bg-background text-foreground">
+      <ThemeToggle className="absolute top-4 right-4" />
+      <main className="flex flex-1 flex-col items-center justify-center gap-6 px-4 py-12">
+        <Link href="/" aria-label="Hire Pursuit">
+          {/* eslint-disable-next-line @next/next/no-img-element -- drawn SVG wordmark, not a photo next/image needs to optimize */}
+          <img src="/brand/wordmark.svg" alt={PRODUCT_NAME} className="h-11 w-auto dark:hidden" />
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/brand/wordmark-reverse.svg" alt="" aria-hidden className="hidden h-11 w-auto dark:block" />
+        </Link>
+        <div className="flex flex-col items-center gap-2 text-center">
+          <h1 className="font-heading text-4xl font-semibold tracking-tight text-balance">Your move.</h1>
+          <p className="max-w-sm text-balance text-muted-foreground">Sign in to pick up your pipeline, from the CLI or from here.</p>
         </div>
-        {proxySignedOut && <ContinueAsOwner />}
-        {demoAvailable && <TryDemo />}
-        {authClient ? <AccountSignIn key={initialMode} initialMode={initialMode} /> : <PasskeySignIn />}
-        {allowTokenLogin && <TokenSignIn />}
-      </div>
+        <div className="flex w-full max-w-md flex-col gap-4">
+          {proxySignedOut && <ContinueAsOwner />}
+          {primary}
+          {allowTokenLogin &&
+            (authClient ? (
+              <details className="group rounded-xl border bg-card text-card-foreground open:pb-0">
+                <summary className="cursor-pointer list-none px-4 py-3 text-sm text-muted-foreground select-none hover:text-foreground group-open:text-foreground [&::-webkit-details-marker]:hidden">
+                  Use an API token instead
+                </summary>
+                <div className="px-1 pb-1">
+                  <TokenSignIn bare />
+                </div>
+              </details>
+            ) : (
+              <TokenSignIn />
+            ))}
+          {demoAvailable && (
+            <>
+              <Or />
+              <TryDemo />
+            </>
+          )}
+        </div>
+      </main>
+      <SiteFooter />
+    </div>
+  )
+}
+
+function Or() {
+  return (
+    <div className="flex items-center gap-3 text-xs text-muted-foreground" aria-hidden>
+      <span className="h-px flex-1 bg-border" />
+      or
+      <span className="h-px flex-1 bg-border" />
     </div>
   )
 }
