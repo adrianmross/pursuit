@@ -5,6 +5,7 @@ import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import { Archive, ArrowLeft, Bot, IdCard, LogOut, MessageSquareText, Search, Settings, X } from "lucide-react"
 import { useAuth } from "@/lib/auth"
+import { PRODUCT_NAME } from "@/lib/brand"
 import { keyLabels, useShortcuts } from "@/lib/keybindings"
 import { Kbd } from "@/components/ui/kbd"
 import { CommandPalette } from "@/components/CommandPalette"
@@ -13,6 +14,11 @@ import { SearchBox } from "@/components/SearchBox"
 import { SiteFooter } from "@/components/SiteFooter"
 import { UserAvatar, displayName } from "@/components/UserAvatar"
 import { ProfileNudge } from "@/components/profile/ProfilePage"
+import { NotificationBell, describe, eventMeta } from "@/components/Notifications"
+import { Toaster } from "@/components/ui/sonner"
+import { toast } from "sonner"
+import { LiveProvider, type LiveEvent } from "@/lib/live"
+import { applicationHref } from "@/lib/links"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -91,7 +97,18 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   })
   const identity = displayName(me)
 
+  // A change made somewhere else (an agent, the extension, another tab) gets a toast; your own don't.
+  const toastEvent = (ev: LiveEvent) => {
+    if (me?.token?.id && ev.actor?.token_id === me.token.id) return
+    const { text } = describe(ev)
+    toast(text, {
+      description: eventMeta(ev),
+      action: ev.application_id ? { label: "Open", onClick: () => router.push(applicationHref(ev.application_id!)) } : undefined,
+    })
+  }
+
   return (
+    <LiveProvider onEvent={toastEvent}>
     <div className="flex min-h-svh flex-col">
       <header className="flex items-center gap-3 border-b px-4 py-2.5">
         {narrow && searching ? (
@@ -105,11 +122,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </>
         ) : (
           <>
-            <Link href="/start" aria-label="Hire Pursuit" className="shrink-0">
+            <Link href="/start" aria-label={PRODUCT_NAME} className="shrink-0">
               {/* eslint-disable-next-line @next/next/no-img-element -- drawn SVG wordmark, not a photo next/image needs to optimize */}
-              <img src="/brand/hire-pursuit-wordmark.svg" alt="" className="h-5 w-auto dark:hidden" />
+              <img src="/brand/wordmark.svg" alt="" className="h-5 w-auto dark:hidden" />
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/brand/hire-pursuit-wordmark-reverse.svg" alt="" className="hidden h-5 w-auto dark:block" />
+              <img src="/brand/wordmark-reverse.svg" alt="" className="hidden h-5 w-auto dark:block" />
             </Link>
             {pathname !== PARENT && (
               <Button variant="ghost" size="sm" className="shrink-0 text-muted-foreground" asChild>
@@ -142,6 +159,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <div className="flex shrink-0 items-center justify-end gap-2">
           <CommandPalette onOpenSettings={openSettings} />
           <Kbd className="hidden sm:inline-flex" title="Command palette">{keyLabels("mod+p").join(" ")}</Kbd>
+          <NotificationBell />
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="icon" className="rounded-full" aria-label="Account">
@@ -190,6 +208,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </main>
       <SiteFooter />
       <SettingsDialog key={settingsKey} initial={settingsSection} open={settingsOpen} onOpenChange={setSettingsOpen} />
+      <Toaster position="bottom-right" />
     </div>
+    </LiveProvider>
   )
 }

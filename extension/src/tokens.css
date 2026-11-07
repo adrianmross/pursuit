@@ -1,0 +1,139 @@
+/* Brand design tokens (docs/brand/tokens.json), shared by the popup and the in-page panel. */
+:root,
+:host {
+  --surface-page: #f6f6f4;
+  --surface-card: #ffffff;
+  --surface-sunken: #ecece8;
+  --line: #dcdcd6;
+  --line-strong: #8a8e8a;
+  --ink: #141615;
+  --ink-muted: #5d615e;
+  --action: #141615;
+  --action-ink: #ffffff;
+  --brand-forest: #173a2e;
+  --brand-cream: #f3eedf;
+  --brand-gold: #e8c547;
+  --gold-ink: #7a5d00;
+  --danger: #b42318;
+  --focus: #173a2e;
+  --hold: #f59e0b;
+  --stop: #ef4444;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-pill: 999px;
+  --font-display: "Pursuit Outfit", "Outfit Variable", "Avenir Next", system-ui, sans-serif;
+  --font-sans: "Pursuit Inter", "Inter Variable", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono Variable", ui-monospace, Menlo, monospace;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root,
+  :host {
+    --surface-page: #0e0f0f;
+    --surface-card: #161817;
+    --surface-sunken: #1f2120;
+    --line: #2e312f;
+    --line-strong: #6b706c;
+    --ink: #f1f1ee;
+    --ink-muted: #a3a7a4;
+    --action: #f1f1ee;
+    --action-ink: #141615;
+    --brand-forest: #1f4d3d;
+    --gold-ink: #e8c547;
+    --danger: #f97066;
+    --focus: #f1f1ee;
+  }
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--action);
+  border-radius: var(--radius-sm);
+  background: var(--action);
+  color: var(--action-ink);
+  font: 500 13px/1 var(--font-sans);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.btn:hover:not(:disabled) {
+  opacity: 0.88;
+}
+.btn.secondary {
+  background: var(--surface-card);
+  color: var(--ink);
+  border-color: var(--line-strong);
+}
+.btn.ghost {
+  background: transparent;
+  color: var(--ink-muted);
+  border-color: transparent;
+}
+.btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.btn:focus-visible,
+.input:focus-visible,
+a:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.input {
+  width: 100%;
+  box-sizing: border-box;
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface-card);
+  color: var(--ink);
+  font: 400 13px var(--font-sans);
+}
+
+.label {
+  display: block;
+  margin: 0 0 4px;
+  color: var(--ink);
+  font: 500 12px/1.3 var(--font-sans);
+}
+
+.muted {
+  color: var(--ink-muted);
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+  background: var(--surface-sunken);
+  color: var(--ink);
+  font: 500 11px/1 var(--font-sans);
+}
+.chip.attention {
+  background: transparent;
+  border-color: var(--hold);
+}
+.chip.danger {
+  background: transparent;
+  border-color: var(--danger);
+  color: var(--danger);
+}
+.chip.strong {
+  background: var(--action);
+  border-color: var(--action);
+  color: var(--action-ink);
+}
+.chip.win {
+  background: var(--brand-gold);
+  border-color: var(--brand-gold);
+  color: #141615;
+}

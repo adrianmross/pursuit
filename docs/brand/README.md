@@ -10,7 +10,7 @@ The mark is a lowercase **p** built as a game piece: **six pieces**. Five segmen
 
 The wordmark `hire pursuit` is drawn in the same geometry: a monoline stroke (11 units on a 100-unit body), circular bowls, straight descenders and flat, square-cut ends. Only the p is segmented. It is drawn, not typeset; never retype it in a font.
 
-- `hire-pursuit-wordmark` on light grounds, `hire-pursuit-wordmark-reverse` on dark or brand-forest grounds, `hire-pursuit-wordmark-mono` (all ink) for print and anywhere gold can't go.
+- `wordmark` on light grounds, `wordmark-reverse` on dark or brand-forest grounds, `wordmark-mono` (all ink) for print and anywhere gold can't go.
 - The mark alone where the name is already visible (the dashboard sidebar, a favicon).
 - The app icon centers the ring in a brand-forest square and lets the gold tail run off the bottom edge. It reads down to 20px.
 - The tail is always brand-gold (#E8C547) in the full-color logo. Don't recolor it or add another gold element beside the logo.
@@ -50,3 +50,15 @@ Button, StatusChip, ProgressMark, ApplicationRow, ApprovalCard, LinkHealth and C
 ## Iconography
 
 Line icons at 1.5px stroke on a 24px grid, square-cut ends to match the wordmark, in `ink` or `ink-muted`. No icon set is part of this system yet.
+
+## Renaming the product
+
+The name lives in a few places on purpose. Asset files are named by role (`wordmark.svg`, `mark.svg`, `app-icon.svg`), so a rename never moves files.
+
+1. `PRODUCT_NAME` in `web-app/lib/brand.ts` and `docs-site/lib/brand.ts`: every title, alt text and footer in the dashboard and docs.
+2. `internal/spec/reference.html`, the API reference page (plain HTML, two lines), and the title checks in `internal/httpapi/dashboard_test.go`.
+3. The drawn wordmark: redraw `wordmark`, `wordmark-reverse` and `wordmark-mono` in `web-app/public/brand/` (copy the light and reverse ones to `docs-site/public/brand/`) and update their `aria-label`. `extension/src/panel.tsx` crops the wordmark to the word "pursuit" by viewBox; move that crop if the first word changes length.
+4. This file and `tokens.json` (`name`).
+5. Optional: the shadcn registry style (`web-app/scripts/registry.mjs`, then `npm run registry`). Its name `hire-pursuit` is a public install URL, so renaming it breaks `npx shadcn add .../r/hire-pursuit.json` for anyone already using it.
+
+The binary, CLI, `PURSUIT_*` variables and repository stay `pursuit`. A domain change is a deployment change, not a code one: the passkey RP ID (`PURSUIT_WEBAUTHN_RP_ID`) invalidates every existing passkey when it changes.

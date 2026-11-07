@@ -2,7 +2,7 @@
 @import "@fontsource-variable/inter";
 @import "@fontsource-variable/jetbrains-mono";
 
-/* Hire Pursuit tokens, trimmed from web/src/index.css (see docs/brand/README.md). */
+/* Brand tokens, trimmed from web/src/index.css (see docs/brand/README.md). */
 :root {
   --nextra-primary-hue: 160deg;
   --nextra-primary-saturation: 46%;

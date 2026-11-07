@@ -17,7 +17,7 @@ Linux and Windows binaries, and the browser extension zip, are on [GitHub Releas
 
 With no database URL the daemon creates `~/.local/share/pursuit/pursuit.db` and listens on `:8787`. The first start logs a bootstrap token once. Save it. It is not written to disk.
 
-In `devenv shell`, `pursuit-dev` runs it through [portless](https://github.com/portless-dev/portless) instead, giving it a stable `https://pursuit.localhost` URL (`$PORT` overrides the listen address; `PURSUIT_ADDR` still wins if both are set). To work on the dashboard, `pursuit-preview` runs `next dev` with hot reload in front of the Go API instead, at `https://pursuit-<branch>.localhost` for a worktree, so edits show up without rebuilding the embedded export.
+In `devenv shell`, `pursuit-dev` runs it through [portless](https://github.com/portless-dev/portless) instead, giving it a stable `https://pursuit.localhost` URL (`$PORT` overrides the listen address; `PURSUIT_ADDR` still wins if both are set). To work on the dashboard, `pursuit-preview` runs `next dev` with hot reload in front of the Go API instead, at `https://<branch>.pursuit.localhost` for a worktree (portless adds the branch itself), so edits show up without rebuilding the embedded export. `pursuit-preview up` runs it detached and prints the URL once the dashboard and API answer; `down` stops it, `status` lists every preview on the machine, and `logs` follows this one. Each worktree has its own, so several run at once. The detach, wait and stop part is `scripts/devserver.sh`, which has nothing pursuit-specific in it: for any Next.js app, `devserver.sh up -- portless run next dev` gives the same, and a worktrunk alias (`preview = "bash scripts/devserver.sh up -- portless run next dev"` under `[aliases]` in `.config/wt.toml`) makes it `wt preview`.
 
 ```bash
 export PURSUIT_TOKEN=pst_...
@@ -68,7 +68,7 @@ oras pull ghcr.io/adrianmross/pursuit-release:<ver>
 
 ## Browser extension
 
-`extension/` is a Manifest V3 extension. It saves the posting you have open and fills Greenhouse, Ashby, and Lever application forms from this server. It does not crawl, and it never clicks Submit.
+`extension/` is a Manifest V3 extension. On a job posting or application form it shows a hire pursuit tab on the right edge of the page (or press Alt+Shift+P). The panel saves the posting, shows its status with the progress mark as its logo, fills the form from your profile and that application's prepared answers, and attaches your résumé. It does not crawl, and it never clicks Submit.
 
 Build it once (Node 22), then load the unpacked `extension/dist` directory:
 
@@ -79,9 +79,11 @@ npm test
 npm run build
 ```
 
-Chrome: open `chrome://extensions`, turn on Developer mode, choose Load unpacked, and select `extension/dist`. Firefox: open `about:debugging#/runtime/this-firefox`, choose Load Temporary Add-on, and select `extension/dist/manifest.json`.
+`npm run e2e` loads the built extension in Chromium against a real `pursuit serve` (it compiles `./cmd/pursuit`, so run `make web` first) and walks both paths: a person saving and filling, and an agent claiming approved work with the CLI and driving the same panel.
 
-Pair it from the popup with the server URL (`http://127.0.0.1:8787`) and a token that has `write` and not `approve`. Mint that token with `pursuit tokens create`. The popup asks for permission to call that origin.
+Chrome: open `chrome://extensions`, turn on Developer mode, choose Load unpacked, and select `extension/dist`. Firefox (untested; the e2e covers Chromium only): open `about:debugging#/runtime/this-firefox`, choose Load Temporary Add-on, and select `extension/dist/manifest.json`.
+
+Pair it from the popup with the server URL (`http://127.0.0.1:8787`) and a token that has `write` and not `approve`. Mint that token with `pursuit tokens create`. Pairing checks the token against `GET /v1/me` before it is saved.
 
 The daemon only answers the extension when the origin is allowed:
 
@@ -90,7 +92,7 @@ export PURSUIT_CORS_ORIGINS='chrome-extension://*,moz-extension://*'
 pursuit serve
 ```
 
-Use the extension's real id (`chrome-extension://<id>`) instead of the wildcard if you want a tighter list. Save job creates a `to_apply` application and dedupes on the posting URL. Autofill uses `GET /v1/profile` plus that application's prepared answers. A résumé file is not uploaded; the popup downloads the `resume_pdf` artifact when one exists.
+Use the extension's real id (`chrome-extension://<id>`) instead of the wildcard if you want a tighter list. Save job creates a `to_apply` application and dedupes on the posting URL (a form at `/apply` or `/application` finds its posting). Autofill fills text fields, selects, radio groups, and typeahead selects, then attaches the application's `resume_pdf` artifact or, failing that, your newest `base_resume` document. Fields it could not answer are outlined; the panel walks you through them one at a time, and Save my answer stores each as a standing answer. Each fill is recorded on the application as an event, so an agent following along with `pursuit` sees what was left. After you submit, Mark applied moves a hand-applied role to Applied; approved roles are completed by the agent holding the submit work.
 
 What the extension copies from other trackers, and what it skips, is in [docs/inspiration.md](docs/inspiration.md).
 
@@ -164,6 +166,7 @@ Passkeys are pursuit's own (WebAuthn in the Go server), not Neon Auth's, so they
 | `POSTGRES_URL` | fallback | Used only when `DATABASE_URL` is empty. The Marketplace usually sets both. |
 | `PURSUIT_TRUST_PROXY_AUTH` | previews only | `vercel`, set for the Preview environment. A request with no Pursuit token or session is the single owner and has `read`, `write`, and `approve`; its writes must come from the dashboard's own origin. A request that sends `Authorization: Bearer` is still that token, so the CLI and agents keep using scoped tokens. Any other value, and any non-preview deployment, is ignored. |
 | `PURSUIT_SERVER` | no | The public URL, when it isn't the one Vercel reports (see above). Used for OIDC redirect URIs. |
+| `PURSUIT_DEMO_MODE` | no | `true` offers "Try it without an account": each visitor gets a throwaway tenant with the example data, removed after 24 hours by the daily cron (`/v1/cron/links`) on Vercel. Works with local `pursuit serve` too, where nothing sweeps them. Never set it on a deployment with real data. |
 | `PURSUIT_WEBAUTHN_RP_ID` | for passkeys | The passkey domain, e.g. `hirepursuit.app` (`localhost` for local `pursuit serve`). Unset turns passkeys off, which keeps preview deployments off. Permanent for every passkey made under it. |
 | `PURSUIT_WEBAUTHN_ORIGINS` | no | Comma-separated origins a passkey ceremony may come from, e.g. `https://hirepursuit.app`. Defaults to the public URL. Each must be the RP ID or a subdomain of it. The same two variables (or `webauthn_rp_id` and `webauthn_origins` in the config file) work for `pursuit serve`, where the default is `PURSUIT_SERVER`. |
 | `PURSUIT_NO_DOCS` | no | `true` stops serving the embedded docs at `/docs` (the same variable works for `pursuit serve`). |

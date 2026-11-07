@@ -7,37 +7,13 @@ on:
     branches: [main]
   pull_request:
 
-jobs:
-  # A user-visible PR carries a .changelogs fragment, and its title is the
-  # release subject Release Please reads for the bump. Release Please's own PR
-  # consumes the fragments, so it is exempt.
-  changelog:
-    if: github.event_name == 'pull_request' && !startsWith(github.head_ref, 'release-please--')
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - id: changelogger
-        uses: adrianmross/changelogger@v0.10.0
-      # Title and body go through env, never `args`: PR text is untrusted.
-      - env:
-          CHANGELOGGER: ${{ steps.changelogger.outputs.path }}
-          BASE_REF: ${{ github.event.pull_request.base.ref }}
-          PR_TITLE: ${{ github.event.pull_request.title }}
-          PR_BODY: ${{ github.event.pull_request.body }}
-        run: |
-          set -euo pipefail
-          git fetch --no-tags origin "+refs/heads/${BASE_REF}:refs/remotes/origin/${BASE_REF}"
-          # Fragments merged earlier stay on main until the release PR consumes
-          # them; check only the ones this PR adds, or every PR in between must
-          # reuse an old title. The checkout is disposable.
-          git diff --name-only --diff-filter=A "origin/${BASE_REF}...HEAD" -- .changelogs > "$RUNNER_TEMP/added"
-          for f in .changelogs/*.md; do
-            [ "$f" = .changelogs/README.md ] || grep -qxF "$f" "$RUNNER_TEMP/added" || rm -- "$f"
-          done
-          "$CHANGELOGGER" check --base "origin/${BASE_REF}" --pr --pr-title "$PR_TITLE" --pr-body "$PR_BODY"
+# A newer push to a PR branch cancels the older run; main runs never cancel,
+# since release-plan listens for each one.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
+jobs:
   go:
     runs-on: ubuntu-latest
     services:
@@ -89,3 +65,34 @@ jobs:
       - run: npm ci
       - run: npm test
       - run: npm run build
+
+  # The built extension in Chromium against a real `pursuit serve`. The spec
+  # compiles ./cmd/pursuit, which embeds the dashboard, so build that first.
+  extension-e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            web-app/package-lock.json
+            docs-site/package-lock.json
+            extension/package-lock.json
+      - run: sh scripts/vercel-build.sh
+      - working-directory: extension
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+          npm run e2e
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: extension-e2e
+          path: |
+            extension/test-results/
+            extension/playwright-report/
