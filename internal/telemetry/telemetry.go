@@ -19,7 +19,7 @@ import (
 )
 
 const (
-	defaultURL = "https://telemetry.hirepursuit.app/v1/ping"
+	defaultURL = "https://pursuit-telemetry.winter-tooth-73af.workers.dev/v1/ping"
 	interval   = 24 * time.Hour
 )
 

@@ -6,7 +6,7 @@ Receives the anonymous ping from `pursuit serve` and answers `{"latest": "<versi
 npx wrangler deploy
 ```
 
-Run it once from this directory in your Cloudflare account. `telemetry.hirepursuit.app` must be a zone you control.
+Run it once from this directory in your Cloudflare account. It serves from `pursuit-telemetry.winter-tooth-73af.workers.dev`, because `hirepursuit.app` is not on Cloudflare DNS. Released binaries bake that URL in, so keep the Worker name and account subdomain. If you move to a custom domain later, keep this URL answering for older releases.
 
 Active installs in the last 30 days, by version (Analytics Engine SQL API):
 

@@ -20,9 +20,9 @@
 
 ## What is not sent
 
-Nothing from your data: no applications, companies, résumés, tokens, emails, URLs, or counts. The server does not read your IP address from the request. The startup log prints the exact payload and where it goes.
+Nothing from your data: no applications, companies, résumés, tokens, emails, URLs, or counts. The receiving Worker does not read or store your IP address (Cloudflare's network still sees it in transit, as with any request). The startup log prints the exact payload and where it goes.
 
-The ping goes to `https://telemetry.hirepursuit.app/v1/ping`. The answer names the latest release, and the daemon logs a line when yours is older.
+The ping goes to `https://pursuit-telemetry.winter-tooth-73af.workers.dev/v1/ping`. The answer names the latest release, and the daemon logs a line when yours is older.
 
 ## Turn it off
 
