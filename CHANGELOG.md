@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.6.0](https://github.com/adrianmross/pursuit/compare/v0.5.0...v0.6.0) (2026-11-07)
+
+
+### Features
+
+* **pursuit:** Send an anonymous install ping from pursuit serve that also reports newer releases, and report hosted server errors to Sentry when PURSUIT_SENTRY_DSN is set ([#119](https://github.com/adrianmross/pursuit/issues/119)) ([4fdb9e5](https://github.com/adrianmross/pursuit/commit/4fdb9e584da13b918182b2a0b26c6431e0f694e2))
+* **pursuit:** Track postings at one company under a single application ([#94](https://github.com/adrianmross/pursuit/issues/94)) ([c4b3a46](https://github.com/adrianmross/pursuit/commit/c4b3a465ba86e06fa81d6209bc3c914e1f8ac3ad))
+
 ## [0.5.0](https://github.com/adrianmross/pursuit/compare/v0.4.0...v0.5.0) (2026-11-07)
 
 
