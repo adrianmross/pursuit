@@ -86,20 +86,28 @@ func (s *Store) WithTx(ctx context.Context, fn func(context.Context) error) erro
 }
 
 // WithLock holds the migration/bootstrap lock for fn.
-// On SQLite the callback runs inside an immediate transaction on one connection.
+// Both dialects run the callback inside one transaction.
 func (s *Store) WithLock(ctx context.Context, fn func(context.Context) error) error {
+	if s.dialect == "postgres" {
+		tx, err := s.db.BeginTx(ctx, nil)
+		if err != nil {
+			return err
+		}
+		if err := lockTx(ctx, tx); err != nil {
+			_ = tx.Rollback()
+			return err
+		}
+		if err := fn(context.WithValue(ctx, keyTx, tx)); err != nil {
+			_ = tx.Rollback()
+			return err
+		}
+		return tx.Commit()
+	}
 	conn, err := s.db.Conn(ctx)
 	if err != nil {
 		return err
 	}
 	defer conn.Close()
-	if s.dialect == "postgres" {
-		if _, err := conn.ExecContext(ctx, "SELECT pg_advisory_lock($1)", advisoryLockKey); err != nil {
-			return err
-		}
-		defer conn.ExecContext(context.Background(), "SELECT pg_advisory_unlock($1)", advisoryLockKey)
-		return fn(context.WithValue(ctx, keyConn, conn))
-	}
 	if _, err := conn.ExecContext(ctx, "BEGIN IMMEDIATE"); err != nil {
 		return err
 	}

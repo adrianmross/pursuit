@@ -32,7 +32,7 @@ SQLite is the default database. Postgres is for more than one replica.
 
 `pursuit documents add --kind base_resume --file resume.pdf` stores the base résumé; prepare attaches the newest one before falling back to PURSUIT_RESUME_FILE. Tailored files go on one application with `pursuit artifacts add`. Save the user's answer to a `needs_input` question with `pursuit standing set` so later prepares reuse it.
 
-The browser extension uses GET /v1/profile, GET /v1/applications/by-url?url=, and POST /v1/applications/capture. It needs a write token and PURSUIT_CORS_ORIGINS. It does not approve or submit.
+The browser extension uses GET /v1/profile, GET /v1/applications/by-url?url=, POST /v1/applications/capture, PATCH /v1/applications/{id}, the application's questions and artifacts, GET /v1/documents (newest base_resume), POST /v1/standing through POST /v1/batch, and POST /v1/applications/{id}/events (a note per autofill: what it filled and what it left). It needs a write token and PURSUIT_CORS_ORIGINS. It does not approve or submit. An agent driving a paired browser opens posting_url and clicks the page's "Open Pursuit" button, then "Autofill this form"; it clicks Submit only while holding that application's submit work.
 
 The dashboard at `/` is for a person. Agents keep using the CLI. `POST /v1/approvals/reject` declines `awaiting_review` work (approve scope) and does not submit. `GET /v1/links?attention=true` lists closed or changed postings. On Vercel, `GET /v1/cron/links` is the daily link check and it requires `Authorization: Bearer $CRON_SECRET`. `PURSUIT_TRUST_PROXY_AUTH=vercel` is for a human behind deployment protection. Agents still send a Pursuit token.
 
@@ -45,3 +45,11 @@ pursuit audit list --actor agent-1 --until 2026-10-30T12:00:00Z
 ```
 
 A rejected request leaves no entry, so a missing step is the clue: compare the trace with what should have happened, then check the server log by `request_id`. The dashboard's Settings, Audit log page has "Copy for an agent", which copies the same entries as JSON with the command that reproduces them.
+
+## Docs
+
+- [OpenAPI](/openapi.json): every HTTP route and shape
+- [Auth](/auth.md): tokens, scopes, and OAuth login
+- [Agent Skill](/skill.md): the CLI workflow as an installable skill
+- [CLI reference](/docs/cli): every command and flag
+- [Getting started](/docs/getting-started): run a server and make a token

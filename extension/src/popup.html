@@ -2,32 +2,34 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Pursuit</title>
+    <link rel="stylesheet" href="tokens.css" />
     <link rel="stylesheet" href="popup.css" />
   </head>
   <body>
     <header>
+      <img src="mark.svg" alt="" width="18" height="20" />
       <strong>Pursuit</strong>
-      <button id="settings" type="button">Pair</button>
     </header>
-    <section id="pair" hidden>
-      <label>Server <input id="server" type="url" placeholder="http://127.0.0.1:8787" /></label>
-      <label>Token <input id="token" type="password" placeholder="pst_…" autocomplete="off" /></label>
-      <button id="save-pair" type="button">Save pairing</button>
-      <p class="hint">Use a token with the write scope. Leave approve off this token.</p>
-    </section>
-    <section id="job" hidden>
-      <p id="page"></p>
-      <p id="status-line"></p>
-      <label>Status <select id="status"></select></label>
+    <section id="paired" hidden>
+      <p id="who"></p>
       <div class="row">
-        <button id="save-job" type="button">Save job</button>
-        <button id="autofill" type="button">Autofill</button>
+        <button id="show" class="btn" type="button">Show on this page</button>
+        <a id="dashboard" class="btn secondary" target="_blank" rel="noopener">Open dashboard</a>
       </div>
-      <button id="resume" type="button" hidden>Download résumé</button>
-      <p id="note"></p>
+      <p class="muted small">Shortcut: <kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd> opens the panel on a posting or form.</p>
+      <button id="change" class="btn ghost" type="button">Change pairing</button>
     </section>
-    <p id="error"></p>
+    <form id="pair" hidden>
+      <label class="label" for="server">Server</label>
+      <input id="server" class="input" type="url" placeholder="http://127.0.0.1:8787" required />
+      <label class="label" for="token">Token</label>
+      <input id="token" class="input" type="password" placeholder="pst_…" autocomplete="off" required />
+      <button id="save-pair" class="btn" type="submit">Pair</button>
+      <p class="muted small">Create a token with the write scope in Pursuit's Settings, API tokens. Leave approve off: approving stays with you.</p>
+    </form>
+    <p id="error" role="alert"></p>
     <script src="popup.js"></script>
   </body>
 </html>

@@ -68,7 +68,8 @@ type Server struct {
 	// HideTokenLogin removes the "paste an API token" option from the
 	// dashboard's sign-in page (production shouldn't invite visitors to
 	// type a raw secret there); the bearer-token API itself is unaffected
-	// for CLI/automation use either way.
+	// for CLI/automation use either way. Multi-tenant mode hides it regardless:
+	// there, tokens are minted in the app for the CLI, never pasted to sign in.
 	HideTokenLogin bool
 	// SignupsClosed (PURSUIT_SIGNUPS=closed) stops verified identities
 	// without an account from getting one; existing users sign in as before.
@@ -443,7 +444,7 @@ func (s *Server) authProviders(w http.ResponseWriter, r *http.Request) {
 	if s.multiTenant() {
 		mode = "multi"
 	}
-	writeJSON(w, 200, map[string]any{"tenant_mode": mode, "providers": providers, "allow_token_login": !s.HideTokenLogin, "demo_available": s.DemoMode, "signups_open": s.signupsOpen(), "passkeys": s.Svc.WebAuthn != nil})
+	writeJSON(w, 200, map[string]any{"tenant_mode": mode, "providers": providers, "allow_token_login": !s.HideTokenLogin && !s.multiTenant(), "demo_available": s.DemoMode, "signups_open": s.signupsOpen(), "passkeys": s.Svc.WebAuthn != nil})
 }
 
 func (s *Server) authStart(w http.ResponseWriter, r *http.Request) {
@@ -2392,6 +2393,14 @@ func (s *Server) cronLinks(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		writeErr(w, err)
 		return
+	}
+	// The daily cron also clears expired demo tenants, so demo mode needs no job of its own.
+	if s.DemoMode {
+		if n, err := s.Svc.SweepDemo(r.Context()); err != nil {
+			s.Log.Error("demo sweep", "err", err)
+		} else if n > 0 {
+			s.Log.Info("demo sweep", "removed", n)
+		}
 	}
 	writeJSON(w, 200, report)
 }

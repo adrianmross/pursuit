@@ -9,28 +9,48 @@ import (
 // advisoryLockKey is the Postgres session lock that serializes migrations and bootstrap.
 const advisoryLockKey int64 = 594132718233451
 
+// lockTx holds advisoryLockKey until tx ends. It is a transaction lock, not a
+// session lock, so commit, rollback, or a dropped connection releases it, and
+// it stays on one backend behind a transaction-mode pooler (Neon's pooled URL,
+// PgBouncer). A session lock there can leak and hang every later boot.
+// lock_timeout turns a stuck holder into an error instead of a 504.
+func lockTx(ctx context.Context, tx *sql.Tx) error {
+	if _, err := tx.ExecContext(ctx, "SET LOCAL lock_timeout = '15s'"); err != nil {
+		return err
+	}
+	_, err := tx.ExecContext(ctx, "SELECT pg_advisory_xact_lock($1)", advisoryLockKey)
+	return err
+}
+
 func Migrate(ctx context.Context, db *sql.DB, dialect string) error {
+	if dialect == "postgres" {
+		tx, err := db.BeginTx(ctx, nil)
+		if err != nil {
+			return err
+		}
+		if err := lockTx(ctx, tx); err != nil {
+			_ = tx.Rollback()
+			return fmt.Errorf("migration lock: %w", err)
+		}
+		if err := applyMigrations(ctx, tx, dialect); err != nil {
+			_ = tx.Rollback()
+			return err
+		}
+		return tx.Commit()
+	}
+
 	conn, err := db.Conn(ctx)
 	if err != nil {
 		return err
 	}
 	defer conn.Close()
-
-	if dialect == "postgres" {
-		if _, err := conn.ExecContext(ctx, "SELECT pg_advisory_lock($1)", advisoryLockKey); err != nil {
-			return fmt.Errorf("migration lock: %w", err)
-		}
-		defer conn.ExecContext(context.Background(), "SELECT pg_advisory_unlock($1)", advisoryLockKey)
-		return applyMigrations(ctx, conn, dialect, true)
-	}
-
 	if _, err := conn.ExecContext(ctx, "PRAGMA foreign_keys = ON"); err != nil {
 		return err
 	}
 	if _, err := conn.ExecContext(ctx, "BEGIN IMMEDIATE"); err != nil {
 		return fmt.Errorf("migration lock: %w", err)
 	}
-	if err := applyMigrations(ctx, conn, dialect, false); err != nil {
+	if err := applyMigrations(ctx, conn, dialect); err != nil {
 		_, _ = conn.ExecContext(context.Background(), "ROLLBACK")
 		return err
 	}
@@ -45,7 +65,7 @@ type querier interface {
 	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
 }
 
-func applyMigrations(ctx context.Context, conn *sql.Conn, dialect string, perTx bool) error {
+func applyMigrations(ctx context.Context, conn querier, dialect string) error {
 	preamble := rebind(dialect, `CREATE TABLE IF NOT EXISTS schema_migrations (
 		version TEXT PRIMARY KEY,
 		applied_at TEXT NOT NULL
@@ -62,33 +82,13 @@ func applyMigrations(ctx context.Context, conn *sql.Conn, dialect string, perTx 
 		if n > 0 {
 			continue
 		}
-		run := func(exec querier) error {
-			for _, stmt := range m.stmts {
-				if _, err := exec.ExecContext(ctx, stmt); err != nil {
-					return fmt.Errorf("migration %s: %w", m.version, err)
-				}
+		for _, stmt := range m.stmts {
+			if _, err := conn.ExecContext(ctx, stmt); err != nil {
+				return fmt.Errorf("migration %s: %w", m.version, err)
 			}
-			ins := rebind(dialect, `INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)`)
-			if _, err := exec.ExecContext(ctx, ins, m.version, "1970-01-01T00:00:00.000000000Z"); err != nil {
-				return err
-			}
-			return nil
 		}
-		if perTx {
-			tx, err := conn.BeginTx(ctx, nil)
-			if err != nil {
-				return err
-			}
-			if err := run(tx); err != nil {
-				_ = tx.Rollback()
-				return err
-			}
-			if err := tx.Commit(); err != nil {
-				return err
-			}
-			continue
-		}
-		if err := run(conn); err != nil {
+		ins := rebind(dialect, `INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)`)
+		if _, err := conn.ExecContext(ctx, ins, m.version, "1970-01-01T00:00:00.000000000Z"); err != nil {
 			return err
 		}
 	}

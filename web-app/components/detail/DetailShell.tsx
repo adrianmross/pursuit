@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react"
 import { useRouter } from "next/navigation"
 import { api, ApiError } from "@/lib/api-client"
 import { useAuth } from "@/lib/auth"
+import { useRevision } from "@/lib/live"
 import type { Application, Artifact, CustomField, Event, Page, Question } from "@/lib/types"
 import { DetailHeader } from "@/components/detail/DetailHeader"
 import { DetailAttributes } from "@/components/detail/DetailAttributes"
@@ -27,6 +28,7 @@ function useSection<T>(path: string, enabled: boolean) {
   const [data, setData] = useState<T | null>(null)
   const [error, setError] = useState(false)
   const [tick, setTick] = useState(0)
+  const revision = useRevision()
 
   useEffect(() => {
     if (!enabled) return
@@ -44,7 +46,7 @@ function useSection<T>(path: string, enabled: boolean) {
     return () => {
       cancelled = true
     }
-  }, [path, enabled, tick])
+  }, [path, enabled, tick, revision])
 
   return { data, error, retry: () => setTick((t) => t + 1) }
 }
@@ -130,6 +132,15 @@ export function DetailShell({ id, initial, children }: { id: string; initial: De
   function onSaveCustomFieldValue(fieldID: string, value: string) {
     return enqueue(() => api<Application>(`${path}/fields/${encodeURIComponent(fieldID)}`, { method: "POST", body: { value } }))
   }
+
+  // Changed elsewhere: reload behind any queued save, and re-stream the hosted sections.
+  const revision = useRevision()
+  useEffect(() => {
+    if (!revision) return
+    queue.current = queue.current.then(reload).catch(() => {})
+    if (!exportMode) router.refresh()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [revision])
 
   // Bumped after the header's chooser changes rounds so the rounds card refetches.
   const [roundsTick, setRoundsTick] = useState(0)

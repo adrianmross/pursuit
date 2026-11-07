@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation"
 import { Bot, Check, ChevronDown, Copy, Eye, Sparkles, Trash2, X } from "lucide-react"
 import { api } from "@/lib/api-client"
 import { useAuth } from "@/lib/auth"
+import { useRevision } from "@/lib/live"
 import { cn } from "@/lib/utils"
 import type { Document, Page, StandingAnswer } from "@/lib/types"
 import { Alert, AlertAction, AlertDescription, AlertTitle } from "@/components/ui/alert"
@@ -22,10 +23,12 @@ const KINDS: Record<string, string> = { base_resume: "Base résumé", cover_lett
 export function useList<T>(path: string) {
   const [rows, setRows] = useState<T[] | null>(null)
   const load = () => api<Page<T>>(path).then((p) => setRows(p.data || []))
+  // Refetch when something changes elsewhere, like the extension saving an answer.
+  const revision = useRevision()
   useEffect(() => {
     void load()
     // eslint-disable-next-line react-hooks/exhaustive-deps -- path is a constant per caller
-  }, [])
+  }, [revision])
   return { rows, load }
 }
 

@@ -17,7 +17,8 @@ type AuthState = {
   // sandbox tenant and signs into it, same as a normal sign-in. 404s if
   // the deployment doesn't have demo mode on (see isDemoAvailable below).
   startDemo: () => Promise<void>
-  signOut: () => Promise<void>
+  // `to` is where the hard navigation after sign-out lands.
+  signOut: (to?: string) => Promise<void>
   // Export mode behind PURSUIT_TRUST_PROXY_AUTH=vercel: every token-less
   // request is the owner, so after an explicit sign-out the mount-time
   // check is skipped (or /sign-in would sign straight back in) and the
@@ -165,7 +166,7 @@ export function AuthProvider({ initialMe, children }: { initialMe: Me | null; ch
     setMe(await api<Me>("/v1/me"))
   }, [setProxyMarker])
 
-  const signOut = useCallback(async () => {
+  const signOut = useCallback(async (to = "/sign-in") => {
     if (EXPORT_MODE) {
       // Awaited for the same reason as the hosted branch below.
       if (COOKIE_SESSION) await api("/v1/auth/session", { method: "DELETE" })
@@ -181,7 +182,7 @@ export function AuthProvider({ initialMe, children }: { initialMe: Me | null; ch
     // A hard navigation, not router.push: forces every cached RSC payload
     // to be re-fetched so no stale authenticated state can linger client-side.
     // eslint-disable-next-line @next/next/no-location-assign-relative-destination
-    window.location.assign("/sign-in")
+    window.location.assign(to)
   }, [me, setProxyMarker])
 
   const can = useCallback(

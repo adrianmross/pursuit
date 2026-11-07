@@ -3,7 +3,8 @@
 import Link from "next/link"
 import { ArrowLeft } from "lucide-react"
 import { useAuth } from "@/lib/auth"
-import { Die, ErrorScene, Four, Ring, Sketch, Track } from "@/components/Sketch"
+import { Die, Four, Ring, Sketch, Track } from "@/components/Sketch"
+import { ErrorScene } from "@/components/ErrorScene"
 import { buttonVariants } from "@/components/ui/button"
 
 // Exported as 404.html; the Go server serves it, with a 404 status, for any

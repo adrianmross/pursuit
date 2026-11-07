@@ -8,4 +8,6 @@ export default {
   "api-reference": "API reference",
   architecture: "Architecture",
   changelog: "Changelog",
+  privacy: "Privacy",
+  terms: "Terms",
 }

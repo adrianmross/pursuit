@@ -1,12 +1,16 @@
+# Toolchain versions are devenv's (devenv tasks run dev:pins); CI fails on drift.
+ARG NODE_VERSION=22.23.4
+ARG GO_VERSION=1.26.10
+
 # The binary go:embeds the dashboard and docs (internal/dashboard/dist), so
 # they are built first with the same script CI and Vercel use.
-FROM node:22-bookworm-slim AS web
+FROM node:${NODE_VERSION}-bookworm-slim AS web
 WORKDIR /src
 # Copy and build in one layer: the web-app build renames directories aside,
 # which overlayfs refuses (EXDEV) for files that came from an earlier layer.
 RUN --mount=type=bind,target=/ctx cp -a /ctx/. . && sh scripts/vercel-build.sh
 
-FROM golang:1.26-bookworm AS build
+FROM golang:${GO_VERSION}-bookworm AS build
 WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
