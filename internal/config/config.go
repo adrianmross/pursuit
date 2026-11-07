@@ -59,6 +59,9 @@ type Config struct {
 	// HideTokenLogin removes the "paste an API token" sign-in option
 	// from the dashboard. The bearer-token API itself is unaffected.
 	HideTokenLogin bool `json:"-"`
+	// DemoMode offers "try it without an account": each visitor gets a
+	// throwaway tenant. Never on a real-data deployment.
+	DemoMode bool `json:"-"`
 	// SignupsClosed pauses account creation (PURSUIT_SIGNUPS=closed).
 	SignupsClosed bool `json:"-"`
 	// NoDocs stops the daemon serving the embedded docs at /docs.
@@ -212,6 +215,7 @@ func applyEnv(cfg *Config) {
 	set(&cfg.BetterAuthIssuer, "PURSUIT_BETTERAUTH_ISSUER")
 	set(&cfg.BetterAuthAudience, "PURSUIT_BETTERAUTH_AUDIENCE")
 	cfg.HideTokenLogin = strings.EqualFold(strings.TrimSpace(os.Getenv("PURSUIT_HIDE_TOKEN_LOGIN")), "true")
+	cfg.DemoMode = strings.EqualFold(strings.TrimSpace(os.Getenv("PURSUIT_DEMO_MODE")), "true")
 	cfg.SignupsClosed = strings.EqualFold(strings.TrimSpace(os.Getenv("PURSUIT_SIGNUPS")), "closed")
 	cfg.NoDocs = strings.EqualFold(strings.TrimSpace(os.Getenv("PURSUIT_NO_DOCS")), "true")
 	set(&cfg.WebAuthnRPID, "PURSUIT_WEBAUTHN_RP_ID")

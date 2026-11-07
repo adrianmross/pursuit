@@ -1,4 +1,4 @@
-.PHONY: test build linux run web openapi
+.PHONY: test build linux run web openapi lint-openapi
 
 web:
 	sh scripts/vercel-build.sh
@@ -19,3 +19,8 @@ run: build
 # Regenerate api/openapi.json from internal/spec; go test fails when it drifts.
 openapi:
 	UPDATE_OPENAPI=1 go test -count=1 ./internal/spec -run TestOpenAPIFile
+
+# Validate api/openapi.json with the Redocly CLI pinned in scripts/openapi-lint (redocly.yaml).
+lint-openapi:
+	npm ci --prefix scripts/openapi-lint --ignore-scripts --no-audit --no-fund
+	scripts/openapi-lint/node_modules/.bin/redocly lint api/openapi.json

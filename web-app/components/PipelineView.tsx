@@ -28,6 +28,7 @@ import {
 } from "lucide-react"
 import { api, ApiError } from "@/lib/api-client"
 import { useAuth } from "@/lib/auth"
+import { useRevision } from "@/lib/live"
 import { useShortcuts } from "@/lib/keybindings"
 import { Kbd } from "@/components/ui/kbd"
 import { getDefaultSort, getDefaultStatus, getPref } from "@/lib/settings"
@@ -59,6 +60,7 @@ import { TaskIcon } from "@/components/Rounds"
 import { OutcomeChip, SectionLabel, StageHeading, StageSlider, stageTarget, StatusChooser, SubSteps } from "@/components/StatusChooser"
 import { STATUS_OPTIONS } from "@/components/AttributesForm"
 import { Alert, AlertTitle } from "@/components/ui/alert"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { ButtonGroup } from "@/components/ui/button-group"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -677,6 +679,27 @@ export function PipelineView({ initial }: { initial: PipelineInitial | null }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status, category, sort, archivedView, excludeParam])
 
+  // Something changed elsewhere: refetch in place and mark the rows that weren't there.
+  const revision = useRevision()
+  const [fresh, setFresh] = useState<Set<string>>(new Set())
+  useEffect(() => {
+    if (!revision) return
+    const before = new Set(rows.map((r) => r.id))
+    // load() flags the spinner; a live refetch is the external system this effect follows.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void load().then(() => {
+      setRows((now) => {
+        const added = now.filter((r) => !before.has(r.id)).map((r) => r.id)
+        if (added.length) {
+          setFresh(new Set(added))
+          setTimeout(() => setFresh(new Set()), 6000)
+        }
+        return now
+      })
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [revision])
+
   function patch(next: Record<string, string>) {
     const merged = new URLSearchParams(params.toString())
     for (const [key, value] of Object.entries(next)) {
@@ -1105,8 +1128,9 @@ export function PipelineView({ initial }: { initial: PipelineInitial | null }) {
                 <Fragment key={row.id}>
                   <TableRow
                     data-cursor={row.id === cursorId}
+                    data-fresh={fresh.has(row.id) || undefined}
                     onClick={() => setCursor(row.id)}
-                    className="data-[cursor=true]:bg-muted data-[cursor=true]:shadow-[inset_2px_0_0_var(--primary)]"
+                    className="transition-colors duration-1000 data-[cursor=true]:bg-muted data-[cursor=true]:shadow-[inset_2px_0_0_var(--primary)] data-[fresh=true]:bg-muted"
                   >
                     {selecting && (
                       <TableCell>
@@ -1124,6 +1148,11 @@ export function PipelineView({ initial }: { initial: PipelineInitial | null }) {
                       <Link href={applicationHref(row.id)} className="hover:underline">
                         {row.title || "Untitled"}
                       </Link>
+                      {fresh.has(row.id) && (
+                        <Badge variant="outline" className="ml-2 align-middle text-[10px]">
+                          New
+                        </Badge>
+                      )}
                     </TableCell>
                     <TableCell className="overflow-hidden">
                       <span className="flex items-center gap-1.5">

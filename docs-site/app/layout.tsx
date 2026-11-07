@@ -3,12 +3,13 @@ import { Footer, Layout, Navbar } from "nextra-theme-docs"
 import { Banner } from "nextra/components"
 import { getPageMap } from "nextra/page-map"
 import "nextra-theme-docs/style.css"
+import { PRODUCT_NAME } from "@/lib/brand"
 import "./globals.css"
 
 export const metadata: Metadata = {
   title: {
-    default: "Hire Pursuit docs",
-    template: "%s — Hire Pursuit docs",
+    default: `${PRODUCT_NAME} docs`,
+    template: `%s — ${PRODUCT_NAME} docs`,
   },
   // Same brand icon as the dashboard; served by the daemon at the root.
   icons: {
@@ -21,8 +22,8 @@ export const metadata: Metadata = {
 const navbar = (
   <Navbar logo={
       <>
-        <img className="brand-logo brand-logo-light" src="/docs/brand/hire-pursuit-wordmark.svg" alt="Hire Pursuit" />
-        <img className="brand-logo brand-logo-dark" src="/docs/brand/hire-pursuit-wordmark-reverse.svg" alt="Hire Pursuit" />
+        <img className="brand-logo brand-logo-light" src="/docs/brand/wordmark.svg" alt={PRODUCT_NAME} />
+        <img className="brand-logo brand-logo-dark" src="/docs/brand/wordmark-reverse.svg" alt={PRODUCT_NAME} />
         <span style={{ marginLeft: 10, opacity: 0.6, fontSize: 13 }}>docs</span>
       </>
     } projectLink="https://github.com/adrianmross/pursuit">
@@ -39,9 +40,9 @@ const navbar = (
 const footer = (
   <Footer className="hp-footer">
     <a href="/" className="hp-footer-brand">
-      <img className="brand-logo-light" src="/docs/brand/hire-pursuit-mark.svg" alt="" />
-      <img className="brand-logo-dark" src="/docs/brand/hire-pursuit-mark-reverse.svg" alt="" />
-      Hire Pursuit
+      <img className="brand-logo-light" src="/docs/brand/mark.svg" alt="" />
+      <img className="brand-logo-dark" src="/docs/brand/mark-reverse.svg" alt="" />
+      {PRODUCT_NAME}
     </a>
     <p className="hp-footer-credit">
       <span>
@@ -57,6 +58,8 @@ const footer = (
     <nav className="hp-footer-nav">
       <a href="/docs/">Docs</a>
       <a href="/reference">Reference</a>
+      <a href="/docs/privacy">Privacy</a>
+      <a href="/docs/terms">Terms</a>
       <a href="https://github.com/adrianmross/pursuit">GitHub</a>
     </nav>
   </Footer>

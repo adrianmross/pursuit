@@ -1,0 +1,35 @@
+name: openapi
+
+# Its own workflow, not a ci job, so it runs only when the document or its
+# lint setup changes. go test in ci already fails when api/openapi.json drifts
+# from internal/spec; this checks the document is valid under redocly.yaml.
+
+on:
+  push:
+    branches: [main]
+    paths: &paths
+      - api/openapi.json
+      - redocly.yaml
+      - .redocly.lint-ignore.yaml
+      - scripts/openapi-lint/**
+      - Makefile
+      - .github/workflows/openapi.yml
+  pull_request:
+    paths: *paths
+
+# A newer push to a PR branch cancels the older run.
+concurrency:
+  group: openapi-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: scripts/openapi-lint/package-lock.json
+      - run: make lint-openapi
