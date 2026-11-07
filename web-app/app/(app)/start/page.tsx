@@ -1,5 +1,5 @@
 import Link from "next/link"
-import { ArrowRight, BookOpen, Bot, Download, Puzzle, Terminal } from "lucide-react"
+import { ArrowRight, BookOpen, Bot, Download, MousePointerClick, Puzzle, Terminal } from "lucide-react"
 import { EXPORT_MODE, pursuitApiAuthed } from "@/lib/pursuit-api"
 import type { Application, Page } from "@/lib/types"
 import { Button } from "@/components/ui/button"
@@ -92,6 +92,26 @@ export default async function Home() {
             <Button variant="outline" size="sm" asChild>
               <a href="https://github.com/adrianmross/pursuit#browser-extension" target="_blank" rel="noopener noreferrer">
                 <Download /> Get the extension
+              </a>
+            </Button>
+          </ItemActions>
+        </Item>
+
+        <Item variant="outline">
+          <ItemMedia variant="icon">
+            <MousePointerClick />
+          </ItemMedia>
+          <ItemContent>
+            <ItemTitle>Try it on a practice application</ItemTitle>
+            <ItemDescription>
+              With the extension paired, open the example job, press Alt+Shift+P, save it, then choose Autofill this
+              form. Acme Robotics is made up and nothing is sent.
+            </ItemDescription>
+          </ItemContent>
+          <ItemActions>
+            <Button variant="outline" size="sm" asChild>
+              <a href="/practice.html" target="_blank" rel="noopener noreferrer">
+                Open the example <ArrowRight />
               </a>
             </Button>
           </ItemActions>

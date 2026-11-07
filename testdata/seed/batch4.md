@@ -2,9 +2,9 @@
 
 One URL repeats the example CSV so seed import skips it.
 
-## Contoso
+## Northwind
 
 | Company | Role | Location | Base | Fit / flag | URL |
 |---|---|---|---|---|---|
-| Contoso | Writer | Remote | $60K–$75K | **Reach**: sample | https://example.com/jobs/writer |
-| Example Corp | Platform Engineer | Remote | $100K–$150K | **Strong**: duplicate of the example CSV | https://example.com/jobs/platform |
+| Northwind | Technical Writer | Remote | $60K–$75K | **Reach**: sample | https://example.com/jobs/writer |
+| Litware | Infrastructure Engineer | Remote | $150K–$190K | **Strong**: duplicate of the example CSV | https://example.com/jobs/infrastructure |

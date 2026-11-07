@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react"
 import Link from "next/link"
-import { ArrowLeft, ArrowRight, Check, ExternalLink, Search, X } from "lucide-react"
+import { ArrowLeft, ArrowRight, Bell, Check, ExternalLink, Search, X } from "lucide-react"
 import { PRODUCT_NAME } from "@/lib/brand"
 import { markOf, type Application } from "@/lib/types"
 import { CompanyAvatar } from "@/components/CompanyAvatar"
@@ -20,20 +20,19 @@ import { useAuth } from "@/lib/auth"
 // stops at `approved` because this build enqueues submit work but never clicks Submit.
 const SCRIPT: { text: string; kind: "cmd" | "out" | "note" }[] = [
   { kind: "cmd", text: "pursuit list --status to_apply --fields id,company,title" },
-  { kind: "out", text: "a_4f2  Halcyon      Staff Platform Engineer" },
-  { kind: "out", text: "a_91c  Northwind    Backend Engineer" },
-  { kind: "cmd", text: "pursuit apply a_4f2 --async" },
+  { kind: "out", text: "a_91c  Northwind  Backend Engineer" },
+  { kind: "cmd", text: "pursuit apply a_91c --async" },
   { kind: "out", text: "preparing → awaiting_review   (form filled from your standing answers)" },
   { kind: "note", text: "agent stops here — you decide" },
 ]
 
 const PIPELINE: (Application & { source: string; when: string })[] = [
-  { id: "a_4f2", company: "Halcyon", title: "Staff Platform Engineer", status: "to_apply", source: "Greenhouse", when: "2h ago" },
-  { id: "a_91c", company: "Northwind", title: "Backend Engineer", status: "to_apply", source: "Ashby", when: "5h ago" },
+  { id: "a_91c", company: "Northwind", title: "Backend Engineer", status: "to_apply", source: "Ashby", when: "12m ago" },
+  { id: "a_4f2", company: "Acme Robotics", title: "Staff Platform Engineer", status: "to_apply", source: "Company site", when: "2h ago" },
   { id: "a_17e", company: "Fabrikam", title: "Mobile Engineer", status: "interviewing", source: "Lever", when: "1d ago", interviews: { 5: { done: 2, total: 3 } } },
   { id: "a_3b0", company: "Contoso", title: "Site Reliability Engineer", status: "screening", source: "Company site", when: "3d ago" },
-  { id: "a_c55", company: "Tailspin", title: "Product Engineer", status: "offer", source: "Ashby", when: "Jan 16" },
-  { id: "a_08d", company: "Litware", title: "Infrastructure Engineer", status: "applied", source: "Workday", when: "Jan 15" },
+  { id: "a_c55", company: "Tailspin", title: "Product Engineer", status: "offer", source: "Ashby", when: "Nov 5" },
+  { id: "a_08d", company: "Litware", title: "Infrastructure Engineer", status: "applied", source: "Workday", when: "Oct 20" },
 ]
 
 function Terminal({ onDone }: { onDone: () => void }) {
@@ -87,7 +86,7 @@ function Terminal({ onDone }: { onDone: () => void }) {
 }
 
 // The signed-in app's top bar, shrunk: wordmark, search, ⌘P.
-function AppBar() {
+function AppBar({ bell }: { bell?: boolean }) {
   return (
     <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 border-b px-4 py-2">
       <span>
@@ -97,15 +96,26 @@ function AppBar() {
       <span className="flex h-7 w-40 items-center gap-2 rounded-md border px-2.5 text-xs text-muted-foreground sm:w-72">
         <Search className="size-3.5" /> Search
       </span>
-      <kbd className="justify-self-end rounded border bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">⌘P</kbd>
+      <span className="flex items-center gap-2 justify-self-end">
+        {bell && (
+          <span className="relative">
+            <Bell className="size-4" />
+            <span className="absolute -top-1 -right-1 flex size-3.5 items-center justify-center rounded-full bg-foreground text-[9px] font-semibold text-background">
+              1
+            </span>
+          </span>
+        )}
+        <kbd className="rounded border bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">⌘P</kbd>
+      </span>
     </div>
   )
 }
 
-function PipelineScene() {
+// Later scenes move a row on: `status` overrides a row's status by id.
+function PipelineScene({ bell, status }: { bell?: boolean; status?: Record<string, Application["status"]> }) {
   return (
     <div className="flex h-full flex-col bg-background">
-      <AppBar />
+      <AppBar bell={bell} />
       <div className="flex flex-col gap-3 p-4">
         <div className="flex items-center justify-between text-xs">
           <span className="text-muted-foreground">{PIPELINE.length} applications</span>
@@ -124,7 +134,9 @@ function PipelineScene() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {PIPELINE.map((a, i) => (
+              {PIPELINE.map((p, i) => {
+                const a = status?.[p.id] ? { ...p, status: status[p.id] } : p
+                return (
                 <TableRow
                   key={a.id}
                   className={cn("animate-in fade-in slide-in-from-bottom-1 fill-mode-both", i === 0 && "bg-muted/60")}
@@ -151,7 +163,8 @@ function PipelineScene() {
                   </TableCell>
                   <TableCell className="hidden text-muted-foreground sm:table-cell">{a.when}</TableCell>
                 </TableRow>
-              ))}
+                )
+              })}
             </TableBody>
           </Table>
         </div>
@@ -160,10 +173,10 @@ function PipelineScene() {
   )
 }
 
-const ANSWERS: [string, string, string][] = [
-  ["Are you authorized to work in the US?", "Yes", "standing answer"],
-  ["Desired compensation", "$220K base", "standing answer"],
-  ["Why Halcyon?", "Platform work at the scale of your build fleet…", "drafted by agent"],
+// What the agent prepared for Northwind, from your standing answers and a draft.
+const AGENT_ANSWERS: [string, string, string][] = [
+  ["Authorized to work in the US?", "Yes", "standing answer"],
+  ["Why Northwind?", "Small team, real traffic, and room to…", "drafted by agent"],
 ]
 
 function DetailScene() {
@@ -175,10 +188,10 @@ function DetailScene() {
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="flex items-start gap-3">
             <ProgressMark stage={2} size={34} />
-            <CompanyAvatar company="Halcyon" className="mt-0.5 size-8 text-sm" />
+            <CompanyAvatar company="Northwind" className="mt-0.5 size-8 text-sm" />
             <div>
-              <p className="font-display text-lg font-semibold leading-tight">Staff Platform Engineer</p>
-              <p className="text-xs text-muted-foreground">Halcyon</p>
+              <p className="font-display text-lg font-semibold leading-tight">Backend Engineer</p>
+              <p className="text-xs text-muted-foreground">Northwind · prepared by agent-1</p>
             </div>
           </div>
           <div className="flex items-center gap-1.5">
@@ -195,7 +208,7 @@ function DetailScene() {
           <CardContent className="grid grid-cols-3 gap-3 text-xs">
             {[
               ["Location", "Remote · US"],
-              ["Salary", "$210K–$245K"],
+              ["Salary", "$150K–$175K"],
               ["Fit", "strong"],
             ].map(([k, v]) => (
               <div key={k}>
@@ -206,7 +219,7 @@ function DetailScene() {
             <div className="col-span-3 flex items-center justify-between">
               <div>
                 <p className="text-muted-foreground">Posting URL</p>
-                <p className="mt-0.5 font-medium">boards.greenhouse.io/halcyon/4021</p>
+                <p className="mt-0.5 font-medium">jobs.ashbyhq.com/northwind/backend-engineer</p>
               </div>
               <ExternalLink className="size-3.5 text-muted-foreground" />
             </div>
@@ -217,7 +230,7 @@ function DetailScene() {
             <CardTitle className="text-xs">Prepared answers</CardTitle>
           </CardHeader>
           <CardContent className="flex flex-col gap-2 text-xs">
-            {ANSWERS.map(([q, a, src]) => (
+            {AGENT_ANSWERS.map(([q, a, src]) => (
               <div key={q} className="flex items-baseline justify-between gap-3 border-t pt-2 first:border-t-0 first:pt-0 last:max-sm:hidden">
                 <span className="text-muted-foreground">{q}</span>
                 <span className="truncate text-right font-medium">
@@ -232,11 +245,139 @@ function DetailScene() {
   )
 }
 
-const SCENES = [
-  { label: "Dashboard", title: `${PRODUCT_NAME} — Pipeline`, caption: "Every role you're chasing, at a glance." },
-  { label: "CLI", title: "zsh — pursuit", caption: "An agent takes it from the terminal and prepares the form." },
-  { label: "Review", title: `${PRODUCT_NAME} — Halcyon`, caption: "Nothing goes out until you approve it." },
+// What the extension fills on the Acme form.
+const FIELDS: [string, string, string][] = [
+  ["First name", "Ada", "your profile"],
+  ["Last name", "Lovelace", "your profile"],
+  ["Email", "ada@example.com", "your profile"],
+  ["Résumé", "ada-lovelace.pdf", "your résumé"],
+  ["Authorized to work in the US?", "Yes", "standing answer"],
+  ["What would you build first?", "A merge-to-robot pipeline that…", "drafted by agent"],
 ]
+
+// An application page with the browser extension's panel beside it: the panel
+// fills each field in turn from what you've already told Pursuit.
+function FormScene({ onDone }: { onDone: () => void }) {
+  const [reduce] = useState(
+    () => typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches,
+  )
+  const [filled, setFilled] = useState(reduce ? FIELDS.length : 0)
+
+  useEffect(() => {
+    if (reduce) {
+      onDone()
+      return
+    }
+    let n = 0
+    const t = setInterval(() => {
+      n += 1
+      setFilled(n)
+      if (n >= FIELDS.length) {
+        clearInterval(t)
+        onDone()
+      }
+    }, 650)
+    return () => clearInterval(t)
+  }, [onDone, reduce])
+
+  const done = filled >= FIELDS.length
+  return (
+    <div className="flex h-full flex-col bg-background">
+      <div className="grid flex-1 gap-4 overflow-hidden p-4 text-left sm:grid-cols-[1fr_13rem]">
+        <div className="flex flex-col gap-2.5 text-xs">
+          <p className="font-display text-sm font-semibold">Apply for Staff Platform Engineer</p>
+          {FIELDS.map(([label, value], i) => (
+            <div key={label}>
+              <p className="text-muted-foreground">{label}</p>
+              <p
+                className={cn(
+                  "mt-0.5 h-7 truncate rounded-md border px-2 py-1.5 transition-colors duration-300",
+                  i < filled ? "border-brand-forest/40 bg-brand-forest/5" : "text-transparent",
+                )}
+              >
+                {i < filled ? value : "."}
+              </p>
+            </div>
+          ))}
+        </div>
+        <Card size="sm" className="hidden self-start sm:flex">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-xs">
+              <ProgressMark stage={2} size={20} /> Pursuit
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-2 text-xs">
+            <p className="font-medium">Staff Platform Engineer</p>
+            <p className="text-muted-foreground">Acme Robotics · saved</p>
+            <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+              <div
+                className="h-full rounded-full bg-brand-forest transition-[width] duration-500"
+                style={{ width: `${(filled / FIELDS.length) * 100}%` }}
+              />
+            </div>
+            <p className="text-muted-foreground">
+              {done ? `Filled ${FIELDS.length} of ${FIELDS.length}. You press Submit.` : `Filling ${Math.min(filled + 1, FIELDS.length)} of ${FIELDS.length}…`}
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  )
+}
+
+// The agent finishes preparing Acme, the bell lights, and opening the
+// notification lands on the review where you approve.
+function ApproveScene({ onDone }: { onDone: () => void }) {
+  const [reduce] = useState(
+    () => typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches,
+  )
+  const [phase, setPhase] = useState(reduce ? 2 : 0)
+
+  useEffect(() => {
+    if (reduce) {
+      onDone()
+      return
+    }
+    const t = [setTimeout(() => setPhase(1), 900), setTimeout(() => setPhase(2), 3200), setTimeout(onDone, 5600)]
+    return () => t.forEach(clearTimeout)
+  }, [onDone, reduce])
+
+  if (phase === 2) return <DetailScene />
+  return (
+    <div className="relative h-full">
+      <PipelineScene bell status={{ a_91c: "awaiting_review", a_4f2: "applied" }} />
+      {phase === 1 && (
+        <div className="absolute top-11 right-3 w-[min(22rem,calc(100%-1.5rem))] rounded-lg border bg-popover text-left text-popover-foreground shadow-lg animate-in fade-in slide-in-from-top-2">
+          <div className="flex items-center gap-2 border-b px-4 py-2.5">
+            <span className="flex-1 font-heading text-sm font-semibold">Notifications</span>
+            <span className="text-xs text-muted-foreground">Live</span>
+          </div>
+          <div className="flex items-start gap-3 px-4 py-3">
+            <span className="mt-1.5 size-2 shrink-0 rounded-full bg-foreground" aria-hidden />
+            <div className="flex flex-col gap-1">
+              <p className="text-sm">
+                <b className="font-semibold">Backend Engineer</b> is prepared and waiting for you.
+              </p>
+              <p className="text-xs text-muted-foreground">Northwind · prepared by agent-1 · just now</p>
+              <span className={cn(buttonVariants({ size: "sm" }), "mt-1 self-start animate-pulse motion-reduce:animate-none")}>
+                Review
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+const SCENES = [
+  { label: "Track", title: `${PRODUCT_NAME} — Pipeline`, caption: "Every role you're chasing, in one place." },
+  { label: "Autofill", title: "Acme Robotics — Apply", caption: "Open an application and Pursuit fills it from everything you've told it before." },
+  { label: "Automate", title: "zsh — pursuit", caption: "Or hand the queue to an agent from the terminal." },
+  { label: "Approve", title: `${PRODUCT_NAME} — Pipeline`, caption: "Your agent prepares it and you get a notification. Nothing goes out until you approve." },
+]
+// The scenes that play a script and advance when it finishes.
+const SCRIPTED = [1, 2, 3]
 const DWELL = 5000
 
 function Showcase() {
@@ -257,19 +398,19 @@ function Showcase() {
 
   // Dashboard and review dwell on a timer; the CLI scene waits for its script.
   useEffect(() => {
-    if (reduce || paused || (scene === 1 && !typed)) return
+    if (reduce || paused || (SCRIPTED.includes(scene) && !typed)) return
     const t = setTimeout(() => {
       setTyped(false)
       setScene((scene + 1) % SCENES.length)
-    }, scene === 1 ? 1800 : DWELL)
+    }, SCRIPTED.includes(scene) ? 1800 : DWELL)
     return () => clearTimeout(t)
   }, [scene, paused, typed, reduce])
 
-  const cli = scene === 1
+  const cli = scene === 2
   return (
     <section
       aria-roledescription="carousel"
-      aria-label={`${PRODUCT_NAME}, from the dashboard to the CLI and back`}
+      aria-label={`${PRODUCT_NAME}: track, autofill, automate, approve`}
       onMouseEnter={() => setPaused(true)}
       onMouseLeave={() => setPaused(false)}
       onFocus={() => setPaused(true)}
@@ -308,8 +449,9 @@ function Showcase() {
           )}
         >
           {scene === 0 && <PipelineScene />}
-          {scene === 1 && <Terminal onDone={done} />}
-          {scene === 2 && <DetailScene />}
+          {scene === 1 && <FormScene onDone={done} />}
+          {scene === 2 && <Terminal onDone={done} />}
+          {scene === 3 && <ApproveScene onDone={done} />}
         </div>
       </div>
 
@@ -328,7 +470,7 @@ function Showcase() {
               )}
             >
               {s.label}
-              {i === scene && !reduce && !paused && i !== 1 && (
+              {i === scene && !reduce && !paused && !SCRIPTED.includes(i) && (
                 <span
                   aria-hidden
                   className="absolute inset-x-3 bottom-0.5 h-px origin-left bg-foreground/40"

@@ -1,4 +1,6 @@
 id,company,role,location,salary,fit,status,applied_date,next_step,posting_url,notes,last_updated
-1,Example Corp,Platform Engineer,Remote,$100K–$150K,Strong,Applied,2026-01-15,Wait for a sample reply,https://example.com/jobs/platform,Example note only,2026-01-15
-2,Example Corp,Support Engineer,Remote,Not listed,Reach,Applied,2026-01-16,Wait for a sample reply,https://example.com/jobs/support,Another example note,2026-01-16
-3,Example Corp,Data Analyst,Remote,$90K–$110K,Maybe,Prepared,,Review the sample packet,https://example.com/jobs/analyst,Prepared example,2026-01-17
+1,Litware,Infrastructure Engineer,Remote,$150K–$190K,Strong,Applied,2026-10-20,Wait for a reply,https://example.com/jobs/infrastructure,Applied through the company site,2026-10-20
+2,Tailspin,Product Engineer,Remote,$170K–$200K,Strong,Offer,2026-10-02,Reply to the offer by Friday,https://example.com/jobs/product,Offer in hand,2026-11-05
+3,Contoso,Site Reliability Engineer,Remote,$160K–$185K,Maybe,Screening,2026-10-28,Recruiter call Thursday,https://example.com/jobs/sre,Recruiter screen booked,2026-11-04
+4,Fabrikam,Mobile Engineer,Remote,$165K–$195K,Strong,Interviewing,2026-10-15,Onsite loop next week,https://example.com/jobs/mobile,Two of three rounds done,2026-11-03
+5,Wingtip,Data Analyst,Remote,$90K–$110K,Maybe,Prepared,,Review the prepared answers,https://example.com/jobs/analyst,Prepared by an agent,2026-11-06

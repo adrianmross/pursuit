@@ -69,3 +69,14 @@ npm run build
 ```
 
 Pair it from the popup with the server URL and a token that has `write` and not `approve` (mint one with `pursuit tokens create`).
+
+### Try it on a practice application
+
+The dashboard serves a made-up job at `/practice.html` (Acme Robotics, Staff Platform Engineer). With the extension paired:
+
+1. Open `/practice.html` and press Alt+Shift+P.
+2. Choose Save job. The posting lands in your tracker as `to_apply`.
+3. Choose Autofill this form. Your profile, prepared answers, and résumé fill in a field at a time.
+4. Outlined fields are questions it could not answer. Type your answer and choose Save my answer, and the next form reuses it.
+
+The practice form's Submit button sends nothing, and the extension never presses it.
