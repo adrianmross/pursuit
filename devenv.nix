@@ -110,7 +110,9 @@ in
   # Rebuilds and restarts on every .go change, kept alive at a stable
   # https://<name>.localhost URL by portless.
   # Hot-reloading preview of this worktree: next dev + Go API, via portless.
-  scripts.pursuit-preview.exec = "bash scripts/preview.sh";
+  # `pursuit-preview up|down|status|logs` runs it detached; any number of
+  # worktrees can have one up at once.
+  scripts.pursuit-preview.exec = ''bash scripts/preview.sh "$@"'';
   scripts.pursuit-watch.exec = ''
     export PURSUIT_DATA_DIR="$PWD/.devdata"
     mkdir -p "$PURSUIT_DATA_DIR"
