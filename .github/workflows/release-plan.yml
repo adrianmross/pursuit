@@ -8,10 +8,8 @@ name: release-plan
 # directly instead of relying on a `push: tags` trigger.
 
 on:
-  workflow_run:
-    workflows: [ci]
-    types: [completed]
-    # Without this, every ci run on every PR branch starts a (skipped) release-plan run.
+  # main is protected: every merge already passed ci on its PR.
+  push:
     branches: [main]
   workflow_dispatch:
 
@@ -26,15 +24,10 @@ concurrency: release-plan
 jobs:
   release-plan:
     runs-on: ubuntu-latest
-    if: >-
-      github.event_name == 'workflow_dispatch' ||
-      (github.event.workflow_run.event == 'push' &&
-       github.event.workflow_run.head_branch == 'main' &&
-       github.event.workflow_run.conclusion == 'success')
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.workflow_run.head_sha || github.ref }}
+          ref: ${{ github.sha }}
           fetch-depth: 0
 
       - id: release-please
