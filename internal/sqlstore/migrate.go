@@ -573,4 +573,28 @@ var migrations = []migration{{
 			received_at TEXT NOT NULL
 		)`,
 	},
+}, {
+	version: "021",
+	stmts: []string{
+		// Where the file is: "db" keeps it in body, "s3" in object_key of
+		// the configured bucket. Old rows stay in the database.
+		`ALTER TABLE documents ADD COLUMN storage TEXT NOT NULL DEFAULT 'db'`,
+		`ALTER TABLE documents ADD COLUMN object_key TEXT NOT NULL DEFAULT ''`,
+		`ALTER TABLE documents ADD COLUMN size INTEGER NOT NULL DEFAULT 0`,
+		// Binary bodies are base64: about 3 bytes per 4 characters.
+		`UPDATE documents SET size = CASE WHEN content_type LIKE 'text/%' THEN LENGTH(body) ELSE LENGTH(body) * 3 / 4 END`,
+		// A name for a variant ("Backend", "Short"); the filename otherwise.
+		`ALTER TABLE documents ADD COLUMN label TEXT NOT NULL DEFAULT ''`,
+		// The main résumé and the main cover letter: one of each per user.
+		`ALTER TABLE documents ADD COLUMN is_primary INTEGER NOT NULL DEFAULT 0`,
+		// The default cover letter was a standing answer; it's a document now.
+		`INSERT INTO documents (id, user_id, kind, filename, content_type, body, created_at, label, size)
+			SELECT 'cl-' || id, user_id, 'cover_letter', 'cover-letter.md', 'text/markdown', answer, updated_at, 'Default', LENGTH(answer)
+			FROM standing_answers WHERE answer_key = 'cover_letter' AND answer <> ''`,
+		`DELETE FROM standing_answers WHERE answer_key = 'cover_letter'`,
+		// Prepare used the newest of each; that one is the main one.
+		`UPDATE documents SET is_primary = 1 WHERE kind IN ('base_resume', 'cover_letter') AND id = (
+			SELECT d2.id FROM documents d2 WHERE d2.user_id = documents.user_id AND d2.kind = documents.kind
+			ORDER BY d2.created_at DESC, d2.id DESC LIMIT 1)`,
+	},
 }}

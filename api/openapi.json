@@ -1510,6 +1510,12 @@
           },
           "kind": {
             "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "primary": {
+            "type": "boolean"
           }
         },
         "required": [
@@ -1517,9 +1523,34 @@
           "kind",
           "filename",
           "content_type",
+          "label",
+          "primary",
           "body",
           "created_at"
         ],
+        "type": "object"
+      },
+      "DocumentPatch": {
+        "properties": {
+          "body": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "label": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "primary": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          }
+        },
         "type": "object"
       },
       "DocumentView": {
@@ -1538,6 +1569,18 @@
           },
           "kind": {
             "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "primary": {
+            "type": "boolean"
+          },
+          "size": {
+            "type": "integer"
+          },
+          "storage": {
+            "type": "string"
           }
         },
         "required": [
@@ -1545,6 +1588,10 @@
           "kind",
           "filename",
           "content_type",
+          "label",
+          "primary",
+          "size",
+          "storage",
           "created_at"
         ],
         "type": "object"
@@ -7236,8 +7283,8 @@
     },
     "/v1/documents": {
       "get": {
-        "description": "Kind is base_resume, cover_letter, or other. Without limit it returns all.",
-        "operationId": "listDocuments",
+        "description": "Limit, cursor; no limit returns all.",
+        "operationId": "listUserDocumentsBaseresumeCoverletterOther",
         "parameters": [
           {
             "$ref": "#/components/parameters/limit"
@@ -7292,7 +7339,7 @@
             "description": "error"
           }
         },
-        "summary": "List documents",
+        "summary": "List user documents: base_resume, cover_letter, other",
         "tags": [
           "Documents"
         ],
@@ -7305,8 +7352,8 @@
         ]
       },
       "post": {
-        "description": "Multipart (kind, file) or JSON text. Prepare attaches the newest base_resume.",
-        "operationId": "uploadDocument",
+        "description": "The first base_resume and the first cover_letter become primary: the main ones prepare attaches. Stored in the S3 bucket when the server has one (storage: s3), else in the database.",
+        "operationId": "uploadDocumentAsMultipartKindLabelFileOrJSONTextKindFilenameContenttypeLabelBody",
         "parameters": [
           {
             "$ref": "#/components/parameters/IdempotencyKey"
@@ -7370,7 +7417,7 @@
             "description": "error"
           }
         },
-        "summary": "Upload a document",
+        "summary": "Upload a document as multipart (kind, label, file) or JSON text {kind, filename, content_type, label, body}",
         "tags": [
           "Documents"
         ],
@@ -7446,8 +7493,8 @@
         ]
       },
       "get": {
-        "description": "Includes the body; binary bodies are base64.",
-        "operationId": "getDocument",
+        "description": "Binary bodies are base64.",
+        "operationId": "documentWithBodyLabelAndPrimary",
         "parameters": [
           {
             "in": "path",
@@ -7489,7 +7536,7 @@
             "description": "error"
           }
         },
-        "summary": "Get a document",
+        "summary": "Document with body, label and primary",
         "tags": [
           "Documents"
         ],
@@ -7499,6 +7546,77 @@
             "lang": "shell",
             "source": "pursuit documents get DOCUMENT_ID"
           }
+        ]
+      },
+      "patch": {
+        "description": "Primary: true makes it the main one of its kind. Body replaces a text document's content (a cover letter written in place).",
+        "operationId": "bodyLabelPrimaryBody",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          },
+          {
+            "$ref": "#/components/parameters/DryRun"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DocumentPatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentView"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "error"
+          }
+        },
+        "summary": "Body {label?, primary?, body?}",
+        "tags": [
+          "Documents"
         ]
       }
     },

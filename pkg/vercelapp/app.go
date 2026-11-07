@@ -67,7 +67,7 @@ func ensure(ctx context.Context) (*runtime, error) {
 	svc.HTTP = &http.Client{Timeout: 20 * time.Second}
 	svc.Links = &links.Client{HTTP: svc.HTTP, Now: svc.Now}
 	for _, w := range svc.ConfigureFromEnv(os.Getenv, publicURL(os.Getenv)) {
-		slog.Warn("billing", "problem", w)
+		slog.Warn("config", "problem", w)
 	}
 	if svc.WebAuthn, err = webAuthnFromEnv(os.Getenv); err != nil {
 		store.Close()

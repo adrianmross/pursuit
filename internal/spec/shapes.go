@@ -71,6 +71,8 @@ type DocumentFile struct {
 	Kind        string `json:"kind"`
 	Filename    string `json:"filename"`
 	ContentType string `json:"content_type"`
+	Label       string `json:"label"`
+	Primary     bool   `json:"primary"`
 	Body        string `json:"body"`
 	CreatedAt   string `json:"created_at"`
 }
