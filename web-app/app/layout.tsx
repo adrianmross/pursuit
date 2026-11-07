@@ -1,12 +1,13 @@
 import type { Metadata } from "next"
 import "./globals.css"
+import { PRODUCT_NAME } from "@/lib/brand"
 import { getMe } from "@/lib/pursuit-api"
 import { Providers } from "./providers"
 
 export const metadata: Metadata = {
   title: {
-    default: "Hire Pursuit",
-    template: "%s — Hire Pursuit",
+    default: PRODUCT_NAME,
+    template: `%s — ${PRODUCT_NAME}`,
   },
   description: "A self-hosted job-application tracker.",
   icons: {

@@ -68,7 +68,7 @@ export default async function Home() {
           </ItemContent>
           <ItemActions>
             <Button variant="outline" size="sm" asChild>
-              <a href="https://hire-pursuit.app/docs" target="_blank" rel="noopener noreferrer">
+              <a href="/docs" target="_blank" rel="noopener noreferrer">
                 <BookOpen /> Read the docs
               </a>
             </Button>

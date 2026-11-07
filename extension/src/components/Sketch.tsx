@@ -26,7 +26,7 @@ export function Sketch({
 }
 
 // The mark's ring: five segments of a circle, open at the lower left where
-// the stem joins (angles measured off hire-pursuit-mark.svg).
+// the stem joins (angles measured off mark.svg).
 const RING_SEGMENTS = [
   [-168, -117.8],
   [-109.8, -59.6],

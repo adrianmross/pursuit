@@ -15,10 +15,10 @@ import { StatusBadge } from "@/components/StatusBadge"
 import { Die, HoldIcon, Sketch } from "@/components/Sketch"
 import { Button } from "@/components/ui/button"
 import { statusPieces } from "@/lib/status"
-import hirePursuit from "../../web-app/public/brand/hire-pursuit-wordmark-reverse.svg"
+import wordmarkSvg from "../../web-app/public/brand/wordmark-reverse.svg"
 
 // The launcher shows just "pursuit": crop the wordmark's view past "hire".
-const wordmark = hirePursuit.replace(/viewBox="[^"]*" width="\d+" height="\d+"/, 'viewBox="220 -6 331.5 94"').replace('aria-label="hire pursuit"', 'aria-label="pursuit"')
+const wordmark = wordmarkSvg.replace(/viewBox="[^"]*" width="\d+" height="\d+"/, 'viewBox="220 -6 331.5 94"').replace('aria-label="hire pursuit"', 'aria-label="pursuit"')
 
 declare const __PANEL_CSS__: string
 

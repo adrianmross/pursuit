@@ -28,7 +28,7 @@ export function label(status?: string) {
   return (status && LABELS[status]) || status || "—"
 }
 
-// Hire Pursuit's status chips are told apart by lightness and outline, not
+// The status chips are told apart by lightness and outline, not
 // hue — gold is reserved for the one status that's a win. The two outcome
 // families are the exception: hold (amber) and stop (red) sit on top of a stage.
 export type StatusTone = "default" | "attention" | "strong" | "danger" | "muted" | "win"
