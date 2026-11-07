@@ -23,13 +23,23 @@ pursuit events --follow --timeout 25s
 pursuit list --stale --fields id,company,title,link_status
 ```
 
-`pursuit rounds` (`/v1/applications/{id}/rounds`, `/v1/rounds/{id}`) tracks interview rounds per stage; `pursuit interviews` and `/interviews` are old aliases. `pursuit tasks` (`/v1/applications/{id}/tasks`, `/v1/tasks/{id}`) tracks to-dos per stage. Both add with `add APP_ID`, change with `set ID --done`, and report per-stage `{done, total}` on the application as `interviews` and `tasks`.
+`pursuit rounds` (`/v1/applications/{id}/rounds`, `/v1/rounds/{id}`) tracks interview rounds per stage; `pursuit interviews` and `/interviews` are old aliases. `pursuit tasks` (`/v1/applications/{id}/tasks`, `/v1/tasks/{id}`) tracks to-dos per stage. Both add with `add APP_ID`, change with `set ID --done`, and report per-stage `{done, total}` on the application as `interviews` and `tasks`. `tasks` for Apply (`"0"`) also counts each unanswered required form question from prepare as an open task.
+
+A round's `notes` is one markdown document (prep, transcript, questions). A heading ending in `?` is a question, and the text under it is the answer. The round returns them parsed as `questions`. Edit with `pursuit rounds set ID --question "...?" --answer "..."` or `--append "..."`, which need no version. `--notes-file` replaces the whole document. `pursuit questions list --q TEXT` (`GET /v1/questions`) searches every round's questions. These are not standing answers: copy one over with `pursuit standing set` only when the user asks.
+
+An application can name its own stages and skip some with `stage_plan` on `PATCH /v1/applications/{id}`: `{"labels": {"screening": "Phone screen"}, "off": ["final"]}`. Only Prepared through Final take part. The statuses underneath never change, so filters, caps and agents keep using `screening`. `{}` resets it.
+
+When one process at a company covers several postings, `pursuit apps update ID --tracked-by PRIMARY_ID` marks the others as tracked with it (`tracked_by` on the application, same company, one level). A tracked application is not prepared or applied on its own and does not count against company caps. `--tracked-by ""` clears it. Reject one posting with `apps transition ID --status rejected`; the link stays.
+
+When one process at a company covers several postings, `pursuit apps update ID --tracked-by PRIMARY_ID` marks the others as tracked with it (`tracked_by` on the application, same company, one level). A tracked application is not prepared or applied on its own and does not count against company caps. `--tracked-by ""` clears it. Reject one posting with `apps transition ID --status rejected`; the link stays.
 
 Standing answers (`pursuit standing set`) fill form questions. Unknown required questions become `needs_input`. Company caps return a conflict when exceeded.
 
 The base résumé is a document: `pursuit documents add --kind base_resume --file resume.pdf`. Prepare attaches the newest one (`PURSUIT_RESUME_FILE` is only the fallback, and has no disk on Vercel). Put a tailored résumé or cover letter on one application with `pursuit artifacts add APP_ID --kind resume_pdf --file tailored.pdf`. When the user answers a `needs_input` question, save it with `pursuit standing set` so every later prepare reuses it.
 
 `GET /v1/profile` is those standing answers as one map. `POST /v1/applications/capture` saves a posting the user is viewing as `to_apply` and dedupes on the URL. The browser extension calls those. It is not a dashboard.
+
+Driving the browser. When the person's browser has the Pursuit extension paired, fill forms through it instead of typing field by field. Open the application's `posting_url`, click the page's "Open Pursuit" button (or press Alt+Shift+P), then "Autofill this form". It fills the profile and prepared answers and attaches the résumé. The panel lives in an open shadow root on `[data-pursuit-panel]`. The fill is paced for a person to watch, a few seconds per form: wait for that element's `data-pursuit-state` to go from `filling` to `filled`. It then carries `data-pursuit-filled` and `data-pursuit-missed`, and the panel shows what is left as notes, one question at a time ("Next question" moves to the next outlined field). Each fill is also an event on the application (`GET /v1/applications/APP_ID/events`). Save new answers with `pursuit standing set` and fill again. Click Submit only while you hold that application's submit work from `pursuit queue claim`, then `pursuit queue complete WORK_ID --status submitted`. Never click Submit on a role that is not approved.
 
 Debugging with the audit log. Every successful change records who did what and when, with details in `metadata`.
 

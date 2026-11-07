@@ -211,6 +211,14 @@ func (s *Service) CreateDemoSession(ctx context.Context) (secret string, actor d
 	return secret, actor, nil
 }
 
+// demoTTL is how long a throwaway demo tenant lives before SweepDemo removes it.
+const demoTTL = 24 * time.Hour
+
+// SweepDemo deletes demo tenants older than demoTTL and returns how many.
+func (s *Service) SweepDemo(ctx context.Context) (int, error) {
+	return s.DB.DeleteDemoUsers(ctx, s.now().Add(-demoTTL))
+}
+
 // ResolveTenantUser maps a verified Better Auth identity to a Pursuit
 // actor on every request (unlike LoginIdentity, which runs once at
 // login): it reads the existing user without locking on the hot path,

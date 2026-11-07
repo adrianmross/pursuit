@@ -36,11 +36,33 @@ export const ACCENTS = {
 export type Accent = keyof typeof ACCENTS
 export type Density = "comfortable" | "compact"
 export type TextSize = "small" | "default" | "large"
+export type TabPlace = "tab" | "card" | "off"
+export const OUTLINE_TABS = [
+  ["rounds", "Rounds", "tabRounds"],
+  ["tasks", "Tasks", "tabTasks"],
+  ["questions", "Questions", "tabQuestions"],
+  ["notes", "Notes", "tabNotes"],
+] as const
+export const PAGE_CARDS = [
+  ["cardListing", "Listing", "The posting's fields under the header: link, dates and custom fields."],
+  ["cardRelated", "Related postings", "Other postings at the company, and what this one is tracked with."],
+  ["cardArtifacts", "Documents", "Résumés, cover letters and files."],
+  ["cardHistory", "History", "Every change to the application."],
+] as const
 
 const SIZES: Record<TextSize, string> = { small: "14px", default: "16px", large: "18px" }
 
-const DEFAULTS = { density: "comfortable", accent: "neutral", textSize: "default", motion: "full", stripes: "off", searchSyntax: "on", faviconService: "default", funnel: "off" }
-type Pref = keyof typeof DEFAULTS
+const DEFAULTS = { density: "comfortable", accent: "neutral", textSize: "default", motion: "full", textFx: "notes", roundCounter: "wheel", vimKeys: "off", stripes: "off", searchSyntax: "on", faviconService: "default", funnel: "off",
+  // The application page's cards ("on" or "off"), and where each outline tab
+  // shows: "tab" inside Details, "card" as its own card, or "off".
+  cardListing: "on", cardRelated: "on", cardArtifacts: "on", cardHistory: "on",
+  tabRounds: "tab", tabTasks: "tab", tabQuestions: "tab", tabNotes: "tab",
+  // The start page's feed rows, "off" once dismissed.
+  hintProfile: "on", hintAgent: "on", hintTerminal: "on", hintExtension: "on",
+  // The guided tour: "auto" runs it for a new account, "on" starts it (a demo sandbox, Replay), "off" once it is done or skipped.
+  // ponytail: per browser; a server-side flag if it should follow the account across devices.
+  tour: "auto" }
+export type Pref = keyof typeof DEFAULTS
 
 function read(key: Pref) {
   // Server rendering has no localStorage: fall back to the default.
@@ -52,10 +74,35 @@ export function getPref<T extends string>(key: Pref) {
   return read(key) as T
 }
 
+// Everything that reads a preference while rendering subscribes here, so a
+// change in Settings shows at once instead of after a reload. Another tab's
+// change arrives as a storage event.
+const listeners = new Set<() => void>()
+
+export function subscribePrefs(cb: () => void) {
+  listeners.add(cb)
+  const onStorage = (e: StorageEvent) => {
+    if (!e.key?.startsWith(PREFIX)) return
+    applyAppearance()
+    cb()
+  }
+  window.addEventListener("storage", onStorage)
+  return () => {
+    listeners.delete(cb)
+    window.removeEventListener("storage", onStorage)
+  }
+}
+
+// The default a preference has before anything is stored, for server renders.
+export function defaultPref<T extends string>(key: Pref) {
+  return DEFAULTS[key] as T
+}
+
 export function setPref(key: Pref, value: string) {
   if (value === DEFAULTS[key]) localStorage.removeItem(PREFIX + key)
   else localStorage.setItem(PREFIX + key, value)
   applyAppearance()
+  listeners.forEach((l) => l())
 }
 
 // Reflect every appearance preference onto <html>; index.css reads these.

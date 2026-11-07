@@ -1,4 +1,4 @@
-import { label, outcomeKind, statusCategory, statusTone } from "@/lib/types"
+import { label, outcomeKind, statusCategory, statusTone } from "@/lib/status"
 import { Badge } from "@/components/ui/badge"
 
 const CATEGORY_CLASS: Record<string, string> = {

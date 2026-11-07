@@ -54,30 +54,34 @@ type ApplicationInput struct {
 }
 
 type ApplicationPatch struct {
-	Version       int      `json:"version"`
-	Status        *string  `json:"status"`
+	Version       int       `json:"version"`
+	Status        *string   `json:"status"`
 	AppliedDate   OptString `json:"applied_date"`
-	NextStep      *string  `json:"next_step"`
-	Notes         *string  `json:"notes"`
-	ResumeVersion *string  `json:"resume_version"`
-	ResumeFileRef *string  `json:"resume_file_ref"`
-	ContactEmail  *string  `json:"contact_email"`
-	Company       *string  `json:"company"`
-	Title         *string  `json:"title"`
-	Location      *string  `json:"location"`
-	Salary        *string  `json:"salary"`
-	Fit           *string  `json:"fit"`
-	PostingURL    *string  `json:"posting_url"`
-	Source        *string  `json:"source"`
-	JobType       *string  `json:"job_type"`
+	NextStep      *string   `json:"next_step"`
+	Notes         *string   `json:"notes"`
+	ResumeVersion *string   `json:"resume_version"`
+	ResumeFileRef *string   `json:"resume_file_ref"`
+	ContactEmail  *string   `json:"contact_email"`
+	TrackedBy     *string   `json:"tracked_by"`
+	// StagePlan replaces this application's stage names and skipped stages;
+	// an empty object resets them.
+	StagePlan  *domain.StagePlan `json:"stage_plan"`
+	Company    *string           `json:"company"`
+	Title      *string           `json:"title"`
+	Location   *string           `json:"location"`
+	Salary     *string           `json:"salary"`
+	Fit        *string           `json:"fit"`
+	PostingURL *string           `json:"posting_url"`
+	Source     *string           `json:"source"`
+	JobType    *string           `json:"job_type"`
 }
 
 type TransitionInput struct {
-	Version    int    `json:"version"`
-	Status     string `json:"status"`
+	Version    int     `json:"version"`
+	Status     string  `json:"status"`
 	NextStep   *string `json:"next_step"`
-	Note       string `json:"note"`
-	OccurredAt string `json:"occurred_at"`
+	Note       string  `json:"note"`
+	OccurredAt string  `json:"occurred_at"`
 }
 
 type EventInput struct {
@@ -362,6 +366,8 @@ func (s *Service) UpdateApplication(ctx context.Context, id string, p Applicatio
 			return domain.VersionConflict("application", cur.Version)
 		}
 		next := cur
+		// Keep an outcome unless the patch moves the status.
+		next.Status = cur.Shown()
 		changed := false
 		var from string
 		if p.Status != nil {
@@ -435,6 +441,26 @@ func (s *Service) UpdateApplication(ctx context.Context, id string, p Applicatio
 			next.ContactEmail = n
 			changed = true
 		}
+		if p.TrackedBy != nil && strings.TrimSpace(*p.TrackedBy) != cur.TrackedBy {
+			by := strings.TrimSpace(*p.TrackedBy)
+			if by != "" {
+				if err := s.checkTrackedBy(ctx, a.UserID, cur, by); err != nil {
+					return err
+				}
+			}
+			next.TrackedBy = by
+			changed = true
+		}
+		if p.StagePlan != nil {
+			plan, err := p.StagePlan.Normalize()
+			if err != nil {
+				return err
+			}
+			if plan.Encode() != cur.StagePlan.Encode() {
+				next.StagePlan = plan
+				changed = true
+			}
+		}
 		roleChanged, err := s.patchLinkedRole(ctx, a, &cur, p)
 		if err != nil {
 			return err
@@ -467,6 +493,32 @@ func (s *Service) UpdateApplication(ctx context.Context, id string, p Applicatio
 		return err
 	})
 	return out, err
+}
+
+// checkTrackedBy allows one level: app is tracked with another application at
+// the same company that is itself not tracked, and nothing is tracked with app.
+func (s *Service) checkTrackedBy(ctx context.Context, userID string, app domain.Application, by string) error {
+	if by == app.ID {
+		return domain.Validation("an application cannot be tracked with itself")
+	}
+	primary, err := s.DB.GetApplication(ctx, userID, by)
+	if err != nil {
+		return err
+	}
+	if primary.CompanyID != app.CompanyID {
+		return domain.Validation("tracked_by must be an application at %s", app.Company)
+	}
+	if primary.TrackedBy != "" {
+		return domain.Validation("%s is itself tracked with another application", by).WithHint("use tracked_by " + primary.TrackedBy)
+	}
+	n, err := s.DB.CountTrackedBy(ctx, userID, app.ID)
+	if err != nil {
+		return err
+	}
+	if n > 0 {
+		return domain.Validation("other applications are tracked with this one").WithHint("track them with " + by + " first")
+	}
+	return nil
 }
 
 func (s *Service) patchLinkedRole(ctx context.Context, a domain.Actor, app *domain.Application, p ApplicationPatch) (bool, error) {
@@ -952,15 +1004,15 @@ func (s *Service) DetachTag(ctx context.Context, appID, tagID string) (domain.Ap
 }
 
 type ImportResult struct {
-	Rows                 int `json:"rows"`
-	CompaniesCreated     int `json:"companies_created"`
-	CompaniesExisting    int `json:"companies_existing"`
-	RolesCreated         int `json:"roles_created"`
-	RolesUpdated         int `json:"roles_updated"`
-	ApplicationsCreated  int      `json:"applications_created"`
-	ApplicationsUpdated  int      `json:"applications_updated"`
-	Skipped              int      `json:"skipped"`
-	Warnings             []string `json:"warnings,omitempty"`
+	Rows                int      `json:"rows"`
+	CompaniesCreated    int      `json:"companies_created"`
+	CompaniesExisting   int      `json:"companies_existing"`
+	RolesCreated        int      `json:"roles_created"`
+	RolesUpdated        int      `json:"roles_updated"`
+	ApplicationsCreated int      `json:"applications_created"`
+	ApplicationsUpdated int      `json:"applications_updated"`
+	Skipped             int      `json:"skipped"`
+	Warnings            []string `json:"warnings,omitempty"`
 }
 
 func (s *Service) ImportCSV(ctx context.Context, r io.Reader) (ImportResult, error) {

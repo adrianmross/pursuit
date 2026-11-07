@@ -8,9 +8,9 @@ name: release-plan
 # directly instead of relying on a `push: tags` trigger.
 
 on:
-  workflow_run:
-    workflows: [ci]
-    types: [completed]
+  # main is protected: every merge already passed ci on its PR.
+  push:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -24,15 +24,10 @@ concurrency: release-plan
 jobs:
   release-plan:
     runs-on: ubuntu-latest
-    if: >-
-      github.event_name == 'workflow_dispatch' ||
-      (github.event.workflow_run.event == 'push' &&
-       github.event.workflow_run.head_branch == 'main' &&
-       github.event.workflow_run.conclusion == 'success')
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.workflow_run.head_sha || github.ref }}
+          ref: ${{ github.sha }}
           fetch-depth: 0
 
       - id: release-please
@@ -44,7 +39,7 @@ jobs:
 
       - id: release-pr
         if: steps.release-please.outputs.prs_created == 'true'
-        uses: adrianmross/changelogger@v0.10.0
+        uses: adrianmross/changelogger@v0.11.0
         with:
           command: release-info
         env:
@@ -57,7 +52,7 @@ jobs:
           path: release-pr
 
       - if: steps.release-pr.outputs.head_ref != ''
-        uses: adrianmross/changelogger@v0.10.0
+        uses: adrianmross/changelogger@v0.11.0
         with:
           command: consume
           working-directory: release-pr

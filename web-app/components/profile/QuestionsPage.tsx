@@ -5,7 +5,8 @@ import Link from "next/link"
 import { Link2, MessageSquarePlus, Plus, Search, SearchX, Trash2 } from "lucide-react"
 import { api } from "@/lib/api-client"
 import { cn } from "@/lib/utils"
-import type { StandingAnswer } from "@/lib/types"
+import { applicationHref } from "@/lib/links"
+import { label, type BankQuestion, type StandingAnswer } from "@/lib/types"
 import { ProfileHeader, Section, useList } from "@/components/profile/ProfilePage"
 import { Button } from "@/components/ui/button"
 import { Spinner } from "@/components/ui/spinner"
@@ -14,7 +15,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty"
 import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput, InputGroupTextarea } from "@/components/ui/input-group"
-import { ItemGroup } from "@/components/ui/item"
+import { Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemTitle } from "@/components/ui/item"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 
@@ -434,11 +435,82 @@ function QuestionsForm() {
   )
 }
 
+// Every question from round notes across applications. They stay out of form
+// filling until saved as a form answer.
+function InterviewBank({ onSaved }: { onSaved: () => void }) {
+  const { rows } = useList<BankQuestion>("/v1/questions?limit=200")
+  const standing = useList<StandingAnswer>("/v1/standing")
+  const [query, setQuery] = useState("")
+  const [error, setError] = useState("")
+  if (!rows?.length) return null
+  const saved = new Set((standing.rows ?? []).map((r) => normalizeKey(r.key)))
+  const q = query.trim().toLowerCase()
+  const shown = rows.filter((r) => !q || [r.prompt, r.answer, r.company, r.title].join("\n").toLowerCase().includes(q))
+
+  async function promote(r: BankQuestion) {
+    setError("")
+    try {
+      await api("/v1/standing", { method: "POST", body: { key: r.prompt, answer: r.answer } })
+      await standing.load()
+      onSaved()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not save")
+    }
+  }
+
+  return (
+    <Section
+      id="interviews"
+      title="From interviews"
+      description="Questions from your round notes, across applications. A heading ending in ? in a round's notes lands here. Save one as a form answer when forms ask it too."
+    >
+      {rows.length > 5 && (
+        <InputGroup>
+          <InputGroupAddon>
+            <Search />
+          </InputGroupAddon>
+          <InputGroupInput type="search" aria-label="Search interview questions" placeholder="Search interview questions" value={query} onChange={(e) => setQuery(e.target.value)} />
+        </InputGroup>
+      )}
+      <ItemGroup className="gap-2">
+        {shown.map((r) => (
+          <Item key={r.round_id + r.prompt} variant="outline" size="sm">
+            <ItemContent className="min-w-0">
+              <ItemTitle>{r.prompt}</ItemTitle>
+              <ItemDescription className="line-clamp-3 whitespace-pre-line">{r.answer || "No answer yet"}</ItemDescription>
+              <ItemDescription>
+                <Link href={applicationHref(r.application_id)} className="hover:underline">
+                  {[r.company, r.title, label(r.stage), r.kind].filter(Boolean).join(" · ")}
+                </Link>
+              </ItemDescription>
+            </ItemContent>
+            <ItemActions>
+              {saved.has(normalizeKey(r.prompt)) ? (
+                <span className="text-xs text-muted-foreground">Form answer</span>
+              ) : (
+                <Button type="button" size="xs" variant="outline" disabled={!r.answer} onClick={() => promote(r)}>
+                  Save as form answer
+                </Button>
+              )}
+            </ItemActions>
+          </Item>
+        ))}
+      </ItemGroup>
+      {error && <p className="text-xs text-destructive">{error}</p>}
+    </Section>
+  )
+}
+
 export function QuestionsPage() {
+  // Saving a bank question as a form answer reloads the form list.
+  const [tick, setTick] = useState(0)
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
       <ProfileHeader description="Standing answers prepare uses to fill in application forms. The same list as pursuit standing on the CLI." />
-      <QuestionsForm />
+      <div data-tour="questions">
+        <QuestionsForm key={tick} />
+      </div>
+      <InterviewBank onSaved={() => setTick((n) => n + 1)} />
     </div>
   )
 }

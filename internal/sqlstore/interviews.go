@@ -8,7 +8,7 @@ import (
 	"github.com/pursuit/pursuit/internal/domain"
 )
 
-const interviewCols = `id, user_id, application_id, stage, kind, interviewer, scheduled_at, done_at, prep, notes, version, created_at, updated_at`
+const interviewCols = `id, user_id, application_id, stage, kind, interviewer, scheduled_at, done_at, notes, in_notes, version, created_at, updated_at`
 
 func timeText(t *time.Time) string {
 	if t == nil {
@@ -28,12 +28,21 @@ func parseTimeText(raw string) (*time.Time, error) {
 	return &t, nil
 }
 
+func boolInt(b bool) int {
+	if b {
+		return 1
+	}
+	return 0
+}
+
 func scanInterview(row scanner) (domain.Interview, error) {
 	var i domain.Interview
 	var scheduled, done, created, updated string
-	if err := row.Scan(&i.ID, &i.UserID, &i.ApplicationID, &i.Stage, &i.Kind, &i.Interviewer, &scheduled, &done, &i.Prep, &i.Notes, &i.Version, &created, &updated); err != nil {
+	var inNotes int
+	if err := row.Scan(&i.ID, &i.UserID, &i.ApplicationID, &i.Stage, &i.Kind, &i.Interviewer, &scheduled, &done, &i.Notes, &inNotes, &i.Version, &created, &updated); err != nil {
 		return domain.Interview{}, err
 	}
+	i.InNotes = inNotes == 1
 	var err error
 	if i.ScheduledAt, err = parseTimeText(scheduled); err != nil {
 		return domain.Interview{}, err
@@ -44,13 +53,14 @@ func scanInterview(row scanner) (domain.Interview, error) {
 	if i.CreatedAt, err = parseTime(created); err != nil {
 		return domain.Interview{}, err
 	}
+	i.Questions = domain.ParseRoundQuestions(i.Notes)
 	i.UpdatedAt, err = parseTime(updated)
 	return i, err
 }
 
 func (s *Store) CreateInterview(ctx context.Context, i domain.Interview) error {
 	_, err := s.exec(ctx, `INSERT INTO interviews (`+interviewCols+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		i.ID, i.UserID, i.ApplicationID, i.Stage, i.Kind, i.Interviewer, timeText(i.ScheduledAt), timeText(i.DoneAt), i.Prep, i.Notes, i.Version, formatTime(i.CreatedAt), formatTime(i.UpdatedAt))
+		i.ID, i.UserID, i.ApplicationID, i.Stage, i.Kind, i.Interviewer, timeText(i.ScheduledAt), timeText(i.DoneAt), i.Notes, boolInt(i.InNotes), i.Version, formatTime(i.CreatedAt), formatTime(i.UpdatedAt))
 	return mapWriteErr(err)
 }
 
@@ -60,6 +70,35 @@ func (s *Store) GetInterview(ctx context.Context, userID, id string) (domain.Int
 		return domain.Interview{}, domain.NotFound("interview")
 	}
 	return i, err
+}
+
+// ListRoundQuestions reads every question out of the user's round notes,
+// newest round first. ponytail: parses each document per call; store parsed
+// questions in a table if this gets slow.
+func (s *Store) ListRoundQuestions(ctx context.Context, userID string) ([]domain.BankQuestion, error) {
+	rows, err := s.query(ctx, `SELECT i.id, i.application_id, i.stage, i.kind, i.notes, i.updated_at, r.title, c.name
+		FROM interviews i JOIN applications a ON a.id = i.application_id JOIN roles r ON r.id = a.role_id JOIN companies c ON c.id = r.company_id
+		WHERE i.user_id=? AND i.notes<>'' ORDER BY i.updated_at DESC, i.id`, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []domain.BankQuestion{}
+	for rows.Next() {
+		var b domain.BankQuestion
+		var notes, updated string
+		if err := rows.Scan(&b.RoundID, &b.ApplicationID, &b.Stage, &b.Kind, &notes, &updated, &b.Title, &b.Company); err != nil {
+			return nil, err
+		}
+		if b.UpdatedAt, err = parseTime(updated); err != nil {
+			return nil, err
+		}
+		for _, q := range domain.ParseRoundQuestions(notes) {
+			b.RoundQuestion = q
+			out = append(out, b)
+		}
+	}
+	return out, rows.Err()
 }
 
 // ListInterviews returns an application's interviews, earliest scheduled
@@ -82,8 +121,8 @@ func (s *Store) ListInterviews(ctx context.Context, userID, appID string) ([]dom
 }
 
 func (s *Store) UpdateInterview(ctx context.Context, i domain.Interview) error {
-	res, err := s.exec(ctx, `UPDATE interviews SET stage=?, kind=?, interviewer=?, scheduled_at=?, done_at=?, prep=?, notes=?, version=version+1, updated_at=? WHERE id=? AND user_id=? AND version=?`,
-		i.Stage, i.Kind, i.Interviewer, timeText(i.ScheduledAt), timeText(i.DoneAt), i.Prep, i.Notes, formatTime(i.UpdatedAt), i.ID, i.UserID, i.Version)
+	res, err := s.exec(ctx, `UPDATE interviews SET stage=?, kind=?, interviewer=?, scheduled_at=?, done_at=?, notes=?, in_notes=?, version=version+1, updated_at=? WHERE id=? AND user_id=? AND version=?`,
+		i.Stage, i.Kind, i.Interviewer, timeText(i.ScheduledAt), timeText(i.DoneAt), i.Notes, boolInt(i.InNotes), formatTime(i.UpdatedAt), i.ID, i.UserID, i.Version)
 	if err != nil {
 		return mapWriteErr(err)
 	}
@@ -100,6 +139,12 @@ func (s *Store) DeleteInterview(ctx context.Context, userID, id string, version 
 	res, err := s.exec(ctx, `DELETE FROM interviews WHERE id=? AND user_id=? AND version=?`, id, userID, version)
 	if err != nil {
 		return err
+	}
+	if n, _ := res.RowsAffected(); n > 0 {
+		// Its tasks stay on the stage.
+		if _, err := s.exec(ctx, `UPDATE tasks SET round_id='' WHERE user_id=? AND round_id=?`, userID, id); err != nil {
+			return err
+		}
 	}
 	return changed(res, func() (int, error) {
 		cur, err := s.GetInterview(ctx, userID, id)

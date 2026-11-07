@@ -7,13 +7,20 @@ import { Archive, ArrowLeft, Bot, IdCard, LogOut, MessageSquareText, Search, Set
 import { api } from "@/lib/api-client"
 import { useAuth } from "@/lib/auth"
 import { keyLabels, useShortcuts } from "@/lib/keybindings"
+import { cn } from "@/lib/utils"
 import { Kbd } from "@/components/ui/kbd"
 import { CommandPalette } from "@/components/CommandPalette"
 import { SettingsDialog } from "@/components/SettingsDialog"
 import { SearchBox } from "@/components/SearchBox"
 import { SiteFooter } from "@/components/SiteFooter"
 import { UserAvatar, displayName } from "@/components/UserAvatar"
-import { ProfileNudge } from "@/components/profile/ProfilePage"
+import { NotificationBell, describe, eventMeta } from "@/components/Notifications"
+import { Toaster } from "@/components/ui/sonner"
+import { DemoBanner } from "@/components/DemoBanner"
+import { toast } from "sonner"
+import { LiveProvider, type LiveEvent } from "@/lib/live"
+import { applicationHref } from "@/lib/links"
+import { Tour } from "@/components/Tour"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -111,9 +118,22 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   })
   const identity = displayName(me)
 
+  // A change made somewhere else (an agent, the extension, another tab) gets a toast; your own don't.
+  const toastEvent = (ev: LiveEvent) => {
+    if (me?.token?.id && ev.actor?.token_id === me.token.id) return
+    const { text } = describe(ev)
+    toast(text, {
+      description: eventMeta(ev),
+      action: ev.application_id ? { label: "Open", onClick: () => router.push(applicationHref(ev.application_id!)) } : undefined,
+    })
+  }
+
   return (
+    <LiveProvider onEvent={toastEvent}>
     <div className="flex min-h-svh flex-col">
-      <header className="flex items-center gap-3 border-b px-4 py-2.5">
+      <DemoBanner />
+      {/* Wide, a grid with equal sides, so the search keeps its size and place whichever back link sits left of it. */}
+      <header className={cn("items-center gap-3 border-b px-4 py-2.5", narrow ? "flex" : "grid grid-cols-[1fr_minmax(0,max(22rem,33vw))_1fr]")}>
         {narrow && searching ? (
           <>
             <Suspense fallback={<div className="w-full" />}>
@@ -125,46 +145,58 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </>
         ) : (
           <>
-            <Link href="/start" aria-label="Hire Pursuit" className="shrink-0">
-              {/* eslint-disable-next-line @next/next/no-img-element -- drawn SVG wordmark, not a photo next/image needs to optimize */}
-              <img src="/brand/hire-pursuit-wordmark.svg" alt="" className="h-5 w-auto dark:hidden" />
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/brand/hire-pursuit-wordmark-reverse.svg" alt="" className="hidden h-5 w-auto dark:block" />
-            </Link>
-            {pathname !== PARENT && (
-              <Button variant="ghost" size="sm" className="shrink-0 text-muted-foreground" asChild>
-                <Link
-                  href={PARENT}
-                  aria-label="Back to applications"
-                  onClick={(e) => {
-                    if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return
-                    e.preventDefault()
-                    goBack()
-                  }}
-                >
-                  <ArrowLeft />
-                  <span className="hidden md:inline">Applications</span>
-                </Link>
-              </Button>
-            )}
+            <div className="flex min-w-0 items-center gap-3">
+              {/* The mark goes to the start page, or from the start page to the table, like the link beside it. */}
+              <Link href={pathname === "/start" ? PARENT : "/start"} aria-label={pathname === "/start" ? "Applications" : "Start"} className="shrink-0">
+                {/* eslint-disable-next-line @next/next/no-img-element -- drawn SVG mark, not a photo next/image needs to optimize */}
+                <img src="/brand/mark.svg" alt="" className="h-6 w-auto dark:hidden" />
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src="/brand/mark-reverse.svg" alt="" className="hidden h-6 w-auto dark:block" />
+              </Link>
+              {pathname === PARENT ? (
+                // The table's own way back, so the logo isn't the only road to the start page.
+                <Button variant="ghost" size="sm" className="shrink-0 text-muted-foreground" asChild>
+                  <Link href="/start" aria-label="Back to start">
+                    <ArrowLeft />
+                    <span className="hidden md:inline">Start</span>
+                  </Link>
+                </Button>
+              ) : (
+                <Button variant="ghost" size="sm" className="shrink-0 text-muted-foreground" asChild>
+                  <Link
+                    href={PARENT}
+                    aria-label="Back to applications"
+                    onClick={(e) => {
+                      if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return
+                      e.preventDefault()
+                      goBack()
+                    }}
+                  >
+                    <ArrowLeft />
+                    <span className="hidden md:inline">Applications</span>
+                  </Link>
+                </Button>
+              )}
+            </div>
             {narrow ? (
               <Button variant="ghost" size="icon" className="ml-auto" aria-label="Search applications" onClick={() => setSearching(true)}>
                 <Search />
               </Button>
             ) : (
-              // Takes whatever room the logo and actions leave, up to a third of the screen (never under 22rem).
-              <div className="mx-auto min-w-0 max-w-[max(22rem,33vw)] flex-1">
+              // The middle column: a third of the screen, never under 22rem.
+              <div className="min-w-0">
                 <Suspense fallback={<div className="h-10 w-full" />}>
                   <SearchBox placeholder={medium ? "Search" : "Search applications"} />
                 </Suspense>
               </div>
             )}
-        <div className="flex shrink-0 items-center justify-end gap-2">
+        <div className="flex shrink-0 items-center justify-end gap-2 justify-self-end">
           <CommandPalette onOpenSettings={openSettings} />
           <Kbd className="hidden sm:inline-flex" title="Command palette">{keyLabels("mod+p").join(" ")}</Kbd>
+          <NotificationBell />
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="rounded-full" aria-label="Account">
+              <Button variant="ghost" size="icon" className="rounded-full" aria-label="Account" data-tour="account">
                 <UserAvatar me={me} size="sm" />
               </Button>
             </DropdownMenuTrigger>
@@ -205,11 +237,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         )}
       </header>
       <main className="flex-1 p-4">
-        <ProfileNudge onOpen={(href) => router.push(href)} />
         {children}
       </main>
       <SiteFooter />
+      <Tour />
       <SettingsDialog key={settingsKey} initial={settingsSection} open={settingsOpen} onOpenChange={setSettingsOpen} />
+      <Toaster position="bottom-right" />
     </div>
+    </LiveProvider>
   )
 }

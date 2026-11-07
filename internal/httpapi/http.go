@@ -65,10 +65,14 @@ type Server struct {
 	// WebAnalytics allows Cloudflare Web Analytics' beacon in the dashboard's
 	// CSP. Set when the build embedded one (PURSUIT_CF_BEACON_TOKEN).
 	WebAnalytics bool
+	// OnFailure, when set, sees every panic (v != nil) and every 5xx response.
+	// The hosted deployment uses it to report to Sentry.
+	OnFailure func(r *http.Request, requestID string, status int, v any)
 	// HideTokenLogin removes the "paste an API token" option from the
 	// dashboard's sign-in page (production shouldn't invite visitors to
 	// type a raw secret there); the bearer-token API itself is unaffected
-	// for CLI/automation use either way.
+	// for CLI/automation use either way. Multi-tenant mode hides it regardless:
+	// there, tokens are minted in the app for the CLI, never pasted to sign in.
 	HideTokenLogin bool
 	// SignupsClosed (PURSUIT_SIGNUPS=closed) stops verified identities
 	// without an account from getting one; existing users sign in as before.
@@ -238,6 +242,13 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /v1/rounds/{id}", s.getInterview)
 	mux.HandleFunc("PATCH /v1/rounds/{id}", s.updateInterview)
 	mux.HandleFunc("DELETE /v1/rounds/{id}", s.deleteInterview)
+	mux.HandleFunc("GET /v1/questions", s.listRoundQuestions)
+	mux.HandleFunc("GET /v1/applications/{id}/notes", s.compiledNotes)
+	mux.HandleFunc("GET /v1/applications/{id}/notes/files", s.listNotes)
+	mux.HandleFunc("POST /v1/applications/{id}/notes/files", s.addNote)
+	mux.HandleFunc("GET /v1/notes/{id}", s.getNote)
+	mux.HandleFunc("PATCH /v1/notes/{id}", s.updateNote)
+	mux.HandleFunc("DELETE /v1/notes/{id}", s.deleteNote)
 	mux.HandleFunc("GET /v1/applications/{id}/tasks", s.listTasks)
 	mux.HandleFunc("POST /v1/applications/{id}/tasks", s.addTask)
 	mux.HandleFunc("GET /v1/tasks/{id}", s.getTask)
@@ -314,9 +325,15 @@ func (s *Server) wrap(next http.Handler) http.Handler {
 		defer func() {
 			if rec := recover(); rec != nil {
 				s.log().Error("panic", "err", rec, "request_id", id)
+				if s.OnFailure != nil {
+					s.OnFailure(r, id, http.StatusInternalServerError, rec)
+				}
 				writeErr(w, domain.Conflict("internal error", "retry the request").WithDetails(nil))
 				// status already maybe written; best effort
 				_ = rec
+			}
+			if s.OnFailure != nil && rec.code >= 500 {
+				s.OnFailure(r, id, rec.code, nil)
 			}
 			s.log().Info("request", "method", r.Method, "path", r.URL.Path, "status", rec.code, "ms", time.Since(start).Milliseconds(), "request_id", id)
 		}()
@@ -450,7 +467,7 @@ func (s *Server) authProviders(w http.ResponseWriter, r *http.Request) {
 	if s.multiTenant() {
 		mode = "multi"
 	}
-	writeJSON(w, 200, map[string]any{"tenant_mode": mode, "providers": providers, "allow_token_login": !s.HideTokenLogin, "demo_available": s.DemoMode, "signups_open": s.signupsOpen(), "passkeys": s.Svc.WebAuthn != nil})
+	writeJSON(w, 200, map[string]any{"tenant_mode": mode, "providers": providers, "allow_token_login": !s.HideTokenLogin && !s.multiTenant(), "demo_available": s.DemoMode, "signups_open": s.signupsOpen(), "passkeys": s.Svc.WebAuthn != nil})
 }
 
 func (s *Server) authStart(w http.ResponseWriter, r *http.Request) {
@@ -1180,8 +1197,8 @@ func (s *Server) page(w http.ResponseWriter, r *http.Request, allow []string, fi
 // pageSlice pages a list the service returns whole. Without limit it returns
 // every row, as these lists did before; with limit it pages by offset.
 // ponytail: offset cursor over an in-memory slice, fine for per-application lists; move to SQL keyset paging if one grows large.
-func pageSlice[T any](w http.ResponseWriter, r *http.Request, fieldAllow []string, load func(context.Context) ([]T, error)) {
-	q, err := query(r, "limit", "cursor", "fields")
+func pageSlice[T any](w http.ResponseWriter, r *http.Request, fieldAllow []string, load func(context.Context) ([]T, error), params ...string) {
+	q, err := query(r, append([]string{"limit", "cursor", "fields"}, params...)...)
 	if err != nil {
 		writeErr(w, err)
 		return
@@ -1486,6 +1503,58 @@ func (s *Server) deleteRole(w http.ResponseWriter, r *http.Request) {
 func (s *Server) listInterviews(w http.ResponseWriter, r *http.Request) {
 	pageSlice(w, r, domain.InterviewFields, func(ctx context.Context) ([]domain.Interview, error) {
 		return s.Svc.ListInterviews(ctx, r.PathValue("id"))
+	})
+}
+
+func (s *Server) compiledNotes(w http.ResponseWriter, r *http.Request) {
+	s.getOne(w, r, nil, func(ctx context.Context, id string) (any, error) {
+		return s.Svc.CompiledNotes(ctx, id)
+	})
+}
+
+func (s *Server) listRoundQuestions(w http.ResponseWriter, r *http.Request) {
+	pageSlice(w, r, domain.BankQuestionFields, func(ctx context.Context) ([]domain.BankQuestion, error) {
+		return s.Svc.ListRoundQuestions(ctx, r.URL.Query().Get("q"))
+	}, "q")
+}
+
+func (s *Server) listNotes(w http.ResponseWriter, r *http.Request) {
+	pageSlice(w, r, domain.NoteFields, func(ctx context.Context) ([]domain.Note, error) {
+		return s.Svc.ListNotes(ctx, r.PathValue("id"))
+	})
+}
+
+func (s *Server) addNote(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	s.jsonMut(w, r, 201, domain.NoteFields, func(ctx context.Context, body []byte) (any, error) {
+		var in service.NoteInput
+		if err := decode(body, &in); err != nil {
+			return nil, err
+		}
+		return s.Svc.AddNote(ctx, id, in)
+	})
+}
+
+func (s *Server) getNote(w http.ResponseWriter, r *http.Request) {
+	s.getOne(w, r, domain.NoteFields, func(ctx context.Context, id string) (any, error) {
+		return s.Svc.GetNote(ctx, id)
+	})
+}
+
+func (s *Server) updateNote(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	s.jsonMut(w, r, 200, domain.NoteFields, func(ctx context.Context, body []byte) (any, error) {
+		var in service.NotePatch
+		if err := decode(body, &in); err != nil {
+			return nil, err
+		}
+		return s.Svc.UpdateNote(ctx, id, in)
+	})
+}
+
+func (s *Server) deleteNote(w http.ResponseWriter, r *http.Request) {
+	s.deleteOne(w, r, func(ctx context.Context, id string, version int) (any, error) {
+		return s.Svc.DeleteNote(ctx, id, version)
 	})
 }
 
@@ -2399,6 +2468,14 @@ func (s *Server) cronLinks(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		writeErr(w, err)
 		return
+	}
+	// The daily cron also clears expired demo tenants, so demo mode needs no job of its own.
+	if s.DemoMode {
+		if n, err := s.Svc.SweepDemo(r.Context()); err != nil {
+			s.Log.Error("demo sweep", "err", err)
+		} else if n > 0 {
+			s.Log.Info("demo sweep", "removed", n)
+		}
 	}
 	writeJSON(w, 200, report)
 }

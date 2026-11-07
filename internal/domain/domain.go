@@ -553,9 +553,9 @@ type ActorRef struct {
 }
 
 type User struct {
-	ID        string    `json:"id"`
-	Name      string    `json:"name"`
-	Email     string    `json:"email"`
+	ID    string `json:"id"`
+	Name  string `json:"name"`
+	Email string `json:"email"`
 	// Avatar is a small data: URL the dashboard resizes before upload, or "".
 	Avatar    string    `json:"avatar"`
 	CreatedAt time.Time `json:"created_at"`
@@ -643,6 +643,8 @@ type Application struct {
 	ResumeFileRef  string                 `json:"resume_file_ref"`
 	ContactEmail   string                 `json:"contact_email"`
 	ExternalID     string                 `json:"external_id,omitempty"`
+	TrackedBy      string                 `json:"tracked_by,omitempty"`
+	StagePlan      *StagePlan             `json:"stage_plan,omitempty"`
 	Tags           []string               `json:"tags"`
 	LinkStatus     string                 `json:"link_status,omitempty"`
 	LinkCheckedAt  *time.Time             `json:"link_checked_at,omitempty"`
@@ -679,22 +681,25 @@ type InterviewCount struct {
 	Total int `json:"total"`
 }
 
-// Interview is one round within a stage. Prep holds what to rehearse and
-// Notes what happened.
+// Interview is one round within a stage. Notes is its markdown document:
+// prep, transcript and questions; Questions is parsed from it.
 type Interview struct {
-	ID            string     `json:"id"`
-	UserID        string     `json:"-"`
-	ApplicationID string     `json:"application_id"`
-	Stage         string     `json:"stage"`
-	Kind          string     `json:"kind"`
-	Interviewer   string     `json:"interviewer"`
-	ScheduledAt   *time.Time `json:"scheduled_at,omitempty"`
-	DoneAt        *time.Time `json:"done_at,omitempty"`
-	Prep          string     `json:"prep"`
-	Notes         string     `json:"notes"`
-	Version       int        `json:"version"`
-	CreatedAt     time.Time  `json:"created_at"`
-	UpdatedAt     time.Time  `json:"updated_at"`
+	ID            string          `json:"id"`
+	UserID        string          `json:"-"`
+	ApplicationID string          `json:"application_id"`
+	Stage         string          `json:"stage"`
+	Kind          string          `json:"kind"`
+	Interviewer   string          `json:"interviewer"`
+	ScheduledAt   *time.Time      `json:"scheduled_at,omitempty"`
+	DoneAt        *time.Time      `json:"done_at,omitempty"`
+	Notes         string          `json:"notes"`
+	Questions     []RoundQuestion `json:"questions"`
+	// InNotes shows the round expanded in the application's notes outline;
+	// false folds it to one line.
+	InNotes   bool      `json:"in_notes"`
+	Version   int       `json:"version"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
 }
 
 // StageKey is the status name a stage's rounds are stored under (1-6).
@@ -721,39 +726,48 @@ func StageKey(stage int) string {
 // applied, screening, interviewing, final or offer. It returns the stored key.
 func ParseInterviewStage(s string) (string, error) {
 	st, err := ParseStatus(s)
-	if err == nil && !IsOutcome(st) {
+	// Rounds run from Prepared to Final. An offer is the outcome, not a round.
+	if err == nil && !IsOutcome(st) && StageOf(st) <= 5 {
 		if key := StageKey(StageOf(st)); key != "" {
 			return key, nil
 		}
 	}
-	return "", Validation("invalid round stage %q", s).WithHint("stage is prepared, applied, screening, interviewing, final, or offer")
+	return "", Validation("invalid round stage %q", s).WithHint("stage is prepared, applied, screening, interviewing, or final")
 }
 
 // Task is a to-do on an application, tied to a stage: something waiting on you.
 type Task struct {
-	ID            string     `json:"id"`
-	UserID        string     `json:"-"`
-	ApplicationID string     `json:"application_id"`
-	Stage         string     `json:"stage"`
-	Title         string     `json:"title"`
-	Notes         string     `json:"notes"`
-	DueAt         *time.Time `json:"due_at,omitempty"`
-	DoneAt        *time.Time `json:"done_at,omitempty"`
-	Version       int        `json:"version"`
-	CreatedAt     time.Time  `json:"created_at"`
-	UpdatedAt     time.Time  `json:"updated_at"`
+	ID            string `json:"id"`
+	UserID        string `json:"-"`
+	ApplicationID string `json:"application_id"`
+	Stage         string `json:"stage"`
+	// RoundID ties the task to one round of its stage; empty is the stage.
+	RoundID   string     `json:"round_id,omitempty"`
+	Title     string     `json:"title"`
+	Notes     string     `json:"notes"`
+	DueAt     *time.Time `json:"due_at,omitempty"`
+	DoneAt    *time.Time `json:"done_at,omitempty"`
+	Version   int        `json:"version"`
+	CreatedAt time.Time  `json:"created_at"`
+	UpdatedAt time.Time  `json:"updated_at"`
 }
 
 // ParseTaskStage accepts to_apply or any stage a round can sit in. It
 // returns the stored key.
+// TaskAnytime is the stage of a task that belongs to no stage.
+const TaskAnytime = "anytime"
+
 func ParseTaskStage(s string) (string, error) {
+	if strings.EqualFold(strings.TrimSpace(s), TaskAnytime) {
+		return TaskAnytime, nil
+	}
 	if st, err := ParseStatus(s); err == nil && st == StatusToApply {
 		return StatusToApply, nil
 	}
 	if key, err := ParseInterviewStage(s); err == nil {
 		return key, nil
 	}
-	return "", Validation("invalid task stage %q", s).WithHint("stage is to_apply, prepared, applied, screening, interviewing, final, or offer")
+	return "", Validation("invalid task stage %q", s).WithHint("stage is anytime, to_apply, prepared, applied, screening, interviewing, final, or offer")
 }
 
 // TaskStageKey is the stage a task joins by default: the application's
@@ -867,11 +881,11 @@ type ListQuery struct {
 	Actor         string
 	Action        string
 	// Since and Until bound audit entries by created_at (inclusive, UTC).
-	Since string
-	Until string
-	EntityType    string
-	EntityID      string
-	Stale         bool
+	Since      string
+	Until      string
+	EntityType string
+	EntityID   string
+	Stale      bool
 	// Archived, when true, lists only archived applications instead of the
 	// default (non-archived) view.
 	Archived  bool
@@ -927,10 +941,10 @@ func CheckCursorSort(c Cursor, sort string) error {
 var (
 	CompanyFields     = []string{"id", "name", "website", "icon_url", "notes", "version", "created_at", "updated_at"}
 	RoleFields        = []string{"id", "company_id", "company", "title", "location", "salary", "salary_min_cents", "salary_max_cents", "fit", "posting_url", "source", "job_type", "version", "created_at", "updated_at"}
-	AppFields         = []string{"id", "company_id", "company", "role_id", "title", "location", "salary", "salary_min_cents", "salary_max_cents", "fit", "status", "outcome", "stage", "interviews", "tasks", "applied_date", "next_step", "notes", "posting_url", "source", "job_type", "resume_version", "resume_file_ref", "contact_email", "external_id", "tags", "link_status", "link_checked_at", "archived_at", "custom_fields", "version", "created_at", "updated_at"}
+	AppFields         = []string{"id", "company_id", "company", "role_id", "title", "location", "salary", "salary_min_cents", "salary_max_cents", "fit", "status", "outcome", "stage", "interviews", "tasks", "applied_date", "next_step", "notes", "posting_url", "source", "job_type", "resume_version", "resume_file_ref", "contact_email", "external_id", "tracked_by", "stage_plan", "tags", "link_status", "link_checked_at", "archived_at", "custom_fields", "version", "created_at", "updated_at"}
 	EventFields       = []string{"id", "application_id", "kind", "from_status", "to_status", "title", "body", "occurred_at", "created_at", "actor"}
-	InterviewFields   = []string{"id", "application_id", "stage", "kind", "interviewer", "scheduled_at", "done_at", "prep", "notes", "version", "created_at", "updated_at"}
-	TaskFields        = []string{"id", "application_id", "stage", "title", "notes", "due_at", "done_at", "version", "created_at", "updated_at"}
+	InterviewFields   = []string{"id", "application_id", "stage", "kind", "interviewer", "scheduled_at", "done_at", "notes", "questions", "in_notes", "version", "created_at", "updated_at"}
+	TaskFields        = []string{"id", "application_id", "stage", "round_id", "title", "notes", "due_at", "done_at", "version", "created_at", "updated_at"}
 	TagFields         = []string{"id", "name", "created_at"}
 	CustomFieldFields = []string{"id", "name", "type", "created_at"}
 	TokenFields       = []string{"id", "name", "prefix", "scopes", "created_at", "last_used_at", "revoked_at"}

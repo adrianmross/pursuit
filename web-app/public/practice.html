@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex" />
+    <title>Staff Platform Engineer · Acme Robotics Careers</title>
+    <script type="application/ld+json">
+      {"@context":"https://schema.org","@type":"JobPosting","title":"Staff Platform Engineer","description":"Own the build and deploy platform every Acme team ships on.","hiringOrganization":{"@type":"Organization","name":"Acme Robotics"},"jobLocation":{"@type":"Place","address":{"addressLocality":"Pittsburgh","addressRegion":"PA"}},"baseSalary":{"@type":"MonetaryAmount","currency":"USD","value":{"@type":"QuantitativeValue","minValue":210000,"maxValue":245000,"unitText":"YEAR"}}}
+    </script>
+    <style>
+      :root {
+        --ink: #1b2430;
+        --muted: #5c6877;
+        --line: #d9dee5;
+        --paper: #ffffff;
+        --wash: #f2f4f7;
+        --acme: #e4572e;
+        --acme-dark: #b8401c;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        background: var(--wash);
+        color: var(--ink);
+        font: 16px/1.6 Georgia, "Times New Roman", serif;
+      }
+      h1, h2, nav, label, legend, button, .meta, .tag, .practice {
+        font-family: "Helvetica Neue", Arial, sans-serif;
+      }
+      header.site { background: var(--ink); color: #fff; }
+      header.site .bar { max-width: 62rem; margin: 0 auto; padding: 0.9rem 1.25rem; display: flex; align-items: center; gap: 2rem; }
+      .logo { display: flex; align-items: center; gap: 0.6rem; font: 700 1.15rem "Helvetica Neue", Arial, sans-serif; letter-spacing: 0.02em; color: #fff; text-decoration: none; }
+      .logo svg { width: 28px; height: 28px; }
+      nav { display: flex; gap: 1.5rem; font-size: 14px; margin-left: auto; }
+      nav a { color: #c9d1db; text-decoration: none; }
+      nav a[aria-current] { color: #fff; border-bottom: 2px solid var(--acme); }
+      .hero { background: linear-gradient(135deg, var(--acme), var(--acme-dark)); color: #fff; }
+      .hero .in { max-width: 62rem; margin: 0 auto; padding: 2.5rem 1.25rem; }
+      .hero .tag { font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase; opacity: 0.85; }
+      h1 { font-size: 2.1rem; line-height: 1.15; margin: 0.4rem 0 0.5rem; }
+      .meta { opacity: 0.92; font-size: 14px; margin: 0; }
+      .wrap { max-width: 62rem; margin: 0 auto; padding: 2rem 1.25rem 4rem; display: grid; gap: 2rem; grid-template-columns: 1fr 22rem; align-items: start; }
+      @media (max-width: 52rem) { .wrap { grid-template-columns: 1fr; } }
+      article, form { background: var(--paper); border: 1px solid var(--line); border-radius: 6px; padding: 1.5rem; }
+      h2 { font-size: 1.05rem; margin: 1.5rem 0 0.5rem; }
+      h2:first-child { margin-top: 0; }
+      p { margin: 0 0 1rem; }
+      ul { margin: 0 0 1rem; padding-left: 1.2rem; }
+      form { display: grid; gap: 0.9rem; }
+      label, legend { display: block; font-weight: 600; font-size: 13px; margin-bottom: 0.25rem; }
+      fieldset { border: 0; margin: 0; padding: 0; }
+      fieldset label { display: inline-flex; gap: 0.4rem; align-items: center; font-weight: 400; margin-right: 1rem; font-size: 14px; }
+      input[type="text"], input[type="email"], input[type="tel"], input[type="url"], textarea, input[role="combobox"] {
+        width: 100%;
+        font: 14px "Helvetica Neue", Arial, sans-serif;
+        color: var(--ink);
+        background: #fff;
+        border: 1px solid #b9c1cc;
+        border-radius: 4px;
+        padding: 0.5rem 0.6rem;
+      }
+      input:focus, textarea:focus, button:focus-visible { outline: 2px solid var(--acme); outline-offset: 1px; }
+      textarea { min-height: 6rem; resize: vertical; }
+      .row { display: grid; gap: 0.9rem; grid-template-columns: 1fr 1fr; }
+      [role="listbox"] { border: 1px solid #b9c1cc; border-radius: 4px; margin-top: 0.2rem; background: #fff; font: 14px "Helvetica Neue", Arial, sans-serif; }
+      [role="listbox"]:empty { display: none; }
+      [role="option"] { padding: 0.4rem 0.6rem; cursor: pointer; }
+      [role="option"]:hover { background: var(--wash); }
+      button { font-weight: 700; font-size: 15px; background: var(--acme); color: #fff; border: 0; border-radius: 4px; padding: 0.65rem 1.1rem; cursor: pointer; justify-self: start; }
+      button:hover { background: var(--acme-dark); }
+      #sent { color: var(--muted); font: 13px "Helvetica Neue", Arial, sans-serif; margin: 0; }
+      #sent:empty { display: none; }
+      footer { text-align: center; color: var(--muted); font: 12px "Helvetica Neue", Arial, sans-serif; padding: 0 1rem 2rem; }
+      .practice { background: #fff8e1; border-bottom: 1px solid #f0dd9a; color: #6b5a14; font-size: 13px; text-align: center; padding: 0.4rem 1rem; }
+    </style>
+  </head>
+  <body>
+    <div class="practice">Practice page: Acme Robotics is made up, and nothing you enter here is sent anywhere.</div>
+    <header class="site">
+      <div class="bar">
+        <a class="logo" href="#" aria-label="Acme Robotics">
+          <svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="14" fill="#e4572e" /><path d="M9 21 16 8l7 13h-4l-3-6-3 6z" fill="#fff" /></svg>
+          ACME ROBOTICS
+        </a>
+        <nav aria-label="Primary">
+          <a href="#">Robots</a>
+          <a href="#">Company</a>
+          <a href="#" aria-current="page">Careers</a>
+        </nav>
+      </div>
+    </header>
+
+    <section class="hero">
+      <div class="in">
+        <div class="tag">Platform · Full time</div>
+        <h1>Staff Platform Engineer</h1>
+        <p class="meta">Acme Robotics · Pittsburgh, PA (hybrid) · $210K–$245K</p>
+      </div>
+    </section>
+
+    <div class="wrap">
+      <article>
+        <h2>About the role</h2>
+        <p>
+          Every Acme robot ships on the same build and deploy platform: the CI fleet, the artifact store, and the paved
+          road from a pull request to a warehouse floor. You will own it.
+        </p>
+        <h2>What you'll do</h2>
+        <ul>
+          <li>Cut the time from merge to a robot running new firmware.</li>
+          <li>Set the standards other teams build against, and say no when it matters.</li>
+          <li>Run the platform team's on-call, and make it quieter every quarter.</li>
+        </ul>
+        <h2>What we're looking for</h2>
+        <p>You have run a platform team before, and you can say what you would stop doing first.</p>
+      </article>
+
+      <form id="application_form" action="#" method="post">
+        <h2>Apply for this job</h2>
+        <div class="row">
+          <div>
+            <label for="first_name">First name*</label>
+            <input id="first_name" name="first_name" type="text" autocomplete="given-name" required />
+          </div>
+          <div>
+            <label for="last_name">Last name*</label>
+            <input id="last_name" name="last_name" type="text" autocomplete="family-name" required />
+          </div>
+        </div>
+        <div>
+          <label for="email">Email*</label>
+          <input id="email" name="email" type="email" autocomplete="email" required />
+        </div>
+        <div>
+          <label for="phone">Phone</label>
+          <input id="phone" name="phone" type="tel" autocomplete="tel" />
+        </div>
+        <div>
+          <label for="resume">Resume/CV*</label>
+          <input id="resume" name="resume" type="file" accept=".pdf" required />
+        </div>
+        <div>
+          <label for="linkedin">LinkedIn profile</label>
+          <input id="linkedin" name="linkedin" type="url" />
+        </div>
+
+        <fieldset>
+          <legend>Are you legally authorized to work in the United States?*</legend>
+          <label><input type="radio" name="auth" value="1" required /> Yes</label>
+          <label><input type="radio" name="auth" value="0" /> No</label>
+        </fieldset>
+
+        <div>
+          <label id="sponsor-label" for="sponsor">Will you now or in the future require visa sponsorship?*</label>
+          <input id="sponsor" role="combobox" aria-controls="sponsor-list" aria-labelledby="sponsor-label" aria-required="true" autocomplete="off" />
+          <div id="sponsor-list" role="listbox"></div>
+          <input id="sponsor-value" type="hidden" name="sponsor" />
+        </div>
+
+        <div>
+          <label for="first">What would you build first?*</label>
+          <textarea id="first" name="first" required></textarea>
+        </div>
+
+        <button id="submit" type="submit">Submit application</button>
+        <p id="sent" role="status"></p>
+      </form>
+    </div>
+    <footer>© Acme Robotics, a fictional company. Acme is an equal opportunity employer.</footer>
+
+    <script>
+      var input = document.getElementById("sponsor");
+      var list = document.getElementById("sponsor-list");
+      input.addEventListener("input", function () {
+        list.replaceChildren();
+        ["Yes", "No"].forEach(function (name) {
+          if (name.toLowerCase().indexOf(input.value.toLowerCase()) !== 0) return;
+          var opt = document.createElement("div");
+          opt.setAttribute("role", "option");
+          opt.textContent = name;
+          opt.addEventListener("click", function () {
+            document.getElementById("sponsor-value").value = name;
+            input.value = name;
+            list.replaceChildren();
+          });
+          list.append(opt);
+        });
+      });
+      window.submissions = 0;
+      document.getElementById("application_form").addEventListener("submit", function (e) {
+        e.preventDefault();
+        window.submissions += 1;
+        document.getElementById("sent").textContent = "Practice run: nothing was sent.";
+      });
+    </script>
+  </body>
+</html>

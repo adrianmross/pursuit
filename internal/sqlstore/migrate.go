@@ -477,7 +477,62 @@ var migrations = []migration{{
 		`CREATE INDEX IF NOT EXISTS webauthn_challenges_expires_idx ON webauthn_challenges(expires_at)`,
 	},
 }, {
-	// 014-019 are taken on feat/notes-outline; versions are matched by name, so the gap is fine.
+	version: "014",
+	stmts: []string{
+		// The application this one is tracked with: one process at a company
+		// covering several postings. Empty when it stands on its own.
+		`ALTER TABLE applications ADD COLUMN tracked_by TEXT NOT NULL DEFAULT ''`,
+	},
+}, {
+	version: "015",
+	stmts: []string{
+		// A round's prep and notes become one markdown document, prep first
+		// under its own heading. ponytail: the prep column stays, unread,
+		// since dropping a column differs per dialect.
+		`UPDATE interviews SET notes = '## Prep
+' || prep || CASE WHEN notes <> '' THEN '
+
+## Notes
+' || notes ELSE '' END, prep = '' WHERE prep <> ''`,
+	},
+}, {
+	version: "016",
+	stmts: []string{
+		// Whether a round's notes show expanded in the application's notes
+		// outline, or fold to one line.
+		`ALTER TABLE interviews ADD COLUMN in_notes BIGINT NOT NULL DEFAULT 1`,
+	},
+}, {
+	version: "017",
+	stmts: []string{
+		// A task can belong to one round of its stage; empty means the stage.
+		`ALTER TABLE tasks ADD COLUMN round_id TEXT NOT NULL DEFAULT ''`,
+	},
+}, {
+	version: "018",
+	stmts: []string{
+		// This application's own names for its stages, and the stages its
+		// process skips, as JSON {labels, off}. Empty means the defaults.
+		`ALTER TABLE applications ADD COLUMN stage_plan TEXT NOT NULL DEFAULT ''`,
+	},
+}, {
+	version: "019",
+	stmts: []string{
+		// Notes files of their own on an application, beside its notes and
+		// its rounds' notes: salary research, a referral thread, anything.
+		`CREATE TABLE IF NOT EXISTS notes (
+			id TEXT PRIMARY KEY,
+			user_id TEXT NOT NULL,
+			application_id TEXT NOT NULL REFERENCES applications(id) ON DELETE CASCADE,
+			name TEXT NOT NULL,
+			body TEXT NOT NULL DEFAULT '',
+			version BIGINT NOT NULL DEFAULT 1,
+			created_at TEXT NOT NULL,
+			updated_at TEXT NOT NULL
+		)`,
+		`CREATE INDEX IF NOT EXISTS notes_app_idx ON notes(application_id, created_at, id)`,
+	},
+}, {
 	version: "020",
 	stmts: []string{
 		// One Stripe customer per user, and the subscription as last read

@@ -22,6 +22,74 @@ func (s *Store) CreateUser(ctx context.Context, u domain.User) error {
 	return mapWriteErr(err)
 }
 
+// demoUsers selects the throwaway tenants CreateDemoSession mints: an
+// unroutable demo- address, older than the cutoff.
+const demoUsers = `SELECT id FROM users WHERE email LIKE 'demo-%@pursuit.invalid' AND created_at < ?`
+
+// tableNames lists the tables in this database.
+func (s *Store) tableNames(ctx context.Context) (map[string]bool, error) {
+	q := `SELECT name FROM sqlite_master WHERE type = 'table'`
+	if s.dialect == "postgres" {
+		q = `SELECT table_name FROM information_schema.tables WHERE table_schema = current_schema()`
+	}
+	rows, err := s.query(ctx, q)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[string]bool{}
+	for rows.Next() {
+		var n string
+		if err := rows.Scan(&n); err != nil {
+			return nil, err
+		}
+		out[n] = true
+	}
+	return out, rows.Err()
+}
+
+// DeleteDemoUsers removes every demo tenant created before the cutoff, with
+// all it owns, and returns how many. The core tables don't cascade, so rows go
+// children first. Real accounts never match the demo address.
+func (s *Store) DeleteDemoUsers(ctx context.Context, before time.Time) (int, error) {
+	cut := formatTime(before)
+	var n int
+	err := s.WithTx(ctx, func(ctx context.Context) error {
+		if err := s.queryRow(ctx, `SELECT COUNT(*) FROM (`+demoUsers+`) d`, cut).Scan(&n); err != nil || n == 0 {
+			return err
+		}
+		for _, q := range []string{
+			`DELETE FROM application_tags WHERE application_id IN (SELECT id FROM applications WHERE user_id IN (` + demoUsers + `))`,
+			`DELETE FROM custom_field_values WHERE application_id IN (SELECT id FROM applications WHERE user_id IN (` + demoUsers + `))`,
+		} {
+			if _, err := s.exec(ctx, q, cut); err != nil {
+				return err
+			}
+		}
+		have, terr := s.tableNames(ctx)
+		if terr != nil {
+			return terr
+		}
+		for _, t := range []string{
+			"events", "work_items", "approvals", "artifacts", "questions", "interviews", "tasks", "notes",
+			"applications", "posting_checks", "roles", "companies", "custom_fields", "tags",
+			"api_tokens", "standing_answers", "company_caps", "webhooks", "documents", "oauth_grants",
+			"webauthn_credentials", "webauthn_challenges", "billing_accounts", "entitlements", "user_features",
+			"search_chunks", "idempotency_keys", "audit_log",
+		} {
+			if !have[t] { // a table a branch or release doesn't have yet
+				continue
+			}
+			if _, err := s.exec(ctx, `DELETE FROM `+t+` WHERE user_id IN (`+demoUsers+`)`, cut); err != nil {
+				return err
+			}
+		}
+		_, err := s.exec(ctx, `DELETE FROM users WHERE id IN (`+demoUsers+`)`, cut)
+		return err
+	})
+	return n, err
+}
+
 func (s *Store) FirstUser(ctx context.Context) (domain.User, error) {
 	var u domain.User
 	var created string
@@ -476,11 +544,46 @@ func (s *Store) attachInterviews(ctx context.Context, apps []domain.Application)
 	if err != nil {
 		return err
 	}
+	open, err := s.openFormQuestions(ctx, apps)
+	if err != nil {
+		return err
+	}
 	for i := range apps {
 		apps[i].Interviews = rounds[apps[i].ID]
 		apps[i].Tasks = tasks[apps[i].ID]
+		// An unanswered required form question is an open task on Apply.
+		if n := open[apps[i].ID]; n > 0 {
+			if apps[i].Tasks == nil {
+				apps[i].Tasks = map[int]domain.InterviewCount{}
+			}
+			c := apps[i].Tasks[0]
+			apps[i].Tasks[0] = domain.InterviewCount{Done: c.Done, Total: c.Total + n}
+		}
 	}
 	return nil
+}
+
+func (s *Store) openFormQuestions(ctx context.Context, apps []domain.Application) (map[string]int, error) {
+	ph := strings.TrimRight(strings.Repeat("?,", len(apps)), ",")
+	args := make([]any, len(apps))
+	for i, a := range apps {
+		args[i] = a.ID
+	}
+	rows, err := s.query(ctx, `SELECT application_id, COUNT(*) FROM questions WHERE application_id IN (`+ph+`) AND required=1 AND answer='' GROUP BY application_id`, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[string]int{}
+	for rows.Next() {
+		var id string
+		var n int
+		if err := rows.Scan(&id, &n); err != nil {
+			return nil, err
+		}
+		out[id] = n
+	}
+	return out, rows.Err()
 }
 
 // stageCounts sums done/total per application and stage number of a table
@@ -507,6 +610,10 @@ func (s *Store) stageCounts(ctx context.Context, table string, apps []domain.App
 			byApp[appID] = map[int]domain.InterviewCount{}
 		}
 		n := domain.StageOf(stage)
+		// Anytime tasks have no stage; they count under -1, not Apply.
+		if stage == domain.TaskAnytime {
+			n = -1
+		}
 		sum := byApp[appID][n]
 		byApp[appID][n] = domain.InterviewCount{Done: sum.Done + c.Done, Total: sum.Total + c.Total}
 	}
@@ -514,16 +621,16 @@ func (s *Store) stageCounts(ctx context.Context, table string, apps []domain.App
 }
 
 func appSelect() string {
-	return `SELECT a.id, a.user_id, a.role_id, a.status, a.outcome, a.applied_date, a.next_step, a.notes, a.resume_version, a.resume_file_ref, a.contact_email, a.external_id, a.archived_at, a.version, a.created_at, a.updated_at, r.title, r.location, r.salary_text, r.salary_min_cents, r.salary_max_cents, r.fit, r.posting_url, r.source, r.job_type, r.company_id, c.name, COALESCE(pc.status, ''), pc.checked_at FROM applications a JOIN roles r ON r.id = a.role_id JOIN companies c ON c.id = r.company_id LEFT JOIN posting_checks pc ON pc.role_id = r.id`
+	return `SELECT a.id, a.user_id, a.role_id, a.status, a.outcome, a.applied_date, a.next_step, a.notes, a.resume_version, a.resume_file_ref, a.contact_email, a.external_id, a.tracked_by, a.stage_plan, a.archived_at, a.version, a.created_at, a.updated_at, r.title, r.location, r.salary_text, r.salary_min_cents, r.salary_max_cents, r.fit, r.posting_url, r.source, r.job_type, r.company_id, c.name, COALESCE(pc.status, ''), pc.checked_at FROM applications a JOIN roles r ON r.id = a.role_id JOIN companies c ON c.id = r.company_id LEFT JOIN posting_checks pc ON pc.role_id = r.id`
 }
 
 func scanApp(row scanner) (domain.Application, error) {
 	var a domain.Application
 	var applied sql.NullString
 	var min, max sql.NullInt64
-	var created, updated, archived string
+	var created, updated, archived, plan string
 	var checked sql.NullString
-	err := row.Scan(&a.ID, &a.UserID, &a.RoleID, &a.Status, &a.Outcome, &applied, &a.NextStep, &a.Notes, &a.ResumeVersion, &a.ResumeFileRef, &a.ContactEmail, &a.ExternalID, &archived, &a.Version, &created, &updated, &a.Title, &a.Location, &a.Salary, &min, &max, &a.Fit, &a.PostingURL, &a.Source, &a.JobType, &a.CompanyID, &a.Company, &a.LinkStatus, &checked)
+	err := row.Scan(&a.ID, &a.UserID, &a.RoleID, &a.Status, &a.Outcome, &applied, &a.NextStep, &a.Notes, &a.ResumeVersion, &a.ResumeFileRef, &a.ContactEmail, &a.ExternalID, &a.TrackedBy, &plan, &archived, &a.Version, &created, &updated, &a.Title, &a.Location, &a.Salary, &min, &max, &a.Fit, &a.PostingURL, &a.Source, &a.JobType, &a.CompanyID, &a.Company, &a.LinkStatus, &checked)
 	if err != nil {
 		return domain.Application{}, err
 	}
@@ -535,6 +642,12 @@ func scanApp(row scanner) (domain.Application, error) {
 	a.SalaryMaxCents = optInt(max)
 	a.Stage = domain.StageOf(a.Status)
 	a.Tags = []string{}
+	if plan != "" {
+		var sp domain.StagePlan
+		if json.Unmarshal([]byte(plan), &sp) == nil {
+			a.StagePlan = &sp
+		}
+	}
 	if checked.Valid && checked.String != "" {
 		if t, perr := parseTime(checked.String); perr == nil {
 			a.LinkCheckedAt = &t
@@ -561,8 +674,8 @@ func (s *Store) CreateApplication(ctx context.Context, a domain.Application) err
 			a.Status = domain.StatusApplied
 		}
 	}
-	_, err := s.exec(ctx, `INSERT INTO applications (id, user_id, role_id, status, outcome, applied_date, next_step, notes, resume_version, resume_file_ref, contact_email, external_id, version, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		a.ID, a.UserID, a.RoleID, a.Status, a.Outcome, nullString(a.AppliedDateValue()), a.NextStep, a.Notes, a.ResumeVersion, a.ResumeFileRef, a.ContactEmail, a.ExternalID, a.Version, formatTime(a.CreatedAt), formatTime(a.UpdatedAt))
+	_, err := s.exec(ctx, `INSERT INTO applications (id, user_id, role_id, status, outcome, applied_date, next_step, notes, resume_version, resume_file_ref, contact_email, external_id, tracked_by, version, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		a.ID, a.UserID, a.RoleID, a.Status, a.Outcome, nullString(a.AppliedDateValue()), a.NextStep, a.Notes, a.ResumeVersion, a.ResumeFileRef, a.ContactEmail, a.ExternalID, a.TrackedBy, a.Version, formatTime(a.CreatedAt), formatTime(a.UpdatedAt))
 	return mapWriteErr(err)
 }
 
@@ -791,7 +904,7 @@ func (s *Store) listApplicationsByField(ctx context.Context, userID string, q do
 	if limit <= 0 {
 		limit = 51
 	}
-	selectSQL := `SELECT a.id, a.user_id, a.role_id, a.status, a.outcome, a.applied_date, a.next_step, a.notes, a.resume_version, a.resume_file_ref, a.contact_email, a.external_id, a.archived_at, a.version, a.created_at, a.updated_at, r.title, r.location, r.salary_text, r.salary_min_cents, r.salary_max_cents, r.fit, r.posting_url, r.source, r.job_type, r.company_id, c.name, COALESCE(pc.status, ''), pc.checked_at FROM ` +
+	selectSQL := `SELECT a.id, a.user_id, a.role_id, a.status, a.outcome, a.applied_date, a.next_step, a.notes, a.resume_version, a.resume_file_ref, a.contact_email, a.external_id, a.tracked_by, a.stage_plan, a.archived_at, a.version, a.created_at, a.updated_at, r.title, r.location, r.salary_text, r.salary_min_cents, r.salary_max_cents, r.fit, r.posting_url, r.source, r.job_type, r.company_id, c.name, COALESCE(pc.status, ''), pc.checked_at FROM ` +
 		joined + ` ` + w.sql() + ` ORDER BY ` + orderCol + ` IS NULL, ` + orderCol + ` ` + dir + `, a.id LIMIT ?`
 	rows, err := s.query(ctx, selectSQL, append(joinArgs, limit)...)
 	if err != nil {
@@ -884,8 +997,8 @@ func (s *Store) UpdateApplication(ctx context.Context, a domain.Application) err
 	if domain.IsOutcome(a.Status) {
 		outcome = a.Status
 	}
-	res, err := s.exec(ctx, `UPDATE applications SET status=CASE WHEN ?='' THEN ? ELSE status END, outcome=?, applied_date=?, next_step=?, notes=?, resume_version=?, resume_file_ref=?, contact_email=?, version=version+1, updated_at=? WHERE id=? AND user_id=? AND version=?`,
-		outcome, a.Status, outcome, nullString(a.AppliedDateValue()), a.NextStep, a.Notes, a.ResumeVersion, a.ResumeFileRef, a.ContactEmail, formatTime(a.UpdatedAt), a.ID, a.UserID, a.Version)
+	res, err := s.exec(ctx, `UPDATE applications SET status=CASE WHEN ?='' THEN ? ELSE status END, outcome=?, applied_date=?, next_step=?, notes=?, resume_version=?, resume_file_ref=?, contact_email=?, tracked_by=?, stage_plan=?, version=version+1, updated_at=? WHERE id=? AND user_id=? AND version=?`,
+		outcome, a.Status, outcome, nullString(a.AppliedDateValue()), a.NextStep, a.Notes, a.ResumeVersion, a.ResumeFileRef, a.ContactEmail, a.TrackedBy, a.StagePlan.Encode(), formatTime(a.UpdatedAt), a.ID, a.UserID, a.Version)
 	if err != nil {
 		return mapWriteErr(err)
 	}
@@ -924,13 +1037,24 @@ func (s *Store) DeleteApplication(ctx context.Context, userID, id string, versio
 	if err != nil {
 		return mapWriteErr(err)
 	}
-	return changed(res, func() (int, error) {
+	if err := changed(res, func() (int, error) {
 		cur, err := s.GetApplication(ctx, userID, id)
 		if err != nil {
 			return 0, err
 		}
 		return cur.Version, nil
-	}, "application")
+	}, "application"); err != nil {
+		return err
+	}
+	// Applications tracked with the deleted one stand on their own again.
+	_, err = s.exec(ctx, `UPDATE applications SET tracked_by='' WHERE user_id=? AND tracked_by=?`, userID, id)
+	return err
+}
+
+func (s *Store) CountTrackedBy(ctx context.Context, userID, id string) (int, error) {
+	var n int
+	err := s.queryRow(ctx, `SELECT COUNT(*) FROM applications WHERE user_id=? AND tracked_by=?`, userID, id).Scan(&n)
+	return n, err
 }
 
 func (s *Store) CreateEvent(ctx context.Context, e domain.Event) error {

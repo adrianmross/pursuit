@@ -7,12 +7,12 @@ import (
 	"github.com/pursuit/pursuit/internal/domain"
 )
 
-const taskCols = `id, user_id, application_id, stage, title, notes, due_at, done_at, version, created_at, updated_at`
+const taskCols = `id, user_id, application_id, stage, round_id, title, notes, due_at, done_at, version, created_at, updated_at`
 
 func scanTask(row scanner) (domain.Task, error) {
 	var t domain.Task
 	var due, done, created, updated string
-	if err := row.Scan(&t.ID, &t.UserID, &t.ApplicationID, &t.Stage, &t.Title, &t.Notes, &due, &done, &t.Version, &created, &updated); err != nil {
+	if err := row.Scan(&t.ID, &t.UserID, &t.ApplicationID, &t.Stage, &t.RoundID, &t.Title, &t.Notes, &due, &done, &t.Version, &created, &updated); err != nil {
 		return domain.Task{}, err
 	}
 	var err error
@@ -30,8 +30,8 @@ func scanTask(row scanner) (domain.Task, error) {
 }
 
 func (s *Store) CreateTask(ctx context.Context, t domain.Task) error {
-	_, err := s.exec(ctx, `INSERT INTO tasks (`+taskCols+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		t.ID, t.UserID, t.ApplicationID, t.Stage, t.Title, t.Notes, timeText(t.DueAt), timeText(t.DoneAt), t.Version, formatTime(t.CreatedAt), formatTime(t.UpdatedAt))
+	_, err := s.exec(ctx, `INSERT INTO tasks (`+taskCols+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		t.ID, t.UserID, t.ApplicationID, t.Stage, t.RoundID, t.Title, t.Notes, timeText(t.DueAt), timeText(t.DoneAt), t.Version, formatTime(t.CreatedAt), formatTime(t.UpdatedAt))
 	return mapWriteErr(err)
 }
 
@@ -72,8 +72,8 @@ func (s *Store) taskVersion(ctx context.Context, userID, id string) func() (int,
 }
 
 func (s *Store) UpdateTask(ctx context.Context, t domain.Task) error {
-	res, err := s.exec(ctx, `UPDATE tasks SET stage=?, title=?, notes=?, due_at=?, done_at=?, version=version+1, updated_at=? WHERE id=? AND user_id=? AND version=?`,
-		t.Stage, t.Title, t.Notes, timeText(t.DueAt), timeText(t.DoneAt), formatTime(t.UpdatedAt), t.ID, t.UserID, t.Version)
+	res, err := s.exec(ctx, `UPDATE tasks SET stage=?, round_id=?, title=?, notes=?, due_at=?, done_at=?, version=version+1, updated_at=? WHERE id=? AND user_id=? AND version=?`,
+		t.Stage, t.RoundID, t.Title, t.Notes, timeText(t.DueAt), timeText(t.DoneAt), formatTime(t.UpdatedAt), t.ID, t.UserID, t.Version)
 	if err != nil {
 		return mapWriteErr(err)
 	}

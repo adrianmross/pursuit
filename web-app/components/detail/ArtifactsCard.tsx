@@ -6,7 +6,7 @@ import { api } from "@/lib/api-client"
 import { useAuth } from "@/lib/auth"
 import type { Artifact, Page } from "@/lib/types"
 import { Badge } from "@/components/ui/badge"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { SectionCard } from "@/components/detail/SectionCard"
 import { Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemMedia, ItemTitle } from "@/components/ui/item"
 import { FileDrop } from "@/components/FileDrop"
 import { FileIcon, FilePreview, isTextType } from "@/components/FilePreview"
@@ -46,48 +46,47 @@ export function ArtifactsCard({ appId, artifacts: initial }: { appId: string; ar
   const sorted = [...artifacts].sort((a, b) => ORDER.indexOf(a.kind || "") - ORDER.indexOf(b.kind || ""))
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-base">Documents</CardTitle>
-        <CardDescription>The résumé and cover letter sent with this application, plus what prepare produced.</CardDescription>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-3">
-        {sorted.length > 0 && (
-          <ItemGroup className="gap-2">
-            {sorted.map((a) => (
-              <FilePreview key={a.id} path={"/v1/artifacts/" + a.id} base64={base64(a.kind)} title={a.filename || LABELS[a.kind || ""] || "File"} description={LABELS[a.kind || ""]}>
-                <Item variant="outline" size="sm" asChild>
-                  <button type="button" className="text-left hover:bg-muted/50">
-                    <ItemMedia variant="icon">
-                      <FileIcon type={a.content_type} name={a.filename} />
-                    </ItemMedia>
-                    <ItemContent>
-                      <ItemTitle>
-                        {a.filename || a.kind}
-                        <Badge variant="secondary">{LABELS[a.kind || ""] || a.kind}</Badge>
-                      </ItemTitle>
-                      {a.created_at && <ItemDescription>{new Date(a.created_at).toLocaleString()}</ItemDescription>}
-                      <Snippet a={a} />
-                    </ItemContent>
-                    <ItemActions>
-                      <Eye className="size-4 text-muted-foreground" aria-hidden />
-                    </ItemActions>
-                  </button>
-                </Item>
-              </FilePreview>
-            ))}
-          </ItemGroup>
-        )}
-        {can("write") && (
-          <FileDrop
-            path={path}
-            kinds={UPLOADS}
-            compact
-            description={sorted.length ? "Attach a tailored résumé or cover letter to this application." : "Nothing attached yet. Prepare adds your base résumé, or attach a tailored one."}
-            onUploaded={reload}
-          />
-        )}
-      </CardContent>
-    </Card>
+    <SectionCard
+    id="documents"
+    title="Documents"
+    summary={sorted.length ? `${sorted.length} file${sorted.length === 1 ? "" : "s"}` : undefined}
+    description="The résumé and cover letter sent with this application, plus what prepare produced."
+  >
+      {sorted.length > 0 && (
+        <ItemGroup className="gap-2">
+          {sorted.map((a) => (
+            <FilePreview key={a.id} path={"/v1/artifacts/" + a.id} base64={base64(a.kind)} title={a.filename || LABELS[a.kind || ""] || "File"} description={LABELS[a.kind || ""]}>
+              <Item variant="outline" size="sm" asChild>
+                <button type="button" className="text-left hover:bg-muted/50">
+                  <ItemMedia variant="icon">
+                    <FileIcon type={a.content_type} name={a.filename} />
+                  </ItemMedia>
+                  <ItemContent>
+                    <ItemTitle>
+                      {a.filename || a.kind}
+                      <Badge variant="secondary">{LABELS[a.kind || ""] || a.kind}</Badge>
+                    </ItemTitle>
+                    {a.created_at && <ItemDescription>{new Date(a.created_at).toLocaleString()}</ItemDescription>}
+                    <Snippet a={a} />
+                  </ItemContent>
+                  <ItemActions>
+                    <Eye className="size-4 text-muted-foreground" aria-hidden />
+                  </ItemActions>
+                </button>
+              </Item>
+            </FilePreview>
+          ))}
+        </ItemGroup>
+      )}
+      {can("write") && (
+        <FileDrop
+          path={path}
+          kinds={UPLOADS}
+          compact
+          description={sorted.length ? "Attach a tailored résumé or cover letter to this application." : "Nothing attached yet. Prepare adds your base résumé, or attach a tailored one."}
+          onUploaded={reload}
+        />
+      )}
+    </SectionCard>
   )
 }

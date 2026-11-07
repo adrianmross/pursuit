@@ -25,6 +25,8 @@ import (
 	"github.com/pursuit/pursuit/internal/oidcauth"
 	"github.com/pursuit/pursuit/internal/service"
 	"github.com/pursuit/pursuit/internal/sqlstore"
+	"github.com/pursuit/pursuit/internal/telemetry"
+	"github.com/pursuit/pursuit/internal/version"
 )
 
 func Run(ctx context.Context, cfg config.Config) error {
@@ -103,7 +105,7 @@ func Run(ctx context.Context, cfg config.Config) error {
 		betterAuthVerifier = betterauth.New(ctx, cfg.BetterAuthBaseURL, cfg.BetterAuthIssuer, cfg.BetterAuthAudience)
 		betterAuthOrigin = betterauth.Origin(cfg.BetterAuthBaseURL)
 	}
-	api := &httpapi.Server{Svc: svc, Log: log, CORS: cfg.CORSOrigins, TrustProxyAuth: cfg.TrustProxyAuth, TenantMode: cfg.TenantMode, FaviconService: cfg.FaviconService, OIDC: oidcMgr, BetterAuth: betterAuthVerifier, BetterAuthOrigin: betterAuthOrigin, HideTokenLogin: cfg.HideTokenLogin, SignupsClosed: cfg.SignupsClosed, NoDocs: cfg.NoDocs}
+	api := &httpapi.Server{Svc: svc, Log: log, CORS: cfg.CORSOrigins, TrustProxyAuth: cfg.TrustProxyAuth, TenantMode: cfg.TenantMode, FaviconService: cfg.FaviconService, OIDC: oidcMgr, BetterAuth: betterAuthVerifier, BetterAuthOrigin: betterAuthOrigin, HideTokenLogin: cfg.HideTokenLogin, DemoMode: cfg.DemoMode, SignupsClosed: cfg.SignupsClosed, NoDocs: cfg.NoDocs}
 	srv := &http.Server{
 		Addr:              cfg.Addr,
 		Handler:           api.Handler(),
@@ -120,6 +122,9 @@ func Run(ctx context.Context, cfg config.Config) error {
 	sweepCtx, sweepCancel := context.WithCancel(ctx)
 	defer sweepCancel()
 	go runSweep(sweepCtx, svc, log, cfg)
+	if telemetry.Enabled(os.Getenv) {
+		go telemetry.Run(sweepCtx, log, telemetry.Base(version.Version, store.Dialect(), cfg.DataDir), os.Getenv)
+	}
 
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM)

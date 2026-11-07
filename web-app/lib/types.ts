@@ -1,3 +1,5 @@
+import { LABELS, statusPieces } from "./status"
+
 export type Application = {
   id: string
   company_id?: string
@@ -25,6 +27,10 @@ export type Application = {
   source?: string
   job_type?: string
   contact_email?: string
+  // The application at the same company whose process covers this posting.
+  tracked_by?: string
+  // This application's own names for its round stages and the ones it skips.
+  stage_plan?: { labels?: Record<string, string>; off?: string[] }
   resume_version?: string
   next_step?: string
   archived_at?: string
@@ -40,9 +46,38 @@ export type Interview = {
   interviewer?: string
   scheduled_at?: string
   done_at?: string
-  prep?: string
+  // One markdown document: prep, transcript and questions.
   notes?: string
+  // Parsed from notes: a heading ending in ? and the text under it.
+  questions?: { prompt: string; answer: string }[]
+  // false folds the round to one line in the notes outline.
+  in_notes?: boolean
   version: number
+}
+
+// A notes file of its own on an application, beside its notes and rounds.
+export type Note = {
+  id: string
+  application_id: string
+  name: string
+  body: string
+  questions?: { prompt: string; answer: string }[]
+  version: number
+  created_at?: string
+  updated_at?: string
+}
+
+// A question from a round's notes, with where it was asked.
+export type BankQuestion = {
+  prompt: string
+  answer: string
+  round_id: string
+  application_id: string
+  company: string
+  title: string
+  stage: string
+  kind: string
+  updated_at: string
 }
 
 // A to-do on an application, things waiting on you, optionally on a stage.
@@ -50,6 +85,8 @@ export type Task = {
   id: string
   application_id: string
   stage: string
+  // The round this task belongs to, if any; empty means its whole stage.
+  round_id?: string
   title: string
   notes?: string
   due_at?: string
@@ -75,8 +112,8 @@ export type Page<T> = {
 }
 
 export type Me = {
-  user?: { id?: string; name?: string; email?: string; avatar?: string }
-  token: { name?: string; scopes?: string[] }
+  user?: { id?: string; name?: string; email?: string; avatar?: string; created_at?: string }
+  token: { id?: string; name?: string; scopes?: string[] }
   // The PURSUIT_TRUST_PROXY_AUTH owner, who may change their email.
   proxy?: boolean
 }
@@ -103,10 +140,12 @@ export type Artifact = {
 }
 
 export type Event = {
+  id?: string
+  application_id?: string
   title?: string
   kind?: string
   occurred_at?: string
-  actor?: { name?: string }
+  actor?: { name?: string; token_id?: string }
   from_status?: string
   to_status?: string
   body?: string
@@ -176,36 +215,13 @@ export const SORTS: [string, string][] = [
   ["category", "Category"],
 ]
 
-export const LABELS: Record<string, string> = {
-  saved: "Saved",
-  to_apply: "Apply",
-  preparing: "Preparing",
-  awaiting_review: "Prepared",
-  approved: "Approved",
-  submitting: "Submitting",
-  submitted: "Submitted",
-  needs_input: "Needs input",
-  failed: "Failed",
-  in_progress: "In progress",
-  applied: "Applied",
-  screening: "Screening",
-  interviewing: "Interviewing",
-  final: "Final",
-  waiting: "Waiting",
-  offer: "Offer",
-  rejected: "Rejected",
-  withdrawn: "Withdrawn",
-  ghosted: "Ghosted",
-}
-
-// The seven stops on the progress mark, piece 0 (To apply) to 6 (Offer).
 // Index = piece, so STAGE_STOPS[app.stage] is the stage an app sits on.
 export const STAGE_STOPS: [string, string][] = ["to_apply", "awaiting_review", "applied", "screening", "interviewing", "final", "offer"].map(
   (s) => [s, LABELS[s]],
 )
 
-// Rounds attach to pieces 1-6, keyed by the stage's status name.
-export const ROUND_STAGES = STAGE_STOPS.slice(1)
+// Rounds attach to pieces 1-5, keyed by the stage's status name. Offer has none.
+export const ROUND_STAGES = STAGE_STOPS.slice(1, 6)
 
 // Mirrors domain.IsOutcome: these overlay a stage instead of replacing it.
 export const OUTCOMES = ["waiting", "needs_input", "failed", "rejected", "ghosted", "withdrawn"]
@@ -218,8 +234,10 @@ export function shown(app: Pick<Application, "status" | "outcome">) {
   return app.outcome || app.status
 }
 
-export function label(status?: string) {
-  return (status && LABELS[status]) || status || "—"
+// What the badge reads: a tracked posting with no outcome of its own reads
+// "Tracked elsewhere" instead of its stage. Transitions still compare shown().
+export function displayed(app: Pick<Application, "status" | "outcome" | "tracked_by">) {
+  return app.tracked_by && !app.outcome ? "tracked" : shown(app)
 }
 
 export const SOURCE_LABELS: Record<string, string> = {
@@ -235,73 +253,6 @@ export function sourceLabel(source?: string) {
   return (source && SOURCE_LABELS[source]) || ""
 }
 
-// Hire Pursuit's status chips are told apart by lightness and outline, not
-// hue — gold is reserved for the one status that's a win. The two outcome
-// families are the exception: hold (amber) and stop (red) sit on top of a stage.
-export type StatusTone = "default" | "attention" | "strong" | "danger" | "muted" | "win"
-
-export type OutcomeKind = "hold" | "stop" | ""
-
-export function outcomeKind(status?: string): OutcomeKind {
-  switch (status) {
-    case "waiting":
-    case "needs_input":
-      return "hold"
-    case "failed":
-    case "rejected":
-    case "withdrawn":
-    case "ghosted":
-      return "stop"
-    default:
-      return ""
-  }
-}
-
-const STATUS_TONE: Record<string, StatusTone> = {
-  to_apply: "default",
-  preparing: "default",
-  needs_input: "attention",
-  failed: "danger",
-  awaiting_review: "attention",
-  approved: "strong",
-  submitting: "default",
-  submitted: "default",
-  in_progress: "default",
-  applied: "default",
-  screening: "default",
-  interviewing: "default",
-  offer: "win",
-  withdrawn: "danger",
-  rejected: "danger",
-  ghosted: "danger",
-  waiting: "attention",
-  final: "default",
-  saved: "default",
-}
-
-export function statusTone(status?: string): StatusTone {
-  return (status && STATUS_TONE[status]) || "default"
-}
-
-// Stage of the progress mark (0-6; 6 is the gold tail) a status has earned.
-// Outcomes have no stage of their own; the server keeps the stage beside them.
-const STATUS_PIECES: Record<string, number> = {
-  awaiting_review: 1,
-  approved: 1,
-  submitting: 1,
-  submitted: 2,
-  applied: 2,
-  in_progress: 2,
-  screening: 3,
-  interviewing: 4,
-  final: 5,
-  offer: 6,
-}
-
-export function statusPieces(status?: string): number {
-  return status ? STATUS_PIECES[status] ?? 0 : 0
-}
-
 // What the progress mark draws for an application.
 export function markOf(app: Application) {
   return {
@@ -309,47 +260,6 @@ export function markOf(app: Application) {
     outcome: app.outcome,
     interviews: app.interviews,
   }
-}
-
-export type StatusCategory = "action" | "waiting" | "closed" | "rejected"
-
-export const CATEGORY_LABELS: Record<StatusCategory, string> = {
-  action: "Needs attention",
-  waiting: "Waiting",
-  closed: "Closed",
-  rejected: "Rejected",
-}
-
-export const CATEGORY_ORDER: StatusCategory[] = ["action", "waiting", "closed", "rejected"]
-
-const STATUS_CATEGORY: Record<string, StatusCategory> = {
-  to_apply: "action",
-  awaiting_review: "action",
-  needs_input: "action",
-  failed: "action",
-  offer: "action",
-  saved: "waiting",
-  preparing: "waiting",
-  approved: "waiting",
-  submitting: "waiting",
-  submitted: "waiting",
-  in_progress: "waiting",
-  screening: "waiting",
-  applied: "waiting",
-  interviewing: "waiting",
-  final: "waiting",
-  waiting: "waiting",
-  withdrawn: "closed",
-  ghosted: "closed",
-  rejected: "rejected",
-}
-
-export function statusCategory(status?: string): StatusCategory {
-  return (status && STATUS_CATEGORY[status]) || "waiting"
-}
-
-export function statusesInCategory(category: StatusCategory): string[] {
-  return Object.keys(STATUS_CATEGORY).filter((s) => STATUS_CATEGORY[s] === category)
 }
 
 export type Token = {
@@ -361,3 +271,5 @@ export type Token = {
   last_used_at: string | null
   revoked_at: string | null
 }
+
+export * from "./status"

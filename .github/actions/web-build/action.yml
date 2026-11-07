@@ -1,0 +1,18 @@
+name: web-build
+description: Build the dashboard and docs into internal/dashboard/dist, with Next.js's build cache restored.
+
+runs:
+  using: composite
+  steps:
+    # restore-keys falls back to the newest cache for the same lockfiles, so a
+    # source change still recompiles only what changed.
+    - uses: actions/cache@v4
+      with:
+        path: |
+          web-app/.next/cache
+          docs-site/.next/cache
+        key: next-${{ runner.os }}-${{ hashFiles('web-app/package-lock.json', 'docs-site/package-lock.json') }}-${{ hashFiles('web-app/**/*.[jt]s*', 'docs-site/**/*.[jt]s*', 'web-app/**/*.css', 'docs-site/**/*.css', 'docs-site/**/*.md*') }}
+        restore-keys: |
+          next-${{ runner.os }}-${{ hashFiles('web-app/package-lock.json', 'docs-site/package-lock.json') }}-
+    - run: sh scripts/vercel-build.sh
+      shell: bash

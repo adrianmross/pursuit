@@ -2,31 +2,42 @@ package service
 
 import (
 	"context"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/pursuit/pursuit/internal/domain"
 )
 
+// notesMax bounds a round's markdown document.
+const notesMax = 100000
+
 type InterviewInput struct {
 	Stage       string `json:"stage"`
 	Kind        string `json:"kind"`
 	Interviewer string `json:"interviewer"`
 	ScheduledAt string `json:"scheduled_at"`
-	Prep        string `json:"prep"`
-	Notes       string `json:"notes"`
-	Done        bool   `json:"done"`
+	// Prep is written as the document's "Prep" section.
+	Prep  string `json:"prep"`
+	Notes string `json:"notes"`
+	Done  bool   `json:"done"`
 }
 
+// InterviewPatch edits a round. notes replaces the whole document and needs
+// version; prep, set_question and append edit part of it and take version
+// only as an optional check. They apply in that order.
 type InterviewPatch struct {
-	Version     int     `json:"version"`
-	Stage       *string `json:"stage"`
-	Kind        *string `json:"kind"`
-	Interviewer *string `json:"interviewer"`
-	ScheduledAt *string `json:"scheduled_at"`
-	Prep        *string `json:"prep"`
-	Notes       *string `json:"notes"`
-	Done        *bool   `json:"done"`
+	Version     int                   `json:"version"`
+	Stage       *string               `json:"stage"`
+	Kind        *string               `json:"kind"`
+	Interviewer *string               `json:"interviewer"`
+	ScheduledAt *string               `json:"scheduled_at"`
+	Notes       *string               `json:"notes"`
+	Prep        *string               `json:"prep"`
+	SetQuestion *domain.RoundQuestion `json:"set_question"`
+	Append      *string               `json:"append"`
+	Done        *bool                 `json:"done"`
+	InNotes     *bool                 `json:"in_notes"`
 }
 
 func (s *Service) parseWhen(raw string) (*time.Time, error) {
@@ -56,12 +67,11 @@ func (s *Service) AddInterview(ctx context.Context, appID string, in InterviewIn
 	if err != nil {
 		return domain.Interview{}, err
 	}
-	prep, err := domain.BoundText("prep", in.Prep, 50000)
-	if err != nil {
-		return domain.Interview{}, err
+	notes := in.Notes
+	if strings.TrimSpace(in.Prep) != "" {
+		notes = domain.SetSection(notes, "Prep", in.Prep)
 	}
-	notes, err := domain.BoundText("notes", in.Notes, 50000)
-	if err != nil {
+	if notes, err = domain.BoundText("notes", notes, notesMax); err != nil {
 		return domain.Interview{}, err
 	}
 	when, err := s.parseWhen(in.ScheduledAt)
@@ -71,7 +81,7 @@ func (s *Service) AddInterview(ctx context.Context, appID string, in InterviewIn
 	now := s.now()
 	iv := domain.Interview{
 		ID: s.NewID(), UserID: a.UserID, ApplicationID: appID, Kind: kind, Interviewer: who,
-		ScheduledAt: when, Prep: prep, Notes: notes, Version: 1, CreatedAt: now, UpdatedAt: now,
+		ScheduledAt: when, Notes: notes, Questions: domain.ParseRoundQuestions(notes), InNotes: true, Version: 1, CreatedAt: now, UpdatedAt: now,
 	}
 	if in.Done {
 		iv.DoneAt = &now
@@ -87,7 +97,8 @@ func (s *Service) AddInterview(ctx context.Context, appID string, in InterviewIn
 				return err
 			}
 		default:
-			iv.Stage = domain.StageKey(max(app.Stage, 1))
+			// Offer has no rounds; an application there adds to Final.
+			iv.Stage = domain.StageKey(min(max(app.Stage, 1), 5))
 		}
 		if err := s.DB.CreateInterview(ctx, iv); err != nil {
 			return err
@@ -95,6 +106,58 @@ func (s *Service) AddInterview(ctx context.Context, appID string, in InterviewIn
 		return s.audit(ctx, a, "interview.create", "interview", iv.ID, iv.Stage+" "+app.Title, map[string]any{"application_id": appID})
 	})
 	return iv, err
+}
+
+// CompiledNotes is one markdown document for an application: its own notes,
+// then each round with in_notes set, under a heading naming the round.
+func (s *Service) CompiledNotes(ctx context.Context, appID string) (map[string]any, error) {
+	a, err := s.actor(ctx, false)
+	if err != nil {
+		return nil, err
+	}
+	app, err := s.DB.GetApplication(ctx, a.UserID, appID)
+	if err != nil {
+		return nil, err
+	}
+	rounds, err := s.DB.ListInterviews(ctx, a.UserID, appID)
+	if err != nil {
+		return nil, err
+	}
+	var b strings.Builder
+	b.WriteString("# " + app.Company + " · " + app.Title + "\n")
+	if n := strings.TrimSpace(app.Notes); n != "" {
+		b.WriteString("\n" + n + "\n")
+	}
+	files, err := s.DB.ListNotes(ctx, a.UserID, appID)
+	if err != nil {
+		return nil, err
+	}
+	for _, f := range files {
+		b.WriteString("\n## " + f.Name + "\n")
+		if n := strings.TrimSpace(f.Body); n != "" {
+			b.WriteString("\n" + domain.DemoteHeadings(n) + "\n")
+		}
+	}
+	included := 0
+	for i, r := range rounds {
+		if !r.InNotes {
+			continue
+		}
+		included++
+		title := r.Kind
+		if title == "" {
+			title = "Round " + strconv.Itoa(i+1)
+		}
+		parts := []string{title, domain.StatusLabel(r.Stage)}
+		if r.ScheduledAt != nil {
+			parts = append(parts, r.ScheduledAt.Format("2006-01-02"))
+		}
+		b.WriteString("\n## " + strings.Join(parts, " · ") + "\n")
+		if n := strings.TrimSpace(r.Notes); n != "" {
+			b.WriteString("\n" + domain.DemoteHeadings(n) + "\n")
+		}
+	}
+	return map[string]any{"application_id": app.ID, "markdown": b.String(), "rounds": included, "left_out": len(rounds) - included}, nil
 }
 
 func (s *Service) ListInterviews(ctx context.Context, appID string) ([]domain.Interview, error) {
@@ -106,6 +169,30 @@ func (s *Service) ListInterviews(ctx context.Context, appID string) ([]domain.In
 		return nil, err
 	}
 	return s.DB.ListInterviews(ctx, a.UserID, appID)
+}
+
+// ListRoundQuestions is the shared question bank: every question in every
+// round's notes, filtered by q against the prompt, answer, company and title.
+func (s *Service) ListRoundQuestions(ctx context.Context, q string) ([]domain.BankQuestion, error) {
+	a, err := s.actor(ctx, false)
+	if err != nil {
+		return nil, err
+	}
+	all, err := s.DB.ListRoundQuestions(ctx, a.UserID)
+	if err != nil {
+		return nil, err
+	}
+	q = strings.ToLower(strings.TrimSpace(q))
+	if q == "" {
+		return all, nil
+	}
+	out := []domain.BankQuestion{}
+	for _, b := range all {
+		if strings.Contains(strings.ToLower(b.Prompt+"\n"+b.Answer+"\n"+b.Company+"\n"+b.Title), q) {
+			out = append(out, b)
+		}
+	}
+	return out, nil
 }
 
 func (s *Service) GetInterview(ctx context.Context, id string) (domain.Interview, error) {
@@ -121,8 +208,8 @@ func (s *Service) UpdateInterview(ctx context.Context, id string, p InterviewPat
 	if err != nil {
 		return domain.Interview{}, err
 	}
-	if p.Version < 1 {
-		return domain.Interview{}, versionRequired("interview")
+	if p.Notes != nil && p.Version < 1 {
+		return domain.Interview{}, versionRequired("interview").WithHint("notes replaces the whole document: pass version, or use append or set_question")
 	}
 	var out domain.Interview
 	err = s.DB.WithTx(ctx, func(ctx context.Context) error {
@@ -130,10 +217,11 @@ func (s *Service) UpdateInterview(ctx context.Context, id string, p InterviewPat
 		if err != nil {
 			return err
 		}
-		if cur.Version != p.Version {
+		if p.Version > 0 && cur.Version != p.Version {
 			return domain.VersionConflict("interview", cur.Version)
 		}
 		next := cur
+		var ops []string
 		if p.Stage != nil {
 			if next.Stage, err = domain.ParseInterviewStage(*p.Stage); err != nil {
 				return err
@@ -147,8 +235,6 @@ func (s *Service) UpdateInterview(ctx context.Context, id string, p InterviewPat
 		}{
 			{"kind", p.Kind, &next.Kind, 100},
 			{"interviewer", p.Interviewer, &next.Interviewer, 300},
-			{"prep", p.Prep, &next.Prep, 50000},
-			{"notes", p.Notes, &next.Notes, 50000},
 		} {
 			if f.in == nil {
 				continue
@@ -156,6 +242,32 @@ func (s *Service) UpdateInterview(ctx context.Context, id string, p InterviewPat
 			if *f.dst, err = domain.BoundText(f.name, *f.in, f.max); err != nil {
 				return err
 			}
+		}
+		if p.Notes != nil {
+			next.Notes, ops = *p.Notes, append(ops, "notes")
+		}
+		if p.Prep != nil {
+			next.Notes, ops = domain.SetSection(next.Notes, "Prep", *p.Prep), append(ops, "prep")
+		}
+		if q := p.SetQuestion; q != nil {
+			// A prompt is one heading line: newlines would inject headings.
+			prompt, err := domain.BoundText("set_question.prompt", strings.Join(strings.Fields(q.Prompt), " "), 500)
+			if err != nil {
+				return err
+			}
+			if prompt == "" {
+				return domain.Validation("set_question needs a prompt")
+			}
+			next.Notes, ops = domain.SetRoundQuestion(next.Notes, prompt, q.Answer), append(ops, "set_question")
+		}
+		if p.Append != nil && strings.TrimSpace(*p.Append) != "" {
+			next.Notes, ops = domain.AppendNotes(next.Notes, *p.Append), append(ops, "append")
+		}
+		if next.Notes, err = domain.BoundText("notes", next.Notes, notesMax); err != nil {
+			return err
+		}
+		if p.InNotes != nil {
+			next.InNotes = *p.InNotes
 		}
 		if p.ScheduledAt != nil {
 			if next.ScheduledAt, err = s.parseWhen(*p.ScheduledAt); err != nil {
@@ -175,7 +287,14 @@ func (s *Service) UpdateInterview(ctx context.Context, id string, p InterviewPat
 		if err := s.DB.UpdateInterview(ctx, next); err != nil {
 			return err
 		}
-		if err := s.audit(ctx, a, "interview.update", "interview", id, next.Stage+" "+next.Kind, nil); err != nil {
+		meta := map[string]any{"application_id": cur.ApplicationID}
+		if len(ops) > 0 {
+			meta["notes_ops"] = ops
+		}
+		if p.SetQuestion != nil {
+			meta["question"] = p.SetQuestion.Prompt
+		}
+		if err := s.audit(ctx, a, "interview.update", "interview", id, next.Stage+" "+next.Kind, meta); err != nil {
 			return err
 		}
 		out, err = s.DB.GetInterview(ctx, a.UserID, id)

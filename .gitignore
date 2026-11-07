@@ -8,7 +8,10 @@
 /dist/
 /uploads/
 /extension/node_modules/
+/scripts/openapi-lint/node_modules/
 /extension/dist/
+/extension/test-results/
+/extension/playwright-report/
 /internal/dashboard/dist/
 /.vercel/
 .devenv/
@@ -19,3 +22,7 @@
 /.devdata/
 .neon
 /public/
+
+/docs-site/content/changelog.mdx
+/docs-site/public/changelog.xml
+/docs-site/public/changelog.json

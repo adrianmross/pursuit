@@ -1,5 +1,6 @@
 import Link from "next/link"
 import { Heart } from "lucide-react"
+import { PRODUCT_NAME } from "@/lib/brand"
 
 // The footer every surface shares. docs-site/app/layout.tsx and
 // internal/spec/reference.html repeat this markup; keep the three in step.
@@ -8,10 +9,9 @@ export function SiteFooter() {
   return (
     <footer className="border-t text-sm text-muted-foreground">
       <div className="mx-auto flex max-w-6xl flex-col items-center gap-4 px-5 py-8 md:grid md:grid-cols-[1fr_auto_1fr] md:gap-6">
-        <Link href="/" className="flex items-center gap-2 text-foreground md:justify-self-start">
-          <img src="/brand/hire-pursuit-mark.svg" alt="" className="h-5 w-auto dark:hidden" />
-          <img src="/brand/hire-pursuit-mark-reverse.svg" alt="" className="hidden h-5 w-auto dark:block" />
-          Hire Pursuit
+        <Link href="/" aria-label={PRODUCT_NAME} className="flex items-center text-foreground md:justify-self-start">
+          <img src="/brand/wordmark.svg" alt="" className="h-5 w-auto dark:hidden" />
+          <img src="/brand/wordmark-reverse.svg" alt="" className="hidden h-5 w-auto dark:block" />
         </Link>
         <p className="order-last flex flex-wrap items-center justify-center gap-x-1.5 gap-y-1 text-center text-xs md:order-none">
           <span className="inline-flex items-center gap-1.5">
@@ -38,6 +38,12 @@ export function SiteFooter() {
           </a>
           <a href="/reference" className="hover:text-foreground">
             Reference
+          </a>
+          <a href="/docs/privacy" className="hover:text-foreground">
+            Privacy
+          </a>
+          <a href="/docs/terms" className="hover:text-foreground">
+            Terms
           </a>
           <a href="https://github.com/adrianmross/pursuit" className="hover:text-foreground">
             GitHub
