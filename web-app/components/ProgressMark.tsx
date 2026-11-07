@@ -1,7 +1,7 @@
 import { outcomeKind } from "@/lib/status"
 
 // The logo's p as a game piece: five ring segments plus a sixth, gold tail
-// on an offer. Geometry from the Hire Pursuit design system's ProgressMark.
+// on an offer. Geometry from the design system's ProgressMark (docs/brand).
 // Stages fill them bottom first, counter-clockwise up to the tail, then down it.
 const PIECES = [
   "M34.73 64.55 A20.5 20.5 0 0 1 17.34 64.58",

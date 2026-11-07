@@ -5,6 +5,7 @@ import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import { Archive, ArrowLeft, Bot, IdCard, LogOut, MessageSquareText, Search, Settings, X } from "lucide-react"
 import { useAuth } from "@/lib/auth"
+import { PRODUCT_NAME } from "@/lib/brand"
 import { keyLabels, useShortcuts } from "@/lib/keybindings"
 import { Kbd } from "@/components/ui/kbd"
 import { CommandPalette } from "@/components/CommandPalette"
@@ -121,11 +122,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </>
         ) : (
           <>
-            <Link href="/start" aria-label="Hire Pursuit" className="shrink-0">
+            <Link href="/start" aria-label={PRODUCT_NAME} className="shrink-0">
               {/* eslint-disable-next-line @next/next/no-img-element -- drawn SVG wordmark, not a photo next/image needs to optimize */}
-              <img src="/brand/hire-pursuit-wordmark.svg" alt="" className="h-5 w-auto dark:hidden" />
+              <img src="/brand/wordmark.svg" alt="" className="h-5 w-auto dark:hidden" />
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/brand/hire-pursuit-wordmark-reverse.svg" alt="" className="hidden h-5 w-auto dark:block" />
+              <img src="/brand/wordmark-reverse.svg" alt="" className="hidden h-5 w-auto dark:block" />
             </Link>
             {pathname !== PARENT && (
               <Button variant="ghost" size="sm" className="shrink-0 text-muted-foreground" asChild>

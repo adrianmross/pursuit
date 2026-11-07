@@ -1,4 +1,4 @@
-/* The in-page panel's stylesheet: Tailwind v4 plus the Hire Pursuit theme,
+/* The in-page panel's stylesheet: Tailwind v4 plus the brand theme,
    installed from the dashboard's registry with
    `npx shadcn add ../web-app/public/r/hire-pursuit.json`. build.mjs compiles it
    to a string that goes inside the panel's shadow root, so the theme's :root

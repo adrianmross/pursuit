@@ -26,7 +26,7 @@ await cp("src/popup.html", "dist/popup.html");
 await cp("src/popup.css", "dist/popup.css");
 await cp("src/tokens.css", "dist/tokens.css");
 await cp("manifest.json", "dist/manifest.json");
-await cp("../web-app/public/brand/hire-pursuit-mark.svg", "dist/mark.svg");
+await cp("../web-app/public/brand/mark.svg", "dist/mark.svg");
 await cp("../web-app/public/apple-touch-icon.png", "dist/icon.png");
 await cp("node_modules/@fontsource-variable/inter/files/inter-latin-wght-normal.woff2", "dist/fonts/inter.woff2");
 await cp("node_modules/@fontsource-variable/outfit/files/outfit-latin-wght-normal.woff2", "dist/fonts/outfit.woff2");
