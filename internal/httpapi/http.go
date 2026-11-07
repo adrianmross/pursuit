@@ -236,6 +236,12 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("PATCH /v1/rounds/{id}", s.updateInterview)
 	mux.HandleFunc("DELETE /v1/rounds/{id}", s.deleteInterview)
 	mux.HandleFunc("GET /v1/questions", s.listRoundQuestions)
+	mux.HandleFunc("GET /v1/applications/{id}/notes", s.compiledNotes)
+	mux.HandleFunc("GET /v1/applications/{id}/notes/files", s.listNotes)
+	mux.HandleFunc("POST /v1/applications/{id}/notes/files", s.addNote)
+	mux.HandleFunc("GET /v1/notes/{id}", s.getNote)
+	mux.HandleFunc("PATCH /v1/notes/{id}", s.updateNote)
+	mux.HandleFunc("DELETE /v1/notes/{id}", s.deleteNote)
 	mux.HandleFunc("GET /v1/applications/{id}/tasks", s.listTasks)
 	mux.HandleFunc("POST /v1/applications/{id}/tasks", s.addTask)
 	mux.HandleFunc("GET /v1/tasks/{id}", s.getTask)
@@ -1493,10 +1499,56 @@ func (s *Server) listInterviews(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+func (s *Server) compiledNotes(w http.ResponseWriter, r *http.Request) {
+	s.getOne(w, r, nil, func(ctx context.Context, id string) (any, error) {
+		return s.Svc.CompiledNotes(ctx, id)
+	})
+}
+
 func (s *Server) listRoundQuestions(w http.ResponseWriter, r *http.Request) {
 	pageSlice(w, r, domain.BankQuestionFields, func(ctx context.Context) ([]domain.BankQuestion, error) {
 		return s.Svc.ListRoundQuestions(ctx, r.URL.Query().Get("q"))
 	}, "q")
+}
+
+func (s *Server) listNotes(w http.ResponseWriter, r *http.Request) {
+	pageSlice(w, r, domain.NoteFields, func(ctx context.Context) ([]domain.Note, error) {
+		return s.Svc.ListNotes(ctx, r.PathValue("id"))
+	})
+}
+
+func (s *Server) addNote(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	s.jsonMut(w, r, 201, domain.NoteFields, func(ctx context.Context, body []byte) (any, error) {
+		var in service.NoteInput
+		if err := decode(body, &in); err != nil {
+			return nil, err
+		}
+		return s.Svc.AddNote(ctx, id, in)
+	})
+}
+
+func (s *Server) getNote(w http.ResponseWriter, r *http.Request) {
+	s.getOne(w, r, domain.NoteFields, func(ctx context.Context, id string) (any, error) {
+		return s.Svc.GetNote(ctx, id)
+	})
+}
+
+func (s *Server) updateNote(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	s.jsonMut(w, r, 200, domain.NoteFields, func(ctx context.Context, body []byte) (any, error) {
+		var in service.NotePatch
+		if err := decode(body, &in); err != nil {
+			return nil, err
+		}
+		return s.Svc.UpdateNote(ctx, id, in)
+	})
+}
+
+func (s *Server) deleteNote(w http.ResponseWriter, r *http.Request) {
+	s.deleteOne(w, r, func(ctx context.Context, id string, version int) (any, error) {
+		return s.Svc.DeleteNote(ctx, id, version)
+	})
 }
 
 func (s *Server) addInterview(w http.ResponseWriter, r *http.Request) {

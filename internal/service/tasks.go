@@ -10,6 +10,8 @@ import (
 
 type TaskInput struct {
 	Stage string `json:"stage"`
+	// RoundID puts the task on one round; its stage then comes from the round.
+	RoundID string `json:"round_id"`
 	Title string `json:"title"`
 	Notes string `json:"notes"`
 	DueAt string `json:"due_at"`
@@ -19,6 +21,7 @@ type TaskInput struct {
 type TaskPatch struct {
 	Version int     `json:"version"`
 	Stage   *string `json:"stage"`
+	RoundID *string `json:"round_id"`
 	Title   *string `json:"title"`
 	Notes   *string `json:"notes"`
 	DueAt   *string `json:"due_at"`
@@ -80,12 +83,33 @@ func (s *Service) AddTask(ctx context.Context, appID string, in TaskInput) (doma
 		} else {
 			t.Stage = domain.TaskStageKey(app.Stage)
 		}
+		if err := s.onRound(ctx, a.UserID, appID, strings.TrimSpace(in.RoundID), &t); err != nil {
+			return err
+		}
 		if err := s.DB.CreateTask(ctx, t); err != nil {
 			return err
 		}
 		return s.audit(ctx, a, "task.create", "task", t.ID, t.Title+" ("+app.Title+")", map[string]any{"application_id": appID, "stage": t.Stage})
 	})
 	return t, err
+}
+
+// onRound ties t to a round of the same application, taking the round's stage.
+// An empty id unties it, keeping the stage.
+func (s *Service) onRound(ctx context.Context, userID, appID, roundID string, t *domain.Task) error {
+	if roundID == "" {
+		t.RoundID = ""
+		return nil
+	}
+	r, err := s.DB.GetInterview(ctx, userID, roundID)
+	if err != nil {
+		return err
+	}
+	if r.ApplicationID != appID {
+		return domain.Validation("round %s is on another application", roundID)
+	}
+	t.RoundID, t.Stage = r.ID, r.Stage
+	return nil
 }
 
 func (s *Service) ListTasks(ctx context.Context, appID string) ([]domain.Task, error) {
@@ -129,6 +153,14 @@ func (s *Service) UpdateTask(ctx context.Context, id string, p TaskPatch) (domai
 			if next.Stage, err = domain.ParseTaskStage(*p.Stage); err != nil {
 				return err
 			}
+		}
+		if p.RoundID != nil {
+			if err := s.onRound(ctx, a.UserID, cur.ApplicationID, strings.TrimSpace(*p.RoundID), &next); err != nil {
+				return err
+			}
+		} else if p.Stage != nil && next.Stage != cur.Stage {
+			// Moving to another stage leaves the round behind.
+			next.RoundID = ""
 		}
 		if p.Title != nil {
 			if next.Title, err = taskTitle(*p.Title); err != nil {

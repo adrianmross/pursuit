@@ -148,12 +148,15 @@ export function useTasks(appId: string, stage: number, onChange?: () => Promise<
     }
   }
   const forStage = (key: string) => (list ?? []).filter((t) => t.stage === key)
-  const add = (title: string, key = STAGE_STOPS[stage][0]) => run(() => api(base, { method: "POST", body: { stage: key, title } }))
+  const add = (title: string, key = STAGE_STOPS[stage][0], roundId?: string) =>
+    run(() => api(base, { method: "POST", body: roundId ? { round_id: roundId, title } : { stage: key, title } }))
   const toggle = (t: Task) =>
     run(() => api(`/v1/tasks/${encodeURIComponent(t.id)}`, { method: "PATCH", body: { version: t.version, done: !t.done_at } }))
   const remove = (t: Task) => run(() => api(`/v1/tasks/${encodeURIComponent(t.id)}?version=${t.version}`, { method: "DELETE" }))
+  const rename = (t: Task, title: string) =>
+    run(() => api(`/v1/tasks/${encodeURIComponent(t.id)}`, { method: "PATCH", body: { version: t.version, title } }))
 
-  return { list, busy, error, fetchTasks, forStage, add, toggle, remove }
+  return { list, busy, error, fetchTasks, forStage, add, toggle, remove, rename }
 }
 
 export type TasksApi = ReturnType<typeof useTasks>
@@ -243,7 +246,7 @@ export function TaskList({
 
 // One stage: its rounds as a pie (click to fill the next wedge) with how many
 // there are, its tasks as a box with how many are open, then remove-last
-// round (never below one) and add. Apply has no rounds, only tasks.
+// round (never below one) and add. Apply and Offer have no rounds, only tasks.
 function RoundRow({
   name,
   current,
@@ -388,7 +391,7 @@ export function RoundsList({
                 current={i === stage}
                 selected={i === sel}
                 reached={i <= stage}
-                noRounds={i === 0}
+                noRounds={i === 0 || i > ROUND_STAGES.length}
                 rounds={stored}
                 tasks={own}
                 tasksOpen={expanded === i}

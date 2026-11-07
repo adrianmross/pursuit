@@ -351,7 +351,7 @@ export function StatusChooser({
   const at = drag ?? settled
   const status = drag != null ? STAGE_STOPS[drag][0] : current
   const atRounds = app.interviews?.[at]
-  const roundStage = at > 0 ? ROUND_STAGES[at - 1] : null
+  const roundStage = (at > 0 && ROUND_STAGES[at - 1]) || null
 
   async function set(next: string | null) {
     if (!next || next === shown(app) || pending) return
@@ -395,7 +395,7 @@ export function StatusChooser({
     // else on the stage the application is on.
     else if ((k === "+" || k === "=" || k === "-" || k === "_") && onRoundsChange && (view === "rounds" || view === "stage")) {
       const piece = view === "rounds" ? sel : settled
-      if (piece < 1) return
+      if (piece < 1 || piece > ROUND_STAGES.length) return
       const key = ROUND_STAGES[piece - 1][0]
       if (k === "-" || k === "_") void rounds.remove(key)
       else void rounds.add(key, piece)

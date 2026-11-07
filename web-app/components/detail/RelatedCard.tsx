@@ -6,7 +6,7 @@ import { Link2, Unlink, X } from "lucide-react"
 import { api, ApiError } from "@/lib/api-client"
 import { applicationHref } from "@/lib/links"
 import { displayed, markOf, outcomeKind, type Application, type Page } from "@/lib/types"
-import { ConfirmDialog } from "@/components/ConfirmDialog"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { ProgressMark } from "@/components/ProgressMark"
 import { StatusBadge } from "@/components/StatusBadge"
 import { Button } from "@/components/ui/button"
@@ -42,7 +42,7 @@ export function RelatedCard({
   const [others, setOthers] = useState<Application[]>([])
   const [tick, setTick] = useState(0)
   const [busy, setBusy] = useState(false)
-  const [confirm, setConfirm] = useState(false)
+  const [rejecting, setRejecting] = useState<Application | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -63,7 +63,6 @@ export function RelatedCard({
   // Track only postings that stand alone and have nothing tracked with them.
   const trackable = others.filter((a) => !a.tracked_by && !others.some((o) => o.tracked_by === a.id))
   const open = [application, ...tracked].filter((a) => outcomeKind(a.outcome) !== "stop")
-  const openTracked = open.length - (open.includes(application) ? 1 : 0)
 
   if (!others.length && !application.tracked_by) return null
 
@@ -126,7 +125,7 @@ export function RelatedCard({
                   app,
                   <>
                     {outcomeKind(app.outcome) !== "stop" && (
-                      <Action label="Reject this posting" disabled={busy} onClick={() => run(() => patch(app, { status: "rejected" }))}>
+                      <Action label="Reject this posting" disabled={busy} onClick={() => setRejecting(app)}>
                         <X className="size-3.5" />
                       </Action>
                     )}
@@ -153,30 +152,44 @@ export function RelatedCard({
               </ItemGroup>
             </div>
           )}
-          {writable && tracked.length > 0 && open.length > 0 && (
-            <Button size="sm" variant="outline" className="self-start" disabled={busy} onClick={() => setConfirm(true)}>
-              <X />
-              Reject all
-            </Button>
-          )}
         </>
       )}
       {error && <p className="text-xs text-destructive">{error}</p>}
-    <ConfirmDialog
-      open={confirm}
-      onOpenChange={setConfirm}
-      title={`Reject all at ${application.company}?`}
-      description={`Rejects ${open.includes(application) ? "this application and " : ""}${openTracked} tracked posting${openTracked === 1 ? "" : "s"}. Each keeps its stage.`}
-      confirmLabel="Reject all"
-      danger
+    <RejectChoice
+      open={!!rejecting}
+      onOpenChange={(v) => !v && setRejecting(null)}
+      name={rejecting?.title || "this posting"}
+      company={application.company || ""}
+      others={open.filter((a) => a.id !== rejecting?.id).length}
       busy={busy}
-      onConfirm={() =>
-        run(async () => {
-          await Promise.all(open.map((app) => patch(app, { status: "rejected" })))
-          setConfirm(false)
-        })
-      }
+      onOne={() => rejecting && run(() => patch(rejecting, { status: "rejected" })).then(() => setRejecting(null))}
+      onAll={() => run(() => Promise.all(open.map((a) => patch(a, { status: "rejected" })))).then(() => setRejecting(null))}
     />
     </SectionCard>
+  )
+}
+
+// Rejecting one posting of a tracked group asks once: the others usually go
+// with it, but rejecting just this one stays the default.
+export function RejectChoice({ open, onOpenChange, name, company, others, busy, onOne, onAll }: { open: boolean; onOpenChange: (v: boolean) => void; name: string; company: string; others: number; busy?: boolean; onOne: () => void; onAll: () => void }) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Reject {name}?</DialogTitle>
+          <DialogDescription>
+            It is tracked with {others} other posting{others === 1 ? "" : "s"} at {company}. One process usually ends for all of them. Each keeps its stage.
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <Button variant="outline" disabled={busy} onClick={onAll}>
+            Reject all {others + 1}
+          </Button>
+          <Button autoFocus variant="destructive" disabled={busy} onClick={onOne}>
+            Reject this one
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }

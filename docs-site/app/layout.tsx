@@ -39,10 +39,9 @@ const navbar = (
 // Same footer as the dashboard (web-app/components/SiteFooter.tsx); keep in step.
 const footer = (
   <Footer className="hp-footer">
-    <a href="/" className="hp-footer-brand">
-      <img className="brand-logo-light" src="/docs/brand/mark.svg" alt="" />
-      <img className="brand-logo-dark" src="/docs/brand/mark-reverse.svg" alt="" />
-      {PRODUCT_NAME}
+    <a href="/" className="hp-footer-brand" aria-label={PRODUCT_NAME}>
+      <img className="brand-logo-light" src="/docs/brand/wordmark.svg" alt="" />
+      <img className="brand-logo-dark" src="/docs/brand/wordmark-reverse.svg" alt="" />
     </a>
     <p className="hp-footer-credit">
       <span>

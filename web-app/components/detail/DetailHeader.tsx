@@ -120,7 +120,7 @@ export function DetailHeader({
       if (!next) return false
       onSaveField({ status: next })
     })
-  const roundKey = stage > 0 ? ROUND_STAGES[stage - 1][0] : ""
+  const roundKey = ROUND_STAGES[stage - 1]?.[0] ?? ""
   useShortcuts({
     appStatus: write(() => setChooser("stage")),
     appOutcome: write(() => setChooser("outcome")),
