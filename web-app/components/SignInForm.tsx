@@ -580,7 +580,7 @@ export function SignInForm({
     <div className="relative flex min-h-svh flex-col bg-background text-foreground">
       <ThemeToggle className="absolute top-4 right-4" />
       <main className="flex flex-1 flex-col items-center justify-center gap-6 px-4 py-12">
-        <Link href="/" aria-label="Hire Pursuit">
+        <Link href="/" aria-label={PRODUCT_NAME}>
           {/* eslint-disable-next-line @next/next/no-img-element -- drawn SVG wordmark, not a photo next/image needs to optimize */}
           <img src="/brand/wordmark.svg" alt={PRODUCT_NAME} className="h-11 w-auto dark:hidden" />
           {/* eslint-disable-next-line @next/next/no-img-element */}
