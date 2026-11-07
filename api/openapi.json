@@ -1101,6 +1101,46 @@
         ],
         "type": "object"
       },
+      "BillingView": {
+        "properties": {
+          "active": {
+            "type": "boolean"
+          },
+          "cancel_at_period_end": {
+            "type": "boolean"
+          },
+          "comped": {
+            "type": "boolean"
+          },
+          "current_period_end": {
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "entitlements": {
+            "items": {
+              "$ref": "#/components/schemas/Entitlement"
+            },
+            "type": "array"
+          },
+          "status": {
+            "type": "string"
+          },
+          "synced_at": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "enabled",
+          "status",
+          "active",
+          "comped",
+          "cancel_at_period_end",
+          "entitlements"
+        ],
+        "type": "object"
+      },
       "Caps": {
         "properties": {
           "data": {
@@ -1517,6 +1557,25 @@
         },
         "type": "object"
       },
+      "Entitlement": {
+        "properties": {
+          "feature": {
+            "type": "string"
+          },
+          "granted_at": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "feature",
+          "source",
+          "granted_at"
+        ],
+        "type": "object"
+      },
       "Error": {
         "properties": {
           "error": {
@@ -1626,6 +1685,60 @@
         "required": [
           "exported_at",
           "applications"
+        ],
+        "type": "object"
+      },
+      "FeaturePatch": {
+        "properties": {
+          "enabled": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          }
+        },
+        "type": "object"
+      },
+      "FeatureView": {
+        "properties": {
+          "available": {
+            "type": "boolean"
+          },
+          "configured": {
+            "type": "boolean"
+          },
+          "description": {
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "entitled": {
+            "type": "boolean"
+          },
+          "experimental": {
+            "type": "boolean"
+          },
+          "key": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "premium": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "key",
+          "name",
+          "description",
+          "premium",
+          "experimental",
+          "configured",
+          "entitled",
+          "enabled",
+          "available"
         ],
         "type": "object"
       },
@@ -6397,6 +6510,198 @@
         ]
       }
     },
+    "/v1/billing": {
+      "get": {
+        "operationId": "yourPlanEnabledThisServerSellsPlansStatusStripeSubscriptionStatusOrNoneActiveCurrentperiodendCancelatperiodendEntitlements",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BillingView"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "error"
+          }
+        },
+        "summary": "Your plan: enabled (this server sells plans), status (Stripe subscription status or none), active, current_period_end, cancel_at_period_end, entitlements",
+        "tags": [
+          "Billing"
+        ]
+      }
+    },
+    "/v1/billing/checkout": {
+      "post": {
+        "description": "Returns {url} of a Stripe Checkout page. Optional body {code} applies an invite (a Stripe promotion code). 409 if you already have a plan or are comped.",
+        "operationId": "startSubscription",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          },
+          {
+            "$ref": "#/components/parameters/DryRun"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "error"
+          }
+        },
+        "summary": "Start a subscription",
+        "tags": [
+          "Billing"
+        ]
+      }
+    },
+    "/v1/billing/portal": {
+      "post": {
+        "operationId": "returnsUrlOfStripeCustomerPortalToChangePaymentOrCancel",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          },
+          {
+            "$ref": "#/components/parameters/DryRun"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "error"
+          }
+        },
+        "summary": "Returns {url} of the Stripe customer portal to change payment or cancel",
+        "tags": [
+          "Billing"
+        ]
+      }
+    },
+    "/v1/billing/sync": {
+      "post": {
+        "description": "Returns the plan.",
+        "operationId": "rereadYourPlanFromStripeNowPageCheckoutReturnsToCallsThisBeforeWebhookLands",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          },
+          {
+            "$ref": "#/components/parameters/DryRun"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BillingView"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "error"
+          }
+        },
+        "summary": "Re-read your plan from Stripe now (the page Checkout returns to calls this before the webhook lands)",
+        "tags": [
+          "Billing"
+        ]
+      }
+    },
+    "/v1/billing/webhook": {
+      "post": {
+        "description": "Authenticated by the Stripe-Signature header, not a token; re-reads the customer's plan from Stripe.",
+        "operationId": "stripeWebhookEndpoint",
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "error"
+          }
+        },
+        "security": [],
+        "summary": "Stripe webhook endpoint",
+        "tags": [
+          "Billing"
+        ]
+      }
+    },
     "/v1/caps": {
       "get": {
         "description": "Per-company application limits.",
@@ -7377,6 +7682,132 @@
             "lang": "shell",
             "source": "pursuit export simplify -o simplify.csv"
           }
+        ]
+      }
+    },
+    "/v1/features": {
+      "get": {
+        "description": "Experimental ones start off) and available (all three).",
+        "operationId": "everyFeatureWithConfiguredThisServerIsSetUpForItEntitledYourPlanIncludesItAlwaysTrueWithoutBillingEnabledYourOnoff",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "data": {
+                      "items": {
+                        "$ref": "#/components/schemas/FeatureView"
+                      },
+                      "type": "array"
+                    },
+                    "page": {
+                      "$ref": "#/components/schemas/PageMeta"
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "page"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "error"
+          }
+        },
+        "summary": "Every feature with configured (this server is set up for it), entitled (your plan includes it, always true without billing), enabled (your on/off",
+        "tags": [
+          "Features"
+        ]
+      }
+    },
+    "/v1/features/{id}": {
+      "patch": {
+        "description": "Body {enabled}. An endpoint behind a feature answers 403 feature_unavailable with details.reason not_configured, not_entitled or disabled.",
+        "operationId": "turnFeatureOnOrOffForYourself",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          },
+          {
+            "$ref": "#/components/parameters/DryRun"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FeaturePatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FeatureView"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "error"
+          }
+        },
+        "summary": "Turn a feature on or off for yourself",
+        "tags": [
+          "Features"
         ]
       }
     },

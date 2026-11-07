@@ -289,6 +289,13 @@ func build() []byte {
 
 	add("/v1/me", "get", "Get the current user. Returns the user and the token making the call", false, x{"q": q("fields"), "out": domain.Me{}, "cli": "pursuit auth status"})
 	add("/v1/me", "patch", "Update the current user. Set display name or avatar (png, jpeg, or webp data URL under 256KB; empty clears it). email is accepted only from the PURSUIT_TRUST_PROXY_AUTH owner (GET /v1/me returns proxy: true)", true, x{"in": service.MePatch{}, "out": domain.User{}})
+	add("/v1/features", "get", "Every feature with configured (this server is set up for it), entitled (your plan includes it, always true without billing), enabled (your on/off; experimental ones start off) and available (all three)", false, x{"list": service.FeatureView{}})
+	add("/v1/features/{id}", "patch", "Turn a feature on or off for yourself. body {enabled}. an endpoint behind a feature answers 403 feature_unavailable with details.reason not_configured, not_entitled or disabled", true, x{"in": service.FeaturePatch{}, "out": service.FeatureView{}})
+	add("/v1/billing", "get", "Your plan: enabled (this server sells plans), status (Stripe subscription status or none), active, current_period_end, cancel_at_period_end, entitlements", false, x{"out": service.BillingView{}})
+	add("/v1/billing/checkout", "post", "Start a subscription; returns {url} of a Stripe Checkout page. Optional body {code} applies an invite (a Stripe promotion code). 409 if you already have a plan or are comped", true, x{})
+	add("/v1/billing/portal", "post", "Returns {url} of the Stripe customer portal to change payment or cancel", true, x{})
+	add("/v1/billing/sync", "post", "Re-read your plan from Stripe now (the page Checkout returns to calls this before the webhook lands); returns the plan", true, x{"out": service.BillingView{}})
+	add("/v1/billing/webhook", "post", "Stripe webhook endpoint. authenticated by the Stripe-Signature header, not a token; re-reads the customer's plan from Stripe", false, with(open, "errors", []int{400, 401}))
 	add("/v1/tokens", "get", "List tokens", false, x{"q": q("limit", "cursor", "sort", "fields"), "list": domain.Token{}, "cli": "pursuit tokens list"})
 	add("/v1/tokens", "post", "Create a token. The secret is returned once. a token can only grant scopes it holds", true, x{"in": service.TokenInput{}, "out": domain.IssuedToken{}, "status": 201, "cli": "pursuit tokens create --name agent-1 --scope read --scope write"})
 	add("/v1/tokens/{id}", "delete", "Revoke a token", true, x{"out": domain.Token{}, "cli": "pursuit tokens revoke TOKEN_ID"})

@@ -192,6 +192,13 @@ func (s *Server) Handler() http.Handler {
 
 	mux.HandleFunc("GET /v1/me", s.me)
 	mux.HandleFunc("PATCH /v1/me", s.updateMe)
+	mux.HandleFunc("GET /v1/features", s.listFeatures)
+	mux.HandleFunc("PATCH /v1/features/{id}", s.updateFeature)
+	mux.HandleFunc("GET /v1/billing", s.getBilling)
+	mux.HandleFunc("POST /v1/billing/checkout", s.billingCheckout)
+	mux.HandleFunc("POST /v1/billing/portal", s.billingPortal)
+	mux.HandleFunc("POST /v1/billing/sync", s.billingSync)
+	mux.HandleFunc("POST /v1/billing/webhook", s.stripeWebhook)
 	mux.HandleFunc("POST /v1/tokens", s.createToken)
 	mux.HandleFunc("GET /v1/tokens", s.listTokens)
 	mux.HandleFunc("DELETE /v1/tokens/{id}", s.revokeToken)
@@ -398,7 +405,7 @@ func (s *Server) wrap(next http.Handler) http.Handler {
 // endpoints and every dashboard asset and client-side route (e.g. /app/:id),
 // which render the SPA shell and authenticate in the browser via the API.
 func isPublic(path string) bool {
-	return !strings.HasPrefix(path, "/v1/") || strings.HasPrefix(path, "/v1/auth/") || path == "/v1/demo"
+	return !strings.HasPrefix(path, "/v1/") || strings.HasPrefix(path, "/v1/auth/") || path == "/v1/demo" || path == "/v1/billing/webhook"
 }
 
 func isCron(path string) bool {

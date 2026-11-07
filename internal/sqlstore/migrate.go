@@ -532,4 +532,45 @@ var migrations = []migration{{
 		)`,
 		`CREATE INDEX IF NOT EXISTS notes_app_idx ON notes(application_id, created_at, id)`,
 	},
+}, {
+	version: "020",
+	stmts: []string{
+		// One Stripe customer per user, and the subscription as last read
+		// from Stripe. Rows are overwritten by a sync, never patched from a
+		// webhook payload. status is "none" before the first subscription.
+		`CREATE TABLE IF NOT EXISTS billing_accounts (
+			user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+			stripe_customer_id TEXT NOT NULL UNIQUE,
+			subscription_id TEXT NOT NULL DEFAULT '',
+			status TEXT NOT NULL DEFAULT 'none',
+			price_id TEXT NOT NULL DEFAULT '',
+			current_period_end TEXT NOT NULL DEFAULT '',
+			cancel_at_period_end INTEGER NOT NULL DEFAULT 0,
+			synced_at TEXT NOT NULL DEFAULT ''
+		)`,
+		// Features a user may use. source "stripe" rows mirror Stripe's
+		// active entitlements and are replaced on every sync; "manual" rows
+		// are comps a sync never touches.
+		`CREATE TABLE IF NOT EXISTS entitlements (
+			user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+			feature TEXT NOT NULL,
+			source TEXT NOT NULL,
+			granted_at TEXT NOT NULL,
+			PRIMARY KEY (user_id, feature, source)
+		)`,
+		// The user's own on/off for an experimental feature.
+		`CREATE TABLE IF NOT EXISTS user_features (
+			user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+			feature TEXT NOT NULL,
+			enabled INTEGER NOT NULL,
+			updated_at TEXT NOT NULL,
+			PRIMARY KEY (user_id, feature)
+		)`,
+		// Webhook deliveries already handled; Stripe redelivers and doesn't order.
+		`CREATE TABLE IF NOT EXISTS stripe_events (
+			id TEXT PRIMARY KEY,
+			type TEXT NOT NULL,
+			received_at TEXT NOT NULL
+		)`,
+	},
 }}

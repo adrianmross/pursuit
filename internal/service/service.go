@@ -13,6 +13,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/pursuit/pursuit/internal/auth"
+	"github.com/pursuit/pursuit/internal/billing"
 	"github.com/pursuit/pursuit/internal/domain"
 	"github.com/pursuit/pursuit/internal/links"
 	"github.com/pursuit/pursuit/internal/sqlstore"
@@ -30,6 +31,15 @@ type Service struct {
 	Hooks func(userID string, ev domain.Event)
 	// WebAuthn is nil unless passkeys are configured (NewWebAuthn).
 	WebAuthn *webauthn.WebAuthn
+	// Stripe is nil unless billing is configured; then every configured
+	// feature is entitled (self-hosted). StripePrice is the plan's price.
+	Stripe              *billing.Client
+	StripePrice         string
+	StripeWebhookSecret string
+	// PublicURL is where Stripe sends the user back; empty uses the request's origin.
+	PublicURL string
+	// Capabilities is which Features this deployment is set up for, by key.
+	Capabilities map[string]bool
 }
 
 func New(db *sqlstore.Store) *Service {

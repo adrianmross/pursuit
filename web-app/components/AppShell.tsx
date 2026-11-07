@@ -4,6 +4,7 @@ import { Suspense, useEffect, useState, useSyncExternalStore } from "react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import { Archive, ArrowLeft, Bot, IdCard, LogOut, MessageSquareText, Search, Settings, X } from "lucide-react"
+import { api } from "@/lib/api-client"
 import { useAuth } from "@/lib/auth"
 import { keyLabels, useShortcuts } from "@/lib/keybindings"
 import { cn } from "@/lib/utils"
@@ -53,6 +54,18 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const router = useRouter()
   const pathname = usePathname()
   useEffect(() => () => void (lastPath = pathname), [pathname])
+  // Back from Stripe Checkout: read the plan now rather than wait for the
+  // webhook, then drop the marker from the address.
+  useEffect(() => {
+    const url = new URL(window.location.href)
+    if (!url.searchParams.has("billing")) return
+    const done = () => {
+      url.searchParams.delete("billing")
+      router.replace(url.pathname + url.search)
+    }
+    if (url.searchParams.get("billing") === "success") api("/v1/billing/sync", { method: "POST" }).catch(() => {}).finally(done)
+    else done()
+  }, [router])
   // History keeps the table's filters and scroll, but only when the table is
   // what history would return to; otherwise open it fresh.
   // ponytail: lastPath is wrong after a browser Forward; history.state indexes would fix it.
@@ -66,6 +79,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     setSettingsKey((k) => k + 1)
     setSettingsOpen(true)
   }
+  // An invite link (?invite=CODE) opens the plan, which offers to accept it.
+  useEffect(() => {
+    if (!new URLSearchParams(window.location.search).has("invite")) return
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setSettingsSection("plan")
+    setSettingsOpen(true)
+  }, [])
   const narrow = useMedia("(max-width: 639px)")
   const medium = useMedia("(max-width: 719px)")
   const [searching, setSearching] = useState(false)
