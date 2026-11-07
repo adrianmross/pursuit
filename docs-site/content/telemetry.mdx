@@ -1,0 +1,40 @@
+# Telemetry
+
+`pursuit serve` sends one small anonymous ping when it starts and once a day after that. It exists to count installs and see which versions and platforms are in use. It is on by default and easy to turn off.
+
+## What is sent
+
+```json
+{
+  "install_id": "9f2c0b7e5d1a4c3e8b6a2d4f1e0c7b53",
+  "version": "0.3.1",
+  "os": "linux",
+  "arch": "amd64",
+  "db": "sqlite",
+  "docker": true
+}
+```
+
+- `install_id` is random. It is saved in `telemetry-id` in your data directory and means nothing outside this install. With no data directory it changes on every start.
+- The rest is the release, platform, database type, and whether the process runs in a container.
+
+## What is not sent
+
+Nothing from your data: no applications, companies, résumés, tokens, emails, URLs, or counts. The receiving Worker does not read or store your IP address (Cloudflare's network still sees it in transit, as with any request). The startup log prints the exact payload and where it goes.
+
+The ping goes to `https://pursuit-telemetry.winter-tooth-73af.workers.dev/v1/ping`. The answer names the latest release, and the daemon logs a line when yours is older.
+
+## Turn it off
+
+Set either of these before `pursuit serve`:
+
+```bash
+export PURSUIT_TELEMETRY=off
+export DO_NOT_TRACK=1
+```
+
+`PURSUIT_TELEMETRY_URL` sends the ping somewhere else, for example a local listener that shows you the request.
+
+## The hosted service
+
+The hosted deployment does not send this ping. It reports server errors (panics and 5xx responses) to Sentry with the route, status and request id, and no headers, cookies, query strings or request bodies. The dashboard's page-view analytics are covered in the [privacy policy](/docs/privacy).

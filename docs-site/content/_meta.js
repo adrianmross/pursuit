@@ -10,4 +10,5 @@ export default {
   changelog: "Changelog",
   privacy: "Privacy",
   terms: "Terms",
+  telemetry: "Telemetry",
 }

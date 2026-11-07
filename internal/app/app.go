@@ -25,6 +25,8 @@ import (
 	"github.com/pursuit/pursuit/internal/oidcauth"
 	"github.com/pursuit/pursuit/internal/service"
 	"github.com/pursuit/pursuit/internal/sqlstore"
+	"github.com/pursuit/pursuit/internal/telemetry"
+	"github.com/pursuit/pursuit/internal/version"
 )
 
 func Run(ctx context.Context, cfg config.Config) error {
@@ -113,6 +115,9 @@ func Run(ctx context.Context, cfg config.Config) error {
 	sweepCtx, sweepCancel := context.WithCancel(ctx)
 	defer sweepCancel()
 	go runSweep(sweepCtx, svc, log, cfg)
+	if telemetry.Enabled(os.Getenv) {
+		go telemetry.Run(sweepCtx, log, telemetry.Base(version.Version, store.Dialect(), cfg.DataDir), os.Getenv)
+	}
 
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM)

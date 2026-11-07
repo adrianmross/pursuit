@@ -6,7 +6,7 @@ Pursuit is a job-application tracker run by Adrian Ross, an individual. This pag
 
 ## If you run it yourself
 
-Self-hosted Pursuit (`pursuit serve`) sends nothing to us. Your database, documents, and tokens stay on your machine or your infrastructure, and this page doesn't apply to them. The rest of this page is about the hosted service.
+Self-hosted Pursuit (`pursuit serve`) sends us one anonymous ping at start and daily: a random install ID, the version, OS, architecture, database type, and whether it runs in a container. Nothing from your data is in it, and you can turn it off with `PURSUIT_TELEMETRY=off` or `DO_NOT_TRACK=1`; see [Telemetry](/docs/telemetry). Your database, documents, and tokens stay on your machine or your infrastructure, and the rest of this page doesn't apply to them. The rest of this page is about the hosted service.
 
 ## What the hosted service holds
 
@@ -14,6 +14,7 @@ Self-hosted Pursuit (`pursuit serve`) sends nothing to us. Your database, docume
 - **What you put in:** applications, companies, notes, interview rounds, tasks, custom fields, your profile and prepared answers, and the résumés and cover letters you upload.
 - **A record of changes:** an audit log of what changed, when, and which token or sign-in did it, so you can see what an agent did on your behalf.
 - **Operational data:** request logs (IP address, user agent, timestamps, request IDs) kept by our hosting providers for security and debugging.
+- **Error reports:** when the hosted server hits a panic or a 5xx response, it sends the route, status, request ID and stack trace to Sentry. It sends no headers, cookies, query strings, request bodies, or account details.
 - **Demo visitors:** the try-it-without-an-account sandbox creates throwaway data. We use your IP address only to rate-limit it.
 
 ## What we do with it
@@ -27,6 +28,7 @@ The posting check fetches the job URLs you saved. It sends the URL, not your per
 We use a few providers to run the service, and they process data on our behalf:
 
 - Vercel, for hosting.
+- Sentry, for server error reports.
 - Neon, for the database and for sign-in, including the emails that carry sign-in codes.
 - An S3-compatible object store, for uploaded documents, when it's turned on.
 - Google or another sign-in provider, only if you choose to sign in that way.
