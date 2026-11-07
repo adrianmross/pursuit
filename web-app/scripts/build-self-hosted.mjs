@@ -6,7 +6,7 @@
 // at build time; export mode uses the static /app/view?id=... route
 // instead, see lib/links.ts). Move them all aside for this build, then
 // restore them unconditionally, even on failure.
-import { existsSync, renameSync, rmSync } from "node:fs"
+import { existsSync, readdirSync, renameSync, rmSync } from "node:fs"
 import { spawnSync } from "node:child_process"
 import { join } from "node:path"
 
@@ -22,8 +22,14 @@ for (const { real, tmp } of PARK) {
 }
 // A previous `next dev`/`next build` leaves route-manifest types for the
 // parked routes in .next — stale once they're moved, and next build then
-// fails type-checking against files that no longer exist.
-rmSync(join(root, ".next"), { recursive: true, force: true })
+// fails type-checking against files that no longer exist. .next/cache holds
+// only compiler output keyed by content, so CI restores it between runs.
+const next = join(root, ".next")
+if (existsSync(next)) {
+  for (const entry of readdirSync(next)) {
+    if (entry !== "cache") rmSync(join(next, entry), { recursive: true, force: true })
+  }
+}
 
 let status = 1
 try {

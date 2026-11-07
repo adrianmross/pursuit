@@ -1,17 +1,14 @@
 name: ci
 
+# Pull requests only: main is protected, so a merge is already a tested tree.
+# release-plan.yml listens for the push to main itself.
 on:
-  # main only: a PR branch already runs on pull_request. release-plan.yml
-  # listens for this push run on main.
-  push:
-    branches: [main]
   pull_request:
 
-# A newer push to a PR branch cancels the older run; main runs never cancel,
-# since release-plan listens for each one.
+# A newer push to a PR branch cancels the older run.
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  cancel-in-progress: true
 
 jobs:
   go:
@@ -42,7 +39,7 @@ jobs:
       # internal/dashboard embeds web-app's static export (//go:embed dist)
       # — build it first, same script as vercel.json's buildCommand, or go
       # vet/test fail to even compile.
-      - run: sh scripts/vercel-build.sh
+      - uses: ./.github/actions/web-build
       - run: go vet ./...
       - run: go test ./...
       # Same store and API tests on Postgres; each test gets its own schema.
@@ -83,11 +80,26 @@ jobs:
             web-app/package-lock.json
             docs-site/package-lock.json
             extension/package-lock.json
-      - run: sh scripts/vercel-build.sh
+      - uses: ./.github/actions/web-build
+      - working-directory: extension
+        run: npm ci
+      # The browser download is the slow part of the install; the system
+      # libraries (--with-deps) are not cached, so that step runs every time.
+      - id: playwright
+        working-directory: extension
+        run: echo "version=$(npx playwright --version | cut -d' ' -f2)" >> "$GITHUB_OUTPUT"
+      - id: browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}
       - working-directory: extension
         run: |
-          npm ci
-          npx playwright install --with-deps chromium
+          if [ "${{ steps.browsers.outputs.cache-hit }}" = true ]; then
+            npx playwright install-deps chromium
+          else
+            npx playwright install --with-deps chromium
+          fi
           npm run e2e
       - if: failure()
         uses: actions/upload-artifact@v4
