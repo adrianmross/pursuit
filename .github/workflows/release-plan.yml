@@ -46,7 +46,7 @@ jobs:
 
       - id: release-pr
         if: steps.release-please.outputs.prs_created == 'true'
-        uses: adrianmross/changelogger@v0.10.0
+        uses: adrianmross/changelogger@v0.11.0
         with:
           command: release-info
         env:
@@ -59,7 +59,7 @@ jobs:
           path: release-pr
 
       - if: steps.release-pr.outputs.head_ref != ''
-        uses: adrianmross/changelogger@v0.10.0
+        uses: adrianmross/changelogger@v0.11.0
         with:
           command: consume
           working-directory: release-pr

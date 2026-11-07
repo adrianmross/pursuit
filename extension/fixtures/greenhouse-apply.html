@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Backend Engineer at Acme Robotics</title>
+    <script type="application/ld+json">
+      {"@context":"https://schema.org","@type":"JobPosting","title":"Backend Engineer","hiringOrganization":{"@type":"Organization","name":"Acme Robotics"},"jobLocation":{"@type":"Place","address":{"addressLocality":"New York","addressRegion":"NY"}},"baseSalary":{"@type":"MonetaryAmount","value":{"minValue":160000,"maxValue":190000}}}
+    </script>
+  </head>
+  <body>
+    <h1>Backend Engineer</h1>
+    <p class="location">New York, NY</p>
+    <form id="application_form" action="/acme/jobs/111/submit" method="post">
+      <label for="first_name">First Name*</label>
+      <input id="first_name" name="first_name" type="text" required />
+      <label for="last_name">Last Name*</label>
+      <input id="last_name" name="last_name" type="text" required />
+      <label for="email">Email*</label>
+      <input id="email" name="email" type="email" required />
+      <label for="phone">Phone</label>
+      <input id="phone" name="phone" type="tel" />
+      <label for="resume">Resume/CV*</label>
+      <input id="resume" name="resume" type="file" accept=".pdf" required />
+      <label for="linkedin">LinkedIn Profile</label>
+      <input id="linkedin" name="linkedin" type="url" />
+
+      <fieldset>
+        <legend>Are you legally authorized to work in the United States?*</legend>
+        <label><input type="radio" name="auth" value="1" required /> Yes</label>
+        <label><input type="radio" name="auth" value="0" /> No</label>
+      </fieldset>
+
+      <!-- A react-select stand-in: typing lists matching options; picking one sets the hidden value. -->
+      <label id="sponsor-label" for="sponsor">Will you now or in the future require visa sponsorship?*</label>
+      <input id="sponsor" role="combobox" aria-controls="sponsor-list" aria-labelledby="sponsor-label" aria-required="true" autocomplete="off" />
+      <div id="sponsor-list" role="listbox"></div>
+      <input id="sponsor-value" type="hidden" name="sponsor" />
+
+      <label for="why">Why Acme Robotics?*</label>
+      <textarea id="why" name="why" required></textarea>
+
+      <button id="submit" type="submit">Submit application</button>
+    </form>
+    <script>
+      const input = document.getElementById("sponsor");
+      const list = document.getElementById("sponsor-list");
+      input.addEventListener("input", () => {
+        list.replaceChildren();
+        for (const name of ["Yes", "No"]) {
+          if (!name.toLowerCase().startsWith(input.value.toLowerCase())) continue;
+          const opt = document.createElement("div");
+          opt.setAttribute("role", "option");
+          opt.textContent = name;
+          opt.addEventListener("click", () => {
+            document.getElementById("sponsor-value").value = name;
+            input.value = name;
+            list.replaceChildren();
+          });
+          list.append(opt);
+        }
+      });
+      window.submissions = 0;
+      document.getElementById("application_form").addEventListener("submit", (e) => {
+        e.preventDefault();
+        window.submissions += 1;
+      });
+    </script>
+  </body>
+</html>

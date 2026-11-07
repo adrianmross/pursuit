@@ -1,0 +1,4 @@
+# Lint for api/openapi.json (make lint-openapi). Strict: warnings fail.
+# .redocly.lint-ignore.yaml lists the routes that cannot answer a 4xx.
+extends:
+  - recommended-strict

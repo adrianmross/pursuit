@@ -17,8 +17,8 @@ export function SignInGate({
 
   useEffect(() => {
     if (!me) return
-    // ?next= brings a visitor back to where the sign-in started, e.g. the
-    // Go-served /reference page (a full load, since it isn't a Next route).
+    // ?next= brings a visitor back to where the sign-in started (a full load,
+    // so it also reaches pages the Go server renders outside Next).
     // Parsed against this origin so "//host" or "/\thost" can't leave the site.
     const next = new URLSearchParams(window.location.search).get("next")
     const target = next ? URL.parse(next, window.location.origin) : null

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react"
 import Link from "next/link"
 import { ArrowLeft, ArrowRight, Check, ExternalLink, Search, X } from "lucide-react"
+import { PRODUCT_NAME } from "@/lib/brand"
 import { markOf, type Application } from "@/lib/types"
 import { CompanyAvatar } from "@/components/CompanyAvatar"
 import { ProgressMark } from "@/components/ProgressMark"
@@ -90,8 +91,8 @@ function AppBar() {
   return (
     <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 border-b px-4 py-2">
       <span>
-        <img src="/brand/hire-pursuit-wordmark.svg" alt="" className="h-4 w-auto dark:hidden" />
-        <img src="/brand/hire-pursuit-wordmark-reverse.svg" alt="" className="hidden h-4 w-auto dark:block" />
+        <img src="/brand/wordmark.svg" alt="" className="h-4 w-auto dark:hidden" />
+        <img src="/brand/wordmark-reverse.svg" alt="" className="hidden h-4 w-auto dark:block" />
       </span>
       <span className="flex h-7 w-40 items-center gap-2 rounded-md border px-2.5 text-xs text-muted-foreground sm:w-72">
         <Search className="size-3.5" /> Search
@@ -232,9 +233,9 @@ function DetailScene() {
 }
 
 const SCENES = [
-  { label: "Dashboard", title: "Hire Pursuit — Pipeline", caption: "Every role you're chasing, at a glance." },
+  { label: "Dashboard", title: `${PRODUCT_NAME} — Pipeline`, caption: "Every role you're chasing, at a glance." },
   { label: "CLI", title: "zsh — pursuit", caption: "An agent takes it from the terminal and prepares the form." },
-  { label: "Review", title: "Hire Pursuit — Halcyon", caption: "Nothing goes out until you approve it." },
+  { label: "Review", title: `${PRODUCT_NAME} — Halcyon`, caption: "Nothing goes out until you approve it." },
 ]
 const DWELL = 5000
 
@@ -268,7 +269,7 @@ function Showcase() {
   return (
     <section
       aria-roledescription="carousel"
-      aria-label="Hire Pursuit, from the dashboard to the CLI and back"
+      aria-label={`${PRODUCT_NAME}, from the dashboard to the CLI and back`}
       onMouseEnter={() => setPaused(true)}
       onMouseLeave={() => setPaused(false)}
       onFocus={() => setPaused(true)}
@@ -381,8 +382,8 @@ export function Landing() {
 
       <main className="mx-auto max-w-6xl px-4 pb-24 sm:px-5">
         <section className="pt-10 text-center sm:pt-14">
-          <img src="/brand/hire-pursuit-mark.svg" alt="Hire Pursuit" className="mx-auto mb-5 h-12 w-auto dark:hidden" />
-          <img src="/brand/hire-pursuit-mark-reverse.svg" alt="Hire Pursuit" className="mx-auto mb-5 hidden h-12 w-auto dark:block" />
+          <img src="/brand/mark.svg" alt={PRODUCT_NAME} className="mx-auto mb-5 h-12 w-auto dark:hidden" />
+          <img src="/brand/mark-reverse.svg" alt={PRODUCT_NAME} className="mx-auto mb-5 hidden h-12 w-auto dark:block" />
           <h1 className="font-heading text-4xl font-semibold leading-[1.05] tracking-tight text-balance sm:text-5xl">
             For your higher pursuits.
           </h1>

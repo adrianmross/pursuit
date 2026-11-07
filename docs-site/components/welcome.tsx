@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { PRODUCT_NAME } from "@/lib/brand"
 
 // Scripted session. "cmd" lines are typed; the rest print at once. The run ends at
 // `approved` because this build enqueues submit work but never clicks Submit.
@@ -105,10 +106,10 @@ export function Welcome() {
   return (
     <div className="wl">
       <section className="wl-hero">
-        <img className="wl-mark" src="/docs/brand/hire-pursuit-app-icon.svg" alt="" />
+        <img className="wl-mark" src="/docs/brand/app-icon.svg" alt="" />
         <h1>For your higher pursuits.</h1>
         <p>
-          Hire Pursuit is a self-hosted job-application tracker for one person. Agents prepare applications through the{" "}
+          {PRODUCT_NAME} is a self-hosted job-application tracker for one person. Agents prepare applications through the{" "}
           <code>pursuit</code> CLI. Nothing goes out until you approve it.
         </p>
         <div className="wl-cta">

@@ -1,5 +1,3 @@
-import { SiteFooter } from "@/components/SiteFooter"
-
 // Hand-drawn board-game pieces for the error states (404, crash, failed
 // sign-in). Everything is plain strokes in currentColor plus the brand gold
 // and forest, roughened by one displacement filter. Every <Sketch> defines
@@ -33,7 +31,7 @@ export function Sketch({
 }
 
 // The mark's ring: five segments of a circle, open at the lower left where
-// the stem joins (angles measured off hire-pursuit-mark.svg).
+// the stem joins (angles measured off mark.svg).
 const RING_SEGMENTS = [
   [-168, -117.8],
   [-109.8, -59.6],
@@ -177,31 +175,5 @@ export function HoldIcon({ status, className }: { status: string; className?: st
         </g>
       )}
     </Sketch>
-  )
-}
-
-// Full-page layout shared by the 404 and crash pages: graphic, heading,
-// copy, actions, footer.
-export function ErrorScene({
-  graphic,
-  title,
-  children,
-  actions,
-}: {
-  graphic: React.ReactNode
-  title: string
-  children: React.ReactNode
-  actions: React.ReactNode
-}) {
-  return (
-    <div className="flex min-h-svh flex-col bg-background text-foreground">
-      <main className="flex flex-1 flex-col items-center justify-center gap-4 px-4 py-16 text-center">
-        {graphic}
-        <h1 className="mt-4 font-heading text-4xl font-semibold tracking-tight text-balance sm:text-5xl">{title}</h1>
-        <p className="max-w-md text-balance text-muted-foreground">{children}</p>
-        <div className="mt-4 flex flex-wrap justify-center gap-3">{actions}</div>
-      </main>
-      <SiteFooter />
-    </div>
   )
 }
