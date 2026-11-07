@@ -47,10 +47,6 @@ function CardSkeleton({ lines = 2 }: { lines?: number }) {
   )
 }
 
-export function QuestionsSkeleton() {
-  return <CardSkeleton lines={2} />
-}
-
 export function ArtifactsSkeleton() {
   return <CardSkeleton lines={2} />
 }

@@ -544,11 +544,46 @@ func (s *Store) attachInterviews(ctx context.Context, apps []domain.Application)
 	if err != nil {
 		return err
 	}
+	open, err := s.openFormQuestions(ctx, apps)
+	if err != nil {
+		return err
+	}
 	for i := range apps {
 		apps[i].Interviews = rounds[apps[i].ID]
 		apps[i].Tasks = tasks[apps[i].ID]
+		// An unanswered required form question is an open task on Apply.
+		if n := open[apps[i].ID]; n > 0 {
+			if apps[i].Tasks == nil {
+				apps[i].Tasks = map[int]domain.InterviewCount{}
+			}
+			c := apps[i].Tasks[0]
+			apps[i].Tasks[0] = domain.InterviewCount{Done: c.Done, Total: c.Total + n}
+		}
 	}
 	return nil
+}
+
+func (s *Store) openFormQuestions(ctx context.Context, apps []domain.Application) (map[string]int, error) {
+	ph := strings.TrimRight(strings.Repeat("?,", len(apps)), ",")
+	args := make([]any, len(apps))
+	for i, a := range apps {
+		args[i] = a.ID
+	}
+	rows, err := s.query(ctx, `SELECT application_id, COUNT(*) FROM questions WHERE application_id IN (`+ph+`) AND required=1 AND answer='' GROUP BY application_id`, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[string]int{}
+	for rows.Next() {
+		var id string
+		var n int
+		if err := rows.Scan(&id, &n); err != nil {
+			return nil, err
+		}
+		out[id] = n
+	}
+	return out, rows.Err()
 }
 
 // stageCounts sums done/total per application and stage number of a table

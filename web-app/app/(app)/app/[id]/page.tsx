@@ -6,8 +6,7 @@ import { CreateApplicationView } from "@/components/detail/CreateApplicationView
 import { DetailShell } from "@/components/detail/DetailShell"
 import { EventsSection } from "@/components/detail/EventsSection"
 import { ArtifactsSection } from "@/components/detail/ArtifactsSection"
-import { QuestionsSection } from "@/components/detail/QuestionsSection"
-import { EventsSkeleton, ArtifactsSkeleton, QuestionsSkeleton } from "@/components/detail/SectionSkeletons"
+import { EventsSkeleton, ArtifactsSkeleton } from "@/components/detail/SectionSkeletons"
 
 export default async function ApplicationDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -32,9 +31,6 @@ export default async function ApplicationDetailPage({ params }: { params: Promis
 
   return (
     <DetailShell id={id} initial={{ application, fields }}>
-      <Suspense fallback={<QuestionsSkeleton />}>
-        <QuestionsSection id={id} />
-      </Suspense>
       <Suspense fallback={<ArtifactsSkeleton />}>
         <ArtifactsSection id={id} />
       </Suspense>

@@ -424,6 +424,11 @@ func TestQueueLeaseApproveAndCaps(t *testing.T) {
 	if application["outcome"] != domain.StatusNeedsInput || prepared["unknowns"].(float64) < 1 {
 		t.Fatalf("expected needs_input, got %#v", prepared)
 	}
+	// Unanswered required form questions are open tasks on Apply.
+	_, got := e.json(t, http.MethodGet, "/v1/applications/"+id, e.token, nil)
+	if apply, _ := got["tasks"].(map[string]any)["0"].(map[string]any); apply == nil || apply["total"] != prepared["unknowns"] || apply["done"].(float64) != 0 {
+		t.Fatalf("form questions as tasks: %#v", got["tasks"])
+	}
 	code, _ = e.json(t, http.MethodPost, "/v1/standing", e.token, map[string]any{"key": "why_us", "answer": "I build platforms."})
 	if code != 200 {
 		t.Fatal(code)

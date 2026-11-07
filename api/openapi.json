@@ -960,6 +960,46 @@
         ],
         "type": "object"
       },
+      "BankQuestion": {
+        "properties": {
+          "RoundQuestion": {
+            "$ref": "#/components/schemas/RoundQuestion"
+          },
+          "application_id": {
+            "type": "string"
+          },
+          "company": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "round_id": {
+            "type": "string"
+          },
+          "stage": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "RoundQuestion",
+          "round_id",
+          "application_id",
+          "company",
+          "title",
+          "stage",
+          "kind",
+          "updated_at"
+        ],
+        "type": "object"
+      },
       "BatchInput": {
         "properties": {
           "requests": {
@@ -2241,8 +2281,11 @@
           "notes": {
             "type": "string"
           },
-          "prep": {
-            "type": "string"
+          "questions": {
+            "items": {
+              "$ref": "#/components/schemas/RoundQuestion"
+            },
+            "type": "array"
           },
           "scheduled_at": {
             "format": "date-time",
@@ -2268,8 +2311,8 @@
           "stage",
           "kind",
           "interviewer",
-          "prep",
           "notes",
+          "questions",
           "version",
           "created_at",
           "updated_at"
@@ -2304,6 +2347,12 @@
       },
       "RoundPatch": {
         "properties": {
+          "append": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "done": {
             "type": [
               "boolean",
@@ -2340,6 +2389,16 @@
               "null"
             ]
           },
+          "set_question": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RoundQuestion"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "stage": {
             "type": [
               "string",
@@ -2350,6 +2409,21 @@
             "type": "integer"
           }
         },
+        "type": "object"
+      },
+      "RoundQuestion": {
+        "properties": {
+          "answer": {
+            "type": "string"
+          },
+          "prompt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "prompt",
+          "answer"
+        ],
         "type": "object"
       },
       "SessionInput": {
@@ -4530,7 +4604,7 @@
         ]
       },
       "post": {
-        "description": "Stage is prepared, applied, screening, interviewing, final, or offer and defaults to the current stage. Prep holds what to rehearse.",
+        "description": "Stage is prepared, applied, screening, interviewing, final, or offer and defaults to the current stage. Notes is the round's markdown document; prep is written as its ## Prep section.",
         "operationId": "addRound",
         "parameters": [
           {
@@ -8349,6 +8423,83 @@
         ]
       }
     },
+    "/v1/questions": {
+      "get": {
+        "description": "Q filters prompt, answer, company and title; limit, cursor, fields.",
+        "operationId": "questionBankEveryQuestionInEveryRoundsNotesNewestRoundFirstWithRoundidApplicationidCompanyTitleStageAndKind",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/q"
+          },
+          {
+            "$ref": "#/components/parameters/limit"
+          },
+          {
+            "$ref": "#/components/parameters/cursor"
+          },
+          {
+            "$ref": "#/components/parameters/fields"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "data": {
+                      "items": {
+                        "$ref": "#/components/schemas/BankQuestion"
+                      },
+                      "type": "array"
+                    },
+                    "page": {
+                      "$ref": "#/components/schemas/PageMeta"
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "page"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "error"
+          }
+        },
+        "summary": "The question bank: every question in every round's notes, newest round first, with round_id, application_id, company, title, stage and kind",
+        "tags": [
+          "Questions"
+        ],
+        "x-codeSamples": [
+          {
+            "label": "pursuit CLI",
+            "lang": "shell",
+            "source": "pursuit questions list --q migration"
+          }
+        ]
+      }
+    },
     "/v1/queue/claim": {
       "post": {
         "description": "Leases the next work item. Work is null when the queue is empty. Replicas use FOR UPDATE SKIP LOCKED on Postgres.",
@@ -9006,6 +9157,7 @@
         ]
       },
       "get": {
+        "description": "Notes is one markdown document (prep, transcript, questions). Questions [{prompt, answer}] is parsed from it: a heading ending in ? is a question, the text under it until the next heading is the answer.",
         "operationId": "getRound",
         "parameters": [
           {
@@ -9060,7 +9212,7 @@
         ]
       },
       "patch": {
-        "description": "body.version is required. Done true or false marks it done.",
+        "description": "Notes replaces the whole document and requires body.version. These edit part of it and take version only as an optional check, applied in this order: prep sets the ## Prep section; set_question {prompt, answer} replaces that question's answer or adds it under ## Questions (a missing ? is added); append adds text at the end of the document, under a new ## Notes heading when it would otherwise extend the last question's answer. Done true/false marks it done.",
         "operationId": "updateRound",
         "parameters": [
           {
