@@ -1554,3 +1554,30 @@ func TestAuditSearchAndTimeFilters(t *testing.T) {
 		t.Fatalf("bad since %d %#v", code, bad)
 	}
 }
+
+func TestSweepDemo(t *testing.T) {
+	e := newEnv(t)
+	ctx := context.Background()
+	if _, _, err := e.svc.CreateDemoSession(ctx); err != nil {
+		t.Fatal(err)
+	}
+	// A day and a bit later, a second demo starts; only the first has expired.
+	e.svc.Now = func() time.Time { return time.Now().Add(25 * time.Hour) }
+	fresh, _, err := e.svc.CreateDemoSession(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	n, err := e.svc.SweepDemo(ctx)
+	if err != nil || n != 1 {
+		t.Fatalf("sweep removed %d, err %v; want 1", n, err)
+	}
+	if code, _, _ := e.do(t, http.MethodGet, "/v1/me", fresh, nil, nil); code != 200 {
+		t.Fatalf("fresh demo lost its session: %d", code)
+	}
+	if code, _, _ := e.do(t, http.MethodGet, "/v1/me", e.token, nil, nil); code != 200 {
+		t.Fatalf("real owner affected: %d", code)
+	}
+	if n, err := e.svc.SweepDemo(ctx); err != nil || n != 0 {
+		t.Fatalf("second sweep removed %d, err %v; want 0", n, err)
+	}
+}

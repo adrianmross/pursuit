@@ -2393,6 +2393,14 @@ func (s *Server) cronLinks(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, err)
 		return
 	}
+	// The daily cron also clears expired demo tenants, so demo mode needs no job of its own.
+	if s.DemoMode {
+		if n, err := s.Svc.SweepDemo(r.Context()); err != nil {
+			s.Log.Error("demo sweep", "err", err)
+		} else if n > 0 {
+			s.Log.Info("demo sweep", "removed", n)
+		}
+	}
 	writeJSON(w, 200, report)
 }
 
