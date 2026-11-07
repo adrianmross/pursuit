@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.4.0](https://github.com/adrianmross/pursuit/compare/v0.3.1...v0.4.0) (2026-11-07)
+
+
+### Features
+
+* **pursuit:** Fill applications from an in-page extension panel, and see changes in the dashboard live with notifications ([#107](https://github.com/adrianmross/pursuit/issues/107)) ([c97177c](https://github.com/adrianmross/pursuit/commit/c97177ca20b33516e6755ee54b64d943d9dd58d4))
+* **pursuit:** Remove demo sandboxes after 24 hours, and let a local pursuit serve turn demo mode on with PURSUIT_DEMO_MODE ([#114](https://github.com/adrianmross/pursuit/issues/114)) ([aa4a25f](https://github.com/adrianmross/pursuit/commit/aa4a25fb6aa697aa7b779138cea4f979b6cf55ea))
+* **pursuit:** Try the extension on a made-up Acme Robotics application from the tutorial, see autofill on the homepage, and a privacy page plus listing copy for the Chrome Web Store ([#110](https://github.com/adrianmross/pursuit/issues/110)) ([00d139b](https://github.com/adrianmross/pursuit/commit/00d139b8587ce48f65e923f781cf8e0f05587eb0))
+
+
+### Bug Fixes
+
+* **pursuit:** Hide the API-token sign-in option in multi-tenant mode ([#113](https://github.com/adrianmross/pursuit/issues/113)) ([639b07e](https://github.com/adrianmross/pursuit/commit/639b07e88eb4e4d140732b860e4c7ee6de9f4fff))
+* **pursuit:** Install the dashboard and docs build dependencies from the committed lockfiles ([#95](https://github.com/adrianmross/pursuit/issues/95)) ([4ef5bf7](https://github.com/adrianmross/pursuit/commit/4ef5bf7d231453ff113965ae6efc06dd84d68f7a))
+* **pursuit:** Organize the API reference by resource and describe every route's parameters, bodies, responses, and pursuit command ([#104](https://github.com/adrianmross/pursuit/issues/104)) ([f8daf62](https://github.com/adrianmross/pursuit/commit/f8daf62be910bde3cc7af10cd3fc071a8625e36f))
+* **pursuit:** Run pursuit-preview detached with up, down, status, and logs, one preview per worktree at a branch.pursuit.localhost URL ([#112](https://github.com/adrianmross/pursuit/issues/112)) ([ffbf150](https://github.com/adrianmross/pursuit/commit/ffbf1503f5f7522c8b8f3f2204870ec805b15c1e))
+
 ## [0.3.1](https://github.com/adrianmross/pursuit/compare/v0.3.0...v0.3.1) (2026-11-03)
 
 
