@@ -29,6 +29,7 @@ We use a few providers to run the service, and they process data on our behalf:
 
 - Vercel, for hosting.
 - Sentry, for server error reports.
+- Cloudflare, for cookieless page-view analytics.
 - Neon, for the database and for sign-in, including the emails that carry sign-in codes.
 - An S3-compatible object store, for uploaded documents, when it's turned on.
 - Google or another sign-in provider, only if you choose to sign in that way.
@@ -37,7 +38,7 @@ We may add or swap providers. They are bound to use the data only to provide the
 
 ## Cookies and storage
 
-Signing in sets a session cookie (`pursuit_session`) that lasts 30 days. Your theme and a few interface preferences are kept in your browser's local storage. There are no advertising or analytics cookies.
+Signing in sets a session cookie (`pursuit_session`) that lasts 30 days. Your theme and a few interface preferences are kept in your browser's local storage. There are no advertising or analytics cookies. The hosted dashboard uses Cloudflare Web Analytics to count page views and measure page speed. It sets no cookies and doesn't track you across sites or follow you between visits.
 
 ## The browser extension
 
