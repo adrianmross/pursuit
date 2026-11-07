@@ -26,6 +26,28 @@ func (s *Store) CreateUser(ctx context.Context, u domain.User) error {
 // unroutable demo- address, older than the cutoff.
 const demoUsers = `SELECT id FROM users WHERE email LIKE 'demo-%@pursuit.invalid' AND created_at < ?`
 
+// tableNames lists the tables in this database.
+func (s *Store) tableNames(ctx context.Context) (map[string]bool, error) {
+	q := `SELECT name FROM sqlite_master WHERE type = 'table'`
+	if s.dialect == "postgres" {
+		q = `SELECT table_name FROM information_schema.tables WHERE table_schema = current_schema()`
+	}
+	rows, err := s.query(ctx, q)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[string]bool{}
+	for rows.Next() {
+		var n string
+		if err := rows.Scan(&n); err != nil {
+			return nil, err
+		}
+		out[n] = true
+	}
+	return out, rows.Err()
+}
+
 // DeleteDemoUsers removes every demo tenant created before the cutoff, with
 // all it owns, and returns how many. The core tables don't cascade, so rows go
 // children first. Real accounts never match the demo address.
@@ -44,6 +66,10 @@ func (s *Store) DeleteDemoUsers(ctx context.Context, before time.Time) (int, err
 				return err
 			}
 		}
+		have, terr := s.tableNames(ctx)
+		if terr != nil {
+			return terr
+		}
 		for _, t := range []string{
 			"events", "work_items", "approvals", "artifacts", "questions", "interviews", "tasks", "notes",
 			"applications", "posting_checks", "roles", "companies", "custom_fields", "tags",
@@ -51,6 +77,9 @@ func (s *Store) DeleteDemoUsers(ctx context.Context, before time.Time) (int, err
 			"webauthn_credentials", "webauthn_challenges", "billing_accounts", "entitlements", "user_features",
 			"search_chunks", "idempotency_keys", "audit_log",
 		} {
+			if !have[t] { // a table a branch or release doesn't have yet
+				continue
+			}
 			if _, err := s.exec(ctx, `DELETE FROM `+t+` WHERE user_id IN (`+demoUsers+`)`, cut); err != nil {
 				return err
 			}
