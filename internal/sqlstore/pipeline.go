@@ -405,7 +405,8 @@ func (s *Store) CountCap(ctx context.Context, userID, company, since, excludeID,
 	default:
 		q += ` AND a.status NOT IN ('saved')`
 	}
-	q += ` AND a.outcome NOT IN ('rejected','withdrawn','ghosted','failed')`
+	// A tracked application rides on another's process; only that one counts.
+	q += ` AND a.outcome NOT IN ('rejected','withdrawn','ghosted','failed') AND a.tracked_by=''`
 	var n int
 	err := s.queryRow(ctx, q, args...).Scan(&n)
 	return n, err

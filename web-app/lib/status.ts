@@ -2,6 +2,7 @@
 // registry ships this file with the progress mark and status badge.
 
 export const LABELS: Record<string, string> = {
+  tracked: "Tracked elsewhere",
   saved: "Saved",
   to_apply: "Apply",
   preparing: "Preparing",

@@ -4,7 +4,7 @@ import { useState } from "react"
 import { Check, MoreHorizontal, X } from "lucide-react"
 import { api } from "@/lib/api-client"
 import { useShortcuts } from "@/lib/keybindings"
-import { markOf, ROUND_STAGES, shown, type Application } from "@/lib/types"
+import { displayed, markOf, ROUND_STAGES, shown, type Application } from "@/lib/types"
 import { useRounds } from "@/components/Rounds"
 import { CompanyAvatar, forgetFavicon } from "@/components/CompanyAvatar"
 import { ConfirmDialog } from "@/components/ConfirmDialog"
@@ -184,11 +184,11 @@ export function DetailHeader({
               onRoundsChange={onRoundsChange}
             >
               <button type="button" className="rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring" aria-label="Change status">
-                <StatusBadge status={shown(application)} />
+                <StatusBadge status={displayed(application)} />
               </button>
             </StatusChooser>
           ) : (
-            <StatusBadge status={shown(application)} />
+            <StatusBadge status={displayed(application)} />
           )}
           {application.archived_at && <Badge variant="outline">Archived</Badge>}
           {shown(application) === "awaiting_review" &&

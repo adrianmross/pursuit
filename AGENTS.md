@@ -25,6 +25,8 @@ pursuit list --stale --fields id,company,title,link_status
 
 `pursuit rounds` (`/v1/applications/{id}/rounds`, `/v1/rounds/{id}`) tracks interview rounds per stage; `pursuit interviews` and `/interviews` are old aliases. `pursuit tasks` (`/v1/applications/{id}/tasks`, `/v1/tasks/{id}`) tracks to-dos per stage. Both add with `add APP_ID`, change with `set ID --done`, and report per-stage `{done, total}` on the application as `interviews` and `tasks`.
 
+When one process at a company covers several postings, `pursuit apps update ID --tracked-by PRIMARY_ID` marks the others as tracked with it (`tracked_by` on the application, same company, one level). A tracked application is not prepared or applied on its own and does not count against company caps. `--tracked-by ""` clears it. Reject one posting with `apps transition ID --status rejected`; the link stays.
+
 Standing answers (`pursuit standing set`) fill form questions. Unknown required questions become `needs_input`. Company caps return a conflict when exceeded.
 
 The base résumé is a document: `pursuit documents add --kind base_resume --file resume.pdf`. Prepare attaches the newest one (`PURSUIT_RESUME_FILE` is only the fallback, and has no disk on Vercel). Put a tailored résumé or cover letter on one application with `pursuit artifacts add APP_ID --kind resume_pdf --file tailored.pdf`. When the user answers a `needs_input` question, save it with `pursuit standing set` so every later prepare reuses it.

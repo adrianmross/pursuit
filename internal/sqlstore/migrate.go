@@ -476,4 +476,11 @@ var migrations = []migration{{
 		)`,
 		`CREATE INDEX IF NOT EXISTS webauthn_challenges_expires_idx ON webauthn_challenges(expires_at)`,
 	},
+}, {
+	version: "014",
+	stmts: []string{
+		// The application this one is tracked with: one process at a company
+		// covering several postings. Empty when it stands on its own.
+		`ALTER TABLE applications ADD COLUMN tracked_by TEXT NOT NULL DEFAULT ''`,
+	},
 }}
