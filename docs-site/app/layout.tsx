@@ -58,6 +58,8 @@ const footer = (
     <nav className="hp-footer-nav">
       <a href="/docs/">Docs</a>
       <a href="/reference">Reference</a>
+      <a href="/docs/privacy">Privacy</a>
+      <a href="/docs/terms">Terms</a>
       <a href="https://github.com/adrianmross/pursuit">GitHub</a>
     </nav>
   </Footer>

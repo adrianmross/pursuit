@@ -16,6 +16,7 @@ import { UserAvatar, displayName } from "@/components/UserAvatar"
 import { ProfileNudge } from "@/components/profile/ProfilePage"
 import { NotificationBell, describe, eventMeta } from "@/components/Notifications"
 import { Toaster } from "@/components/ui/sonner"
+import { DemoBanner } from "@/components/DemoBanner"
 import { toast } from "sonner"
 import { LiveProvider, type LiveEvent } from "@/lib/live"
 import { applicationHref } from "@/lib/links"
@@ -110,6 +111,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <LiveProvider onEvent={toastEvent}>
     <div className="flex min-h-svh flex-col">
+      <DemoBanner />
       <header className="flex items-center gap-3 border-b px-4 py-2.5">
         {narrow && searching ? (
           <>
