@@ -16,6 +16,8 @@ export const metadata: Metadata = {
     icon: [{ url: "/favicon.ico", sizes: "48x48" }, { url: "/favicon.svg", type: "image/svg+xml" }],
     apple: "/apple-touch-icon.png",
   },
+  // Feed readers and bots find the release feed from any docs page.
+  alternates: { types: { "application/atom+xml": "/docs/changelog.xml", "application/feed+json": "/docs/changelog.json" } },
   description: "API and CLI reference for pursuit, a self-hosted job-application tracker.",
 }
 

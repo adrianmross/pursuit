@@ -88,7 +88,7 @@ func Run(ctx context.Context, log *slog.Logger, p Payload, getenv func(string) s
 	client := &http.Client{Timeout: 5 * time.Second}
 	for {
 		if latest := ping(ctx, client, url, b); latest != "" && latest != p.Version {
-			log.Info("a newer release is available", "latest", latest, "running", p.Version)
+			log.Info("a newer release is available", "latest", latest, "running", p.Version, "notes", "https://hirepursuit.app/docs/changelog")
 		}
 		select {
 		case <-ctx.Done():

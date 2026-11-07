@@ -22,3 +22,7 @@
 /.devdata/
 .neon
 /public/
+
+/docs-site/content/changelog.mdx
+/docs-site/public/changelog.xml
+/docs-site/public/changelog.json
