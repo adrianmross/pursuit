@@ -7,6 +7,12 @@ on:
     branches: [main]
   pull_request:
 
+# A newer push to a PR branch cancels the older run; main runs never cancel,
+# since release-plan listens for each one.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   go:
     runs-on: ubuntu-latest
