@@ -2,6 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react"
 import { api, ApiError, COOKIE_SESSION, EXPORT_MODE, getToken, setToken } from "@/lib/api-client"
+import { setPref } from "@/lib/settings"
 import type { Me } from "@/lib/types"
 
 type AuthState = {
@@ -155,6 +156,8 @@ export function AuthProvider({ initialMe, children }: { initialMe: Me | null; ch
         if (!response.ok) throw new Error(data?.error?.message || "Could not start the demo.")
         setMe(data as Me)
       }
+      // A new sandbox gets the guided tour, also on Replay.
+      setPref("tour", "on")
     } catch (err) {
       setError(err instanceof ApiError || err instanceof Error ? err.message : "Could not start the demo.")
       throw err

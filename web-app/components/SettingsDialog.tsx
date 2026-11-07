@@ -410,7 +410,7 @@ const SECTIONS: (Section & { items: [string, string][] })[] = [
     id: "about",
     label: "About",
     icon: <Info />,
-    render: () => <AboutPanel />,
+    render: (close) => <AboutPanel onClose={close} />,
     items: [
       ["Version", "build server release docs api reference"],
       ["Tutorial", "demo sandbox try replay example onboarding tour"],

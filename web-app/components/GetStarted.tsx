@@ -17,7 +17,7 @@ const HINTS: Pref[] = ["hintProfile", "hintAgent", "hintTerminal", "hintExtensio
 
 type Tip = { pref: Pref; icon: ReactNode; art: ReactNode; title: string; description?: ReactNode; action: ReactNode; footer?: ReactNode; stays?: boolean }
 
-// One card in the Get started deck, like Robinhood's news cards: icon, title,
+// One card in the start page feed, like Robinhood's news cards: icon, title,
 // a line or two, and its action along the bottom.
 function TipCard({ tip, depth, leaving, onDismiss }: { tip: Tip; depth: number; leaving: boolean; onDismiss: () => void }) {
   const d = Math.min(depth, 2)
@@ -230,7 +230,7 @@ export function GetStarted() {
   return (
     <div className="flex flex-col gap-3">
       <h2 className="flex text-sm font-medium text-muted-foreground">
-        Get started
+        Feed
         {open.length > 1 && <span className="ml-auto font-normal tabular-nums">{open.length - (leaving ? 1 : 0)} left</span>}
       </h2>
       {open.length > 0 ? (

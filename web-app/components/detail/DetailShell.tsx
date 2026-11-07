@@ -255,7 +255,9 @@ export function DetailShell({ id, initial, children }: { id: string; initial: De
           )}
           {/* Details under the Listing, then each tab Settings moved out to a card of its own. */}
           {([undefined, ...OUTLINE_TABS.filter((_, i) => places[i] === "card").map(([v]) => v)] as const).map((only) => (
-            <OutlineCard key={`${only}-${roundsTick}`} only={only} tick={outlineTick} application={application} writable={writable} onChange={onOutlineChange} onSaveNotes={(notes) => patchApp({ notes })} onPatch={patchApp} />
+            <div key={`${only}-${roundsTick}`} data-tour={only ? undefined : "details"}>
+              <OutlineCard only={only} tick={outlineTick} application={application} writable={writable} onChange={onOutlineChange} onSaveNotes={(notes) => patchApp({ notes })} onPatch={patchApp} />
+            </div>
           ))}
           {showRelated && <RelatedCard application={application} writable={writable} onChange={reload} />}
         </>

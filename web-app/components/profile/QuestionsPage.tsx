@@ -507,7 +507,9 @@ export function QuestionsPage() {
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
       <ProfileHeader description="Standing answers prepare uses to fill in application forms. The same list as pursuit standing on the CLI." />
-      <QuestionsForm key={tick} />
+      <div data-tour="questions">
+        <QuestionsForm key={tick} />
+      </div>
       <InterviewBank onSaved={() => setTick((n) => n + 1)} />
     </div>
   )

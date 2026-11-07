@@ -1041,7 +1041,7 @@ export function PipelineView({ initial }: { initial: PipelineInitial | null }) {
       {funnel && !archivedView && <StageFunnel status={status} refresh={rows} onPick={(s) => patch({ status: s, category: "" })} />}
 
 
-      <div className="rounded-md border">
+      <div className="rounded-md border" data-tour="table">
         {/* Fixed column widths: a longer status, a tag, or the approve/reject icons never shift the other columns. */}
         <Table className="min-w-[56rem] table-fixed border-separate border-spacing-0">
           <TableHeader>

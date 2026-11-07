@@ -57,8 +57,11 @@ const DEFAULTS = { density: "comfortable", accent: "neutral", textSize: "default
   // shows: "tab" inside Details, "card" as its own card, or "off".
   cardListing: "on", cardRelated: "on", cardArtifacts: "on", cardHistory: "on",
   tabRounds: "tab", tabTasks: "tab", tabQuestions: "tab", tabNotes: "tab",
-  // The start page's Get started rows, "off" once dismissed.
-  hintProfile: "on", hintAgent: "on", hintTerminal: "on", hintExtension: "on" }
+  // The start page's feed rows, "off" once dismissed.
+  hintProfile: "on", hintAgent: "on", hintTerminal: "on", hintExtension: "on",
+  // The guided tour: "auto" runs it for a new account, "on" starts it (a demo sandbox, Replay), "off" once it is done or skipped.
+  // ponytail: per browser; a server-side flag if it should follow the account across devices.
+  tour: "auto" }
 export type Pref = keyof typeof DEFAULTS
 
 function read(key: Pref) {
