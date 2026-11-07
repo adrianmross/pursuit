@@ -1,15 +1,18 @@
 "use client"
 
 import { Fragment, useEffect, useState } from "react"
+import { useRouter } from "next/navigation"
 import { api } from "@/lib/api-client"
 import { useAuth } from "@/lib/auth"
+import { setPref } from "@/lib/settings"
 import { ConfirmDialog } from "@/components/ConfirmDialog"
 import { Button } from "@/components/ui/button"
 import { ButtonGroup } from "@/components/ui/button-group"
 import { Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemSeparator, ItemTitle } from "@/components/ui/item"
 
 // Signs into a fresh seeded sandbox (POST /v1/demo). Only where the deployment has demo mode on.
-function Tutorial() {
+function Tutorial({ onClose }: { onClose: () => void }) {
+  const router = useRouter()
   const { startDemo, isDemo, error } = useAuth()
   const [available, setAvailable] = useState(false)
   const [confirm, setConfirm] = useState(false)
@@ -24,6 +27,10 @@ function Tutorial() {
     setBusy(true)
     try {
       await startDemo()
+      setPref("tour", "go")
+      // Out of Settings and back to the start page, where the tour begins.
+      onClose()
+      router.push("/start")
     } finally {
       setBusy(false)
       setConfirm(false)
@@ -57,7 +64,7 @@ function Tutorial() {
   )
 }
 
-export function AboutPanel() {
+export function AboutPanel({ onClose }: { onClose: () => void }) {
   const [version, setVersion] = useState("…")
   useEffect(() => {
     api<{ version: string }>("/version")
@@ -85,7 +92,7 @@ export function AboutPanel() {
           </Fragment>
         ))}
       </ItemGroup>
-      <Tutorial />
+      <Tutorial onClose={onClose} />
       <ButtonGroup>
         <Button variant="outline" size="sm" asChild>
           <a href="/reference">API reference</a>

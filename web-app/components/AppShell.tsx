@@ -19,6 +19,7 @@ import { DemoBanner } from "@/components/DemoBanner"
 import { toast } from "sonner"
 import { LiveProvider, type LiveEvent } from "@/lib/live"
 import { applicationHref } from "@/lib/links"
+import { Tour } from "@/components/Tour"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -175,7 +176,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <NotificationBell />
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="rounded-full" aria-label="Account">
+              <Button variant="ghost" size="icon" className="rounded-full" aria-label="Account" data-tour="account">
                 <UserAvatar me={me} size="sm" />
               </Button>
             </DropdownMenuTrigger>
@@ -219,6 +220,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         {children}
       </main>
       <SiteFooter />
+      <Tour />
       <SettingsDialog key={settingsKey} initial={settingsSection} open={settingsOpen} onOpenChange={setSettingsOpen} />
       <Toaster position="bottom-right" />
     </div>

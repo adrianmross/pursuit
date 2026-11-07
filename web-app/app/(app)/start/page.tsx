@@ -29,7 +29,9 @@ export default async function Home() {
 
       <StartCalendar />
 
-      <GetStarted />
+      <div data-tour="get-started">
+        <GetStarted />
+      </div>
 
       <Item variant="outline">
         <ItemMedia variant="icon">
