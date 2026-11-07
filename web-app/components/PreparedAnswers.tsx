@@ -11,7 +11,7 @@ import { Item, ItemContent, ItemDescription, ItemFooter, ItemGroup, ItemTitle } 
 
 // An unanswered question saves as a standing answer keyed by its prompt, so
 // the next prepare of this or any other application fills it.
-function Unanswered({ prompt }: { prompt: string }) {
+export function Unanswered({ prompt }: { prompt: string }) {
   const [answer, setAnswer] = useState("")
   const [state, setState] = useState<"" | "saved" | string>("")
   async function save() {

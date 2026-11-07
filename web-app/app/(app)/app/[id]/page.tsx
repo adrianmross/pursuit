@@ -3,7 +3,7 @@ import { notFound } from "next/navigation"
 import { EXPORT_MODE, pursuitApiAuthed, ApiError } from "@/lib/pursuit-api"
 import type { Application, CustomField, Page } from "@/lib/types"
 import { CreateApplicationView } from "@/components/detail/CreateApplicationView"
-import { DetailShell } from "@/components/detail/DetailShell"
+import { DetailShell, ShowIf } from "@/components/detail/DetailShell"
 import { EventsSection } from "@/components/detail/EventsSection"
 import { ArtifactsSection } from "@/components/detail/ArtifactsSection"
 import { EventsSkeleton, ArtifactsSkeleton } from "@/components/detail/SectionSkeletons"
@@ -31,12 +31,16 @@ export default async function ApplicationDetailPage({ params }: { params: Promis
 
   return (
     <DetailShell id={id} initial={{ application, fields }}>
-      <Suspense fallback={<ArtifactsSkeleton />}>
-        <ArtifactsSection id={id} />
-      </Suspense>
-      <Suspense fallback={<EventsSkeleton />}>
-        <EventsSection id={id} />
-      </Suspense>
+      <ShowIf pref="cardArtifacts">
+        <Suspense fallback={<ArtifactsSkeleton />}>
+          <ArtifactsSection id={id} />
+        </Suspense>
+      </ShowIf>
+      <ShowIf pref="cardHistory">
+        <Suspense fallback={<EventsSkeleton />}>
+          <EventsSection id={id} />
+        </Suspense>
+      </ShowIf>
     </DetailShell>
   )
 }

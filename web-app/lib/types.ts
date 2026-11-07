@@ -29,6 +29,8 @@ export type Application = {
   contact_email?: string
   // The application at the same company whose process covers this posting.
   tracked_by?: string
+  // This application's own names for its round stages and the ones it skips.
+  stage_plan?: { labels?: Record<string, string>; off?: string[] }
   resume_version?: string
   next_step?: string
   archived_at?: string
@@ -48,7 +50,21 @@ export type Interview = {
   notes?: string
   // Parsed from notes: a heading ending in ? and the text under it.
   questions?: { prompt: string; answer: string }[]
+  // false folds the round to one line in the notes outline.
+  in_notes?: boolean
   version: number
+}
+
+// A notes file of its own on an application, beside its notes and rounds.
+export type Note = {
+  id: string
+  application_id: string
+  name: string
+  body: string
+  questions?: { prompt: string; answer: string }[]
+  version: number
+  created_at?: string
+  updated_at?: string
 }
 
 // A question from a round's notes, with where it was asked.
@@ -69,6 +85,8 @@ export type Task = {
   id: string
   application_id: string
   stage: string
+  // The round this task belongs to, if any; empty means its whole stage.
+  round_id?: string
   title: string
   notes?: string
   due_at?: string
@@ -202,8 +220,8 @@ export const STAGE_STOPS: [string, string][] = ["to_apply", "awaiting_review", "
   (s) => [s, LABELS[s]],
 )
 
-// Rounds attach to pieces 1-6, keyed by the stage's status name.
-export const ROUND_STAGES = STAGE_STOPS.slice(1)
+// Rounds attach to pieces 1-5, keyed by the stage's status name. Offer has none.
+export const ROUND_STAGES = STAGE_STOPS.slice(1, 6)
 
 // Mirrors domain.IsOutcome: these overlay a stage instead of replacing it.
 export const OUTCOMES = ["waiting", "needs_input", "failed", "rejected", "ghosted", "withdrawn"]

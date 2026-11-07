@@ -1,6 +1,7 @@
 package domain
 
 import (
+	"encoding/json"
 	"strings"
 	"time"
 )
@@ -26,6 +27,79 @@ type BankQuestion struct {
 }
 
 var BankQuestionFields = []string{"prompt", "answer", "round_id", "application_id", "company", "title", "stage", "kind", "updated_at"}
+
+// Note is a notes file of its own on an application, beside its notes and its
+// rounds' notes. Body is markdown; Questions is parsed from it like a round's.
+type Note struct {
+	ID            string          `json:"id"`
+	UserID        string          `json:"-"`
+	ApplicationID string          `json:"application_id"`
+	Name          string          `json:"name"`
+	Body          string          `json:"body"`
+	Questions     []RoundQuestion `json:"questions"`
+	Version       int             `json:"version"`
+	CreatedAt     time.Time       `json:"created_at"`
+	UpdatedAt     time.Time       `json:"updated_at"`
+}
+
+var NoteFields = []string{"id", "application_id", "name", "body", "questions", "version", "created_at", "updated_at"}
+
+// StagePlan is one application's own process: its names for the round
+// stages (Prepared through Final), keyed by the stage they stand for, and the
+// stages it skips. The statuses underneath never change.
+type StagePlan struct {
+	Labels map[string]string `json:"labels,omitempty"`
+	Off    []string          `json:"off,omitempty"`
+}
+
+// Normalize checks keys are round stages and labels are short, dropping empty
+// labels and duplicate offs. A plan with nothing left is nil.
+func (p *StagePlan) Normalize() (*StagePlan, error) {
+	if p == nil {
+		return nil, nil
+	}
+	out := &StagePlan{Labels: map[string]string{}}
+	for k, v := range p.Labels {
+		key, err := ParseInterviewStage(k)
+		if err != nil {
+			return nil, err
+		}
+		v = strings.Join(strings.Fields(v), " ")
+		if len([]rune(v)) > 40 {
+			return nil, Validation("stage label %q is longer than 40 characters", v)
+		}
+		if v != "" {
+			out.Labels[key] = v
+		}
+	}
+	seen := map[string]bool{}
+	for _, k := range p.Off {
+		key, err := ParseInterviewStage(k)
+		if err != nil {
+			return nil, err
+		}
+		if !seen[key] {
+			seen[key] = true
+			out.Off = append(out.Off, key)
+		}
+	}
+	if len(out.Labels) == 0 && len(out.Off) == 0 {
+		return nil, nil
+	}
+	if len(out.Labels) == 0 {
+		out.Labels = nil
+	}
+	return out, nil
+}
+
+// Encode is the stored form; nil stores as empty.
+func (p *StagePlan) Encode() string {
+	if p == nil {
+		return ""
+	}
+	b, _ := json.Marshal(p)
+	return string(b)
+}
 
 type heading struct {
 	line  int // index into the document's lines
@@ -62,7 +136,9 @@ func headings(lines []string) []heading {
 // sameHeading compares heading text the way people retype it: case, spacing
 // and a trailing "?" don't matter.
 func sameHeading(a, b string) bool {
-	f := func(s string) string { return strings.Join(strings.Fields(strings.ToLower(strings.TrimRight(s, "? "))), " ") }
+	f := func(s string) string {
+		return strings.Join(strings.Fields(strings.ToLower(strings.TrimRight(s, "? "))), " ")
+	}
 	return f(a) == f(b)
 }
 
@@ -135,6 +211,24 @@ func SetRoundQuestion(md, prompt, answer string) string {
 		}
 	}
 	return appendBlock(md, "## Questions\n\n"+block)
+}
+
+// DemoteHeadings moves every heading outside a code fence one level down, so
+// a round's document can sit under its own heading in the compiled notes.
+func DemoteHeadings(md string) string {
+	lines := strings.Split(md, "\n")
+	fence := false
+	for i, l := range lines {
+		t := strings.TrimSpace(l)
+		if strings.HasPrefix(t, "```") || strings.HasPrefix(t, "~~~") {
+			fence = !fence
+			continue
+		}
+		if !fence && strings.HasPrefix(t, "#") && !strings.HasPrefix(t, "######") {
+			lines[i] = "#" + t
+		}
+	}
+	return strings.Join(lines, "\n")
 }
 
 // AppendNotes adds text at the end as its own paragraph. When the document

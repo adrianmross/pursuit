@@ -54,31 +54,34 @@ type ApplicationInput struct {
 }
 
 type ApplicationPatch struct {
-	Version       int      `json:"version"`
-	Status        *string  `json:"status"`
+	Version       int       `json:"version"`
+	Status        *string   `json:"status"`
 	AppliedDate   OptString `json:"applied_date"`
-	NextStep      *string  `json:"next_step"`
-	Notes         *string  `json:"notes"`
-	ResumeVersion *string  `json:"resume_version"`
-	ResumeFileRef *string  `json:"resume_file_ref"`
-	ContactEmail  *string  `json:"contact_email"`
-	TrackedBy     *string  `json:"tracked_by"`
-	Company       *string  `json:"company"`
-	Title         *string  `json:"title"`
-	Location      *string  `json:"location"`
-	Salary        *string  `json:"salary"`
-	Fit           *string  `json:"fit"`
-	PostingURL    *string  `json:"posting_url"`
-	Source        *string  `json:"source"`
-	JobType       *string  `json:"job_type"`
+	NextStep      *string   `json:"next_step"`
+	Notes         *string   `json:"notes"`
+	ResumeVersion *string   `json:"resume_version"`
+	ResumeFileRef *string   `json:"resume_file_ref"`
+	ContactEmail  *string   `json:"contact_email"`
+	TrackedBy     *string   `json:"tracked_by"`
+	// StagePlan replaces this application's stage names and skipped stages;
+	// an empty object resets them.
+	StagePlan  *domain.StagePlan `json:"stage_plan"`
+	Company    *string           `json:"company"`
+	Title      *string           `json:"title"`
+	Location   *string           `json:"location"`
+	Salary     *string           `json:"salary"`
+	Fit        *string           `json:"fit"`
+	PostingURL *string           `json:"posting_url"`
+	Source     *string           `json:"source"`
+	JobType    *string           `json:"job_type"`
 }
 
 type TransitionInput struct {
-	Version    int    `json:"version"`
-	Status     string `json:"status"`
+	Version    int     `json:"version"`
+	Status     string  `json:"status"`
 	NextStep   *string `json:"next_step"`
-	Note       string `json:"note"`
-	OccurredAt string `json:"occurred_at"`
+	Note       string  `json:"note"`
+	OccurredAt string  `json:"occurred_at"`
 }
 
 type EventInput struct {
@@ -447,6 +450,16 @@ func (s *Service) UpdateApplication(ctx context.Context, id string, p Applicatio
 			}
 			next.TrackedBy = by
 			changed = true
+		}
+		if p.StagePlan != nil {
+			plan, err := p.StagePlan.Normalize()
+			if err != nil {
+				return err
+			}
+			if plan.Encode() != cur.StagePlan.Encode() {
+				next.StagePlan = plan
+				changed = true
+			}
 		}
 		roleChanged, err := s.patchLinkedRole(ctx, a, &cur, p)
 		if err != nil {
@@ -991,15 +1004,15 @@ func (s *Service) DetachTag(ctx context.Context, appID, tagID string) (domain.Ap
 }
 
 type ImportResult struct {
-	Rows                 int `json:"rows"`
-	CompaniesCreated     int `json:"companies_created"`
-	CompaniesExisting    int `json:"companies_existing"`
-	RolesCreated         int `json:"roles_created"`
-	RolesUpdated         int `json:"roles_updated"`
-	ApplicationsCreated  int      `json:"applications_created"`
-	ApplicationsUpdated  int      `json:"applications_updated"`
-	Skipped              int      `json:"skipped"`
-	Warnings             []string `json:"warnings,omitempty"`
+	Rows                int      `json:"rows"`
+	CompaniesCreated    int      `json:"companies_created"`
+	CompaniesExisting   int      `json:"companies_existing"`
+	RolesCreated        int      `json:"roles_created"`
+	RolesUpdated        int      `json:"roles_updated"`
+	ApplicationsCreated int      `json:"applications_created"`
+	ApplicationsUpdated int      `json:"applications_updated"`
+	Skipped             int      `json:"skipped"`
+	Warnings            []string `json:"warnings,omitempty"`
 }
 
 func (s *Service) ImportCSV(ctx context.Context, r io.Reader) (ImportResult, error) {

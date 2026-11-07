@@ -5,18 +5,24 @@ import { useRouter } from "next/navigation"
 import { api, ApiError } from "@/lib/api-client"
 import { useAuth } from "@/lib/auth"
 import { useRevision } from "@/lib/live"
+import { OUTLINE_TABS, type Pref } from "@/lib/settings"
+import { usePref } from "@/lib/use-pref"
 import type { Application, Artifact, CustomField, Event, Page } from "@/lib/types"
 import { DetailHeader } from "@/components/detail/DetailHeader"
-import { DetailAttributes } from "@/components/detail/DetailAttributes"
-import { DetailNotes } from "@/components/detail/DetailNotes"
-import { RelatedCard } from "@/components/detail/RelatedCard"
-import { InterviewsCard } from "@/components/detail/InterviewsCard"
+import { ListingCard } from "@/components/detail/ListingCard"
+import { RejectChoice, RelatedCard } from "@/components/detail/RelatedCard"
+import { OutlineCard } from "@/components/detail/OutlineCard"
 import { EventsHistoryCard } from "@/components/detail/EventsHistoryCard"
 import { ArtifactsCard } from "@/components/detail/ArtifactsCard"
 import { SectionError } from "@/components/detail/SectionError"
 import { AttributesSkeleton, ArtifactsSkeleton, EventsSkeleton, HeaderSkeleton } from "@/components/detail/SectionSkeletons"
 
 export type DetailInitial = { application: Application; fields: CustomField[] }
+
+// A server-rendered card that Settings, Details can hide.
+export function ShowIf({ pref, children }: { pref: Pref; children: ReactNode }) {
+  return usePref(pref) === "off" ? null : children
+}
 
 // One resource, fetched independently of the others — this is the actual
 // fix for the reported bug: a slow/failed `events` call (say) no longer
@@ -117,14 +123,28 @@ export function DetailShell({ id, initial, children }: { id: string; initial: De
     return run
   }
 
-  function patchApp(patch: Record<string, string>) {
+  function patchApp(patch: Record<string, unknown>) {
     return enqueue((version) => api<Application>(path, { method: "PATCH", body: { version, ...patch } }))
   }
+
+  // Rejecting an application that is tracked with others asks first whether
+  // the rest go too; rejecting just this one stays the default.
+  const [rejectAsk, setRejectAsk] = useState<{ others: Application[]; send: () => Promise<unknown> } | null>(null)
+  async function guardReject(patch: Record<string, unknown>, send: () => Promise<unknown>) {
+    const app = latest.current
+    if (patch.status !== "rejected" || !app?.company_id) return send()
+    const primary = app.tracked_by || app.id
+    const page = await api<Page<Application>>(`/v1/applications?company_id=${encodeURIComponent(app.company_id)}&limit=100`).catch(() => null)
+    const others = (page?.data ?? []).filter((a) => a.id !== app.id && (a.id === primary || a.tracked_by === primary) && !["rejected", "withdrawn", "ghosted", "failed"].includes(a.outcome || ""))
+    if (!others.length) return send()
+    setRejectAsk({ others, send })
+  }
+  const guardedPatch = (patch: Record<string, unknown>) => guardReject(patch, () => patchApp(patch))
 
   // Status changes from the header keep their visible error.
   function onSaveField(patch: Record<string, string>) {
     setFieldError(null)
-    patchApp(patch).catch((err) => setFieldError(err instanceof ApiError ? err.message : "Failed to save"))
+    guardReject(patch, () => patchApp(patch)).catch((err) => setFieldError(err instanceof ApiError ? err.message : "Failed to save"))
   }
 
   function onSaveCustomFieldValue(fieldID: string, value: string) {
@@ -144,6 +164,19 @@ export function DetailShell({ id, initial, children }: { id: string; initial: De
   const [roundsTick, setRoundsTick] = useState(0)
   async function onRoundsChange() {
     setRoundsTick((n) => n + 1)
+    await reload()
+  }
+
+  // Settings, Details: which cards show, and which Details tabs have a card of their own.
+  const showListing = usePref("cardListing") === "on"
+  const showRelated = usePref("cardRelated") === "on"
+  const showArtifacts = usePref("cardArtifacts") === "on"
+  const showHistory = usePref("cardHistory") === "on"
+  const places = [usePref("tabRounds"), usePref("tabTasks"), usePref("tabQuestions"), usePref("tabNotes")]
+  // A change in one outline card refetches the others.
+  const [outlineTick, setOutlineTick] = useState(0)
+  async function onOutlineChange() {
+    setOutlineTick((n) => n + 1)
     await reload()
   }
 
@@ -189,7 +222,7 @@ export function DetailShell({ id, initial, children }: { id: string; initial: De
   if (notFound) return <p className="text-sm text-destructive">That application doesn&apos;t exist.</p>
 
   return (
-    <div className="mx-auto flex max-w-3xl flex-col gap-4">
+    <div className="mx-auto flex max-w-4xl flex-col gap-4">
       {!application ? (
         <>
           <HeaderSkeleton />
@@ -202,38 +235,61 @@ export function DetailShell({ id, initial, children }: { id: string; initial: De
             writable={writable}
             canApprove={can("approve")}
             onSaveField={onSaveField}
-            onPatch={patchApp}
+            onPatch={guardedPatch}
             onArchive={onArchive}
             onUnarchive={onUnarchive}
             onDecide={onDecide}
             onDelete={onDelete}
             onRoundsChange={onRoundsChange}
           />
-          <DetailAttributes
-            application={application}
-            fields={fields}
-            writable={writable}
-            onSaveField={patchApp}
-            onSaveCustomFieldValue={onSaveCustomFieldValue}
-            onRecheckLink={onRecheckLink}
-            fieldError={fieldError}
-          />
-          <RelatedCard application={application} writable={writable} onChange={reload} />
-          <InterviewsCard key={roundsTick} appId={application.id} current={application.stage ?? 0} writable={writable} onChange={reload} />
-          <DetailNotes notes={application.notes || ""} writable={writable} onSave={(notes) => patchApp({ notes })} />
+          {showListing && (
+            <ListingCard
+              application={application}
+              fields={fields}
+              writable={writable}
+              onSaveField={patchApp}
+              onSaveCustomFieldValue={onSaveCustomFieldValue}
+              onRecheckLink={onRecheckLink}
+              fieldError={fieldError}
+            />
+          )}
+          {/* Details under the Listing, then each tab Settings moved out to a card of its own. */}
+          {([undefined, ...OUTLINE_TABS.filter((_, i) => places[i] === "card").map(([v]) => v)] as const).map((only) => (
+            <OutlineCard key={`${only}-${roundsTick}`} only={only} tick={outlineTick} application={application} writable={writable} onChange={onOutlineChange} onSaveNotes={(notes) => patchApp({ notes })} onPatch={patchApp} />
+          ))}
+          {showRelated && <RelatedCard application={application} writable={writable} onChange={reload} />}
         </>
       )}
 
+      <RejectChoice
+        open={!!rejectAsk}
+        onOpenChange={(v) => !v && setRejectAsk(null)}
+        name={application?.title || "this application"}
+        company={application?.company || ""}
+        others={rejectAsk?.others.length ?? 0}
+        onOne={() => {
+          const ask = rejectAsk
+          setRejectAsk(null)
+          void ask?.send()
+        }}
+        onAll={() => {
+          const ask = rejectAsk
+          setRejectAsk(null)
+          if (!ask) return
+          void Promise.all([ask.send(), ...ask.others.map((a) => api(`/v1/applications/${encodeURIComponent(a.id)}`, { method: "PATCH", body: { version: a.version, status: "rejected" } }))]).then(() => reload())
+        }}
+      />
+
       {exportMode ? (
         <>
-          {artifacts.error ? (
+          {!showArtifacts ? null : artifacts.error ? (
             <SectionError label="artifacts" onRetry={artifacts.retry} />
           ) : artifacts.data == null ? (
             <ArtifactsSkeleton />
           ) : (
             <ArtifactsCard appId={id} artifacts={artifacts.data.data || []} />
           )}
-          {events.error ? (
+          {!showHistory ? null : events.error ? (
             <SectionError label="history" onRetry={events.retry} />
           ) : events.data == null ? (
             <EventsSkeleton />
