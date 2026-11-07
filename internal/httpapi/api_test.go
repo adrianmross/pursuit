@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/csv"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -1579,5 +1580,85 @@ func TestSweepDemo(t *testing.T) {
 	}
 	if n, err := e.svc.SweepDemo(ctx); err != nil || n != 0 {
 		t.Fatalf("second sweep removed %d, err %v; want 0", n, err)
+	}
+}
+
+// A demo token is its own tenant: it must not read, guess or take over the
+// owner's data or another demo's, whichever endpoint it asks.
+func TestDemoTenantsStayApart(t *testing.T) {
+	e := newEnv(t)
+	ctx := context.Background()
+	const marker = "OWNER-ONLY-MARKER"
+	code, co := e.json(t, http.MethodPost, "/v1/companies", e.token, map[string]any{"name": marker})
+	if code != 201 {
+		t.Fatalf("company %d %#v", code, co)
+	}
+	code, role := e.json(t, http.MethodPost, "/v1/roles", e.token, map[string]any{"company_id": co["id"], "title": marker})
+	if code != 201 {
+		t.Fatalf("role %d %#v", code, role)
+	}
+	code, app := e.json(t, http.MethodPost, "/v1/applications", e.token, map[string]any{"role_id": role["id"], "notes": marker})
+	if code != 201 {
+		t.Fatalf("app %d %#v", code, app)
+	}
+	if code, _ := e.json(t, http.MethodPost, "/v1/standing", e.token, map[string]any{"key": "owner_secret", "answer": marker}); code != 201 && code != 200 {
+		t.Fatalf("standing %d", code)
+	}
+	demoA, _, err := e.svc.CreateDemoSession(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	demoB, _, err := e.svc.CreateDemoSession(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, aApps := e.json(t, http.MethodGet, "/v1/applications", demoA, nil)
+	aID := ""
+	if rows, _ := aApps["data"].([]any); len(rows) > 0 {
+		aID, _ = rows[0].(map[string]any)["id"].(string)
+	}
+	if aID == "" {
+		t.Fatalf("demo A has no example application: %#v", aApps)
+	}
+	// Lists must never leak the owner's marker (nor demo A's rows to demo B).
+	for _, path := range []string{
+		"/v1/applications", "/v1/companies", "/v1/roles", "/v1/standing", "/v1/documents", "/v1/questions",
+		"/v1/events", "/v1/audit", "/v1/tags", "/v1/fields", "/v1/links", "/v1/profile", "/v1/export/json",
+		"/v1/export/simplify", "/v1/webhooks", "/v1/tokens", "/v1/caps", "/v1/answers/similar?q=owner",
+	} {
+		code, body, _ := e.do(t, http.MethodGet, path, demoB, nil, nil)
+		if strings.Contains(string(body), marker) || strings.Contains(string(body), aID) {
+			t.Errorf("GET %s as demo B leaked another tenant (%d)", path, code)
+		}
+	}
+	// Direct ids from another tenant look like they don't exist.
+	for _, path := range []string{
+		"/v1/applications/" + aID, "/v1/applications/" + aID + "/events", "/v1/applications/" + aID + "/rounds",
+		"/v1/applications/" + aID + "/notes", "/v1/applications/" + aID + "/artifacts",
+		"/v1/applications/" + aID + "/questions", "/v1/companies/" + co["id"].(string),
+		"/v1/roles/" + role["id"].(string), "/v1/applications/" + app["id"].(string),
+	} {
+		// Per-application lists filter by owner, so they may answer 200 with no rows.
+		if code, body, _ := e.do(t, http.MethodGet, path, demoB, nil, nil); code != 404 && (code != 200 || strings.Contains(string(body), `"id"`)) {
+			t.Errorf("GET %s as demo B = %d %s, want 404 or an empty list", path, code, body)
+		}
+	}
+	if code, _ := e.json(t, http.MethodPatch, "/v1/applications/"+app["id"].(string), demoB, map[string]any{"notes": "x", "version": 1}); code != 404 {
+		t.Errorf("demo patching the owner's application = %d, want 404", code)
+	}
+	// Switching identity: a demo can't take the owner's email, so no sign-in lands on the owner's account.
+	if code, _ := e.json(t, http.MethodPatch, "/v1/me", demoB, map[string]any{"email": "adrian@localhost"}); code < 400 {
+		t.Errorf("demo changed its email to the owner's: %d", code)
+	}
+	if _, me := e.json(t, http.MethodGet, "/v1/me", demoB, nil); fmt.Sprint(me["user"].(map[string]any)["email"]) == "adrian@localhost" {
+		t.Error("demo is now the owner")
+	}
+	// A token a demo mints is still the demo's tenant.
+	code, minted := e.json(t, http.MethodPost, "/v1/tokens", demoB, map[string]any{"name": "x", "scopes": []string{"write"}})
+	if code != 201 {
+		t.Fatalf("demo mint %d %#v", code, minted)
+	}
+	if code, body, _ := e.do(t, http.MethodGet, "/v1/applications", minted["secret"].(string), nil, nil); code != 200 || strings.Contains(string(body), marker) {
+		t.Errorf("minted token reaches the owner: %d", code)
 	}
 }
