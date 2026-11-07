@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.5.0](https://github.com/adrianmross/pursuit/compare/v0.4.0...v0.5.0) (2026-11-07)
+
+
+### Features
+
+* **pursuit:** Redesign the sign-in page like the error pages, with the wordmark, and make the public pages' theme toggle light or dark only, starting on the system's choice ([#116](https://github.com/adrianmross/pursuit/issues/116)) ([acb198a](https://github.com/adrianmross/pursuit/commit/acb198af4d1dbe290d2ca79165a70658f14a9b64))
+
+
+### Bug Fixes
+
+* **pursuit:** Publish a privacy policy and terms of service for the hosted service and the extension, and add briefs for a lawyer-style review ([#118](https://github.com/adrianmross/pursuit/issues/118)) ([d0d48da](https://github.com/adrianmross/pursuit/commit/d0d48da5e5bc454163889b83e646803b38d420dc))
+
 ## [0.4.0](https://github.com/adrianmross/pursuit/compare/v0.3.1...v0.4.0) (2026-11-07)
 
 
