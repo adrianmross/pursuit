@@ -393,6 +393,17 @@ function AccountSignIn() {
                 {mode === "sign-up" ? "Already have an account? Sign in" : "New here? Create an account"}
               </button>
             )}
+            <p className="text-center text-xs text-muted-foreground">
+              By continuing you agree to the{" "}
+              <a href="/docs/terms" className="underline underline-offset-4 hover:text-foreground">
+                Terms
+              </a>{" "}
+              and{" "}
+              <a href="/docs/privacy" className="underline underline-offset-4 hover:text-foreground">
+                Privacy
+              </a>
+              .
+            </p>
           </FieldGroup>
         </form>
       </CardContent>

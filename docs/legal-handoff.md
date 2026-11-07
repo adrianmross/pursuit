@@ -7,7 +7,7 @@ Briefs to give Claude (a fresh session, Claude Docs, or the app) to review and t
 | Placeholder | Where | What it is |
 |---|---|---|
 | Contact email | both pages | Filled: `privacy@hirepursuit.app`, a Porkbun forward to the operator's inbox |
-| `[your jurisdiction]` | terms | Governing law and venue (a US state, or a country) |
+| Jurisdiction | terms | Filled: California law, California state and federal courts, with the user's home courts preserved |
 | Operator | both | Whether this is you as an individual or an entity; the pages say "we" |
 | Effective date | both | Currently November 7, 2026 |
 
@@ -30,6 +30,8 @@ Briefs to give Claude (a fresh session, Claude Docs, or the app) to review and t
 **Cookies and storage.** `pursuit_session` cookie, 30 days. Theme and interface preferences in local storage.
 
 **Deletion and export.** Pipeline export as JSON (Settings, or `pursuit export json`). Deletion is by request to the contact today; there is no self-serve account delete.
+
+**Open PRs that change these facts when they merge.** #102 (Stripe: a payment processor, billing goes live), #103 (S3 documents), and #105 (smart search, which may add an embedding provider, so "no model training" needs re-checking). Re-run Brief C when any of them lands.
 
 **Audience.** Adults looking for work. Not directed at children under 16.
 
