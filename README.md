@@ -170,6 +170,7 @@ Passkeys are pursuit's own (WebAuthn in the Go server), not Neon Auth's, so they
 | `PURSUIT_WEBAUTHN_ORIGINS` | no | Comma-separated origins a passkey ceremony may come from, e.g. `https://hirepursuit.app`. Defaults to the public URL. Each must be the RP ID or a subdomain of it. The same two variables (or `webauthn_rp_id` and `webauthn_origins` in the config file) work for `pursuit serve`, where the default is `PURSUIT_SERVER`. |
 | `PURSUIT_NO_DOCS` | no | `true` stops serving the embedded docs at `/docs` (the same variable works for `pursuit serve`). |
 | `PURSUIT_CF_BEACON_TOKEN` | no | Cloudflare Web Analytics site token. Read at build time to embed the beacon in the dashboard, and at runtime to allow it in the CSP. Unset means no analytics script. |
+| `PURSUIT_SENTRY_DSN` | no | Sentry DSN. Set, the function reports panics and 5xx responses (route, status, request id, stack; no headers, cookies, query or bodies). Unset sends nothing. |
 | `CRON_SECRET` | yes, for the daily link check | A long random secret. Vercel Cron sends `GET /v1/cron/links` with `Authorization: Bearer <CRON_SECRET>`. There is no background checker on Vercel. A missing or wrong secret is 401, including when proxy auth is on. |
 
 Optional: `PURSUIT_BOOTSTRAP_TOKEN` chooses the owner token created on the first cold start. `PURSUIT_OWNER_NAME`, `PURSUIT_OWNER_EMAIL`, and `PURSUIT_BOOTSTRAP_NAME` override the owner defaults on that first start. Behind `PURSUIT_TRUST_PROXY_AUTH=vercel`, the owner can change their email later under Settings, Account. If you leave the bootstrap token unset, the generated secret is written once to the function log.
@@ -201,6 +202,8 @@ Preview deployments should not hold a raw copy of production. Build their databa
 `deploy/pursuit.service` is a systemd unit. `deploy/com.pursuit.plist` is a launchd agent. Both run `pursuit serve` with SQLite. `deploy/config.example.json` has no secrets.
 
 Health: `GET /healthz`. Readiness: `GET /readyz` (503 until bootstrap finishes, and during shutdown). Logs are JSON on stderr.
+
+`pursuit serve` sends an anonymous install ping (version, OS, arch, database, container, random install id) at start and daily. Set `PURSUIT_TELEMETRY=off` or `DO_NOT_TRACK=1` to stop it; the startup log prints exactly what is sent. See the [telemetry docs](docs-site/content/telemetry.mdx).
 
 ## CLI
 

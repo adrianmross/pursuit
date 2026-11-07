@@ -6,6 +6,7 @@ toolchain go1.26.10
 
 require (
 	github.com/coreos/go-oidc/v3 v3.21.0
+	github.com/getsentry/sentry-go v0.50.0
 	github.com/go-webauthn/webauthn v0.18.2
 	github.com/google/uuid v1.6.0
 	github.com/jackc/pgx/v5 v5.9.2

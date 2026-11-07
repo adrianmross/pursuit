@@ -65,6 +65,9 @@ type Server struct {
 	// WebAnalytics allows Cloudflare Web Analytics' beacon in the dashboard's
 	// CSP. Set when the build embedded one (PURSUIT_CF_BEACON_TOKEN).
 	WebAnalytics bool
+	// OnFailure, when set, sees every panic (v != nil) and every 5xx response.
+	// The hosted deployment uses it to report to Sentry.
+	OnFailure func(r *http.Request, requestID string, status int, v any)
 	// HideTokenLogin removes the "paste an API token" option from the
 	// dashboard's sign-in page (production shouldn't invite visitors to
 	// type a raw secret there); the bearer-token API itself is unaffected
@@ -307,9 +310,15 @@ func (s *Server) wrap(next http.Handler) http.Handler {
 		defer func() {
 			if rec := recover(); rec != nil {
 				s.log().Error("panic", "err", rec, "request_id", id)
+				if s.OnFailure != nil {
+					s.OnFailure(r, id, http.StatusInternalServerError, rec)
+				}
 				writeErr(w, domain.Conflict("internal error", "retry the request").WithDetails(nil))
 				// status already maybe written; best effort
 				_ = rec
+			}
+			if s.OnFailure != nil && rec.code >= 500 {
+				s.OnFailure(r, id, rec.code, nil)
 			}
 			s.log().Info("request", "method", r.Method, "path", r.URL.Path, "status", rec.code, "ms", time.Since(start).Milliseconds(), "request_id", id)
 		}()

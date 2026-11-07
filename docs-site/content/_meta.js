@@ -9,4 +9,5 @@ export default {
   architecture: "Architecture",
   changelog: "Changelog",
   privacy: "Privacy",
+  telemetry: "Telemetry",
 }
