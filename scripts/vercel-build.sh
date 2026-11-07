@@ -14,6 +14,12 @@ set -e
 # set at build time. The Neon integration provides the URL under other names.
 NEXT_PUBLIC_NEON_AUTH_URL=${NEXT_PUBLIC_NEON_AUTH_URL:-${VITE_NEON_AUTH_URL:-$NEON_AUTH_BASE_URL}}
 export NEXT_PUBLIC_NEON_AUTH_URL
+# Browser error reports and product events (web-app/lib/telemetry.ts). Unset
+# keeps both off.
+NEXT_PUBLIC_SENTRY_DSN=${PURSUIT_WEB_SENTRY_DSN:-}
+NEXT_PUBLIC_POSTHOG_KEY=${PURSUIT_POSTHOG_KEY:-}
+NEXT_PUBLIC_POSTHOG_HOST=${PURSUIT_POSTHOG_HOST:-}
+export NEXT_PUBLIC_SENTRY_DSN NEXT_PUBLIC_POSTHOG_KEY NEXT_PUBLIC_POSTHOG_HOST
 (cd web-app && npm ci && npm run build:self-hosted)
 rm -rf internal/dashboard/dist
 cp -r web-app/out internal/dashboard/dist

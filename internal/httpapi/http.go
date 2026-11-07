@@ -65,6 +65,9 @@ type Server struct {
 	// WebAnalytics allows Cloudflare Web Analytics' beacon in the dashboard's
 	// CSP. Set when the build embedded one (PURSUIT_CF_BEACON_TOKEN).
 	WebAnalytics bool
+	// ConnectOrigins are extra origins the dashboard's browser code may
+	// connect to (Sentry ingest, PostHog), added to connect-src.
+	ConnectOrigins []string
 	// OnFailure, when set, sees every panic (v != nil) and every 5xx response.
 	// The hosted deployment uses it to report to Sentry.
 	OnFailure func(r *http.Request, requestID string, status int, v any)
@@ -647,6 +650,9 @@ func (s *Server) dashboard(w http.ResponseWriter, r *http.Request) {
 		// hydrate through inline scripts — a static file server can't hand
 		// out a per-request nonce to allow just those, so 'unsafe-inline'
 		// it is for this embed.
+		for _, o := range s.ConnectOrigins {
+			connectSrc += " " + o
+		}
 		scriptSrc := "'self' 'unsafe-inline'"
 		if s.WebAnalytics {
 			scriptSrc += " https://static.cloudflareinsights.com"

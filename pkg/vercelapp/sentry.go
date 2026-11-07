@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -54,6 +55,23 @@ func sentryHook(log *slog.Logger) func(*http.Request, string, int, any) {
 		// Serverless instances freeze after the response, so send before that.
 		hub.Flush(2 * time.Second)
 	}
+}
+
+// webConnectOrigins returns the origins the dashboard's browser telemetry
+// posts to, for the CSP's connect-src. Empty when both are unset.
+func webConnectOrigins(getenv func(string) string) []string {
+	var out []string
+	if u, err := url.Parse(strings.TrimSpace(getenv("PURSUIT_WEB_SENTRY_DSN"))); err == nil && u.Host != "" {
+		out = append(out, u.Scheme+"://"+u.Host)
+	}
+	if strings.TrimSpace(getenv("PURSUIT_POSTHOG_KEY")) != "" {
+		host := strings.TrimRight(strings.TrimSpace(getenv("PURSUIT_POSTHOG_HOST")), "/")
+		if host == "" {
+			host = "https://us.i.posthog.com"
+		}
+		out = append(out, host)
+	}
+	return out
 }
 
 func sentryEnv() string {

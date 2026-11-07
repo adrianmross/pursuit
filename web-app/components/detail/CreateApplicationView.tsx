@@ -3,6 +3,7 @@
 import { useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
+import { track } from "@/lib/telemetry"
 import { AlertCircle } from "lucide-react"
 import { api, ApiError } from "@/lib/api-client"
 import { applicationHref } from "@/lib/links"
@@ -26,6 +27,7 @@ export function CreateApplicationView() {
     setError(null)
     try {
       const created = await api<Application>("/v1/applications", { method: "POST", body: { ...attrs, notes } })
+      track("application_added")
       router.replace(applicationHref(created.id))
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Failed to save")
