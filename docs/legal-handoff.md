@@ -6,7 +6,7 @@ Briefs to give Claude (a fresh session, Claude Docs, or the app) to review and t
 
 | Placeholder | Where | What it is |
 |---|---|---|
-| `[contact email]` | both pages | A monitored address for privacy and legal requests |
+| Contact email | both pages | Filled: `privacy@hirepursuit.app`, a Porkbun forward to the operator's inbox |
 | `[your jurisdiction]` | terms | Governing law and venue (a US state, or a country) |
 | Operator | both | Whether this is you as an individual or an entity; the pages say "we" |
 | Effective date | both | Currently November 7, 2026 |
