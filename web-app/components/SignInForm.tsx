@@ -254,10 +254,10 @@ function ResetStep({
   )
 }
 
-function AccountSignIn() {
+function AccountSignIn({ initialMode = "sign-in" }: { initialMode?: "sign-in" | "sign-up" }) {
   const { signIn, error } = useAuth()
   const [step, setStep] = useState<"credentials" | "verify" | "reset">("credentials")
-  const [mode, setMode] = useState<"sign-in" | "sign-up">("sign-in")
+  const [mode, setMode] = useState<"sign-in" | "sign-up">(initialMode)
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [name, setName] = useState("")
@@ -551,9 +551,11 @@ function ContinueAsOwner() {
 export function SignInForm({
   allowTokenLogin: initialAllowTokenLogin,
   demoAvailable: initialDemoAvailable,
+  initialMode,
 }: {
   allowTokenLogin: boolean
   demoAvailable: boolean
+  initialMode?: "sign-in" | "sign-up"
 }) {
   const [allowTokenLogin, setAllowTokenLogin] = useState(initialAllowTokenLogin)
   const [demoAvailable, setDemoAvailable] = useState(initialDemoAvailable)
@@ -580,7 +582,7 @@ export function SignInForm({
         </div>
         {proxySignedOut && <ContinueAsOwner />}
         {demoAvailable && <TryDemo />}
-        {authClient ? <AccountSignIn /> : <PasskeySignIn />}
+        {authClient ? <AccountSignIn initialMode={initialMode} /> : <PasskeySignIn />}
         {allowTokenLogin && <TokenSignIn />}
       </div>
     </div>

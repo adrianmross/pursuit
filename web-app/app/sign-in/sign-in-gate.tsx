@@ -8,9 +8,11 @@ import { SignInForm } from "@/components/SignInForm"
 export function SignInGate({
   allowTokenLogin,
   demoAvailable,
+  initialMode,
 }: {
   allowTokenLogin: boolean
   demoAvailable: boolean
+  initialMode?: "sign-in" | "sign-up"
 }) {
   const { me } = useAuth()
   const router = useRouter()
@@ -27,5 +29,5 @@ export function SignInGate({
   }, [me, router])
 
   if (me) return null
-  return <SignInForm allowTokenLogin={allowTokenLogin} demoAvailable={demoAvailable} />
+  return <SignInForm allowTokenLogin={allowTokenLogin} demoAvailable={demoAvailable} initialMode={initialMode} />
 }
