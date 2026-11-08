@@ -1,0 +1,34 @@
+import { Callout } from "nextra/components"
+
+# What's new in 0.8
+
+<Callout type="info">
+  Tailored documents and smart search are Plus features, and also available under Settings › Experimental. Everything else here is on for everyone.
+</Callout>
+
+## A résumé and cover letter for each application
+
+Open an application and look at its **Documents** card. It now starts with one row each for the résumé and the cover letter in use, and says where each came from: your main one, a named version, or tailored for this application.
+
+- **Change** lists your versions and puts the one you pick on this application. Your main one is always free to use.
+- **Compare** opens a side-by-side diff against your main one, in one column on a phone. It compares the text, so layout-only changes don't show.
+
+Read more in the [API reference](/api-reference): `POST /v1/applications/{id}/documents` and `GET /v1/applications/{id}/compare`.
+
+## Smart search and suggested answers
+
+Search by meaning, not just by words. Your saved answers, your interview-round prep and notes, and your text documents are all searched.
+
+- **Questions tab:** while you search, a **Related by meaning** section lists matches in other words.
+- **Add question:** as you type, **Close to things you've already written** offers your earlier answers, with **Use this**.
+- **Prepare:** for a form question with no exact match, Pursuit keeps the closest saved answer as a suggestion. The question still waits for you in **needs input**; nothing is filled in silently.
+
+## What's new, in your feed
+
+The newest announcement now sits at the top of your start page feed. Dismiss it once and it stays gone on every device you sign in on.
+
+## Also in 0.8
+
+- The hosted service reports dashboard errors to Sentry and counts page views in PostHog, with no cookies, storage or session replay. Self-hosted builds send nothing. See [Telemetry](/telemetry) and [Privacy](/privacy).
+
+[Full changelog for 0.8](/changelog#080)

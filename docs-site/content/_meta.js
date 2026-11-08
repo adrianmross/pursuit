@@ -7,6 +7,7 @@ export default {
   cli: "CLI reference",
   "api-reference": "API reference",
   architecture: "Architecture",
+  "whats-new": "What's new",
   changelog: "Changelog",
   privacy: "Privacy",
   terms: "Terms",

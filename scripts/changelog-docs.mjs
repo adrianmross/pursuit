@@ -79,7 +79,7 @@ if (import.meta.main) {
     at: `${r.date}T00:00:00Z`,
     title: `Hire Pursuit ${r.version.replace(/\.0$/, "")} is out`,
     body: plain(r.groups[0].items[0]).replace(/^pursuit:\s*/, "").replace(/\s*\(#\d+\)$/, ""),
-    href: `${SITE}/changelog#${r.version.replaceAll(".", "")}`,
+    href: `/docs/changelog#${r.version.replaceAll(".", "")}`,
   }))
   writeFileSync(new URL("web-app/lib/releases.generated.json", root), JSON.stringify(minor, null, 2) + "\n")
 }

@@ -2,8 +2,9 @@
 
 import { useEffect, useState, useSyncExternalStore, type ReactNode } from "react"
 import Link from "next/link"
-import { ArrowRight, BookOpen, Bot, Download, Puzzle, RotateCcw, Sparkles, Terminal, X } from "lucide-react"
+import { ArrowRight, BookOpen, Bot, Download, Megaphone, Puzzle, RotateCcw, Sparkles, Terminal, X } from "lucide-react"
 import { api, serverUrl } from "@/lib/api-client"
+import { useAnnouncement } from "@/lib/announcements"
 import { useAuth } from "@/lib/auth"
 import { setPref, type Pref } from "@/lib/settings"
 import { usePref } from "@/lib/use-pref"
@@ -15,7 +16,8 @@ import { Die, Sketch, Track } from "@/components/Sketch"
 const noop = () => () => {}
 const HINTS: Pref[] = ["hintProfile", "hintAgent", "hintTerminal", "hintExtension"]
 
-type Tip = { pref: Pref; icon: ReactNode; art: ReactNode; title: string; description?: ReactNode; action: ReactNode; footer?: ReactNode; stays?: boolean }
+// "announcement" is the newest What's new item, dismissed on the account rather than per browser.
+type Tip = { pref: Pref | "announcement"; icon: ReactNode; art: ReactNode; title: string; description?: ReactNode; action: ReactNode; footer?: ReactNode; stays?: boolean }
 
 // One card in the start page feed, like Robinhood's news cards: icon, title,
 // a line or two, and its action along the bottom.
@@ -123,6 +125,20 @@ function ExtensionArt() {
   )
 }
 
+// A megaphone with gold sound waves.
+function AnnouncementArt() {
+  return (
+    <Sketch viewBox="0 0 64 64" roughness={1.5} className="w-full">
+      <g {...ART_STROKE} transform="rotate(-8 32 34)">
+        <path d="M10 26 H20 L40 14 V50 L20 38 H10 Z" className="fill-background" />
+        <path d="M20 38 L24 54 H31 L28 41" className="fill-background" />
+      </g>
+      <path d="M47 24 C51 29 51 35 47 40" stroke="var(--brand-gold)" strokeWidth="3.5" strokeLinecap="round" fill="none" />
+      <path d="M53 17 C60 26 60 38 53 47" stroke="var(--brand-gold)" strokeWidth="3.5" strokeLinecap="round" fill="none" />
+    </Sketch>
+  )
+}
+
 // What's left to set up: a résumé and email on file, an agent, the CLI and the
 // extension. Each row is dismissed per browser.
 export function GetStarted() {
@@ -130,7 +146,8 @@ export function GetStarted() {
   const server = useSyncExternalStore(noop, serverUrl, () => "")
   const profileOpen = usePref("hintProfile") === "on"
   const [missing, setMissing] = useState<string[]>([])
-  const [leaving, setLeaving] = useState<Pref | null>(null)
+  const announcement = useAnnouncement()
+  const [leaving, setLeaving] = useState<string | null>(null)
   useEffect(() => {
     if (!profileOpen || !can("write")) return
     void Promise.all([api<Page<Document>>("/v1/documents"), api<Page<StandingAnswer>>("/v1/standing")])
@@ -144,12 +161,31 @@ export function GetStarted() {
   }, [profileOpen, can])
 
   const prefs: Record<string, boolean> = {
+    announcement: !!announcement.item,
     hintProfile: profileOpen,
     hintAgent: usePref("hintAgent") === "on",
     hintTerminal: usePref("hintTerminal") === "on",
     hintExtension: usePref("hintExtension") === "on",
   }
   const tips: Tip[] = [
+    ...(announcement.item
+      ? [
+          {
+            pref: "announcement" as const,
+            icon: <Megaphone />,
+            art: <AnnouncementArt />,
+            title: announcement.item.title,
+            description: announcement.item.body,
+            action: (
+              <Button size="sm" variant="outline" asChild>
+                <a href={announcement.item.href}>
+                  What&apos;s new <ArrowRight />
+                </a>
+              </Button>
+            ),
+          },
+        ]
+      : []),
     ...(missing.length
       ? [
           {
@@ -219,10 +255,11 @@ export function GetStarted() {
   const kept = tips.filter((t) => !prefs[t.pref] && t.stays)
   const gone = open.findIndex((t) => t.pref === leaving)
   // The top card flies off to the right first, and the rest move up under it.
-  function dismiss(pref: Pref) {
+  function dismiss(pref: Tip["pref"]) {
     setLeaving(pref)
     setTimeout(() => {
-      setPref(pref, "off")
+      if (pref === "announcement") announcement.dismiss()
+      else setPref(pref, "off")
       setLeaving(null)
     }, 300)
   }
@@ -246,7 +283,7 @@ export function GetStarted() {
         // Small muted buttons: each kept card brings itself back, and once the deck is empty, See them again brings them all.
         <div className={`-mt-1 flex flex-wrap gap-1 ${open.length ? "" : "justify-center"}`}>
           {kept.map((t) => (
-            <Button key={t.pref} variant="ghost" size="sm" className="text-muted-foreground" onClick={() => setPref(t.pref, "on")}>
+            <Button key={t.pref} variant="ghost" size="sm" className="text-muted-foreground" onClick={() => setPref(t.pref as Pref, "on")}>
               {t.icon} {t.title}
             </Button>
           ))}

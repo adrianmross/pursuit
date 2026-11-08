@@ -30,6 +30,9 @@ After merge, Release Please opens a `chore(release): pursuit vX.Y.Z` PR that bum
 
 Production deploys a release, not every merge to `main`. `.github/workflows/release.yml` deploys each new tag to Vercel production (`vercel deploy --prod`) once the release builds. To roll back, use Instant Rollback in the Vercel dashboard. No branch deploys on push (`git.deploymentEnabled: false` in `vercel.json`), which keeps bot branches and work-in-progress pushes from burning the daily deployment limit. To get a preview, add the `preview` label to the pull request: `.github/workflows/preview.yml` deploys it, comments the URL, and redeploys on each later push while the label stays on.
 
-## Announcements
+## Announcements and What's new
 
-The start page shows the newest item from one feed: each minor release (`x.y.0`, generated from `CHANGELOG.md` by `scripts/changelog-docs.mjs`) and the entries of `web-app/content/announcements.json`. To announce something else, add `{ "id", "at", "title", "body", "href" }` there (`at` is an RFC 3339 UTC time) and merge; it shows on the next deploy. Dismissing the card saves its `at` as `announcements_seen` on the account (`PATCH /v1/me`), so it stays gone on every device and anything older stays gone too.
+The start page feed leads with one announcement, the newest of two sources: each minor release (`x.y.0`, generated from `CHANGELOG.md` by `scripts/changelog-docs.mjs`) and the entries of `web-app/content/announcements.json`. Dismissing it saves its `at` as `announcements_seen` on the account (`PATCH /v1/me`), so it stays gone on every device and anything older stays gone too.
+
+- **Your own news:** add `{ "id", "at", "title", "body", "href" }` to `announcements.json` (`at` is an RFC 3339 UTC time) and merge; it shows on the next deploy. Without `href` it links to the changelog.
+- **A release worth a page:** write `docs-site/content/whats-new/<major>-<minor>.mdx` (screenshots go in `docs-site/public/whats-new/`, linked as `/docs/whats-new/...`), list it in that folder's `index.mdx` and `_meta.js`, then add an entry with `"release": "x.y.0"` and `href` set to the page. It replaces the generated announcement for that version. A release with no entry still announces itself, linking to its changelog section.
