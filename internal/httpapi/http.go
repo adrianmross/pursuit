@@ -1073,6 +1073,8 @@ func writeRaw(w http.ResponseWriter, status int, b []byte) {
 func writeErr(w http.ResponseWriter, err error) {
 	de, ok := domain.As(err)
 	if !ok {
+		// The client only sees "internal error"; the cause goes to the server log.
+		slog.Error("request failed", "err", err.Error())
 		de = &domain.Error{Code: "internal", Message: "internal error", Hint: "check server logs", Status: 500}
 	}
 	if de.Status == 0 {

@@ -85,6 +85,7 @@ func ensure(ctx context.Context) (*runtime, error) {
 		return nil, fmt.Errorf("bootstrap failed")
 	}
 	log := slog.New(slog.NewJSONHandler(os.Stderr, nil))
+	slog.SetDefault(log)
 	if created && supplied == "" {
 		log.Info("bootstrap token created", "token", secret, "hint", "save this token; it will not be shown again")
 	}

@@ -177,6 +177,27 @@ in
     env.PURSUIT_DATABASE_URL = dbUrl "127.0.0.1";
   };
 
+  # Local S3 for document storage: devenv up --profile s3, alone or with
+  # --profile postgres. It makes the bucket (the server never does) and
+  # points a locally run pursuit at it.
+  profiles.s3.module = {
+    services.minio = {
+      enable = true;
+      listenAddress = "127.0.0.1:9000";
+      accessKey = "pursuit";
+      secretKey = "pursuit-dev-secret";
+      buckets = [ "pursuit" ];
+    };
+    env = {
+      PURSUIT_S3_BUCKET = "pursuit";
+      PURSUIT_S3_ENDPOINT = "http://127.0.0.1:9000";
+      PURSUIT_S3_PATH_STYLE = "true";
+      PURSUIT_S3_ACCESS_KEY_ID = "pursuit";
+      PURSUIT_S3_SECRET_ACCESS_KEY = "pursuit-dev-secret";
+      PURSUIT_S3_REGION = "us-east-1";
+    };
+  };
+
   # Existing Neon database: devenv shell --profile neon, with
   # PURSUIT_DATABASE_URL already exported (e.g. from a local .env.neon you source).
   profiles.neon.module = {

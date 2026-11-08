@@ -68,20 +68,29 @@ func FromEnv(getenv func(string) string) (*S3, error) {
 
 func (s *S3) Put(ctx context.Context, key, contentType string, body []byte) error {
 	_, err := s.client.PutObject(ctx, s.bucket, key, bytes.NewReader(body), int64(len(body)), minio.PutObjectOptions{ContentType: contentType})
+	return s.explain(err)
+}
+
+// explain names a missing bucket, the setup mistake that otherwise reads as a bare S3 error.
+// The server never creates the bucket: that needs permissions it shouldn't assume.
+func (s *S3) explain(err error) error {
+	if minio.ToErrorResponse(err).Code == "NoSuchBucket" {
+		return fmt.Errorf("s3 bucket %q does not exist: create it, or point PURSUIT_S3_BUCKET at one that does: %w", s.bucket, err)
+	}
 	return err
 }
 
 func (s *S3) Get(ctx context.Context, key string) ([]byte, error) {
 	obj, err := s.client.GetObject(ctx, s.bucket, key, minio.GetObjectOptions{})
 	if err != nil {
-		return nil, err
+		return nil, s.explain(err)
 	}
 	defer obj.Close()
 	return io.ReadAll(obj)
 }
 
 func (s *S3) Delete(ctx context.Context, key string) error {
-	return s.client.RemoveObject(ctx, s.bucket, key, minio.RemoveObjectOptions{})
+	return s.explain(s.client.RemoveObject(ctx, s.bucket, key, minio.RemoveObjectOptions{}))
 }
 
 // Memory is a Store for tests.
