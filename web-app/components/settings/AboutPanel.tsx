@@ -64,6 +64,32 @@ function Tutorial({ onClose }: { onClose: () => void }) {
   )
 }
 
+// Runs the guided tour again in this account, no sandbox needed.
+function ReplayTour({ onClose }: { onClose: () => void }) {
+  const router = useRouter()
+  return (
+    <Item size="sm" variant="outline">
+      <ItemContent>
+        <ItemTitle>Guided tour</ItemTitle>
+        <ItemDescription>A short walk through the dashboard.</ItemDescription>
+      </ItemContent>
+      <ItemActions>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => {
+            setPref("tour", "go")
+            onClose()
+            router.push("/start")
+          }}
+        >
+          Replay tour
+        </Button>
+      </ItemActions>
+    </Item>
+  )
+}
+
 export function AboutPanel({ onClose }: { onClose: () => void }) {
   const [version, setVersion] = useState("…")
   useEffect(() => {
@@ -92,6 +118,7 @@ export function AboutPanel({ onClose }: { onClose: () => void }) {
           </Fragment>
         ))}
       </ItemGroup>
+      <ReplayTour onClose={onClose} />
       <Tutorial onClose={onClose} />
       <ButtonGroup>
         <Button variant="outline" size="sm" asChild>
