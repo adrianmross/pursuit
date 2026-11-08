@@ -28,7 +28,8 @@ The posting check fetches the job URLs you saved. It sends the URL, not your per
 We use a few providers to run the service, and they process data on our behalf:
 
 - Vercel, for hosting.
-- Sentry, for server error reports.
+- Sentry, for server and browser error reports.
+- PostHog, for a few product events (see Cookies and storage).
 - Cloudflare, for cookieless page-view analytics.
 - Neon, for the database and for sign-in, including the emails that carry sign-in codes.
 - An S3-compatible object store, for uploaded documents, when it's turned on.
@@ -39,6 +40,8 @@ We may add or swap providers. They are bound to use the data only to provide the
 ## Cookies and storage
 
 Signing in sets a session cookie (`pursuit_session`) that lasts 30 days. Your theme and a few interface preferences are kept in your browser's local storage. There are no advertising or analytics cookies. The hosted dashboard uses Cloudflare Web Analytics to count page views and measure page speed. It sets no cookies and doesn't track you across sites or follow you between visits.
+
+The dashboard also sends page views and two named events (signing up and adding an application) to PostHog, and reports browser errors to Sentry. Neither stores anything in your browser, uses session replay or records what you type or click, or includes query strings, your account, or anything you enter. PostHog respects your browser's Do Not Track setting. Self-hosted dashboards send none of this.
 
 ## The browser extension
 

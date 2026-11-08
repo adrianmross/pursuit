@@ -12,6 +12,7 @@ import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { CommandBlock } from "@/components/CommandBlock"
+import { track } from "@/lib/telemetry"
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp"
 import { SnakeEyes } from "@/components/Sketch"
 import { SiteFooter } from "@/components/SiteFooter"
@@ -295,11 +296,13 @@ function AccountSignIn({ initialMode = "sign-in" }: { initialMode?: "sign-in" | 
       if (result.error) {
         const message = result.error.message || "Sign-in failed"
         if (/verif/i.test(message) || result.error.code === "EMAIL_NOT_VERIFIED") {
+          if (mode === "sign-up") track("signed_up")
           setStep("verify")
           return
         }
         throw new Error(message)
       }
+      if (mode === "sign-up") track("signed_up")
       await finishSignIn()
     } catch (err) {
       setLocalError(err instanceof Error ? err.message : "Sign-in failed")

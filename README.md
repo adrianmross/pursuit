@@ -176,6 +176,8 @@ Passkeys are pursuit's own (WebAuthn in the Go server), not Neon Auth's, so they
 | `PURSUIT_NO_DOCS` | no | `true` stops serving the embedded docs at `/docs` (the same variable works for `pursuit serve`). |
 | `PURSUIT_CF_BEACON_TOKEN` | no | Cloudflare Web Analytics site token. Read at build time to embed the beacon in the dashboard, and at runtime to allow it in the CSP. Unset means no analytics script. |
 | `PURSUIT_SENTRY_DSN` | no | Sentry DSN. Set, the function reports panics and 5xx responses (route, status, request id, stack; no headers, cookies, query or bodies). Unset sends nothing. |
+| `PURSUIT_WEB_SENTRY_DSN` | no | Sentry DSN for the dashboard's browser errors. Read at build time (`scripts/vercel-build.sh`) and at runtime to allow it in the CSP. Unset sends nothing. |
+| `PURSUIT_POSTHOG_KEY`, `PURSUIT_POSTHOG_HOST` | no | PostHog project key and API host (default `https://us.i.posthog.com`) for page views and a few named events, with no cookies, storage or replay. Build time plus runtime CSP. Unset sends nothing. |
 | `CRON_SECRET` | yes, for the daily link check | A long random secret. Vercel Cron sends `GET /v1/cron/links` with `Authorization: Bearer <CRON_SECRET>`. There is no background checker on Vercel. A missing or wrong secret is 401, including when proxy auth is on. |
 
 Optional: `PURSUIT_BOOTSTRAP_TOKEN` chooses the owner token created on the first cold start. `PURSUIT_OWNER_NAME`, `PURSUIT_OWNER_EMAIL`, and `PURSUIT_BOOTSTRAP_NAME` override the owner defaults on that first start. Behind `PURSUIT_TRUST_PROXY_AUTH=vercel`, the owner can change their email later under Settings, Account. If you leave the bootstrap token unset, the generated secret is written once to the function log.
