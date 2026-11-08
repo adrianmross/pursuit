@@ -26,3 +26,4 @@
 /docs-site/content/changelog.mdx
 /docs-site/public/changelog.xml
 /docs-site/public/changelog.json
+/web-app/lib/releases.generated.json

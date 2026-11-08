@@ -3,6 +3,7 @@
   "version": "0.7.0",
   "private": true,
   "scripts": {
+    "predev": "node ../scripts/changelog-docs.mjs",
     "dev": "next dev",
     "build": "next build",
     "build:self-hosted": "node scripts/build-self-hosted.mjs",

@@ -1417,6 +1417,21 @@ func TestUpdateMe(t *testing.T) {
 		t.Fatalf("token owner changed email %d", code)
 	}
 
+	// A dismissal only moves forward, and is stored in UTC.
+	for _, c := range []struct{ send, want string }{
+		{"2026-11-08T00:00:00Z", "2026-11-08T00:00:00Z"},
+		{"2026-11-01T00:00:00Z", "2026-11-08T00:00:00Z"},
+		{"2026-11-09T02:00:00+02:00", "2026-11-09T00:00:00Z"},
+	} {
+		code, user = e.json(t, http.MethodPatch, "/v1/me", e.token, map[string]any{"announcements_seen": c.send})
+		if code != 200 || user["announcements_seen"] != c.want {
+			t.Fatalf("announcements_seen %s: %d %#v", c.send, code, user)
+		}
+	}
+	if code, _ := e.json(t, http.MethodPatch, "/v1/me", e.token, map[string]any{"announcements_seen": "yesterday"}); code != 400 {
+		t.Fatalf("bad announcements_seen %d", code)
+	}
+
 	// The proxy owner is authenticated by the platform, not the email.
 	e.api.TrustProxyAuth = "vercel"
 	if code, _ := e.json(t, http.MethodPatch, "/v1/me", "", map[string]any{"email": "not an email"}); code != 400 {

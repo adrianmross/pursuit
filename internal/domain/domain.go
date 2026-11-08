@@ -557,8 +557,11 @@ type User struct {
 	Name  string `json:"name"`
 	Email string `json:"email"`
 	// Avatar is a small data: URL the dashboard resizes before upload, or "".
-	Avatar    string    `json:"avatar"`
-	CreatedAt time.Time `json:"created_at"`
+	Avatar string `json:"avatar"`
+	// AnnouncementsSeen is the publish time of the newest feed announcement
+	// the user dismissed (RFC 3339, UTC), or "".
+	AnnouncementsSeen string    `json:"announcements_seen"`
+	CreatedAt         time.Time `json:"created_at"`
 }
 
 type Token struct {

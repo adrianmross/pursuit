@@ -93,7 +93,7 @@ func (s *Store) DeleteDemoUsers(ctx context.Context, before time.Time) (int, err
 func (s *Store) FirstUser(ctx context.Context) (domain.User, error) {
 	var u domain.User
 	var created string
-	err := s.queryRow(ctx, `SELECT id, name, email, avatar, created_at FROM users ORDER BY created_at LIMIT 1`).Scan(&u.ID, &u.Name, &u.Email, &u.Avatar, &created)
+	err := s.queryRow(ctx, `SELECT id, name, email, avatar, announcements_seen, created_at FROM users ORDER BY created_at LIMIT 1`).Scan(&u.ID, &u.Name, &u.Email, &u.Avatar, &u.AnnouncementsSeen, &created)
 	if err == sql.ErrNoRows {
 		return domain.User{}, domain.NotFound("user")
 	}
@@ -107,8 +107,8 @@ func (s *Store) FirstUser(ctx context.Context) (domain.User, error) {
 func (s *Store) FindUserByEmail(ctx context.Context, email string) (domain.User, error) {
 	var u domain.User
 	var created string
-	err := s.queryRow(ctx, `SELECT id, name, email, avatar, created_at FROM users WHERE lower(email)=lower(?)`, email).
-		Scan(&u.ID, &u.Name, &u.Email, &u.Avatar, &created)
+	err := s.queryRow(ctx, `SELECT id, name, email, avatar, announcements_seen, created_at FROM users WHERE lower(email)=lower(?)`, email).
+		Scan(&u.ID, &u.Name, &u.Email, &u.Avatar, &u.AnnouncementsSeen, &created)
 	if err == sql.ErrNoRows {
 		return domain.User{}, domain.NotFound("user")
 	}
@@ -122,8 +122,8 @@ func (s *Store) FindUserByEmail(ctx context.Context, email string) (domain.User,
 func (s *Store) GetUser(ctx context.Context, id string) (domain.User, error) {
 	var u domain.User
 	var created string
-	err := s.queryRow(ctx, `SELECT id, name, email, avatar, created_at FROM users WHERE id=?`, id).
-		Scan(&u.ID, &u.Name, &u.Email, &u.Avatar, &created)
+	err := s.queryRow(ctx, `SELECT id, name, email, avatar, announcements_seen, created_at FROM users WHERE id=?`, id).
+		Scan(&u.ID, &u.Name, &u.Email, &u.Avatar, &u.AnnouncementsSeen, &created)
 	if err == sql.ErrNoRows {
 		return domain.User{}, domain.NotFound("user")
 	}
@@ -135,7 +135,7 @@ func (s *Store) GetUser(ctx context.Context, id string) (domain.User, error) {
 }
 
 func (s *Store) UpdateUserProfile(ctx context.Context, u domain.User) error {
-	_, err := s.exec(ctx, `UPDATE users SET name=?, avatar=?, email=? WHERE id=?`, u.Name, u.Avatar, u.Email, u.ID)
+	_, err := s.exec(ctx, `UPDATE users SET name=?, avatar=?, email=?, announcements_seen=? WHERE id=?`, u.Name, u.Avatar, u.Email, u.AnnouncementsSeen, u.ID)
 	return err
 }
 

@@ -629,4 +629,11 @@ var migrations = []migration{{
 		// letter was copied from; empty for a file uploaded to the application.
 		`ALTER TABLE artifacts ADD COLUMN source_document_id TEXT NOT NULL DEFAULT ''`,
 	},
+}, {
+	version: "024",
+	stmts: []string{
+		// The time of the newest feed announcement this user dismissed
+		// (RFC 3339, UTC), so a dismissal follows the account across devices.
+		`ALTER TABLE users ADD COLUMN announcements_seen TEXT NOT NULL DEFAULT ''`,
+	},
 }}
