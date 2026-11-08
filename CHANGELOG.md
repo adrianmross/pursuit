@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.7.0](https://github.com/adrianmross/pursuit/compare/v0.6.0...v0.7.0) (2026-11-08)
+
+
+### Features
+
+* **pursuit:** Documents tab, main résumé and cover letter, S3 storage ([#103](https://github.com/adrianmross/pursuit/issues/103)) ([8bff0c3](https://github.com/adrianmross/pursuit/commit/8bff0c383ab74d812bb0132e001b1b2d2f129a2a))
+* **pursuit:** One outline and notes card for rounds, tasks and notes, with notes files, stage plans and a start page feed ([#99](https://github.com/adrianmross/pursuit/issues/99)) ([1054b0b](https://github.com/adrianmross/pursuit/commit/1054b0b8e8872995422883662da6ab13cd941e1b))
+* **pursuit:** Publish the changelog in the docs with an Atom and a JSON feed to follow releases, and link it from the newer-release log line ([#124](https://github.com/adrianmross/pursuit/issues/124)) ([c1b241b](https://github.com/adrianmross/pursuit/commit/c1b241b61f8d971a5cf8ef86c3863488126f9620))
+* **pursuit:** Stripe plans and per-user feature switches ([#102](https://github.com/adrianmross/pursuit/issues/102)) ([4af1a2d](https://github.com/adrianmross/pursuit/commit/4af1a2dcfba5c95b4cd4d44a3c99b8272877e31f))
+* **pursuit:** Welcome new accounts and demo sandboxes with a short guided tour of the dashboard, replayable from Settings, and rename the start page's Get started cards to Feed ([#117](https://github.com/adrianmross/pursuit/issues/117)) ([f4ef879](https://github.com/adrianmross/pursuit/commit/f4ef87989e2085ed867c1d00b25e2c67de8075fb))
+
+
+### Bug Fixes
+
+* **pursuit:** Disclose the Cloudflare page-view analytics in the privacy page and update the legal review brief for Sentry and the telemetry ping ([#125](https://github.com/adrianmross/pursuit/issues/125)) ([ff77851](https://github.com/adrianmross/pursuit/commit/ff77851b3f9fef04de9fea1216987de13c57925a))
+
 ## [0.6.0](https://github.com/adrianmross/pursuit/compare/v0.5.0...v0.6.0) (2026-11-07)
 
 
