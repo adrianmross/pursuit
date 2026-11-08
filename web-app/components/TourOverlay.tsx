@@ -6,6 +6,7 @@ import { api } from "@/lib/api-client"
 import { applicationHref } from "@/lib/links"
 import { PRODUCT_NAME } from "@/lib/brand"
 import { setPref } from "@/lib/settings"
+import { useAuth } from "@/lib/auth"
 import { usePref } from "@/lib/use-pref"
 import type { Application, Page } from "@/lib/types"
 import { Button } from "@/components/ui/button"
@@ -19,7 +20,7 @@ const STEPS: Step[] = [
   { target: "table", route: "/applications", match: /^\/applications$/, title: "Your applications", body: "Every posting you track, by stage. Search with the box above, or press ⌘P for the command palette.", hint: "Open any application to continue.", needsApp: true, open: true },
   { target: "details", route: "{app}", match: /^\/app\//, title: "One application", body: "Details holds the listing, then tabs for rounds, tasks, questions and notes. Each round's notes are one markdown document: a heading ending in ? is a question.", hint: "Try the tabs, it's all live.", needsApp: true },
   { target: "questions", route: "/profile/questions", match: /^\/profile\/questions$/, title: "Your answers", body: "Answer a question once and it fills in on every form that asks. Interview questions from your notes land here too, so a good answer is one click from reuse." },
-  { target: "account", route: "/profile/questions", match: /^\/profile\/questions$/, title: "That's the tour", body: "Replay it any time from Settings › About. Your changes here are a throwaway sandbox." },
+  { target: "account", route: "/profile/questions", match: /^\/profile\/questions$/, title: "That's the tour", body: "Replay it any time from Settings › About." },
 ]
 
 const PAD = 6
@@ -30,6 +31,7 @@ const GIVE_UP = 3000
 
 export function TourOverlay() {
   const router = useRouter()
+  const { isDemo } = useAuth()
   const pathname = usePathname()
   const [steps, setSteps] = useState<Step[] | null>(null)
   const [appHref, setAppHref] = useState("")
@@ -179,7 +181,7 @@ export function TourOverlay() {
         style={place}
       >
         <h2 className="font-medium">{step.title}</h2>
-        <p className="mt-1 text-sm text-muted-foreground">{step.body}</p>
+        <p className="mt-1 text-sm text-muted-foreground">{step.body}{isDemo && step.target === "account" && " Your changes here are a throwaway sandbox."}</p>
         {step.hint && <p className="mt-2 text-sm font-medium">{step.hint}</p>}
         <div className="mt-3 flex items-center gap-2">
           <div className="flex gap-1" aria-label={`Step ${i + 1} of ${steps.length}`}>
