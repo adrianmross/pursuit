@@ -145,6 +145,8 @@ export type Artifact = {
   id: string
   filename?: string
   kind?: string
+  // The document a résumé or cover letter was copied from; absent for an upload (tailored).
+  source_document_id?: string
   content_type?: string
   body?: string
   created_at?: string

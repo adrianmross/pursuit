@@ -88,7 +88,7 @@ func (s *Service) featureViews(ctx context.Context, a domain.Actor) ([]FeatureVi
 	out := make([]FeatureView, 0, len(Features))
 	for _, f := range Features {
 		v := FeatureView{Key: f.Key, Name: f.Name, Description: f.Description, Premium: f.Premium, Experimental: f.Experimental}
-		v.Configured = s.Capabilities[f.Key]
+		v.Configured = s.configured(f.Key)
 		// A demo sandbox shows off what the deployment has; it can't buy anything.
 		v.Entitled = !f.Premium || !s.billingOn() || a.Demo || comp || has[f.Key]
 		v.Enabled = !f.Experimental
@@ -498,10 +498,16 @@ func (s *Service) ConfigureFromEnv(getenv func(string) string, publicURL string)
 	}
 	s.Capabilities = map[string]bool{
 		"smart_search": env("AI_GATEWAY_API_KEY") != "",
-		// Needs nothing beyond the server itself.
-		"tailored_documents": true,
 	}
 	return warnings
+}
+
+// configured is whether this deployment has what a feature needs.
+func (s *Service) configured(key string) bool {
+	if key == "tailored_documents" {
+		return true // needs nothing beyond the server itself
+	}
+	return s.Capabilities[key]
 }
 
 // BaseURL is where Stripe returns the user: the configured public URL, else

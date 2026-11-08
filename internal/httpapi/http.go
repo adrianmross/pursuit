@@ -274,6 +274,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /v1/documents", s.listDocuments)
 	mux.HandleFunc("POST /v1/documents", s.addDocument)
 	mux.HandleFunc("GET /v1/documents/{id}", s.getDocument)
+	mux.HandleFunc("POST /v1/applications/{id}/documents", s.useDocument)
+	mux.HandleFunc("GET /v1/applications/{id}/compare", s.compareDocuments)
 	mux.HandleFunc("PATCH /v1/documents/{id}", s.updateDocument)
 	mux.HandleFunc("DELETE /v1/documents/{id}", s.deleteDocument)
 	mux.HandleFunc("GET /v1/standing", s.listStanding)

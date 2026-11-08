@@ -159,6 +159,18 @@
           "type": "string"
         }
       },
+      "kind": {
+        "description": "`resume_pdf` or `cover_letter`.",
+        "in": "query",
+        "name": "kind",
+        "schema": {
+          "enum": [
+            "resume_pdf",
+            "cover_letter"
+          ],
+          "type": "string"
+        }
+      },
       "limit": {
         "description": "Page size, 1 to 200. Lists that return everything by default page only when it is set.",
         "in": "query",
@@ -868,6 +880,9 @@
           },
           "kind": {
             "type": "string"
+          },
+          "source_document_id": {
+            "type": "string"
           }
         },
         "required": [
@@ -1331,6 +1346,29 @@
             ]
           }
         },
+        "type": "object"
+      },
+      "Comparison": {
+        "properties": {
+          "current": {
+            "$ref": "#/components/schemas/Side"
+          },
+          "default": {
+            "$ref": "#/components/schemas/Side"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "same": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "kind",
+          "default",
+          "current",
+          "same"
+        ],
         "type": "object"
       },
       "CompleteInput": {
@@ -2723,6 +2761,30 @@
         },
         "type": "object"
       },
+      "Side": {
+        "properties": {
+          "artifact_id": {
+            "type": "string"
+          },
+          "document_id": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "title",
+          "text"
+        ],
+        "type": "object"
+      },
       "StagePlan": {
         "properties": {
           "labels": {
@@ -3192,7 +3254,7 @@
     }
   },
   "info": {
-    "description": "The HTTP API behind the Pursuit dashboard and the `pursuit` CLI. Agents should prefer the CLI: `pursuit schema <command>` describes one command. The short agent guide is [/llms.txt](/llms.txt).\n\n## Authentication\n\nSend `Authorization: Bearer pst_...`. A token holds the scopes `read`, `write`, and `approve`. `write` does not include `approve`, and only `approve` can move an application toward submission. Tokens, scopes, and OAuth login are in [/auth.md](/auth.md).\n\n## Errors\n\nErrors are JSON: `{\"error\": {\"code\", \"message\", \"hint\", \"details\"}}`. 400 is validation, 401 a missing or bad token, 403 a missing scope, 404 not found, 409 a version or cap conflict.\n\n## Writes\n\nEvery write accepts `Idempotency-Key`, which replays a successful response, and `X-Dry-Run: true` (or `?dry_run=true`), which validates and writes nothing. A dry run answers `{\"dry_run\": true, \"hint\", \"data\"}` instead of the response shown. Creates answer 201. Updates and deletes of versioned records take `version` in the body, the query, or `If-Match`.\n\n## Pagination\n\nLists answer `{\"data\": [...], \"page\": {\"limit\", \"has_more\", \"next_cursor\", \"total\"}}`. They take `limit` (1-200) and `cursor`; pass `page.next_cursor` back unchanged until `has_more` is false. `fields=id,company` trims each record to those fields. `POST /v1/batch` runs up to 100 requests in one call.\n\n## Webhooks\n\nA registered webhook receives every new event as a POST; see **Webhooks** at the end of this page for the payload.",
+    "description": "The HTTP API behind the Pursuit dashboard and the `pursuit` CLI. Agents should prefer the CLI: `pursuit schema \u003ccommand\u003e` describes one command. The short agent guide is [/llms.txt](/llms.txt).\n\n## Authentication\n\nSend `Authorization: Bearer pst_...`. A token holds the scopes `read`, `write`, and `approve`. `write` does not include `approve`, and only `approve` can move an application toward submission. Tokens, scopes, and OAuth login are in [/auth.md](/auth.md).\n\n## Errors\n\nErrors are JSON: `{\"error\": {\"code\", \"message\", \"hint\", \"details\"}}`. 400 is validation, 401 a missing or bad token, 403 a missing scope, 404 not found, 409 a version or cap conflict.\n\n## Writes\n\nEvery write accepts `Idempotency-Key`, which replays a successful response, and `X-Dry-Run: true` (or `?dry_run=true`), which validates and writes nothing. A dry run answers `{\"dry_run\": true, \"hint\", \"data\"}` instead of the response shown. Creates answer 201. Updates and deletes of versioned records take `version` in the body, the query, or `If-Match`.\n\n## Pagination\n\nLists answer `{\"data\": [...], \"page\": {\"limit\", \"has_more\", \"next_cursor\", \"total\"}}`. They take `limit` (1-200) and `cursor`; pass `page.next_cursor` back unchanged until `has_more` is false. `fields=id,company` trims each record to those fields. `POST /v1/batch` runs up to 100 requests in one call.\n\n## Webhooks\n\nA registered webhook receives every new event as a POST; see **Webhooks** at the end of this page for the payload.",
     "license": {
       "identifier": "MIT",
       "name": "MIT"
@@ -4211,6 +4273,138 @@
             "lang": "shell",
             "source": "pursuit check-links APP_ID"
           }
+        ]
+      }
+    },
+    "/v1/applications/{id}/compare": {
+      "get": {
+        "description": "Needs tailored_documents.",
+        "operationId": "kindresumepdfcoverletterApplicationsFileNextToYourMainDocumentAsPlainTextExtractedFromPDFWordOrTextDefaultCurrentTitleTextSourceDefaultversionuploadSame",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/kind"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Comparison"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "error"
+          }
+        },
+        "summary": "Kind=resume_pdf|cover_letter: the application's file next to your main document, as plain text extracted from PDF, Word or text: {default, current: {title, text, source: default|version|upload}, same}",
+        "tags": [
+          "Applications"
+        ]
+      }
+    },
+    "/v1/applications/{id}/documents": {
+      "post": {
+        "description": "Body {document_id}. Copies it as a resume_pdf or cover_letter artifact (source_document_id says which); the newest of a kind is the one sent. The main document is free; another version needs the tailored_documents feature.",
+        "operationId": "useOneOfYourDocumentsAsThisApplicationsRsumOrCoverLetter",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          },
+          {
+            "$ref": "#/components/parameters/DryRun"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "document_id": {
+                    "type": "string"
+                  }
+                },
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArtifactView"
+                }
+              }
+            },
+            "description": "Created"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "error"
+          }
+        },
+        "summary": "Use one of your documents as this application's résumé or cover letter",
+        "tags": [
+          "Applications"
         ]
       }
     },
@@ -6415,7 +6609,7 @@
     },
     "/v1/auth/{provider}/callback": {
       "get": {
-        "description": "Redirects to /#token=<secret>.",
+        "description": "Redirects to /#token=\u003csecret\u003e.",
         "operationId": "finishOIDCSignin",
         "parameters": [
           {
@@ -9101,7 +9295,7 @@
         ]
       },
       "post": {
-        "description": "Loopback consent, called by the dashboard /authorize page that `pursuit auth login` opens. Requires a signed-in human session with the approve scope (not the PURSUIT_TRUST_PROXY_AUTH owner), Content-Type application/json, and Sec-Fetch-Site same-origin or an Origin matching the host. Writes an oauth.approve or oauth.deny audit entry. redirect_uri must be http://127.0.0.1:<port>/callback or http://[::1]:<port>/callback. redirect_to is the callback with code and state, or error=access_denied when approve is false.",
+        "description": "Loopback consent, called by the dashboard /authorize page that `pursuit auth login` opens. Requires a signed-in human session with the approve scope (not the PURSUIT_TRUST_PROXY_AUTH owner), Content-Type application/json, and Sec-Fetch-Site same-origin or an Origin matching the host. Writes an oauth.approve or oauth.deny audit entry. redirect_uri must be http://127.0.0.1:\u003cport\u003e/callback or http://[::1]:\u003cport\u003e/callback. redirect_to is the callback with code and state, or error=access_denied when approve is false.",
         "operationId": "approveBrowserLogin",
         "requestBody": {
           "content": {

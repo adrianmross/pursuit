@@ -36,6 +36,8 @@ type Artifact struct {
 	ContentType   string
 	Body          string
 	CreatedAt     string
+	// SourceDocumentID is the document this was copied from, or "" for an upload.
+	SourceDocumentID string
 }
 
 type Question struct {
@@ -252,13 +254,13 @@ func (s *Store) HasApproval(ctx context.Context, userID, applicationID string) (
 }
 
 func (s *Store) CreateArtifact(ctx context.Context, a Artifact) error {
-	_, err := s.exec(ctx, `INSERT INTO artifacts (id, user_id, application_id, kind, filename, content_type, body, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-		a.ID, a.UserID, a.ApplicationID, a.Kind, a.Filename, a.ContentType, a.Body, a.CreatedAt)
+	_, err := s.exec(ctx, `INSERT INTO artifacts (id, user_id, application_id, kind, filename, content_type, body, created_at, source_document_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		a.ID, a.UserID, a.ApplicationID, a.Kind, a.Filename, a.ContentType, a.Body, a.CreatedAt, a.SourceDocumentID)
 	return err
 }
 
 func (s *Store) ListArtifacts(ctx context.Context, userID, applicationID string) ([]Artifact, error) {
-	rows, err := s.query(ctx, `SELECT id, user_id, application_id, kind, filename, content_type, created_at FROM artifacts WHERE user_id=? AND application_id=? ORDER BY created_at, id`, userID, applicationID)
+	rows, err := s.query(ctx, `SELECT id, user_id, application_id, kind, filename, content_type, created_at, source_document_id FROM artifacts WHERE user_id=? AND application_id=? ORDER BY created_at, id`, userID, applicationID)
 	if err != nil {
 		return nil, err
 	}
@@ -266,7 +268,7 @@ func (s *Store) ListArtifacts(ctx context.Context, userID, applicationID string)
 	var out []Artifact
 	for rows.Next() {
 		var a Artifact
-		if err := rows.Scan(&a.ID, &a.UserID, &a.ApplicationID, &a.Kind, &a.Filename, &a.ContentType, &a.CreatedAt); err != nil {
+		if err := rows.Scan(&a.ID, &a.UserID, &a.ApplicationID, &a.Kind, &a.Filename, &a.ContentType, &a.CreatedAt, &a.SourceDocumentID); err != nil {
 			return nil, err
 		}
 		out = append(out, a)
@@ -279,8 +281,8 @@ func (s *Store) ListArtifacts(ctx context.Context, userID, applicationID string)
 
 func (s *Store) GetArtifact(ctx context.Context, userID, id string) (Artifact, error) {
 	var a Artifact
-	err := s.queryRow(ctx, `SELECT id, user_id, application_id, kind, filename, content_type, body, created_at FROM artifacts WHERE user_id=? AND id=?`, userID, id).
-		Scan(&a.ID, &a.UserID, &a.ApplicationID, &a.Kind, &a.Filename, &a.ContentType, &a.Body, &a.CreatedAt)
+	err := s.queryRow(ctx, `SELECT id, user_id, application_id, kind, filename, content_type, body, created_at, source_document_id FROM artifacts WHERE user_id=? AND id=?`, userID, id).
+		Scan(&a.ID, &a.UserID, &a.ApplicationID, &a.Kind, &a.Filename, &a.ContentType, &a.Body, &a.CreatedAt, &a.SourceDocumentID)
 	if err == sql.ErrNoRows {
 		return Artifact{}, domain.NotFound("artifact")
 	}
