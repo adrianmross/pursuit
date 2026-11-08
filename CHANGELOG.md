@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.8.0](https://github.com/adrianmross/pursuit/compare/v0.7.0...v0.8.0) (2026-11-08)
+
+
+### Features
+
+* **pursuit:** Announce minor releases and other news in a dismissible card on the start page, and remember the dismissal on the account ([#129](https://github.com/adrianmross/pursuit/issues/129)) ([3e5cf14](https://github.com/adrianmross/pursuit/commit/3e5cf14360966550ffd10c925ad9baf81f6d7420))
+* **pursuit:** Report dashboard browser errors to Sentry and send page views and a few named events to PostHog on the hosted service, with no cookies, storage, or replay, and nothing in self-hosted builds ([#126](https://github.com/adrianmross/pursuit/issues/126)) ([7e54791](https://github.com/adrianmross/pursuit/commit/7e5479141f0c7460e0bc1f408279b887f1b2cec0))
+* **pursuit:** Smart search and suggested answers ([#105](https://github.com/adrianmross/pursuit/issues/105)) ([6007073](https://github.com/adrianmross/pursuit/commit/6007073edcb5b49a1c0dd0c824878e4dd151b42f))
+* **pursuit:** Tailored résumé and cover letter per application, with a diff against the main one ([#106](https://github.com/adrianmross/pursuit/issues/106)) ([dd70a25](https://github.com/adrianmross/pursuit/commit/dd70a251d9c3a283b320ebd5fa5ed7abf2c56f75))
+
 ## [0.7.0](https://github.com/adrianmross/pursuit/compare/v0.6.0...v0.7.0) (2026-11-08)
 
 
