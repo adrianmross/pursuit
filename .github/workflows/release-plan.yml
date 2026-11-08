@@ -3,9 +3,10 @@ name: release-plan
 # Release Please opens the release PR (version bumps + CHANGELOG.md) from
 # conventional commits; changelogger fragments are consumed on that PR.
 #
-# Everything runs on GITHUB_TOKEN. GitHub does not start workflows from refs
-# that token creates, so this pushes the tag itself and dispatches release.yml
-# directly instead of relying on a `push: tags` trigger.
+# The release PR is opened with the pursuit-release App's token so its checks
+# run. Tagging and dispatch stay on GITHUB_TOKEN: GitHub does not start
+# workflows from refs that token creates, so this pushes the tag itself and
+# dispatches release.yml directly instead of relying on a `push: tags` trigger.
 
 on:
   # main is protected: every merge already passed ci on its PR.
@@ -30,9 +31,24 @@ jobs:
           ref: ${{ github.sha }}
           fetch-depth: 0
 
+      # The release PR and the commit that consumes fragments must come from
+      # an App, not GITHUB_TOKEN: GitHub starts no workflows for refs that
+      # token creates, so the PR would never get the checks main requires.
+      # Without the RELEASE_APP_* secrets this falls back to GITHUB_TOKEN and
+      # the PR needs an admin merge.
+      - id: app-token
+        if: env.RELEASE_APP_ID != ''
+        uses: actions/create-github-app-token@v2.1.4
+        env:
+          RELEASE_APP_ID: ${{ secrets.RELEASE_APP_ID }}
+        with:
+          app-id: ${{ secrets.RELEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+
       - id: release-please
         uses: googleapis/release-please-action@v4
         with:
+          token: ${{ steps.app-token.outputs.token || github.token }}
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
           skip-github-release: true
@@ -50,6 +66,7 @@ jobs:
         with:
           ref: ${{ steps.release-pr.outputs.head_ref }}
           path: release-pr
+          token: ${{ steps.app-token.outputs.token || github.token }}
 
       - if: steps.release-pr.outputs.head_ref != ''
         uses: adrianmross/changelogger@v0.11.0
