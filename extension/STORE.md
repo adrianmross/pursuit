@@ -31,7 +31,7 @@ Requires a Pursuit server (self-hosted or hosted). The dashboard has a practice 
 
 **Data usage disclosures:** check "Personally identifiable information" and "Website content". Certify that data is not sold, not used for unrelated purposes, and not used for creditworthiness or lending.
 
-**Privacy policy URL:** `<your dashboard origin>/docs/privacy`
+**Privacy policy URL:** `<your dashboard origin>/privacy`
 
 ## Before you submit
 

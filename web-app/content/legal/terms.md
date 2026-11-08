@@ -49,7 +49,7 @@ We may update these terms. If a change matters, we'll update the date above and,
 
 ## Everything else
 
-These terms and our [Privacy](/docs/privacy) page are the whole agreement for the hosted service. If part of it can't be enforced, the rest still applies. Our not enforcing something once doesn't waive it. California law governs these terms, and disputes go to the state and federal courts in California, though you may also bring a claim in your own home courts where the law gives you that right.
+These terms and our [Privacy](/privacy) page are the whole agreement for the hosted service. If part of it can't be enforced, the rest still applies. Our not enforcing something once doesn't waive it. California law governs these terms, and disputes go to the state and federal courts in California, though you may also bring a claim in your own home courts where the law gives you that right.
 
 ## Contact
 

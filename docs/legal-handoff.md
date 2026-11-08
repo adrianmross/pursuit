@@ -1,6 +1,6 @@
 # Legal handoff
 
-Briefs to give Claude (a fresh session, Claude Docs, or the app) to review and tighten `docs-site/content/privacy.mdx` and `docs-site/content/terms.mdx`. The posture is generic and very permissive: short plain-English terms, no restrictions beyond what the law and basic safety need, and nothing that overreaches on user data. Claude is not a lawyer. Have a real one look before relying on these for anything with money or regulated data in it.
+Briefs to give Claude (a fresh session, Claude Docs, or the app) to review and tighten `web-app/content/legal/privacy.md` and `web-app/content/legal/terms.md`. The posture is generic and very permissive: short plain-English terms, no restrictions beyond what the law and basic safety need, and nothing that overreaches on user data. Claude is not a lawyer. Have a real one look before relying on these for anything with money or regulated data in it.
 
 ## Fill these in first
 
@@ -53,7 +53,7 @@ Briefs to give Claude (a fresh session, Claude Docs, or the app) to review and t
 >
 > Context: [paste Fact sheet and Posture]
 >
-> The draft is `docs-site/content/privacy.mdx` [paste it]. Review it for:
+> The draft is `web-app/content/legal/privacy.md` [paste it]. Review it for:
 > 1. Anything it says that the fact sheet doesn't support, or that the fact sheet shows is false. Fix or remove it.
 > 2. Anything the fact sheet shows that it omits and a privacy law or the Chrome Web Store User Data Policy would expect it to disclose.
 > 3. GDPR / UK GDPR basics (controller identity, purposes, lawful bases in one plain sentence each, processors, transfers, retention, rights, complaint to a regulator) and CCPA/CPRA basics (categories collected, no sale or sharing, rights, no discrimination), kept to the shortest honest wording. Don't add a separate section per regime unless the law requires it.
@@ -68,7 +68,7 @@ Briefs to give Claude (a fresh session, Claude Docs, or the app) to review and t
 >
 > Context: [paste Fact sheet and Posture]
 >
-> The draft is `docs-site/content/terms.mdx` [paste it]. Review it for:
+> The draft is `web-app/content/legal/terms.md` [paste it]. Review it for:
 > 1. Enforceability of the disclaimer and limitation of liability as written, and the narrowest wording that still protects an individual operator. Flag what varies by jurisdiction.
 > 2. Whether "you are responsible for what you submit" and the agent/token language puts the right responsibility on the user without making the operator the guarantor of employer terms.
 > 3. Whether the content license to the operator is as narrow as it can be and still let the service run, back up, and display content.
@@ -85,4 +85,4 @@ Briefs to give Claude (a fresh session, Claude Docs, or the app) to review and t
 
 ## Using the output
 
-Paste the revised MDX over `docs-site/content/privacy.mdx` and `terms.mdx`, fill the placeholders, run Brief C, then ship it. The Chrome Web Store listing's privacy policy URL is `/docs/privacy` on the deployed dashboard.
+Paste the revised markdown over `web-app/content/legal/privacy.md` and `terms.md`, fill the placeholders, run Brief C, then ship it. The Chrome Web Store listing's privacy policy URL is `/privacy` on the deployed dashboard.

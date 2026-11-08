@@ -11,6 +11,6 @@ export default {
   "-": { type: "separator" },
   "whats-new": "What's new",
   changelog: "Changelog",
-  privacy: "Privacy",
-  terms: "Terms",
+  privacy: { title: "Privacy", href: "https://hirepursuit.app/privacy" },
+  terms: { title: "Terms", href: "https://hirepursuit.app/terms" },
 }
