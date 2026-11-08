@@ -454,6 +454,11 @@ type QuestionView struct {
 	Required bool   `json:"required"`
 	Unknown  bool   `json:"unknown"`
 	Source   string `json:"source,omitempty"`
+	// The closest saved answer by meaning (smart search). The question
+	// stays unknown until someone accepts it.
+	SuggestedAnswer string  `json:"suggested_answer,omitempty"`
+	SuggestedSource string  `json:"suggested_source,omitempty"`
+	SuggestedScore  float64 `json:"suggested_score,omitempty"`
 }
 
 type PrepareResult struct {
@@ -590,6 +595,10 @@ func (s *Service) Prepare(ctx context.Context, id, worker string) (PrepareResult
 		}
 		return nil
 	})
+	if err == nil && result.Unknowns > 0 {
+		// After the transaction: embedding calls must not hold the write lock.
+		s.suggestAnswers(ctx, result.Questions)
+	}
 	return result, err
 }
 
@@ -920,7 +929,8 @@ func (s *Service) ListQuestions(ctx context.Context, appID string) ([]QuestionVi
 	}
 	out := make([]QuestionView, len(rows))
 	for i, q := range rows {
-		out[i] = QuestionView{ID: q.ID, Prompt: q.Prompt, Answer: q.Answer, Required: q.Required, Unknown: q.Unknown, Source: q.Source}
+		out[i] = QuestionView{ID: q.ID, Prompt: q.Prompt, Answer: q.Answer, Required: q.Required, Unknown: q.Unknown, Source: q.Source,
+			SuggestedAnswer: q.SuggestedAnswer, SuggestedSource: q.SuggestedSource, SuggestedScore: q.SuggestedScore}
 	}
 	return out, nil
 }

@@ -192,6 +192,7 @@ func (s *Server) Handler() http.Handler {
 
 	mux.HandleFunc("GET /v1/me", s.me)
 	mux.HandleFunc("PATCH /v1/me", s.updateMe)
+	mux.HandleFunc("GET /v1/answers/similar", s.similarAnswers)
 	mux.HandleFunc("GET /v1/features", s.listFeatures)
 	mux.HandleFunc("PATCH /v1/features/{id}", s.updateFeature)
 	mux.HandleFunc("GET /v1/billing", s.getBilling)
