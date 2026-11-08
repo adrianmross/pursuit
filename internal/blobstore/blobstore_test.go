@@ -3,6 +3,7 @@ package blobstore
 import (
 	"context"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/minio/minio-go/v7"
@@ -45,5 +46,18 @@ func TestS3RoundTrip(t *testing.T) {
 func TestFromEnvUnset(t *testing.T) {
 	if s, err := FromEnv(func(string) string { return "" }); s != nil || err != nil {
 		t.Fatalf("want nil, nil; got %v %v", s, err)
+	}
+}
+
+// A missing bucket is the common setup mistake: say so, in words that name the fix.
+func TestMissingBucketIsExplained(t *testing.T) {
+	s, err := FromEnv(os.Getenv)
+	if err != nil || s == nil {
+		t.Skip("PURSUIT_S3_BUCKET is unset")
+	}
+	s.bucket = "pursuit-no-such-bucket"
+	err = s.Put(context.Background(), "x", "text/plain", []byte("x"))
+	if err == nil || !strings.Contains(err.Error(), "does not exist") {
+		t.Fatalf("want a missing-bucket explanation, got %v", err)
 	}
 }

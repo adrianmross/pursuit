@@ -31,6 +31,7 @@ import (
 
 func Run(ctx context.Context, cfg config.Config) error {
 	log := newLogger(cfg)
+	slog.SetDefault(log) // so code without a logger of its own (writeErr) logs in the same format
 	dbURL := cfg.DatabaseURL
 	if dbURL == "" && cfg.DataDir != "" {
 		dbURL = "sqlite://" + filepath.Join(cfg.DataDir, "pursuit.db")
