@@ -1982,6 +1982,39 @@
         ],
         "type": "object"
       },
+      "Match": {
+        "properties": {
+          "answer": {
+            "type": "string"
+          },
+          "link": {
+            "type": "string"
+          },
+          "score": {
+            "type": "number"
+          },
+          "snippet": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          },
+          "source_id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "source",
+          "source_id",
+          "title",
+          "snippet",
+          "score"
+        ],
+        "type": "object"
+      },
       "Me": {
         "properties": {
           "proxy": {
@@ -2340,6 +2373,15 @@
             "type": "boolean"
           },
           "source": {
+            "type": "string"
+          },
+          "suggested_answer": {
+            "type": "string"
+          },
+          "suggested_score": {
+            "type": "number"
+          },
+          "suggested_source": {
             "type": "string"
           },
           "unknown": {
@@ -3413,6 +3455,70 @@
         "security": [],
         "summary": "Agent Skill for the pursuit CLI",
         "x-internal": true
+      }
+    },
+    "/v1/answers/similar": {
+      "get": {
+        "description": "[{source (answer, round, document), source_id, title, snippet, score 0-1, link, answer}]. Limit (default 10, max 50). Needs the smart_search feature: 403 feature_unavailable otherwise.",
+        "operationId": "smartSearchSavedAnswersInterviewRoundsPrepAndNotesAndTextDocumentsCloseInMeaningToQBestFirst",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/q"
+          },
+          {
+            "$ref": "#/components/parameters/limit"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "data": {
+                      "items": {
+                        "$ref": "#/components/schemas/Match"
+                      },
+                      "type": "array"
+                    },
+                    "page": {
+                      "$ref": "#/components/schemas/PageMeta"
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "page"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "error"
+          }
+        },
+        "summary": "Smart search: saved answers, interview rounds' prep and notes, and text documents close in meaning to q, best first",
+        "tags": [
+          "Answers"
+        ]
       }
     },
     "/v1/applications": {

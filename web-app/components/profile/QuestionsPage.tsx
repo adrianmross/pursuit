@@ -2,8 +2,9 @@
 
 import { useState, type FormEvent } from "react"
 import Link from "next/link"
-import { Link2, MessageSquarePlus, Plus, Search, SearchX, Trash2 } from "lucide-react"
+import { FileText, Link2, MessageSquare, MessageSquarePlus, Plus, Search, SearchX, Sparkles, Trash2, Users } from "lucide-react"
 import { api } from "@/lib/api-client"
+import { useSimilar, type Match } from "@/lib/features"
 import { cn } from "@/lib/utils"
 import { applicationHref } from "@/lib/links"
 import { label, type BankQuestion, type StandingAnswer } from "@/lib/types"
@@ -15,7 +16,8 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty"
 import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput, InputGroupTextarea } from "@/components/ui/input-group"
-import { Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemTitle } from "@/components/ui/item"
+import { Badge } from "@/components/ui/badge"
+import { Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemMedia, ItemTitle } from "@/components/ui/item"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 
@@ -65,12 +67,58 @@ export const normalizeKey = (s: string) =>
 
 type Sort = "recent" | "az"
 
+const SOURCES: Record<Match["source"], [label: string, icon: typeof FileText]> = {
+  answer: ["Answer", MessageSquare],
+  round: ["Round notes", Users],
+  document: ["Document", FileText],
+}
+
+// Smart search's matches, each linking to where it lives. onUse puts a saved answer to work.
+function Related({ matches, onUse, skip }: { matches: Match[]; onUse?: (answer: string) => void; skip?: Set<string> }) {
+  const shown = matches.filter((m) => !(m.source === "answer" && skip?.has(m.source_id)))
+  if (!shown.length) return null
+  return (
+    <ItemGroup className="gap-1.5">
+      {shown.map((m) => {
+        const [label, Icon] = SOURCES[m.source]
+        const body = (
+          <>
+            <ItemMedia variant="icon">
+              <Icon />
+            </ItemMedia>
+            <ItemContent>
+              <ItemTitle>
+                {m.title}
+                <Badge variant="outline">{label}</Badge>
+              </ItemTitle>
+              <ItemDescription className="line-clamp-2">{m.answer || m.snippet}</ItemDescription>
+            </ItemContent>
+            {onUse && m.answer && (
+              <ItemActions>
+                <Button type="button" size="xs" variant="outline" onClick={() => onUse(m.answer || "")}>
+                  Use this
+                </Button>
+              </ItemActions>
+            )}
+          </>
+        )
+        return (
+          <Item key={m.source + m.source_id} size="sm" variant="muted" asChild>
+            {!onUse && m.link ? <Link href={m.link}>{body}</Link> : <div>{body}</div>}
+          </Item>
+        )
+      })}
+    </ItemGroup>
+  )
+}
+
 function AddQuestion({ initial, existing, onClose, onSaved }: { initial: string; existing: Set<string>; onClose: () => void; onSaved: () => Promise<void> }) {
   const [question, setQuestion] = useState(initial)
   const [answer, setAnswer] = useState("")
   const [error, setError] = useState("")
   const [saving, setSaving] = useState(false)
   const key = normalizeKey(question)
+  const similar = useSimilar(question, 3)
 
   async function submit(event: FormEvent) {
     event.preventDefault()
@@ -111,6 +159,14 @@ function AddQuestion({ initial, existing, onClose, onSaved }: { initial: string;
                   "Lowercased, with spaces and punctuation turned into _, so small wording differences still match."
                 )}
               </FieldDescription>
+              {similar.length > 0 && (
+                <div className="flex flex-col gap-1.5 pt-1">
+                  <p className="flex items-center gap-1 text-xs text-muted-foreground">
+                    <Sparkles className="size-3" /> Close to things you&apos;ve already written
+                  </p>
+                  <Related matches={similar} onUse={setAnswer} skip={new Set([key])} />
+                </div>
+              )}
             </Field>
             <Field>
               <FieldLabel htmlFor="add-answer">Answer</FieldLabel>
@@ -147,6 +203,7 @@ export function QuestionsForm({ mode }: { mode: "profile" | "questions" }) {
   const [sort, setSort] = useState<Sort>("recent")
   // null: dialog closed; otherwise the question it opens with.
   const [adding, setAdding] = useState<string | null>(null)
+  const related = useSimilar(profile ? "" : query)
   if (!rows) return null
 
   const saved: Draft = Object.fromEntries(rows.map((r) => [r.key, r.answer]))
@@ -276,7 +333,9 @@ export function QuestionsForm({ mode }: { mode: "profile" | "questions" }) {
                 <SearchX />
               </EmptyMedia>
               <EmptyTitle>No answers match “{query.trim()}”</EmptyTitle>
-              <EmptyDescription>Search covers question wording, saved keys, and answers.</EmptyDescription>
+              <EmptyDescription>
+                {related.length ? "Nothing uses those words, but some answers are close in meaning, below." : "Search covers question wording, saved keys, and answers."}
+              </EmptyDescription>
             </EmptyHeader>
             <EmptyContent>
               <Button type="button" variant="outline" onClick={() => setAdding(query.trim())}>
@@ -326,6 +385,12 @@ export function QuestionsForm({ mode }: { mode: "profile" | "questions" }) {
                 {shownOthers.map((r) => field(r.key, humanize(r.key), value(r.key).length > 120 ? "long" : undefined, updated(r)))}
               </FieldGroup>
             )}
+          </Section>
+        )}
+
+        {!profile && related.length > 0 && (
+          <Section id="related" title="Related by meaning" description="Answers, round notes and documents close to what you searched, even in other words.">
+            <Related matches={related} />
           </Section>
         )}
 
