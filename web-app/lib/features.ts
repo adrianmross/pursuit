@@ -15,6 +15,8 @@ export type Feature = {
   entitled: boolean
   enabled: boolean
   available: boolean
+  // Parked behind PURSUIT_PREMIUM_FEATURES: shown, but off for now.
+  coming_soon?: boolean
 }
 
 export type Billing = {
@@ -25,6 +27,8 @@ export type Billing = {
   comped?: boolean
   current_period_end?: string
   cancel_at_period_end: boolean
+  // Plans are parked (PURSUIT_PREMIUM_FEATURES is not on).
+  coming_soon?: boolean
 }
 
 export function useFeatures() {

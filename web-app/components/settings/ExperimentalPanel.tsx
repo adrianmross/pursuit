@@ -22,18 +22,20 @@ export function ExperimentalPanel() {
         {features.map((f, i) => (
           <Fragment key={f.key}>
             {i > 0 && <ItemSeparator className="my-0" />}
-            <Item size="sm">
+            <Item size="sm" className={f.coming_soon ? "opacity-60" : undefined} aria-disabled={f.coming_soon || undefined}>
               <ItemContent>
                 <ItemTitle>
                   {f.name}
-                  {f.premium && <Badge variant="secondary">Plus</Badge>}
+                  {f.coming_soon ? <Badge variant="outline">Coming soon</Badge> : f.premium && <Badge variant="secondary">Plus</Badge>}
                 </ItemTitle>
                 <ItemDescription>
-                  {!f.configured ? "This server isn't set up for it yet." : !f.entitled ? "Included with Plus." : f.description}
+                  {f.coming_soon ? f.description : !f.configured ? "This server isn't set up for it yet." : !f.entitled ? "Included with Plus." : f.description}
                 </ItemDescription>
               </ItemContent>
               <ItemActions>
-                {f.configured && !f.entitled ? (
+                {f.coming_soon ? (
+                  <Switch checked={false} disabled aria-label={`${f.name} is coming soon`} />
+                ) : f.configured && !f.entitled ? (
                   <Button variant="outline" size="sm" onClick={() => goToStripe("/v1/billing/checkout").catch((e) => setError(e.message))}>
                     Upgrade
                   </Button>
@@ -79,6 +81,24 @@ export function PlanPanel() {
   // From an invite link: /start?invite=CODE.
   const [invite] = useState(() => (typeof window === "undefined" ? "" : new URLSearchParams(window.location.search).get("invite") || ""))
   if (!billing) return <Spinner className="mx-auto my-6 text-muted-foreground" />
+  if (billing.coming_soon)
+    return (
+      <Item size="sm" variant="outline" className="opacity-60" aria-disabled>
+        <ItemContent>
+          <ItemTitle>
+            Plus <Badge variant="outline">Coming soon</Badge>
+          </ItemTitle>
+          <ItemDescription>
+            Plus adds {(features ?? []).filter((f) => f.premium).map((f) => f.name.toLowerCase()).join(" and ") || "more features"}. Plans aren&apos;t open yet.
+          </ItemDescription>
+        </ItemContent>
+        <ItemActions>
+          <Button size="sm" disabled>
+            Upgrade
+          </Button>
+        </ItemActions>
+      </Item>
+    )
   if (!billing.enabled) return <p className="text-sm text-muted-foreground">This server doesn&apos;t sell plans: every feature it&apos;s set up for is included.</p>
   if (billing.comped) return <p className="text-sm text-muted-foreground">Your account has every feature included, no plan needed.</p>
   const go = async (path: "/v1/billing/checkout" | "/v1/billing/portal", code?: string) => {

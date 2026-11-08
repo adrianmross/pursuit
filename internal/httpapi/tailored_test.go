@@ -11,6 +11,7 @@ import (
 
 func TestTailoredDocuments(t *testing.T) {
 	e := newEnv(t)
+	e.svc.PremiumOn = true
 	main := addText(t, e, "base_resume", "resume.txt", "Jordan Example\nBuilt developer tools in Go.")
 	backend := addText(t, e, "base_resume", "backend.txt", "Jordan Example\nBuilt distributed systems in Go.")
 	_, app := e.json(t, http.MethodPost, "/v1/applications", e.token, map[string]any{"company": "Example", "title": "Engineer"})
