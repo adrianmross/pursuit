@@ -35,6 +35,9 @@ type Service struct {
 	WebAuthn *webauthn.WebAuthn
 	// Stripe is nil unless billing is configured; then every configured
 	// feature is entitled (self-hosted). StripePrice is the plan's price.
+	// PremiumOn (PURSUIT_PREMIUM_FEATURES=on) lets premium features and Stripe billing work.
+	// Off, they are parked: shown as coming soon, never available, and Stripe stays unconfigured.
+	PremiumOn           bool
 	Stripe              *billing.Client
 	StripePrice         string
 	StripeWebhookSecret string

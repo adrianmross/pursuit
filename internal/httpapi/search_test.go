@@ -61,6 +61,7 @@ func similar(t *testing.T, e *env, q string) (int, []map[string]any) {
 
 func TestSmartSearch(t *testing.T) {
 	e := newEnv(t)
+	e.svc.PremiumOn = true
 	fake := &wordsEmbedder{}
 	e.svc.Embedder = fake
 	for k, v := range map[string]string{
@@ -106,6 +107,7 @@ func TestSmartSearch(t *testing.T) {
 // Prepare suggests the closest saved answer but leaves the question for a human.
 func TestPrepareSuggestsAnswer(t *testing.T) {
 	e := newEnv(t)
+	e.svc.PremiumOn = true
 	e.svc.Embedder = &wordsEmbedder{}
 	gh := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -135,6 +137,7 @@ func TestPrepareSuggestsAnswer(t *testing.T) {
 
 func TestSmartSearchNotForDemo(t *testing.T) {
 	e := newEnv(t)
+	e.svc.PremiumOn = true
 	e.svc.Embedder = &wordsEmbedder{}
 	secret, _, err := e.svc.CreateDemoSession(context.Background())
 	if err != nil {

@@ -78,7 +78,7 @@ func newBillingEnv(t *testing.T, withStripe bool) billingEnv {
 	svc := service.New(db)
 	fake := &fakeStripe{}
 	fake.ents.Store([]string{})
-	env := map[string]string{"AI_GATEWAY_API_KEY": "k"}
+	env := map[string]string{"AI_GATEWAY_API_KEY": "k", "PURSUIT_PREMIUM_FEATURES": "on"}
 	if withStripe {
 		st := httptest.NewServer(fake)
 		t.Cleanup(st.Close)
@@ -254,5 +254,36 @@ func TestBillingDemo(t *testing.T) {
 	}
 	if code := e.call(t, secret, "POST", "/v1/billing/checkout", "", nil); code != 400 {
 		t.Fatalf("demo checkout: %d", code)
+	}
+}
+
+// Parked, the default: premium features are coming soon, nothing is available, Stripe stays off.
+func TestPremiumParkedByDefault(t *testing.T) {
+	e := newEnv(t)
+	warnings := e.svc.ConfigureFromEnv(func(k string) string {
+		return map[string]string{"STRIPE_SECRET_KEY": "sk_test", "STRIPE_PRICE_ID": "price_1", "AI_GATEWAY_API_KEY": "k"}[k]
+	}, "https://app.test")
+	if e.svc.Stripe != nil {
+		t.Fatal("Stripe configured while parked")
+	}
+	if len(warnings) != 1 || !strings.Contains(warnings[0], "parked") {
+		t.Fatalf("want one parked warning, got %v", warnings)
+	}
+	code, doc := e.json(t, http.MethodGet, "/v1/features", e.token, nil)
+	rows, _ := doc["data"].([]any)
+	if code != 200 || len(rows) == 0 {
+		t.Fatalf("features %d %#v", code, doc)
+	}
+	for _, r := range rows {
+		f := r.(map[string]any)
+		if f["coming_soon"] != true || f["available"] != false {
+			t.Errorf("%v: want coming_soon and unavailable, got %#v", f["key"], f)
+		}
+	}
+	if code, _ := e.json(t, http.MethodPatch, "/v1/features/smart_search", e.token, map[string]any{"enabled": true}); code != 403 {
+		t.Errorf("turning a parked feature on = %d, want 403", code)
+	}
+	if _, doc := e.json(t, http.MethodGet, "/v1/billing", e.token, nil); doc["coming_soon"] != true || doc["enabled"] != false {
+		t.Errorf("billing while parked: %#v", doc)
 	}
 }

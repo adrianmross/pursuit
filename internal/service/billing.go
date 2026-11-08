@@ -48,6 +48,8 @@ type FeatureView struct {
 	Entitled     bool   `json:"entitled"`
 	Enabled      bool   `json:"enabled"`
 	Available    bool   `json:"available"`
+	// ComingSoon is a premium feature parked behind PURSUIT_PREMIUM_FEATURES.
+	ComingSoon bool `json:"coming_soon"`
 }
 
 func findFeature(key string) (Feature, bool) {
@@ -98,7 +100,8 @@ func (s *Service) featureViews(ctx context.Context, a domain.Actor) ([]FeatureVi
 		if on, ok := prefs[f.Key]; ok {
 			v.Enabled = on
 		}
-		v.Available = v.Configured && v.Entitled && v.Enabled
+		v.ComingSoon = f.Premium && !s.PremiumOn
+		v.Available = v.Configured && v.Entitled && v.Enabled && !v.ComingSoon
 		out = append(out, v)
 	}
 	return out, nil
@@ -128,6 +131,8 @@ func (s *Service) RequireFeature(ctx context.Context, key string) error {
 			continue
 		}
 		switch {
+		case v.ComingSoon:
+			return domain.FeatureUnavailable(key, "coming_soon", "premium features are switched off for now")
 		case !v.Configured:
 			return domain.FeatureUnavailable(key, "not_configured", "this server isn't set up for "+v.Name)
 		case !v.Entitled:
@@ -151,6 +156,9 @@ func (s *Service) SetFeature(ctx context.Context, key string, in FeaturePatch) (
 	}
 	if _, ok := findFeature(key); !ok {
 		return FeatureView{}, domain.NotFound("feature")
+	}
+	if f, _ := findFeature(key); f.Premium && !s.PremiumOn {
+		return FeatureView{}, domain.FeatureUnavailable(key, "coming_soon", "premium features are switched off for now")
 	}
 	if in.Enabled == nil {
 		return FeatureView{}, domain.Validation("enabled is required").WithHint(`{"enabled": true}`)
@@ -192,6 +200,8 @@ type BillingView struct {
 	CancelAtPeriodEnd bool                   `json:"cancel_at_period_end"`
 	Entitlements      []sqlstore.Entitlement `json:"entitlements"`
 	SyncedAt          string                 `json:"synced_at,omitempty"`
+	// ComingSoon: plans are parked (PURSUIT_PREMIUM_FEATURES is not on).
+	ComingSoon bool `json:"coming_soon"`
 }
 
 // activeStatus is a subscription that pays for the plan. past_due keeps
@@ -210,6 +220,7 @@ func (s *Service) Billing(ctx context.Context) (BillingView, error) {
 	if err != nil {
 		return v, err
 	}
+	v.ComingSoon = !s.PremiumOn
 	v.Comped, err = s.comped(ctx, a)
 	return v, err
 }
@@ -481,7 +492,10 @@ func (s *Service) GrantFeature(ctx context.Context, userID, key string, on bool)
 // caller to log loudly.
 func (s *Service) ConfigureFromEnv(getenv func(string) string, publicURL string) (warnings []string) {
 	env := func(k string) string { return strings.TrimSpace(getenv(k)) }
-	if key := env("STRIPE_SECRET_KEY"); key != "" {
+	s.PremiumOn = env("PURSUIT_PREMIUM_FEATURES") == "on"
+	if key := env("STRIPE_SECRET_KEY"); key != "" && !s.PremiumOn {
+		warnings = append(warnings, "STRIPE_SECRET_KEY is set but premium features are parked: set PURSUIT_PREMIUM_FEATURES=on to sell plans")
+	} else if key != "" {
 		s.Stripe = &billing.Client{Key: key, HTTP: s.HTTP}
 		s.StripePrice = env("STRIPE_PRICE_ID")
 		s.StripeWebhookSecret = env("STRIPE_WEBHOOK_SECRET")
