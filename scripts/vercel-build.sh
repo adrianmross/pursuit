@@ -20,10 +20,10 @@ NEXT_PUBLIC_SENTRY_DSN=${PURSUIT_WEB_SENTRY_DSN:-}
 NEXT_PUBLIC_POSTHOG_KEY=${PURSUIT_POSTHOG_KEY:-}
 NEXT_PUBLIC_POSTHOG_HOST=${PURSUIT_POSTHOG_HOST:-}
 export NEXT_PUBLIC_SENTRY_DSN NEXT_PUBLIC_POSTHOG_KEY NEXT_PUBLIC_POSTHOG_HOST
+node scripts/changelog-docs.mjs
 (cd web-app && npm ci && npm run build:self-hosted)
 rm -rf internal/dashboard/dist
 cp -r web-app/out internal/dashboard/dist
-node scripts/changelog-docs.mjs
 (cd docs-site && npm ci && npm run build)
 cp -r docs-site/out internal/dashboard/dist/docs
 # Hashed assets also go to public/, which Vercel serves from the CDN before

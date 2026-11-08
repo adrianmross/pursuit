@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"strings"
+	"time"
 
 	"github.com/pursuit/pursuit/internal/domain"
 	"github.com/pursuit/pursuit/internal/sqlstore"
@@ -15,6 +16,9 @@ type MePatch struct {
 	Name   *string `json:"name"`
 	Avatar *string `json:"avatar"`
 	Email  *string `json:"email"`
+	// AnnouncementsSeen only moves forward: an older time than the stored
+	// one is ignored, so a stale tab can't bring a dismissed card back.
+	AnnouncementsSeen *string `json:"announcements_seen"`
 }
 
 // UpdateMe changes the display name and avatar. Email is the identity key
@@ -57,6 +61,15 @@ func (s *Service) UpdateMe(ctx context.Context, in MePatch) (domain.User, error)
 			return domain.User{}, domain.Validation("email is required")
 		}
 		user.Email = v
+	}
+	if in.AnnouncementsSeen != nil {
+		t, err := time.Parse(time.RFC3339, *in.AnnouncementsSeen)
+		if err != nil {
+			return domain.User{}, domain.Validation("announcements_seen must be an RFC 3339 time").WithHint("2026-11-07T00:00:00Z")
+		}
+		if v := t.UTC().Format(time.RFC3339); v > user.AnnouncementsSeen {
+			user.AnnouncementsSeen = v
+		}
 	}
 	err = s.DB.WithTx(ctx, func(ctx context.Context) error {
 		if err := s.DB.UpdateUserProfile(ctx, user); err != nil {

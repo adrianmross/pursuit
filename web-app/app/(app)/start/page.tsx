@@ -3,6 +3,7 @@ import { EXPORT_MODE, pursuitApiAuthed } from "@/lib/pursuit-api"
 import type { Application, Page } from "@/lib/types"
 import { Button } from "@/components/ui/button"
 import { Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemMedia, ItemTitle } from "@/components/ui/item"
+import { Announcement } from "@/components/Announcement"
 import { GetStarted } from "@/components/GetStarted"
 import { HomeCta } from "@/components/HomeCta"
 import { HomeCtaClient } from "@/components/HomeCtaClient"
@@ -26,6 +27,8 @@ export default async function Home() {
         <p className="max-w-md text-muted-foreground">Land the role.</p>
         {cta}
       </div>
+
+      <Announcement />
 
       <StartCalendar />
 

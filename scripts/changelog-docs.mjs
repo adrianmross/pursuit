@@ -73,4 +73,13 @@ if (import.meta.main) {
   writeFileSync(new URL("docs-site/content/changelog.mdx", root), `${intro.trimEnd()}\n\n[Atom feed](${SITE}/changelog.xml) · [JSON Feed](${SITE}/changelog.json)\n\n${page}`)
   writeFileSync(new URL("docs-site/public/changelog.xml", root), atom)
   writeFileSync(new URL("docs-site/public/changelog.json", root), json)
+  // The dashboard's start page announces minor releases (x.y.0): one line from the release's first entry.
+  const minor = releases.filter((r) => r.version.endsWith(".0") && r.groups.length).map((r) => ({
+    id: `v${r.version}`,
+    at: `${r.date}T00:00:00Z`,
+    title: `Hire Pursuit ${r.version.replace(/\.0$/, "")} is out`,
+    body: plain(r.groups[0].items[0]).replace(/^pursuit:\s*/, "").replace(/\s*\(#\d+\)$/, ""),
+    href: `${SITE}/changelog#${r.version.replaceAll(".", "")}`,
+  }))
+  writeFileSync(new URL("web-app/lib/releases.generated.json", root), JSON.stringify(minor, null, 2) + "\n")
 }

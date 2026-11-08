@@ -2073,6 +2073,12 @@
       },
       "MePatch": {
         "properties": {
+          "announcements_seen": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "avatar": {
             "type": [
               "string",
@@ -3156,6 +3162,9 @@
       },
       "User": {
         "properties": {
+          "announcements_seen": {
+            "type": "string"
+          },
           "avatar": {
             "type": "string"
           },
@@ -3178,6 +3187,7 @@
           "name",
           "email",
           "avatar",
+          "announcements_seen",
           "created_at"
         ],
         "type": "object"
@@ -9092,7 +9102,7 @@
         ]
       },
       "patch": {
-        "description": "Set display name or avatar (png, jpeg, or webp data URL under 256KB; empty clears it). Email is accepted only from the PURSUIT_TRUST_PROXY_AUTH owner (GET /v1/me returns proxy: true).",
+        "description": "Set display name or avatar (png, jpeg, or webp data URL under 256KB; empty clears it), or announcements_seen (RFC 3339; the newest dismissed feed announcement, only moves forward). Email is accepted only from the PURSUIT_TRUST_PROXY_AUTH owner (GET /v1/me returns proxy: true).",
         "operationId": "updateCurrentUser",
         "parameters": [
           {
