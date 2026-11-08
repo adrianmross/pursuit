@@ -274,6 +274,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /v1/documents", s.listDocuments)
 	mux.HandleFunc("POST /v1/documents", s.addDocument)
 	mux.HandleFunc("GET /v1/documents/{id}", s.getDocument)
+	mux.HandleFunc("PATCH /v1/documents/{id}", s.updateDocument)
 	mux.HandleFunc("DELETE /v1/documents/{id}", s.deleteDocument)
 	mux.HandleFunc("GET /v1/standing", s.listStanding)
 	mux.HandleFunc("POST /v1/standing", s.setStanding)
@@ -805,7 +806,7 @@ func first(q map[string][]string, k string) string {
 
 func (s *Server) read(w http.ResponseWriter, r *http.Request) ([]byte, bool) {
 	limit := int64(1 << 20)
-	if strings.Contains(r.URL.Path, "/import/") || strings.Contains(r.URL.Path, "/artifacts") {
+	if strings.Contains(r.URL.Path, "/import/") || strings.Contains(r.URL.Path, "/artifacts") || strings.HasPrefix(r.URL.Path, "/v1/documents") {
 		limit = 10 << 20
 	}
 	b, err := io.ReadAll(io.LimitReader(r.Body, limit+1))
@@ -814,7 +815,7 @@ func (s *Server) read(w http.ResponseWriter, r *http.Request) ([]byte, bool) {
 		return nil, false
 	}
 	if int64(len(b)) > limit {
-		writeErr(w, domain.Validation("request body is too large").WithHint("JSON bodies are limited to 1MB and imports to 10MB"))
+		writeErr(w, domain.Validation("request body is too large").WithHint("JSON bodies are limited to 1MB; files and imports to 10MB"))
 		return nil, false
 	}
 	return b, true
@@ -2292,8 +2293,8 @@ func (s *Server) addArtifact(w http.ResponseWriter, r *http.Request) {
 }
 
 type upload struct {
-	Kind, Filename, ContentType string
-	Body                        []byte
+	Kind, Filename, ContentType, Label string
+	Body                               []byte
 }
 
 // parseUpload reads a multipart form (kind, file) or a JSON body
@@ -2315,6 +2316,8 @@ func parseUpload(ct string, body []byte) (upload, error) {
 			switch part.FormName() {
 			case "kind":
 				up.Kind = string(b)
+			case "label":
+				up.Label = string(b)
 			case "file":
 				up.Filename = part.FileName()
 				up.ContentType = part.Header.Get("Content-Type")
@@ -2327,12 +2330,13 @@ func parseUpload(ct string, body []byte) (upload, error) {
 		Kind        string `json:"kind"`
 		Filename    string `json:"filename"`
 		ContentType string `json:"content_type"`
+		Label       string `json:"label"`
 		Body        string `json:"body"`
 	}
 	if err := decode(body, &in); err != nil {
 		return upload{}, err
 	}
-	return upload{in.Kind, in.Filename, in.ContentType, []byte(in.Body)}, nil
+	return upload{in.Kind, in.Filename, in.ContentType, in.Label, []byte(in.Body)}, nil
 }
 
 func (s *Server) listDocuments(w http.ResponseWriter, r *http.Request) {
@@ -2354,7 +2358,7 @@ func (s *Server) addDocument(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			return nil, err
 		}
-		return s.Svc.AddDocument(ctx, up.Kind, up.Filename, up.ContentType, up.Body)
+		return s.Svc.AddDocument(ctx, up.Kind, up.Filename, up.ContentType, up.Label, up.Body)
 	})
 }
 
@@ -2369,8 +2373,18 @@ func (s *Server) getDocument(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, 200, map[string]any{
-		"id": d.ID, "kind": d.Kind, "filename": d.Filename,
+		"id": d.ID, "kind": d.Kind, "filename": d.Filename, "label": d.Label, "primary": d.Primary,
 		"content_type": d.ContentType, "body": d.Body, "created_at": d.CreatedAt,
+	})
+}
+
+func (s *Server) updateDocument(w http.ResponseWriter, r *http.Request) {
+	s.jsonMut(w, r, 200, nil, func(ctx context.Context, body []byte) (any, error) {
+		var in service.DocumentPatch
+		if err := decode(body, &in); err != nil {
+			return nil, err
+		}
+		return s.Svc.UpdateDocument(ctx, r.PathValue("id"), in)
 	})
 }
 

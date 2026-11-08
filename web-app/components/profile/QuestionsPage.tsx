@@ -22,7 +22,7 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 // Keys prepare fills: the exact normalized wording of a form question, or
 // one of service.matchStanding's aliases (email, phone, linkedin, ...).
 type Kind = "email" | "yesno" | "long"
-const FIELDS: Record<"contact" | "eligibility" | "letter", [key: string, label: string, kind?: Kind][]> = {
+const FIELDS: Record<"contact" | "eligibility", [key: string, label: string, kind?: Kind][]> = {
   contact: [
     ["first_name", "First name"],
     ["last_name", "Last name"],
@@ -35,7 +35,6 @@ const FIELDS: Record<"contact" | "eligibility" | "letter", [key: string, label: 
     ["work_authorization", "Are you authorized to work in the country of the role?", "yesno"],
     ["visa_sponsorship", "Will you now or in the future require visa sponsorship?", "yesno"],
   ],
-  letter: [["cover_letter", "Default cover letter", "long"]],
 }
 
 // Answers shown under Links: these keys, plus any answer that is a URL.
@@ -135,7 +134,10 @@ function AddQuestion({ initial, existing, onClose, onSaved }: { initial: string;
   )
 }
 
-function QuestionsForm() {
+// The Profile tab shows what forms ask about you (details, links, work
+// eligibility); the Questions tab shows everything else you've answered.
+export function QuestionsForm({ mode }: { mode: "profile" | "questions" }) {
+  const profile = mode === "profile"
   const { rows, load } = useList<StandingAnswer>("/v1/standing")
   const [draft, setDraft] = useState<Draft>({})
   const [newLink, setNewLink] = useState({ label: "", url: "" })
@@ -163,10 +165,9 @@ function QuestionsForm() {
   const hit = (k: string, label: string) => !q || (!!qKey && k.includes(qKey)) || label.toLowerCase().includes(q) || value(k).toLowerCase().includes(q)
   const contact = FIELDS.contact.filter(([k, label]) => hit(k, label))
   const eligibility = FIELDS.eligibility.filter(([k, label]) => hit(k, label))
-  const letter = FIELDS.letter.filter(([k, label]) => hit(k, label))
   const shownLinks = links.filter((r) => hit(r.key, linkName(r.key)))
   const shownOthers = others.filter((r) => hit(r.key, humanize(r.key)))
-  const matches = contact.length + eligibility.length + letter.length + shownLinks.length + shownOthers.length
+  const matches = shownOthers.length
 
   const pending = Object.entries(draft).filter(([k, v]) => v.trim() && v !== saved[k])
   if (newLink.label.trim() && newLink.url.trim()) pending.push([newLink.label, newLink.url])
@@ -253,20 +254,22 @@ function QuestionsForm() {
   return (
     <>
       <form onSubmit={save} className="flex flex-col gap-4">
-        <div className="flex flex-wrap items-center gap-2">
-          <InputGroup className="min-w-0 flex-1 basis-60">
-            <InputGroupAddon>
-              <Search />
-            </InputGroupAddon>
-            <InputGroupInput type="search" aria-label="Search questions and answers" placeholder="Search questions and answers" value={query} onChange={(e) => setQuery(e.target.value)} />
-            {q && <InputGroupAddon align="inline-end">{matches === 1 ? "1 match" : `${matches} matches`}</InputGroupAddon>}
-          </InputGroup>
-          <Button type="button" onClick={() => setAdding(q && !matches ? query.trim() : "")}>
-            <Plus /> Add question
-          </Button>
-        </div>
+        {!profile && (
+          <div className="flex flex-wrap items-center gap-2">
+            <InputGroup className="min-w-0 flex-1 basis-60">
+              <InputGroupAddon>
+                <Search />
+              </InputGroupAddon>
+              <InputGroupInput type="search" aria-label="Search questions and answers" placeholder="Search questions and answers" value={query} onChange={(e) => setQuery(e.target.value)} />
+              {q && <InputGroupAddon align="inline-end">{matches === 1 ? "1 match" : `${matches} matches`}</InputGroupAddon>}
+            </InputGroup>
+            <Button type="button" onClick={() => setAdding(q && !matches ? query.trim() : "")}>
+              <Plus /> Add question
+            </Button>
+          </div>
+        )}
 
-        {q && !matches && (
+        {!profile && q && !matches && (
           <Empty className="border">
             <EmptyHeader>
               <EmptyMedia variant="icon">
@@ -283,7 +286,7 @@ function QuestionsForm() {
           </Empty>
         )}
 
-        {(!q || shownOthers.length > 0) && (
+        {!profile && (!q || shownOthers.length > 0) && (
           <Section
             id="answers"
             title="Questions"
@@ -326,13 +329,13 @@ function QuestionsForm() {
           </Section>
         )}
 
-        {contact.length > 0 && (
+        {profile && (
           <Section id="contact" title="Personal details" description="Name and contact details forms ask for first.">
             <FieldGroup>{contact.map(([k, label, kind]) => field(k, label, kind))}</FieldGroup>
           </Section>
         )}
 
-        {(!q || shownLinks.length > 0) && (
+        {profile && (
           <Section id="links" title="Links" description="Any profile or site. Each fills a form question with the same name, so a link labelled Portfolio answers “Portfolio”.">
             <FieldGroup>
               {shownLinks.length > 0 && (
@@ -380,15 +383,9 @@ function QuestionsForm() {
           </Section>
         )}
 
-        {eligibility.length > 0 && (
-          <Section id="eligibility" title="Work eligibility">
+        {profile && (
+          <Section id="eligibility" title="Work eligibility" description="Asked on nearly every application. Prepare answers the usual wordings of these.">
             <FieldGroup>{eligibility.map(([k, label, kind]) => field(k, label, kind))}</FieldGroup>
-          </Section>
-        )}
-
-        {letter.length > 0 && (
-          <Section id="cover-letter" title="Cover letter" description="Attached when a form asks for one and no tailored letter is on the application.">
-            <FieldGroup>{letter.map(([k, label, kind]) => field(k, label, kind))}</FieldGroup>
           </Section>
         )}
 
@@ -506,9 +503,9 @@ export function QuestionsPage() {
   const [tick, setTick] = useState(0)
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
-      <ProfileHeader description="Standing answers prepare uses to fill in application forms. The same list as pursuit standing on the CLI." />
+      <ProfileHeader description="Answers prepare uses to fill in application forms. Your details, links and work eligibility are on Profile. The same list as pursuit standing on the CLI." />
       <div data-tour="questions">
-        <QuestionsForm key={tick} />
+        <QuestionsForm key={tick} mode="questions" />
       </div>
       <InterviewBank onSaved={() => setTick((n) => n + 1)} />
     </div>

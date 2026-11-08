@@ -2,21 +2,21 @@
 
 import { useEffect, useState, type ReactNode } from "react"
 import { usePathname, useRouter } from "next/navigation"
-import { Bot, Check, ChevronDown, Copy, Eye, Trash2, X } from "lucide-react"
+import Link from "next/link"
+import { Bot, Check, ChevronDown, ChevronRight, Copy, FilePlus, Sparkles, X } from "lucide-react"
 import { api } from "@/lib/api-client"
 import { useRevision } from "@/lib/live"
 import { cn } from "@/lib/utils"
-import type { Document, Page } from "@/lib/types"
-import { Badge } from "@/components/ui/badge"
+import type { Document, Page, StandingAnswer } from "@/lib/types"
+import { Alert, AlertAction, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
-import { FileDrop } from "@/components/FileDrop"
-import { FileIcon, FilePreview, isTextType } from "@/components/FilePreview"
+import { FileIcon } from "@/components/FilePreview"
+import { docName } from "@/components/profile/DocumentsPage"
+import { QuestionsForm } from "@/components/profile/QuestionsPage"
 import { Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemMedia, ItemTitle } from "@/components/ui/item"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
-
-const KINDS: Record<string, string> = { base_resume: "Base résumé", cover_letter: "Cover letter", other: "Other" }
 
 export function useList<T>(path: string) {
   const [rows, setRows] = useState<T[] | null>(null)
@@ -30,72 +30,43 @@ export function useList<T>(path: string) {
   return { rows, load }
 }
 
-function Documents() {
-  const { rows: docs, load } = useList<Document>("/v1/documents")
-
-  async function remove(id: string) {
-    await api("/v1/documents/" + id, { method: "DELETE" })
-    await load()
-  }
-
-  // Prepare attaches the newest base résumé; flag which one that is.
-  const active = docs?.find((d) => d.kind === "base_resume")?.id
-
+// The main résumé and cover letter at a glance; the rest is under Documents.
+function MainDocuments() {
+  const { rows: docs } = useList<Document>("/v1/documents")
+  if (!docs) return null
+  const main = (["base_resume", "cover_letter"] as const).map((kind) => [kind, docs.find((d) => d.kind === kind && d.primary)] as const)
+  const others = docs.filter((d) => !d.primary).length
   return (
-    <div className="flex flex-col gap-3">
-      <p className="text-sm text-muted-foreground">
-        The newest base résumé is attached to every application you prepare. Tailored versions for one application go
-        on that application.
-      </p>
-      <FileDrop
-        path="/v1/documents"
-        kinds={KINDS}
-        description={'PDF, Word, Markdown, or text, up to 5MB. A LinkedIn "Save to PDF" export works too.'}
-        onUploaded={() => void load()}
-      />
-      {!!docs?.length && (
-        <ItemGroup className="gap-2">
-          {docs.map((d) => (
-            <Item key={d.id} variant="outline" size="sm">
-              <ItemMedia variant="icon">
-                <FileIcon type={d.content_type} name={d.filename} />
-              </ItemMedia>
-              <ItemContent>
-                <ItemTitle>
-                  {d.filename || d.id}
-                  {d.id === active && <Badge variant="secondary">Used by prepare</Badge>}
-                </ItemTitle>
-                <ItemDescription>
-                  {KINDS[d.kind] || d.kind}
-                  {d.created_at && " · " + new Date(d.created_at).toLocaleDateString()}
-                </ItemDescription>
-              </ItemContent>
-              <ItemActions>
-                <FilePreview path={"/v1/documents/" + d.id} base64={(f) => !isTextType(f.content_type)} title={d.filename || "Document"} description={KINDS[d.kind]}>
-                  <Button size="icon-sm" variant="ghost" aria-label={`Preview ${d.filename}`}>
-                    <Eye />
-                  </Button>
-                </FilePreview>
-                <Button size="icon-sm" variant="ghost" aria-label={`Delete ${d.filename}`} onClick={() => void remove(d.id)}>
-                  <Trash2 />
-                </Button>
-              </ItemActions>
-            </Item>
-          ))}
-        </ItemGroup>
-      )}
-    </div>
+    <ItemGroup className="gap-2">
+      {main.map(([kind, d]) => (
+        <Item key={kind} variant="outline" size="sm" asChild>
+          <Link href={"/profile/documents#" + kind}>
+            <ItemMedia variant="icon">{d ? <FileIcon type={d.content_type} name={d.filename} /> : <FilePlus />}</ItemMedia>
+            <ItemContent>
+              <ItemTitle>{d ? docName(d) : kind === "base_resume" ? "Add your résumé" : "Add a cover letter"}</ItemTitle>
+              <ItemDescription>{kind === "base_resume" ? "Main résumé" : "Main cover letter"}</ItemDescription>
+            </ItemContent>
+            <ItemActions>
+              <ChevronRight className="size-4 text-muted-foreground" />
+            </ItemActions>
+          </Link>
+        </Item>
+      ))}
+      <Button asChild variant="link" size="sm" className="self-start px-0 text-muted-foreground">
+        <Link href="/profile/documents">{others ? `All documents (${others} more)` : "All documents"}</Link>
+      </Button>
+    </ItemGroup>
   )
 }
 
 const AGENT_PROMPT = `Fill in my Pursuit profile from my résumé.
 
 1. Run \`pursuit standing list\` to see what is already saved. Don't overwrite an answer without asking me.
-2. Get my résumé: \`pursuit documents list\`, then \`pursuit documents get <id>\` for the newest base_resume (the body is base64).
+2. Get my résumé: \`pursuit documents list\`, then \`pursuit documents get <id>\` for the base_resume marked primary (a binary body is base64).
 3. Save what the résumé states with \`pursuit standing set --key <key> --value <answer>\` for these keys:
    first_name, last_name, email, phone, location, pronouns, linkedin, github, website (plus any other profile links, keyed by their name, e.g. portfolio)
 4. Ask me, don't infer, for: work_authorization (Yes/No), visa_sponsorship (Yes/No), and anything about salary or start date.
-5. Draft a short default cover letter (4-6 sentences, no buzzwords) from my most recent role, show it to me, and save it as cover_letter once I approve.
+5. Draft a short default cover letter (4-6 sentences, no buzzwords) from my most recent role, show it to me, and once I approve save it with \`pursuit documents add --kind cover_letter --file cover-letter.md --label Default\`.
 6. Finish with \`pursuit list --status needs_input --fields id,company,title\` and ask me the unanswered questions on those applications, saving each answer with the question's wording as the key.`
 
 // "open" (default, so a first visit sees the prompt), "closed", or "hidden".
@@ -184,9 +155,10 @@ export function Section({ id, title, description, children }: { id: string; titl
 const TABS = [
   ["/profile", "Profile"],
   ["/profile/questions", "Questions"],
+  ["/profile/documents", "Documents"],
 ] as const
 
-// Shared header for /profile and /profile/questions. Each tab is its own
+// Shared header for /profile, /profile/questions and /profile/documents. Each tab is its own
 // route, so either can be linked to directly.
 export function ProfileHeader({ description }: { description: ReactNode }) {
   const pathname = usePathname()
@@ -214,11 +186,12 @@ export function ProfileHeader({ description }: { description: ReactNode }) {
 export function ProfilePage() {
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
-      <ProfileHeader description="Your résumé and the files prepare attaches. Your name, photo, and sign-in live under Settings → Account." />
+      <ProfileHeader description="What forms ask about you, and the files prepare attaches. Your name, photo, and sign-in live under Settings → Account." />
       <AgentPrompt />
       <Section id="documents" title="Documents">
-        <Documents />
+        <MainDocuments />
       </Section>
+      <QuestionsForm mode="profile" />
     </div>
   )
 }
