@@ -12,7 +12,10 @@ type Entry = { id: string; at: string; title: string; body?: string; href?: stri
 
 const written = authored as Entry[]
 const replaced = new Set(written.map((e) => e.release))
-const latest = ([...(generated as Entry[]).filter((r) => !replaced.has(r.id.slice(1))), ...written]).sort((a, b) => b.at.localeCompare(a.at))[0]
+// Newest first. The sort is stable, so entries sharing a time (a release and
+// its announcement, or two releases on one day, which CHANGELOG.md dates by
+// day) keep this order: written ones, then generated ones newest release first.
+const latest = [...written, ...(generated as Entry[]).filter((r) => !replaced.has(r.id.slice(1)))].sort((a, b) => b.at.localeCompare(a.at))[0]
 
 // The newest announcement while the signed-in account hasn't dismissed it.
 // Dismissing saves its time on the account (PATCH /v1/me), which also covers

@@ -25,6 +25,9 @@ var extraTypes = map[string]string{
 	".woff2": "font/woff2",
 	".json":  "application/json; charset=utf-8",
 	".wasm":  "application/wasm",
+	// The docs' What's new clips. A distroless image has no system mime table.
+	".mp4":  "video/mp4",
+	".webm": "video/webm",
 }
 
 // Open returns an embedded asset and the status to serve it with. Every real
