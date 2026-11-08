@@ -7,6 +7,7 @@ import (
 
 	"github.com/pursuit/pursuit/internal/billing"
 	"github.com/pursuit/pursuit/internal/blobstore"
+	"github.com/pursuit/pursuit/internal/embed"
 	"github.com/pursuit/pursuit/internal/domain"
 	"github.com/pursuit/pursuit/internal/sqlstore"
 )
@@ -23,11 +24,13 @@ type Feature struct {
 	Premium bool
 	// Experimental starts off until the user turns it on.
 	Experimental bool
+	// Costly calls a paid API, so the tutorial sandbox doesn't get it.
+	Costly bool
 }
 
 // Features is every feature, in the order Settings lists them.
 var Features = []Feature{
-	{Key: "smart_search", Name: "Smart search", Premium: true, Experimental: true,
+	{Key: "smart_search", Name: "Smart search", Premium: true, Experimental: true, Costly: true,
 		Description: "Find answers, notes and documents by meaning, and fill form questions from the closest saved answer."},
 	{Key: "tailored_documents", Name: "Tailored documents", Premium: true, Experimental: true,
 		Description: "Keep a tailored résumé and cover letter per application and compare each with your default."},
@@ -88,7 +91,7 @@ func (s *Service) featureViews(ctx context.Context, a domain.Actor) ([]FeatureVi
 	out := make([]FeatureView, 0, len(Features))
 	for _, f := range Features {
 		v := FeatureView{Key: f.Key, Name: f.Name, Description: f.Description, Premium: f.Premium, Experimental: f.Experimental}
-		v.Configured = s.Capabilities[f.Key]
+		v.Configured = s.configured(f.Key) && !(a.Demo && f.Costly)
 		// A demo sandbox shows off what the deployment has; it can't buy anything.
 		v.Entitled = !f.Premium || !s.billingOn() || a.Demo || comp || has[f.Key]
 		v.Enabled = !f.Experimental
@@ -490,6 +493,10 @@ func (s *Service) ConfigureFromEnv(getenv func(string) string, publicURL string)
 		}
 	}
 	s.PublicURL = publicURL
+	if key := env("AI_GATEWAY_API_KEY"); key != "" {
+		// AI_GATEWAY_BASE_URL is for a proxy in front of the gateway; empty is the gateway itself.
+		s.Embedder = &embed.Gateway{Key: key, HTTP: s.HTTP, Base: env("AI_GATEWAY_BASE_URL")}
+	}
 	if bucket, err := blobstore.FromEnv(getenv); err != nil {
 		warnings = append(warnings, err.Error()+": documents stay in the database")
 	} else if bucket != nil {
@@ -497,11 +504,18 @@ func (s *Service) ConfigureFromEnv(getenv func(string) string, publicURL string)
 		s.Blobs = bucket
 	}
 	s.Capabilities = map[string]bool{
-		"smart_search": env("AI_GATEWAY_API_KEY") != "",
 		// Needs nothing beyond the server itself.
 		"tailored_documents": true,
 	}
 	return warnings
+}
+
+// configured is whether this deployment has what a feature needs.
+func (s *Service) configured(key string) bool {
+	if key == "smart_search" {
+		return s.Embedder != nil
+	}
+	return s.Capabilities[key]
 }
 
 // BaseURL is where Stripe returns the user: the configured public URL, else
