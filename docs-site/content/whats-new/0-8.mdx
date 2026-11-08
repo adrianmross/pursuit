@@ -3,26 +3,21 @@ import { Callout } from "nextra/components"
 # What's new in 0.8
 
 <Callout type="info">
-  Tailored documents and smart search are Plus features, and also available under Settings › Experimental. Everything else here is on for everyone.
+  <Premium /> marks features that need a plan on the hosted service. A self-hosted server includes them (smart search also needs an AI Gateway key), and each person turns them on under Settings › Experimental.
 </Callout>
 
-## A résumé and cover letter for each application
+## A résumé and cover letter for each application <Premium />
 
 Open an application and look at its **Documents** card. It now starts with one row each for the résumé and the cover letter in use, and says where each came from: your main one, a named version, or tailored for this application.
 
 - **Change** lists your versions and puts the one you pick on this application. Your main one is always free to use.
 - **Compare** opens a side-by-side diff against your main one, in one column on a phone. It compares the text, so layout-only changes don't show.
 
-<video autoPlay loop muted playsInline preload="metadata" poster="/docs/whats-new/0-8/compare.png" style={{ width: "100%", borderRadius: 8 }}>
-  <source src="/docs/whats-new/0-8/compare.webm" type="video/webm" />
-  <source src="/docs/whats-new/0-8/compare.mp4" type="video/mp4" />
-</video>
-
-*Choosing a version for an application, then comparing it with your main résumé.*
+<Clip src="/docs/whats-new/0-8/compare" width={720} height={462} caption="Choosing a version for an application, then comparing it with your main résumé." />
 
 Read more in the [API reference](/api-reference): `POST /v1/applications/{id}/documents` and `GET /v1/applications/{id}/compare`.
 
-## Smart search and suggested answers
+## Smart search and suggested answers <Premium />
 
 Search by meaning, not just by words. Your saved answers, your interview-round prep and notes, and your text documents are all searched.
 
@@ -30,24 +25,13 @@ Search by meaning, not just by words. Your saved answers, your interview-round p
 - **Add question:** as you type, **Close to things you've already written** offers your earlier answers, with **Use this**.
 - **Prepare:** for a form question with no exact match, Pursuit keeps the closest saved answer as a suggestion. The question still waits for you in **needs input**; nothing is filled in silently.
 
-<video autoPlay loop muted playsInline preload="metadata" poster="/docs/whats-new/0-8/search.png" style={{ width: "100%", borderRadius: 8 }}>
-  <source src="/docs/whats-new/0-8/search.webm" type="video/webm" />
-  <source src="/docs/whats-new/0-8/search.mp4" type="video/mp4" />
-</video>
-
-*Searching for “conflict” finds the answer about a disagreement.*
+<Clip src="/docs/whats-new/0-8/search" width={720} height={544} caption="Searching for “conflict” finds the answer about a disagreement." />
 
 ## What's new, in your feed
 
 The newest announcement now sits at the top of your start page feed. Dismiss it once and it stays gone on every device you sign in on.
 
-<video autoPlay loop muted playsInline preload="metadata" poster="/docs/whats-new/0-8/announcement.png" style={{ width: "100%", borderRadius: 8 }}>
-  <source src="/docs/whats-new/0-8/announcement.webm" type="video/webm" />
-  <source src="/docs/whats-new/0-8/announcement.mp4" type="video/mp4" />
-</video>
-
-*The announcement card at the top of the feed, then dismissed.*
-
+<Clip src="/docs/whats-new/0-8/announcement" width={720} height={194} caption="The announcement card at the top of the feed, then dismissed." />
 
 ## Also in 0.8
 

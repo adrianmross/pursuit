@@ -70,7 +70,7 @@ if (import.meta.main) {
   if (!releases.length || !releases[0].groups.length) throw new Error("CHANGELOG.md: no releases parsed")
   const { page, atom, json } = render(releases)
   const intro = readFileSync(new URL("docs-site/changelog-intro.mdx", root), "utf8")
-  writeFileSync(new URL("docs-site/content/changelog.mdx", root), `${intro.trimEnd()}\n\n[Atom feed](${SITE}/changelog.xml) · [JSON Feed](${SITE}/changelog.json)\n\n${page}`)
+  writeFileSync(new URL("docs-site/content/changelog.mdx", root), `${intro.trimEnd()}\n\n[RSS feed](${SITE}/changelog.xml) · [JSON Feed](${SITE}/changelog.json) · [GitHub releases feed](${REPO}/releases.atom)\n\n${page}`)
   writeFileSync(new URL("docs-site/public/changelog.xml", root), atom)
   writeFileSync(new URL("docs-site/public/changelog.json", root), json)
   // The dashboard's start page announces minor releases (x.y.0): one line from the release's first entry.

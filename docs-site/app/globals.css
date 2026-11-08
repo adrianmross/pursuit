@@ -130,3 +130,7 @@ html.dark .hp-footer-brand { color: #f1f1ee; }
   .hp-footer-credit { order: 0; }
   .hp-footer-nav { justify-self: end; }
 }
+
+/* Media in the docs content stays at a readable size on a wide screen. */
+main :is(img, video) { max-width: min(100%, 720px); height: auto; }
+.badge-premium { margin-left: 0.5em; padding: 0.1em 0.55em; border-radius: 999px; border: 1px solid var(--brand-gold, #b8860b); color: var(--brand-gold, #b8860b); font-size: 0.5em; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; vertical-align: middle; }

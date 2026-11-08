@@ -7,9 +7,10 @@ export default {
   cli: "CLI reference",
   "api-reference": "API reference",
   architecture: "Architecture",
+  telemetry: "Telemetry",
+  "-": { type: "separator" },
   "whats-new": "What's new",
   changelog: "Changelog",
   privacy: "Privacy",
   terms: "Terms",
-  telemetry: "Telemetry",
 }
