@@ -622,4 +622,11 @@ var migrations = []migration{{
 		`ALTER TABLE questions ADD COLUMN suggested_source TEXT NOT NULL DEFAULT ''`,
 		`ALTER TABLE questions ADD COLUMN suggested_score REAL NOT NULL DEFAULT 0`,
 	},
+}, {
+	version: "023",
+	stmts: []string{
+		// Which of the user's documents an application's résumé or cover
+		// letter was copied from; empty for a file uploaded to the application.
+		`ALTER TABLE artifacts ADD COLUMN source_document_id TEXT NOT NULL DEFAULT ''`,
+	},
 }}

@@ -377,6 +377,10 @@ func build() []byte {
 	add("/v1/documents/{id}", "get", "Document with body, label and primary; binary bodies are base64", false, x{"out": DocumentFile{}, "cli": "pursuit documents get DOCUMENT_ID"})
 	add("/v1/documents/{id}", "patch", "Body {label?, primary?, body?}. primary: true makes it the main one of its kind. body replaces a text document's content (a cover letter written in place)", true, x{"in": service.DocumentPatch{}, "out": service.DocumentView{}})
 	add("/v1/documents/{id}", "delete", "Delete a document", true, x{"out": domain.Deleted{}, "cli": "pursuit documents delete DOCUMENT_ID"})
+	add("/v1/applications/{id}/documents", "post", "Use one of your documents as this application's résumé or cover letter. body {document_id}. copies it as a resume_pdf or cover_letter artifact (source_document_id says which); the newest of a kind is the one sent. the main document is free; another version needs the tailored_documents feature", true, x{"in": struct {
+		DocumentID string `json:"document_id"`
+	}{}, "out": service.ArtifactView{}, "status": 201})
+	add("/v1/applications/{id}/compare", "get", "Kind=resume_pdf|cover_letter: the application's file next to your main document, as plain text extracted from PDF, Word or text: {default, current: {title, text, source: default|version|upload}, same}. needs tailored_documents", false, x{"q": q("kind"), "out": service.Comparison{}})
 	add("/v1/standing", "get", "List standing answers. Without limit it returns all", false, x{"q": q("limit", "cursor"), "list": sqlstore.StandingAnswer{}, "cli": "pursuit standing list"})
 	add("/v1/standing", "post", "Set a standing answer. Profile values also load from PURSUIT_PROFILE", true, x{"in": StandingInput{}, "out": sqlstore.StandingAnswer{}, "cli": "pursuit standing set --key work_authorization --value 'US citizen'"})
 	add("/v1/standing/{key}", "delete", "Delete a standing answer. A PURSUIT_PROFILE value for the same key still applies", true, x{"out": domain.Deleted{}, "cli": "pursuit standing delete work_authorization"})
@@ -478,6 +482,7 @@ var queryParams = map[string]any{
 	"sort":                  param("sort", "A field name, with an optional leading `-` for descending.", x{"type": "string"}),
 	"q":                     param("q", "Text search.", x{"type": "string"}),
 	"fields":                param("fields", "Comma-separated fields to return, such as `id,company,title`.", x{"type": "string"}),
+	"kind":                  param("kind", "`resume_pdf` or `cover_letter`.", x{"type": "string", "enum": []string{"resume_pdf", "cover_letter"}}),
 	"version":               param("version", "The record's current version. `If-Match` works too.", x{"type": "integer"}),
 	"status":                param("status", "Comma-separated statuses or outcomes to include. Repeatable.", x{"type": "string"}),
 	"status_not":            param("status_not", "Comma-separated statuses or outcomes to exclude. Repeatable.", x{"type": "string"}),

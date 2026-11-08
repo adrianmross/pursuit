@@ -504,6 +504,7 @@ func (s *Service) ConfigureFromEnv(getenv func(string) string, publicURL string)
 		s.Blobs = bucket
 	}
 	s.Capabilities = map[string]bool{
+		"smart_search": env("AI_GATEWAY_API_KEY") != "",
 		// Needs nothing beyond the server itself.
 		"tailored_documents": true,
 	}
@@ -514,6 +515,9 @@ func (s *Service) ConfigureFromEnv(getenv func(string) string, publicURL string)
 func (s *Service) configured(key string) bool {
 	if key == "smart_search" {
 		return s.Embedder != nil
+	}
+	if key == "tailored_documents" {
+		return true // needs nothing beyond the server itself
 	}
 	return s.Capabilities[key]
 }
