@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { Check, CircleAlert, Copy, KeyRound, Trash2 } from "lucide-react"
+import posthog from "posthog-js"
 import { api } from "@/lib/api-client"
 import type { Page, Token } from "@/lib/types"
 import { CommandBlock } from "@/components/CommandBlock"
@@ -78,6 +79,7 @@ export function TokensPanel() {
         body: { name: name.trim(), scopes: scope === "write" ? ["read", "write"] : ["read"] },
       })
       setSecret(issued.secret)
+      posthog.capture("api_token_created", { access_level: scope })
       setName("")
       await load()
     } catch (err) {
@@ -91,6 +93,7 @@ export function TokensPanel() {
     setError("")
     try {
       await api(`/v1/tokens/${encodeURIComponent(id)}`, { method: "DELETE" })
+      posthog.capture("api_token_revoked")
       await load()
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not revoke the token")

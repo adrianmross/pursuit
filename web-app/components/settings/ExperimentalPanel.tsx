@@ -1,6 +1,7 @@
 "use client"
 
 import { Fragment, useEffect, useState } from "react"
+import posthog from "posthog-js"
 import { api } from "@/lib/api-client"
 import { goToStripe, useFeatures, type Billing } from "@/lib/features"
 import { Badge } from "@/components/ui/badge"
@@ -85,6 +86,7 @@ export function PlanPanel() {
     setBusy(true)
     setError("")
     try {
+      if (path === "/v1/billing/checkout") posthog.capture("checkout_started", { source: code ? "invite" : "settings" })
       await goToStripe(path, code)
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not open Stripe")

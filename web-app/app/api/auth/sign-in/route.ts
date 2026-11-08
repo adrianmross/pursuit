@@ -1,5 +1,6 @@
 import { cookies } from "next/headers"
-import { NextResponse } from "next/server"
+import { after, NextResponse } from "next/server"
+import { flushPostHogLogs, logPostHog, SeverityNumber } from "@/instrumentation"
 import { ApiError, pursuitApi, TOKEN_COOKIE } from "@/lib/pursuit-api"
 
 // Accepts either a Pursuit-issued token (pst_...) or a Better Auth JWT —
@@ -22,10 +23,22 @@ export async function POST(request: Request) {
       path: "/",
       maxAge: 60 * 60 * 24 * 30,
     })
+    logPostHog({
+      body: "authentication_sign_in_succeeded",
+      severityNumber: SeverityNumber.INFO,
+      attributes: { authentication_flow: "token" },
+    })
+    after(flushPostHogLogs)
     return NextResponse.json(me)
   } catch (err) {
     const status = err instanceof ApiError ? err.status : 401
     const message = err instanceof ApiError ? err.message : "That token was rejected."
+    logPostHog({
+      body: "authentication_sign_in_rejected",
+      severityNumber: SeverityNumber.WARN,
+      attributes: { authentication_flow: "token", response_status: status },
+    })
+    after(flushPostHogLogs)
     return NextResponse.json({ error: { message } }, { status })
   }
 }

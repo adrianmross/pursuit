@@ -2,6 +2,7 @@
 
 import { useState, type FormEvent } from "react"
 import { Eye, MoreHorizontal, PenLine, Star } from "lucide-react"
+import posthog from "posthog-js"
 import { api } from "@/lib/api-client"
 import type { Document } from "@/lib/types"
 import { ConfirmDialog } from "@/components/ConfirmDialog"
@@ -49,6 +50,7 @@ function EditDialog({ editing, onClose, onSaved }: { editing: Editing; onClose: 
       if (editing.mode === "write")
         await api("/v1/documents", { method: "POST", body: { kind: "cover_letter", filename: "cover-letter.md", content_type: "text/markdown", label, body } })
       else await api("/v1/documents/" + editing.doc.id, { method: "PATCH", body: rename ? { label } : { label, body } })
+      posthog.capture("document_saved", { action: editing.mode, document_kind: editing.mode === "write" ? "cover_letter" : editing.doc.kind })
       await onSaved()
       onClose()
     } catch (err) {
@@ -170,6 +172,7 @@ function Documents() {
     setBusy(true)
     try {
       await api("/v1/documents/" + deleting.id, { method: "DELETE" })
+      posthog.capture("document_deleted", { document_kind: deleting.kind })
       await load()
     } finally {
       setBusy(false)

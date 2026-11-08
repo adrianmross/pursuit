@@ -1,6 +1,8 @@
 "use client"
 
 import Link from "next/link"
+import posthog from "posthog-js"
+import { useEffect } from "react"
 import { RotateCcw } from "lucide-react"
 import { useAuth } from "@/lib/auth"
 import { Die, Ring, Sketch, Track } from "@/components/Sketch"
@@ -9,8 +11,12 @@ import { Button, buttonVariants } from "@/components/ui/button"
 
 // Any render or fetch failure below the root layout lands here. reset()
 // re-renders the segment (re-running its fetch) instead of leaving a dead page.
-export default function AppError({ reset }: { error: Error & { digest?: string }; reset: () => void }) {
+export default function AppError({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
   const { me } = useAuth()
+
+  useEffect(() => {
+    posthog.captureException(error)
+  }, [error])
   return (
     <ErrorScene
       graphic={<KnockedOver />}

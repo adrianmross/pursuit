@@ -1,5 +1,6 @@
 import { cookies } from "next/headers"
-import { NextResponse } from "next/server"
+import { after, NextResponse } from "next/server"
+import { flushPostHogLogs, logPostHog, SeverityNumber } from "@/instrumentation"
 import { ApiError, pursuitApi, TOKEN_COOKIE } from "@/lib/pursuit-api"
 
 // "Try it without an account" / "replay tutorial": mints a fresh,
@@ -19,10 +20,22 @@ export async function POST() {
       path: "/",
       maxAge: 60 * 60 * 24 * 30,
     })
+    logPostHog({
+      body: "authentication_demo_started",
+      severityNumber: SeverityNumber.INFO,
+      attributes: { authentication_flow: "demo" },
+    })
+    after(flushPostHogLogs)
     return NextResponse.json(me)
   } catch (err) {
     const status = err instanceof ApiError ? err.status : 500
     const message = err instanceof ApiError ? err.message : "Could not start the demo."
+    logPostHog({
+      body: "authentication_demo_start_failed",
+      severityNumber: SeverityNumber.WARN,
+      attributes: { authentication_flow: "demo", response_status: status },
+    })
+    after(flushPostHogLogs)
     return NextResponse.json({ error: { message } }, { status })
   }
 }

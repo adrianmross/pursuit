@@ -3,6 +3,7 @@
 import { useState, type FormEvent } from "react"
 import Link from "next/link"
 import { Link2, MessageSquarePlus, Plus, Search, SearchX, Trash2 } from "lucide-react"
+import posthog from "posthog-js"
 import { api } from "@/lib/api-client"
 import { cn } from "@/lib/utils"
 import { applicationHref } from "@/lib/links"
@@ -78,6 +79,7 @@ function AddQuestion({ initial, existing, onClose, onSaved }: { initial: string;
     setError("")
     try {
       await api("/v1/standing", { method: "POST", body: { key: question, answer } })
+      posthog.capture("standing_answers_saved", { source: "question_dialog", answer_count: 1 })
       await onSaved()
       onClose()
     } catch (err) {
@@ -175,6 +177,7 @@ export function QuestionsForm({ mode }: { mode: "profile" | "questions" }) {
   async function remove(key: string) {
     try {
       await api("/v1/standing/" + encodeURIComponent(key), { method: "DELETE" })
+      posthog.capture("standing_answer_deleted")
       setDraft(Object.fromEntries(Object.entries(draft).filter(([k]) => k !== key)))
       await load()
       setMsg({ ok: true, text: "Deleted." })
@@ -188,6 +191,7 @@ export function QuestionsForm({ mode }: { mode: "profile" | "questions" }) {
     setSaving(true)
     try {
       for (const [key, answer] of pending) await api("/v1/standing", { method: "POST", body: { key, answer } })
+      posthog.capture("standing_answers_saved", { source: profile ? "profile" : "questions", answer_count: pending.length })
       setDraft({})
       setNewLink({ label: "", url: "" })
       await load()
@@ -448,6 +452,7 @@ function InterviewBank({ onSaved }: { onSaved: () => void }) {
     setError("")
     try {
       await api("/v1/standing", { method: "POST", body: { key: r.prompt, answer: r.answer } })
+      posthog.capture("standing_answers_saved", { source: "interview_bank", answer_count: 1 })
       await standing.load()
       onSaved()
     } catch (err) {

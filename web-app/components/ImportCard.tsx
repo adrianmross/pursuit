@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react"
 import { FileUp } from "lucide-react"
+import posthog from "posthog-js"
 import { api, ApiError } from "@/lib/api-client"
 import type { ImportResult } from "@/lib/types"
 import type { IMPORTERS } from "@/lib/importers"
@@ -22,6 +23,12 @@ export function ImportCard({ importer }: { importer: (typeof IMPORTERS)[number] 
     try {
       const text = await file.text()
       const imported = await api<ImportResult>(importer.path, { rawBody: { text, contentType: importer.contentType } })
+      posthog.capture("applications_imported", {
+        importer: importer.label,
+        applications_created: imported.applications_created,
+        applications_updated: imported.applications_updated,
+        applications_skipped: imported.skipped,
+      })
       setResult(imported)
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Import failed")

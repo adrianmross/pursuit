@@ -3,6 +3,7 @@
 import { useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
+import posthog from "posthog-js"
 import { AlertCircle } from "lucide-react"
 import { api, ApiError } from "@/lib/api-client"
 import { applicationHref } from "@/lib/links"
@@ -26,6 +27,7 @@ export function CreateApplicationView() {
     setError(null)
     try {
       const created = await api<Application>("/v1/applications", { method: "POST", body: { ...attrs, notes } })
+      posthog.capture("application_created", { has_posting_url: Boolean(attrs.posting_url), has_notes: Boolean(notes.trim()) })
       router.replace(applicationHref(created.id))
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Failed to save")

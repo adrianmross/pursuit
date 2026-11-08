@@ -2,6 +2,7 @@
 
 import { useState, type DragEvent } from "react"
 import { FileUp } from "lucide-react"
+import posthog from "posthog-js"
 import { apiHeaders, apiUrl } from "@/lib/api-client"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -43,6 +44,7 @@ export function FileDrop({
         return setError(body?.error?.message || "Upload failed")
       }
       setError("")
+      posthog.capture("file_uploaded", { upload_target: path === "/v1/documents" ? "documents" : "application_artifacts", file_kind: kind })
       onUploaded()
     } finally {
       setBusy(false)

@@ -1,6 +1,7 @@
 "use client"
 
-import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react"
+import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react"
+import posthog from "posthog-js"
 import { api, ApiError, COOKIE_SESSION, EXPORT_MODE, getToken, setToken } from "@/lib/api-client"
 import { setPref } from "@/lib/settings"
 import type { Me } from "@/lib/types"
@@ -79,6 +80,7 @@ export function AuthProvider({ initialMe, children }: { initialMe: Me | null; ch
   const [loading, setLoading] = useState(EXPORT_MODE && initialMe == null)
   const [error, setError] = useState<string | null>(null)
   const [proxySignedOut, setProxySignedOut] = useState(false)
+  const identifiedUserId = useRef<string | null>(null)
 
   const setProxyMarker = useCallback((on: boolean) => {
     if (on) localStorage.setItem(PROXY_SIGNED_OUT_KEY, "1")
@@ -119,6 +121,23 @@ export function AuthProvider({ initialMe, children }: { initialMe: Me | null; ch
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // Runs after the server-seeded session or a successful sign-in becomes
+  // available, so PostHog errors and future events share the user's stable ID.
+  useEffect(() => {
+    const user = me?.user
+    if (!user?.id) {
+      identifiedUserId.current = null
+      return
+    }
+
+    if (identifiedUserId.current && identifiedUserId.current !== user.id) posthog.reset()
+    posthog.identify(user.id, {
+      ...(user.email ? { email: user.email } : {}),
+      ...(user.name ? { name: user.name } : {}),
+    })
+    identifiedUserId.current = user.id
+  }, [me?.user])
 
   const signIn = useCallback(async (token: string) => {
     setError(null)
@@ -181,6 +200,9 @@ export function AuthProvider({ initialMe, children }: { initialMe: Me | null; ch
       // still signed in after landing on /sign-in.
       await fetch("/api/auth/sign-out", { method: "POST" })
     }
+    // Clear the persisted identity before the next visitor can use this browser.
+    posthog.reset()
+    identifiedUserId.current = null
     setMe(null)
     // A hard navigation, not router.push: forces every cached RSC payload
     // to be re-fetched so no stale authenticated state can linger client-side.

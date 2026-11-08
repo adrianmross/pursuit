@@ -4,6 +4,7 @@ import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from "
 import Link from "next/link"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import commandScore from "command-score"
+import posthog from "posthog-js"
 import { parseSearch, matchesQualifiers } from "@/lib/search"
 import {
   Archive,
@@ -782,6 +783,7 @@ export function PipelineView({ initial }: { initial: PipelineInitial | null }) {
         body: { version: row.version, status: next },
       })
       setRows((prev) => prev.map((r) => (r.id === row.id ? { ...r, ...updated } : r)))
+      posthog.capture("application_status_changed", { change_type: "single", from_status: shown(row), to_status: next })
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Failed to change the status")
     }
@@ -851,6 +853,7 @@ export function PipelineView({ initial }: { initial: PipelineInitial | null }) {
             api(`/v1/applications/${encodeURIComponent(row.id)}`, { method: "PATCH", body: { version: row.version, status: next } }),
           ),
       )
+      posthog.capture("application_status_changed", { change_type: "bulk", application_count: selectedRows.filter((row) => shown(row) !== next).length, to_status: next })
       await load()
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Failed to change the status")
@@ -867,6 +870,7 @@ export function PipelineView({ initial }: { initial: PipelineInitial | null }) {
           api(`/v1/applications/${encodeURIComponent(row.id)}/archive`, { method: "POST", body: { version: row.version } }),
         ),
       )
+      posthog.capture("applications_archived", { action: "archive", application_count: selectedRows.length })
       setSelected(new Set())
       await load()
     } finally {
@@ -882,6 +886,7 @@ export function PipelineView({ initial }: { initial: PipelineInitial | null }) {
           api(`/v1/applications/${encodeURIComponent(row.id)}/unarchive`, { method: "POST", body: { version: row.version } }),
         ),
       )
+      posthog.capture("applications_archived", { action: "restore", application_count: selectedRows.length })
       setSelected(new Set())
       await load()
     } finally {
@@ -893,6 +898,7 @@ export function PipelineView({ initial }: { initial: PipelineInitial | null }) {
     setBulkBusy(true)
     try {
       await Promise.all(selectedRows.map((row) => api(`/v1/applications/${encodeURIComponent(row.id)}`, { method: "DELETE" })))
+      posthog.capture("applications_deleted", { application_count: selectedRows.length })
       setSelected(new Set())
       await load()
     } finally {
@@ -1295,6 +1301,7 @@ export function PipelineView({ initial }: { initial: PipelineInitial | null }) {
             method: "POST",
             body: { version: archiveTarget.version },
           })
+          posthog.capture("applications_archived", { action: "archive", application_count: 1 })
           setArchiveTarget(null)
           await load()
         }}
@@ -1310,6 +1317,7 @@ export function PipelineView({ initial }: { initial: PipelineInitial | null }) {
         onConfirm={async () => {
           if (!deleteTarget) return
           await api(`/v1/applications/${encodeURIComponent(deleteTarget.id)}`, { method: "DELETE" })
+          posthog.capture("applications_deleted", { application_count: 1 })
           setDeleteTarget(null)
           await load()
         }}
