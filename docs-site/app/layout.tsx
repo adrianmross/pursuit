@@ -68,7 +68,7 @@ const footer = (
 
 const banner = (
   <Banner storageKey="pursuit-docs-pre">
-    Pre-release — pursuit has no versioned releases yet. Everything here can change.
+    Pre-release (0.x): the CLI, API and docs can change between any two versions. See what changed in the <a href="/docs/changelog">changelog</a>.
   </Banner>
 )
 
