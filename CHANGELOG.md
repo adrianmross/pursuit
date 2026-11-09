@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.9.0](https://github.com/adrianmross/pursuit/compare/v0.8.0...v0.9.0) (2026-11-09)
+
+
+### Features
+
+* **pursuit:** Show the newest announcement as a card in the start page feed, with a What's new page per release, your own announcements, and the changelog behind it ([#135](https://github.com/adrianmross/pursuit/issues/135)) ([ce51825](https://github.com/adrianmross/pursuit/commit/ce518256aa2667c3704d08480dfd610d074e0fda))
+
+
+### Bug Fixes
+
+* **pursuit:** Park premium features and Stripe plans as coming soon and disabled until PURSUIT_PREMIUM_FEATURES is on ([#134](https://github.com/adrianmross/pursuit/issues/134)) ([c4544a1](https://github.com/adrianmross/pursuit/commit/c4544a136769772b3ab6c87e15a47395a7b35553))
+* **pursuit:** Replay the guided tour from Settings, About in any account, not only in a demo sandbox ([#132](https://github.com/adrianmross/pursuit/issues/132)) ([9eb529a](https://github.com/adrianmross/pursuit/commit/9eb529a38769aeed3c5c5ce6884d5ed6f65061b6))
+* **pursuit:** Run a local S3 with devenv up --profile s3, name a missing document bucket in the error, and log unexpected request errors instead of hiding them ([#130](https://github.com/adrianmross/pursuit/issues/130)) ([76f0233](https://github.com/adrianmross/pursuit/commit/76f0233f9233e534956ec0fe6f33e74a0df145f9))
+
 ## [0.8.0](https://github.com/adrianmross/pursuit/compare/v0.7.0...v0.8.0) (2026-11-08)
 
 
