@@ -32,7 +32,7 @@ run() {
   find . -name '*.go' -not -path './web-app/*' -not -path './docs-site/*' |
     PURSUIT_ADDR="127.0.0.1:$api_port" entr -rn go run ./cmd/pursuit serve &
   api=$!
-  trap 'kill "$api" 2>/dev/null || true' EXIT
+  trap 'kill "$api" "${docs:-}" 2>/dev/null || true' EXIT
 
   # The dashboard's URL is printed only once the API answers, so "up" means both halves.
   for _ in $(seq 1 90); do
@@ -40,9 +40,17 @@ run() {
     sleep 2
   done
 
+  # The docs (served at /docs by the real binary) run beside the dashboard and
+  # the dashboard forwards /docs to them. The changelog page and the start
+  # page's releases are generated from CHANGELOG.md.
+  node scripts/changelog-docs.mjs
+  docs_port="$(python3 -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1", 0)); print(s.getsockname()[1])')"
+  (cd docs-site && { [ -d node_modules ] || npm install --no-audit --no-fund; } && exec npx next dev -p "$docs_port" -H 127.0.0.1) &
+  docs=$!
+
   cd web-app
   [ -d node_modules ] || npm install --no-audit --no-fund
-  PURSUIT_API_URL="http://127.0.0.1:$api_port" portless run npx next dev
+  PURSUIT_DOCS_URL="http://127.0.0.1:$docs_port" PURSUIT_API_URL="http://127.0.0.1:$api_port" portless run npx next dev
 }
 
 case "${1:-}" in

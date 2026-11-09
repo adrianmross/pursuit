@@ -1,1 +1,10 @@
-[]
+[
+  {
+    "id": "v0.8.0",
+    "release": "0.8.0",
+    "at": "2026-11-08T00:00:00Z",
+    "title": "Hire Pursuit 0.8 is here",
+    "body": "Tailored résumés and cover letters per application, smart search with suggested answers, and this What's new card.",
+    "href": "/docs/whats-new/0-8"
+  }
+]

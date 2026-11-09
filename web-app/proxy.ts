@@ -14,6 +14,10 @@ export default function proxy(request: NextRequest) {
     pathname.startsWith("/api/auth/") ||
     pathname.startsWith("/_next/") ||
     pathname.startsWith("/brand/") ||
+    pathname === "/privacy" ||
+    pathname === "/terms" ||
+    pathname === "/docs" ||
+    pathname.startsWith("/docs/") ||
     pathname.startsWith("/practice.html") ||
     pathname === "/favicon.ico"
   if (isPublic) return NextResponse.next()

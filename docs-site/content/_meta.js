@@ -7,8 +7,10 @@ export default {
   cli: "CLI reference",
   "api-reference": "API reference",
   architecture: "Architecture",
-  changelog: "Changelog",
-  privacy: "Privacy",
-  terms: "Terms",
   telemetry: "Telemetry",
+  "-": { type: "separator" },
+  "whats-new": "What's new",
+  changelog: "Changelog",
+  privacy: { title: "Privacy", href: "https://hirepursuit.app/privacy" },
+  terms: { title: "Terms", href: "https://hirepursuit.app/terms" },
 }

@@ -70,7 +70,7 @@ if (import.meta.main) {
   if (!releases.length || !releases[0].groups.length) throw new Error("CHANGELOG.md: no releases parsed")
   const { page, atom, json } = render(releases)
   const intro = readFileSync(new URL("docs-site/changelog-intro.mdx", root), "utf8")
-  writeFileSync(new URL("docs-site/content/changelog.mdx", root), `${intro.trimEnd()}\n\n[Atom feed](${SITE}/changelog.xml) · [JSON Feed](${SITE}/changelog.json)\n\n${page}`)
+  writeFileSync(new URL("docs-site/content/changelog.mdx", root), `${intro.trimEnd()}\n\n[RSS feed](${SITE}/changelog.xml) · [JSON Feed](${SITE}/changelog.json) · [GitHub releases feed](${REPO}/releases.atom)\n\n${page}`)
   writeFileSync(new URL("docs-site/public/changelog.xml", root), atom)
   writeFileSync(new URL("docs-site/public/changelog.json", root), json)
   // The dashboard's start page announces minor releases (x.y.0): one line from the release's first entry.
@@ -79,7 +79,7 @@ if (import.meta.main) {
     at: `${r.date}T00:00:00Z`,
     title: `Hire Pursuit ${r.version.replace(/\.0$/, "")} is out`,
     body: plain(r.groups[0].items[0]).replace(/^pursuit:\s*/, "").replace(/\s*\(#\d+\)$/, ""),
-    href: `${SITE}/changelog#${r.version.replaceAll(".", "")}`,
+    href: `/docs/changelog#${r.version.replaceAll(".", "")}`,
   }))
   writeFileSync(new URL("web-app/lib/releases.generated.json", root), JSON.stringify(minor, null, 2) + "\n")
 }

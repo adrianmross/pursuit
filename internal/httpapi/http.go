@@ -650,6 +650,11 @@ func (s *Server) dashboard(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Cache-Control", "no-cache")
 	}
 	w.Header().Set("X-Content-Type-Options", "nosniff")
+	if strings.HasPrefix(contentType, "video/") {
+		// Browsers (Safari above all) ask a <video> for byte ranges.
+		http.ServeContent(w, r, name, time.Time{}, bytes.NewReader(body))
+		return
+	}
 	if strings.HasPrefix(contentType, "text/html") {
 		// style-src needs 'unsafe-inline': Radix positions popovers/menus with
 		// inline style attributes (Floating UI), not a stylesheet.

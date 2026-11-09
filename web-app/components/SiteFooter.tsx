@@ -39,10 +39,10 @@ export function SiteFooter() {
           <a href="/reference" className="hover:text-foreground">
             Reference
           </a>
-          <a href="/docs/privacy" className="hover:text-foreground">
+          <a href="/privacy" className="hover:text-foreground">
             Privacy
           </a>
-          <a href="/docs/terms" className="hover:text-foreground">
+          <a href="/terms" className="hover:text-foreground">
             Terms
           </a>
           <a href="https://github.com/adrianmross/pursuit" className="hover:text-foreground">

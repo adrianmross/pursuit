@@ -400,11 +400,11 @@ function AccountSignIn({ initialMode = "sign-in" }: { initialMode?: "sign-in" | 
             )}
             <p className="text-center text-xs text-muted-foreground">
               By continuing you agree to the{" "}
-              <a href="/docs/terms" className="underline underline-offset-4 hover:text-foreground">
+              <a href="/terms" className="underline underline-offset-4 hover:text-foreground">
                 Terms
               </a>{" "}
               and{" "}
-              <a href="/docs/privacy" className="underline underline-offset-4 hover:text-foreground">
+              <a href="/privacy" className="underline underline-offset-4 hover:text-foreground">
                 Privacy
               </a>
               .
