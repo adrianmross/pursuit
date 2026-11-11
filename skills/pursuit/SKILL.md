@@ -5,7 +5,7 @@ description: Track and prepare job applications with the pursuit CLI against a P
 
 # Pursuit
 
-Pursuit is a job-application tracker. The `pursuit` CLI is the agent interface. There is no MCP server. A running server also serves this file at `GET /skill.md`, the auth guide at `GET /auth.md`, a short guide at `GET /llms.txt`, and the HTTP shapes at `GET /openapi.json`.
+Pursuit is a job-application tracker. The `pursuit` CLI is the agent interface. There is no MCP server for agents with a shell; `POST /mcp` exists only so hosted chat apps (claude.ai, ChatGPT) can connect with OAuth. A running server also serves this file at `GET /skill.md`, the auth guide at `GET /auth.md`, a short guide at `GET /llms.txt`, and the HTTP shapes at `GET /openapi.json`.
 
 ## Setup
 

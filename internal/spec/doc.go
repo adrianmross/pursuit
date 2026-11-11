@@ -239,6 +239,7 @@ func build() []byte {
 	add("/reference", "get", "Interactive API reference page (HTML)", false, with(hidden, "raw", "text/html", "id", "getReference"))
 
 	add("/.well-known/oauth-authorization-server", "get", "OAuth server metadata (RFC 8414)", false, with(hidden, "raw", "application/json", "id", "getOAuthServerMetadata"))
+	add("/mcp", "post", "Model Context Protocol server (Streamable HTTP, JSON-RPC 2.0) for hosted chat apps such as claude.ai connectors and ChatGPT apps. Send Authorization: Bearer with an OAuth access token; without one the answer is 401 with a WWW-Authenticate header naming the resource metadata. Tools: list_applications, get_application, capture_posting, prepare_application, enqueue_prepare. Nothing here approves, rejects or submits", false, with(hidden, "raw", "application/json", "id", "mcp", "errors", []int{401, 403}))
 	add("/.well-known/oauth-protected-resource", "get", "OAuth protected resource metadata (RFC 9728)", false, with(hidden, "raw", "application/json", "id", "getOAuthResourceMetadata"))
 
 	open := x{"security": []any{}}
