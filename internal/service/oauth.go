@@ -121,6 +121,9 @@ func (s *Service) humanApprover(ctx context.Context) (domain.Actor, error) {
 	if !a.Can("approve") || a.Demo || a.Proxy {
 		return domain.Actor{}, domain.Forbidden("approve").WithHint("approve CLI logins from the dashboard while signed in as yourself")
 	}
+	if err := s.requireFresh(ctx, a); err != nil {
+		return domain.Actor{}, err
+	}
 	return a, nil
 }
 

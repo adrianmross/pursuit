@@ -636,4 +636,11 @@ var migrations = []migration{{
 		// (RFC 3339, UTC), so a dismissal follows the account across devices.
 		`ALTER TABLE users ADD COLUMN announcements_seen TEXT NOT NULL DEFAULT ''`,
 	},
+}, {
+	version: "025",
+	stmts: []string{
+		// Where a dashboard sign-in came from, so Settings can tell sessions apart.
+		`ALTER TABLE api_tokens ADD COLUMN client TEXT NOT NULL DEFAULT ''`,
+		`ALTER TABLE api_tokens ADD COLUMN ip TEXT NOT NULL DEFAULT ''`,
+	},
 }}

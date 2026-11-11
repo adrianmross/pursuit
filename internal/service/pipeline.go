@@ -54,8 +54,13 @@ func (s *Service) guardTransition(ctx context.Context, a domain.Actor, appID, co
 	if to == "" || to == from {
 		return nil
 	}
-	if to == domain.StatusApproved && !a.Can("approve") {
-		return domain.Forbidden("approve")
+	if to == domain.StatusApproved {
+		if !a.Can("approve") {
+			return domain.Forbidden("approve")
+		}
+		if err := s.requireFresh(ctx, a); err != nil {
+			return err
+		}
 	}
 	if to == domain.StatusSubmitting || to == domain.StatusSubmitted {
 		if appID == "" {
@@ -332,6 +337,9 @@ func (s *Service) Approve(ctx context.Context, ids []string, note string) ([]dom
 	}
 	if !a.Can("approve") {
 		return nil, domain.Forbidden("approve")
+	}
+	if err := s.requireFresh(ctx, a); err != nil {
+		return nil, err
 	}
 	if len(ids) == 0 {
 		return nil, domain.Validation("at least one application id is required").WithHint("pursuit approve <id> [<id>...]")

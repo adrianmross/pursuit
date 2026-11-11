@@ -50,6 +50,8 @@ type ApiOptions = {
   // Aborts the request after this many milliseconds (a DOMException named
   // "TimeoutError"). Unset means no limit, which long uploads rely on.
   timeoutMs?: number
+  // Set on the one retry after a passkey step-up, so a second refusal surfaces.
+  steppedUp?: boolean
 }
 
 export async function api<T>(path: string, options: ApiOptions = {}): Promise<T> {
@@ -75,7 +77,7 @@ export async function api<T>(path: string, options: ApiOptions = {}): Promise<T>
 
   const response = await fetch(url, init)
   const text = await response.text()
-  let data: { error?: { message?: string; hint?: string } } | null = null
+  let data: { error?: { message?: string; hint?: string; code?: string } } | null = null
   if (text) {
     try {
       data = JSON.parse(text)
@@ -85,6 +87,13 @@ export async function api<T>(path: string, options: ApiOptions = {}): Promise<T>
   }
   if (!response.ok) {
     const body = data?.error || {}
+    // Approving needs a recent passkey sign-in: ask for one, then retry once.
+    // Sign-in swaps the session cookie, which the retry then carries.
+    if (body.code === "step_up_required" && COOKIE_SESSION && !options.steppedUp) {
+      const { signInWithPasskey } = await import("@/lib/passkeys")
+      await signInWithPasskey()
+      return api<T>(path, { ...options, steppedUp: true })
+    }
     throw new ApiError(body.message || response.statusText || "Request failed", response.status, body.hint)
   }
   return data as T

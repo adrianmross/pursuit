@@ -372,14 +372,14 @@ func (s *Server) wrap(next http.Handler) http.Handler {
 					return
 				}
 				ctx = domain.WithActor(ctx, actor)
-			} else if c, err := r.Cookie(sessionCookie); err == nil && c.Value != "" {
+			} else if c := sessionCookieValue(r); c != "" {
 				// The dashboard's session: a browser credential, so a write
 				// must come from the dashboard's own origin (CSRF).
 				if unsafeMethod(r.Method) && !sameOrigin(r) {
 					writeErr(w, crossSiteRefused())
 					return
 				}
-				actor, err := s.authenticate(ctx, c.Value)
+				actor, err := s.authenticate(ctx, c)
 				if err != nil {
 					clearSessionCookie(w, r)
 					writeErr(w, err)
@@ -502,10 +502,13 @@ func (s *Server) authCallback(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, domain.Unauthorized())
 		return
 	}
-	secret, err := s.Svc.LoginIdentity(r.Context(), identity.Email, identity.Name, s.signupsOpen())
+	secret, err := s.Svc.LoginIdentity(originCtx(r), identity.Email, identity.Name, s.signupsOpen())
 	if err != nil {
 		writeErr(w, s.signupsPaused(err))
 		return
+	}
+	if actor, err := s.Svc.Authenticate(r.Context(), secret); err == nil {
+		s.retireSession(r, actor.UserID)
 	}
 	setSessionCookie(w, r, secret)
 	http.Redirect(w, r, "/start", http.StatusFound)

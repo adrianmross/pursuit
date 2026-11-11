@@ -525,6 +525,9 @@ type Actor struct {
 	// Proxy is the PURSUIT_TRUST_PROXY_AUTH owner: trusted for the
 	// dashboard, but never allowed to approve an OAuth login.
 	Proxy bool
+	// AuthAt is when a dashboard login token last proved who its holder is
+	// (its creation); zero for every other token.
+	AuthAt time.Time
 }
 
 func (a Actor) Can(scope string) bool {
@@ -574,6 +577,11 @@ type Token struct {
 	CreatedAt  time.Time  `json:"created_at"`
 	LastUsedAt *time.Time `json:"last_used_at"`
 	RevokedAt  *time.Time `json:"revoked_at"`
+	// Client and IP say where a dashboard sign-in came from; empty for other tokens.
+	Client string `json:"client,omitempty"`
+	IP     string `json:"ip,omitempty"`
+	// Current is true on the token that made this request.
+	Current bool `json:"current,omitempty"`
 }
 
 type IssuedToken struct {
@@ -950,7 +958,7 @@ var (
 	TaskFields        = []string{"id", "application_id", "stage", "round_id", "title", "notes", "due_at", "done_at", "version", "created_at", "updated_at"}
 	TagFields         = []string{"id", "name", "created_at"}
 	CustomFieldFields = []string{"id", "name", "type", "created_at"}
-	TokenFields       = []string{"id", "name", "prefix", "scopes", "created_at", "last_used_at", "revoked_at"}
+	TokenFields       = []string{"id", "name", "prefix", "scopes", "created_at", "last_used_at", "revoked_at", "client", "ip", "current"}
 	AuditFields       = []string{"id", "token_id", "actor_name", "action", "entity_type", "entity_id", "summary", "metadata", "created_at"}
 	LinkFields        = []string{"application_id", "role_id", "company", "title", "posting_url", "status", "detail", "http_status", "changed", "checked_at"}
 )
