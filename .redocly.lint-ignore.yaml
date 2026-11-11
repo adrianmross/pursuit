@@ -2,6 +2,8 @@
 # See https://redocly.com/docs/cli/ for more information.
 api/openapi.json:
   operation-4xx-response:
+    - '#/paths/~1.well-known~1oauth-authorization-server/get/responses'
+    - '#/paths/~1.well-known~1oauth-protected-resource/get/responses'
     - '#/paths/~1auth.md/get/responses'
     - '#/paths/~1healthz/get/responses'
     - '#/paths/~1llms.txt/get/responses'
