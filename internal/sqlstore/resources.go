@@ -146,13 +146,13 @@ func (s *Store) CountTokens(ctx context.Context) (int, error) {
 }
 
 func (s *Store) CreateToken(ctx context.Context, t domain.Token) error {
-	_, err := s.exec(ctx, `INSERT INTO api_tokens (id, user_id, name, token_hash, token_prefix, scopes, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-		t.ID, t.UserID, t.Name, t.Hash, t.Prefix, strings.Join(t.Scopes, ","), formatTime(t.CreatedAt))
+	_, err := s.exec(ctx, `INSERT INTO api_tokens (id, user_id, name, token_hash, token_prefix, scopes, created_at, client, ip) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		t.ID, t.UserID, t.Name, t.Hash, t.Prefix, strings.Join(t.Scopes, ","), formatTime(t.CreatedAt), t.Client, t.IP)
 	return mapWriteErr(err)
 }
 
 func (s *Store) GetTokenByHash(ctx context.Context, hash string) (domain.Token, error) {
-	row := s.queryRow(ctx, `SELECT id, user_id, name, token_hash, token_prefix, scopes, created_at, last_used_at, revoked_at FROM api_tokens WHERE token_hash=?`, hash)
+	row := s.queryRow(ctx, `SELECT id, user_id, name, token_hash, token_prefix, scopes, created_at, last_used_at, revoked_at, client, ip FROM api_tokens WHERE token_hash=?`, hash)
 	t, err := scanToken(row)
 	if err == sql.ErrNoRows {
 		return domain.Token{}, domain.NotFound("token")
@@ -161,7 +161,7 @@ func (s *Store) GetTokenByHash(ctx context.Context, hash string) (domain.Token, 
 }
 
 func (s *Store) GetToken(ctx context.Context, userID, id string) (domain.Token, error) {
-	row := s.queryRow(ctx, `SELECT id, user_id, name, token_hash, token_prefix, scopes, created_at, last_used_at, revoked_at FROM api_tokens WHERE user_id=? AND id=?`, userID, id)
+	row := s.queryRow(ctx, `SELECT id, user_id, name, token_hash, token_prefix, scopes, created_at, last_used_at, revoked_at, client, ip FROM api_tokens WHERE user_id=? AND id=?`, userID, id)
 	t, err := scanToken(row)
 	if err == sql.ErrNoRows {
 		return domain.Token{}, domain.NotFound("token")
@@ -173,7 +173,7 @@ func scanToken(row scanner) (domain.Token, error) {
 	var t domain.Token
 	var scopes, created string
 	var last, revoked sql.NullString
-	err := row.Scan(&t.ID, &t.UserID, &t.Name, &t.Hash, &t.Prefix, &scopes, &created, &last, &revoked)
+	err := row.Scan(&t.ID, &t.UserID, &t.Name, &t.Hash, &t.Prefix, &scopes, &created, &last, &revoked, &t.Client, &t.IP)
 	if err != nil {
 		return domain.Token{}, err
 	}
@@ -210,7 +210,7 @@ func (s *Store) ListTokens(ctx context.Context, userID string, q domain.ListQuer
 	if limit <= 0 {
 		limit = 51
 	}
-	rows, err := s.query(ctx, `SELECT id, user_id, name, token_hash, token_prefix, scopes, created_at, last_used_at, revoked_at FROM api_tokens `+w.sql()+` `+orderSQL(expr, "id", desc)+` LIMIT ?`, append(w.args, limit)...)
+	rows, err := s.query(ctx, `SELECT id, user_id, name, token_hash, token_prefix, scopes, created_at, last_used_at, revoked_at, client, ip FROM api_tokens `+w.sql()+` `+orderSQL(expr, "id", desc)+` LIMIT ?`, append(w.args, limit)...)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -243,6 +243,13 @@ func (s *Store) RevokeToken(ctx context.Context, userID, id, at string) (bool, e
 	}
 	n, _ := res.RowsAffected()
 	return n == 1, nil
+}
+
+// RevokeExpiredLogins revokes every live token with this name that was last
+// used (or, never used, created) before idleBefore, or created before maxBefore.
+func (s *Store) RevokeExpiredLogins(ctx context.Context, name, at, idleBefore, maxBefore string) error {
+	_, err := s.exec(ctx, `UPDATE api_tokens SET revoked_at=? WHERE name=? AND revoked_at IS NULL AND (COALESCE(last_used_at, created_at) < ? OR created_at < ?)`, at, name, idleBefore, maxBefore)
+	return err
 }
 
 func (s *Store) TouchToken(ctx context.Context, id, at, staleBefore string) error {

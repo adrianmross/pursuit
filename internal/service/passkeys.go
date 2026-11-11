@@ -170,6 +170,9 @@ func (s *Service) BeginPasskeyRegistration(ctx context.Context) (*protocol.Crede
 	if err != nil {
 		return nil, err
 	}
+	if err := s.requireFresh(ctx, a); err != nil {
+		return nil, err
+	}
 	u, err := s.loadPasskeyUser(ctx, a.UserID, true)
 	if err != nil {
 		return nil, err
@@ -316,6 +319,9 @@ func (s *Service) ListPasskeys(ctx context.Context) ([]PasskeyView, error) {
 func (s *Service) DeletePasskey(ctx context.Context, id string) (domain.Deleted, error) {
 	a, err := s.passkeyOwner(ctx)
 	if err != nil {
+		return domain.Deleted{}, err
+	}
+	if err := s.requireFresh(ctx, a); err != nil {
 		return domain.Deleted{}, err
 	}
 	err = s.DB.WithTx(ctx, func(ctx context.Context) error {

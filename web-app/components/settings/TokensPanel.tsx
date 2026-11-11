@@ -51,6 +51,41 @@ export function Secret({ value, server }: { value: string; server?: string }) {
   )
 }
 
+function TokenList({ tokens, revoke, session }: { tokens: Token[]; revoke: (id: string) => void; session?: boolean }) {
+  return (
+    <ItemGroup className="gap-2">
+      {tokens.map((t) => (
+        <Item key={t.id} variant="outline" size="sm">
+          <ItemMedia variant="icon">
+            <KeyRound />
+          </ItemMedia>
+          <ItemContent className="min-w-0">
+            <ItemTitle className="max-w-full">
+              <span className="truncate">{session ? t.client || "Browser" : t.name}</span>
+              {session && t.current && <Badge>This session</Badge>}
+              {!session &&
+                t.scopes.map((s) => (
+                  <Badge key={s} variant="secondary">
+                    {s}
+                  </Badge>
+                ))}
+            </ItemTitle>
+            <ItemDescription className="text-xs">
+              {session ? t.ip || "unknown IP" : <code>{t.prefix}…</code>} · created {new Date(t.created_at).toLocaleDateString()} ·{" "}
+              {t.last_used_at ? "used " + new Date(t.last_used_at).toLocaleDateString() : "never used"}
+            </ItemDescription>
+          </ItemContent>
+          <ItemActions>
+            <Button size="icon-sm" variant="ghost" aria-label={session ? "Sign out this session" : `Revoke ${t.name}`} onClick={() => revoke(t.id)}>
+              <Trash2 />
+            </Button>
+          </ItemActions>
+        </Item>
+      ))}
+    </ItemGroup>
+  )
+}
+
 export function TokensPanel() {
   const [tokens, setTokens] = useState<Token[] | null>(null)
   const [name, setName] = useState("")
@@ -96,6 +131,14 @@ export function TokensPanel() {
       setError(err instanceof Error ? err.message : "Could not revoke the token")
     }
   }
+
+  async function signOutOthers() {
+    for (const t of sessions) if (!t.current) await revoke(t.id)
+  }
+
+  // Dashboard sign-ins mint a token named LoginTokenName; they are sessions, not keys.
+  const sessions = (tokens || []).filter((t) => t.name === "login")
+  const keys = (tokens || []).filter((t) => t.name !== "login")
 
   return (
     <FieldGroup>
@@ -149,7 +192,7 @@ export function TokensPanel() {
         <FieldLegend variant="label">Active tokens</FieldLegend>
         {tokens == null ? (
           <Spinner className="text-muted-foreground" />
-        ) : tokens.length === 0 ? (
+        ) : keys.length === 0 ? (
           <Empty className="border p-4">
             <EmptyHeader>
               <EmptyMedia variant="icon">
@@ -160,36 +203,23 @@ export function TokensPanel() {
             </EmptyHeader>
           </Empty>
         ) : (
-          <ItemGroup className="gap-2">
-            {tokens.map((t) => (
-              <Item key={t.id} variant="outline" size="sm">
-                <ItemMedia variant="icon">
-                  <KeyRound />
-                </ItemMedia>
-                <ItemContent className="min-w-0">
-                  <ItemTitle className="max-w-full">
-                    <span className="truncate">{t.name}</span>
-                    {t.scopes.map((s) => (
-                      <Badge key={s} variant="secondary">
-                        {s}
-                      </Badge>
-                    ))}
-                  </ItemTitle>
-                  <ItemDescription className="text-xs">
-                    <code>{t.prefix}…</code> · created {new Date(t.created_at).toLocaleDateString()} ·{" "}
-                    {t.last_used_at ? "used " + new Date(t.last_used_at).toLocaleDateString() : "never used"}
-                  </ItemDescription>
-                </ItemContent>
-                <ItemActions>
-                  <Button size="icon-sm" variant="ghost" aria-label={`Revoke ${t.name}`} onClick={() => revoke(t.id)}>
-                    <Trash2 />
-                  </Button>
-                </ItemActions>
-              </Item>
-            ))}
-          </ItemGroup>
+          <TokenList tokens={keys} revoke={revoke} />
         )}
       </FieldSet>
+      {sessions.length > 0 && (
+        <FieldSet>
+          <FieldLegend variant="label">Dashboard sign-ins</FieldLegend>
+          <FieldDescription>
+            Each browser sign-in has its own session and lapses after 30 days without use. Signing out ends only that one.
+          </FieldDescription>
+          <TokenList tokens={sessions} revoke={revoke} session />
+          {sessions.some((t) => !t.current) && (
+            <Button variant="outline" className="self-start" onClick={signOutOthers}>
+              Sign out all other sessions
+            </Button>
+          )}
+        </FieldSet>
+      )}
     </FieldGroup>
   )
 }

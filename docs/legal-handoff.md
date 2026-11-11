@@ -29,7 +29,7 @@ Briefs to give Claude (a fresh session, Claude Docs, or the app) to review and t
 
 **Browser extension.** Stores server URL and token in `chrome.storage.local`. Content script runs on all http(s) pages and frames to detect job postings and application forms, then reads the posting and form fields. Talks only to the user's paired server. No remote code, no analytics. It is distributed through the Chrome Web Store, so the privacy policy has to satisfy the Chrome Web Store User Data Policy (single purpose, accurate disclosure, no sale or unrelated use, no advertising use).
 
-**Cookies and storage.** `pursuit_session` cookie, 30 days. Theme and interface preferences in local storage.
+**Cookies and storage.** `pursuit_session` cookie (`__Host-` prefixed over HTTPS), up to 90 days, 30 unused. Theme and interface preferences in local storage.
 
 **Deletion and export.** Pipeline export as JSON (Settings, or `pursuit export json`). Deletion is by request to the contact today; there is no self-serve account delete.
 

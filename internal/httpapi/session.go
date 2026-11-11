@@ -12,23 +12,59 @@ import (
 
 // sessionCookie holds the dashboard's token where page scripts can't read
 // it (httpOnly), instead of localStorage. Requests with a bearer token
-// never look at it.
+// never look at it. Over HTTPS the cookie is __Host- prefixed, which browsers
+// only accept with Secure, Path=/ and no Domain, so a sibling subdomain can't
+// plant one. Plain-http `pursuit serve` can't set Secure, so it keeps the bare name.
 const sessionCookie = "pursuit_session"
+
+func sessionCookieName(r *http.Request) string {
+	if isHTTPS(r) {
+		return "__Host-" + sessionCookie
+	}
+	return sessionCookie
+}
+
+// sessionCookieValue is the request's session token, "" without one.
+func sessionCookieValue(r *http.Request) string {
+	if c, err := r.Cookie(sessionCookieName(r)); err == nil {
+		return c.Value
+	}
+	return ""
+}
 
 func setSessionCookie(w http.ResponseWriter, r *http.Request, token string) {
 	http.SetCookie(w, &http.Cookie{
-		Name:     sessionCookie,
+		Name:     sessionCookieName(r),
 		Value:    token,
 		Path:     "/",
-		MaxAge:   60 * 60 * 24 * 30,
+		MaxAge:   int(service.LoginMaxTTL.Seconds()),
 		HttpOnly: true,
 		Secure:   isHTTPS(r),
 		SameSite: http.SameSiteLaxMode,
 	})
 }
 
+// clearSessionCookie also clears the pre-prefix name, so a browser signed in
+// before the rename doesn't keep a dead cookie.
 func clearSessionCookie(w http.ResponseWriter, r *http.Request) {
-	http.SetCookie(w, &http.Cookie{Name: sessionCookie, Value: "", Path: "/", MaxAge: -1, HttpOnly: true, Secure: isHTTPS(r), SameSite: http.SameSiteLaxMode})
+	for _, name := range []string{sessionCookie, "__Host-" + sessionCookie} {
+		http.SetCookie(w, &http.Cookie{Name: name, Value: "", Path: "/", MaxAge: -1, HttpOnly: true, Secure: isHTTPS(r), SameSite: http.SameSiteLaxMode})
+	}
+}
+
+// retireSession replaces the browser's current dashboard session with a new
+// sign-in: a re-login (or step-up) must not leave the old token alive beside
+// the new one. Only a login token of the same user is revoked.
+func (s *Server) retireSession(r *http.Request, userID string) {
+	old := sessionCookieValue(r)
+	if !strings.HasPrefix(old, "pst_") {
+		return
+	}
+	if actor, err := s.Svc.Authenticate(r.Context(), old); err == nil && actor.Name == service.LoginTokenName && actor.UserID == userID {
+		if _, err := s.Svc.RevokeToken(domain.WithActor(r.Context(), actor), actor.TokenID); err != nil {
+			s.log().Warn("retire previous session", "err", err.Error())
+		}
+	}
 }
 
 // isHTTPS is true behind a TLS-terminating proxy (Vercel) too, so a local
@@ -69,7 +105,7 @@ func (s *Server) createSession(w http.ResponseWriter, r *http.Request) {
 			writeErr(w, err)
 			return
 		}
-		if token, err = s.Svc.LoginIdentity(r.Context(), identity.Email, identity.Name, s.signupsOpen()); err != nil {
+		if token, err = s.Svc.LoginIdentity(originCtx(r), identity.Email, identity.Name, s.signupsOpen()); err != nil {
 			writeErr(w, s.signupsPaused(err))
 			return
 		}
@@ -78,6 +114,9 @@ func (s *Server) createSession(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		writeErr(w, err)
 		return
+	}
+	if token != sessionCookieValue(r) {
+		s.retireSession(r, actor.UserID)
 	}
 	setSessionCookie(w, r, token)
 	s.me(w, r.WithContext(domain.WithActor(r.Context(), actor)))
@@ -91,8 +130,8 @@ func (s *Server) deleteSession(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, crossSiteRefused())
 		return
 	}
-	if c, err := r.Cookie(sessionCookie); err == nil && strings.HasPrefix(c.Value, "pst_") {
-		if actor, err := s.Svc.Authenticate(r.Context(), c.Value); err == nil && actor.Name == service.LoginTokenName {
+	if c := sessionCookieValue(r); strings.HasPrefix(c, "pst_") {
+		if actor, err := s.Svc.Authenticate(r.Context(), c); err == nil && actor.Name == service.LoginTokenName {
 			if _, err := s.Svc.RevokeToken(domain.WithActor(r.Context(), actor), actor.TokenID); err != nil {
 				s.log().Warn("revoke login token on sign-out", "err", err.Error())
 			}

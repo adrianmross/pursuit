@@ -265,6 +265,63 @@ func TestPasskeyRegisterAndLogin(t *testing.T) {
 		t.Fatalf("login again %d %s", code, b)
 	}
 
+	e.api.passkeyLimiterFor().seen = map[string][]time.Time{} // the extra sign-ins below are not what this test limits
+
+	// Step-up: approving needs a passkey sign-in in the last StepUpWindow once the
+	// user has a passkey; signing in again replaces the old session.
+	e.svc.Now = func() time.Time { return time.Now().Add(service.StepUpWindow + time.Minute) }
+	owner := map[string]string{"Cookie": cookie, "Content-Type": "application/json", "Sec-Fetch-Site": "same-origin"}
+	code, b, _ = e.do(t, http.MethodPost, "/v1/tokens", "", []byte(`{"name":"x","scopes":["read","write","approve"]}`), owner)
+	if code != 403 || !strings.Contains(string(b), "step_up_required") {
+		t.Fatalf("stale session minted an approve token: %d %s", code, b)
+	}
+	code, _, h = e.do(t, http.MethodPost, "/v1/auth/passkey/login/finish", "", k.get(e.loginBegin(t)), owner)
+	if code != 200 {
+		t.Fatalf("step-up login %d", code)
+	}
+	fresh := strings.SplitN(h.Get("Set-Cookie"), ";", 2)[0]
+	owner["Cookie"] = fresh
+	if code, b, _ = e.do(t, http.MethodPost, "/v1/tokens", "", []byte(`{"name":"x","scopes":["read","write","approve"]}`), owner); code != 201 && code != 200 {
+		t.Fatalf("fresh session refused: %d %s", code, b)
+	}
+	if code, _, _ := e.do(t, http.MethodGet, "/v1/me", "", nil, map[string]string{"Cookie": cookie}); code != 401 {
+		t.Fatalf("old session survived re-login %d", code)
+	}
+	cookie = fresh
+	e.svc.Now = time.Now
+
+	// A busy session still ends at LoginMaxTTL: used every 25 days, never idle, yet gone at day 91.
+	for _, day := range []int{25, 50, 75} {
+		at := time.Now().Add(time.Duration(day) * 24 * time.Hour)
+		e.svc.Now = func() time.Time { return at }
+		if code, _, _ := e.do(t, http.MethodGet, "/v1/me", "", nil, map[string]string{"Cookie": cookie}); code != 200 {
+			t.Fatalf("active session refused at day %d: %d", day, code)
+		}
+	}
+	e.svc.Now = func() time.Time { return time.Now().Add(91 * 24 * time.Hour) }
+	if code, _, _ := e.do(t, http.MethodGet, "/v1/me", "", nil, map[string]string{"Cookie": cookie}); code != 401 {
+		t.Fatalf("session outlived LoginMaxTTL %d", code)
+	}
+	e.svc.Now = time.Now
+	code, _, h = e.post(t, "/v1/auth/passkey/login/finish", "", k.get(e.loginBegin(t)))
+	if code != 200 {
+		t.Fatalf("login after cap %d", code)
+	}
+	cookie = strings.SplitN(h.Get("Set-Cookie"), ";", 2)[0]
+
+	// An idle dashboard session lapses after LoginIdleTTL and is swept from the token list.
+	e.svc.Now = func() time.Time { return time.Now().Add(service.LoginIdleTTL + time.Hour) }
+	if code, _, _ := e.do(t, http.MethodGet, "/v1/me", "", nil, map[string]string{"Cookie": cookie}); code != 401 {
+		t.Fatalf("idle login token still valid %d", code)
+	}
+	_, toks := e.json(t, http.MethodGet, "/v1/tokens", e.token, nil)
+	for _, it := range toks["data"].([]any) {
+		if it.(map[string]any)["prefix"] == strings.TrimPrefix(cookie, sessionCookie+"=")[:12] && it.(map[string]any)["revoked_at"] == nil {
+			t.Fatalf("idle login token not swept: %v", it)
+		}
+	}
+	e.svc.Now = time.Now
+
 	// Unknown credential: a key that was never registered, for this user's handle and for a random one.
 	stranger := newSoftKey(t)
 	stranger.handle = k.handle

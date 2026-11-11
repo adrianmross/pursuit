@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"context"
 	"net"
 	"net/http"
 	"os"
@@ -9,6 +10,7 @@ import (
 	"time"
 
 	"github.com/pursuit/pursuit/internal/domain"
+	"github.com/pursuit/pursuit/internal/service"
 )
 
 // demoLimiter caps how many new demo tenants a single client IP can mint
@@ -59,6 +61,11 @@ func (l *demoLimiter) allow(key string) bool {
 // clientIP keys the rate limiters. X-Forwarded-For is trusted only on
 // Vercel, whose edge sets it; a directly exposed server would otherwise let
 // every request pick its own key.
+// originCtx records where a sign-in came from for the session list.
+func originCtx(r *http.Request) context.Context {
+	return service.WithOrigin(r.Context(), service.Origin{IP: clientIP(r), UserAgent: r.UserAgent()})
+}
+
 func clientIP(r *http.Request) string {
 	if fwd := r.Header.Get("X-Forwarded-For"); fwd != "" && os.Getenv("VERCEL") != "" {
 		return strings.TrimSpace(strings.Split(fwd, ",")[0])
