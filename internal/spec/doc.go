@@ -238,6 +238,9 @@ func build() []byte {
 	add("/skill.md", "get", "Agent Skill for the pursuit CLI", false, with(hidden, "raw", "text/markdown", "id", "getSkill"))
 	add("/reference", "get", "Interactive API reference page (HTML)", false, with(hidden, "raw", "text/html", "id", "getReference"))
 
+	add("/.well-known/oauth-authorization-server", "get", "OAuth server metadata (RFC 8414)", false, with(hidden, "raw", "application/json", "id", "getOAuthServerMetadata"))
+	add("/.well-known/oauth-protected-resource", "get", "OAuth protected resource metadata (RFC 9728)", false, with(hidden, "raw", "application/json", "id", "getOAuthResourceMetadata"))
+
 	open := x{"security": []any{}}
 	add("/v1/auth/device_authorization", "post", "Start a device login. RFC 8628 device authorization for `pursuit auth login --device`. scope is space or comma separated, each exactly read or write, default read write; anything else (approve, APPROVE, Read) is invalid_scope: OAuth never grants approve. client_id is at most 64 characters. limited to 10 starts a minute per client IP (429 slow_down). device codes last 10 minutes; poll /v1/auth/token no faster than interval. there is no verification_uri_complete: the human types the code", false, x{
 		"security":    []any{},

@@ -39,6 +39,7 @@ func (s *Server) registerOAuth(mux *http.ServeMux) {
 	mux.HandleFunc("POST /v1/oauth/authorize", s.oauthAuthorize)
 	mux.HandleFunc("GET /v1/oauth/device", s.oauthDeviceLookup)
 	mux.HandleFunc("POST /v1/oauth/device/approve", s.oauthDeviceApprove)
+	s.registerOAuthMetadata(mux)
 }
 
 func (s *Server) oauthForm(w http.ResponseWriter, r *http.Request) bool {
