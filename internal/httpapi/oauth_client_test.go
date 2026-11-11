@@ -269,3 +269,198 @@ func TestOAuthRegisteredClientNeverGetsApprove(t *testing.T) {
 		}
 	}
 }
+
+// connect registers a client and runs the code flow, returning the token response.
+func connect(t *testing.T, e *env, scope string) (clientID string, tok map[string]any) {
+	t.Helper()
+	_, reg := e.register(t, `{"client_name":"Claude","redirect_uris":["https://claude.ai/cb"]}`)
+	clientID = reg["client_id"].(string)
+	b := authzFor(clientID, "https://claude.ai/cb", true)
+	b["scope"] = scope
+	code, out := e.consent(t, "/v1/oauth/authorize", e.token, b)
+	if code != 200 {
+		t.Fatalf("authorize: %d %v", code, out)
+	}
+	u, _ := url.Parse(out["redirect_to"].(string))
+	status, tok := e.form(t, "/v1/auth/token", url.Values{
+		"grant_type": {"authorization_code"}, "code": {u.Query().Get("code")}, "code_verifier": {verifier},
+		"redirect_uri": {"https://claude.ai/cb"}, "client_id": {clientID},
+	})
+	if status != 200 {
+		t.Fatalf("token: %d %v", status, tok)
+	}
+	return clientID, tok
+}
+
+func (e *env) refresh(t *testing.T, clientID, refresh string, extra url.Values) (int, map[string]any) {
+	t.Helper()
+	v := url.Values{"grant_type": {"refresh_token"}, "refresh_token": {refresh}, "client_id": {clientID}}
+	for k, vs := range extra {
+		v[k] = vs
+	}
+	return e.form(t, "/v1/auth/token", v)
+}
+
+func TestOAuthRefreshRotation(t *testing.T) {
+	e := newEnv(t)
+	clk := withClock(e)
+	clientID, tok := connect(t, e, "read write offline_access")
+	access, refresh := tok["access_token"].(string), tok["refresh_token"].(string)
+	if tok["expires_in"] != float64(3600) || !strings.HasPrefix(refresh, "psr_") || tok["scope"] != "read write" {
+		t.Fatalf("token: %v", tok)
+	}
+	if got := scopesOf(t, e, access); got != `["read","write"]` {
+		t.Fatalf("scopes %s", got)
+	}
+
+	// The access token dies at an hour.
+	clk.add(59 * time.Minute)
+	if code, _ := e.json(t, "GET", "/v1/me", access, nil); code != 200 {
+		t.Fatalf("within the hour: %d", code)
+	}
+	clk.add(2 * time.Minute)
+	if code, _ := e.json(t, "GET", "/v1/me", access, nil); code != 401 {
+		t.Fatalf("after the hour: %d", code)
+	}
+
+	// A refresh answers a new pair and retires the old refresh token.
+	status, next := e.refresh(t, clientID, refresh, nil)
+	if status != 200 || next["access_token"] == access || next["refresh_token"] == refresh || next["expires_in"] != float64(3600) {
+		t.Fatalf("refresh: %d %v", status, next)
+	}
+	if code, _ := e.json(t, "GET", "/v1/me", next["access_token"].(string), nil); code != 200 {
+		t.Fatalf("new access token: %d", code)
+	}
+
+	// Replaying the old one is a theft signal: the whole connection goes.
+	if status, doc := e.refresh(t, clientID, refresh, nil); status != 400 || oauthError(doc) != "invalid_grant" {
+		t.Fatalf("replay: %d %v", status, doc)
+	}
+	if code, _ := e.json(t, "GET", "/v1/me", next["access_token"].(string), nil); code != 401 {
+		t.Errorf("access token survived reuse detection: %d", code)
+	}
+	if _, doc := e.refresh(t, clientID, next["refresh_token"].(string), nil); oauthError(doc) != "invalid_grant" {
+		t.Errorf("newest refresh token survived reuse detection: %v", doc)
+	}
+}
+
+func TestOAuthRefreshLimits(t *testing.T) {
+	e := newEnv(t)
+	clk := withClock(e)
+	clientID, tok := connect(t, e, "read write")
+	refresh := tok["refresh_token"].(string)
+
+	if _, doc := e.refresh(t, "pc_someone-else", refresh, nil); oauthError(doc) != "invalid_grant" {
+		t.Errorf("other client: %v", doc)
+	}
+	if _, doc := e.refresh(t, clientID, "psr_nope", nil); oauthError(doc) != "invalid_grant" {
+		t.Errorf("unknown token: %v", doc)
+	}
+	if _, doc := e.refresh(t, clientID, refresh, url.Values{"scope": {"approve"}}); oauthError(doc) != "invalid_scope" {
+		t.Errorf("approve: %v", doc)
+	}
+	if _, doc := e.refresh(t, clientID, refresh, url.Values{"resource": {e.srv.URL + "/other"}}); oauthError(doc) != "invalid_target" {
+		t.Errorf("resource: %v", doc)
+	}
+
+	// Narrowing is allowed and sticks.
+	status, narrow := e.refresh(t, clientID, refresh, url.Values{"scope": {"read"}})
+	if status != 200 || narrow["scope"] != "read" {
+		t.Fatalf("narrow: %d %v", status, narrow)
+	}
+	if _, doc := e.refresh(t, clientID, narrow["refresh_token"].(string), url.Values{"scope": {"read write"}}); oauthError(doc) != "invalid_scope" {
+		t.Errorf("widening: %v", doc)
+	}
+
+	// 31 idle days kill the chain even though 90 haven't passed.
+	id2, tok2 := connect(t, e, "read")
+	clk.add(31 * 24 * time.Hour)
+	if _, doc := e.refresh(t, id2, tok2["refresh_token"].(string), nil); oauthError(doc) != "invalid_grant" {
+		t.Errorf("idle: %v", doc)
+	}
+
+	// Active use extends the idle limit but never the 90 day cap.
+	id3, tok3 := connect(t, e, "read")
+	r := tok3["refresh_token"].(string)
+	for i := 0; i < 3; i++ {
+		clk.add(29 * 24 * time.Hour)
+		status, next := e.refresh(t, id3, r, nil)
+		if status != 200 {
+			t.Fatalf("refresh %d: %d %v", i, status, next)
+		}
+		r = next["refresh_token"].(string)
+	}
+	clk.add(4 * 24 * time.Hour) // day 91
+	if _, doc := e.refresh(t, id3, r, nil); oauthError(doc) != "invalid_grant" {
+		t.Errorf("absolute cap: %v", doc)
+	}
+}
+
+func TestOAuthConnectionRevoke(t *testing.T) {
+	e := newEnv(t)
+	countApps := func() (n int) {
+		_, list := e.json(t, "GET", "/v1/tokens?limit=100", e.token, nil)
+		for _, it := range list["data"].([]any) {
+			m := it.(map[string]any)
+			if m["client_id"] != nil && m["revoked_at"] == nil {
+				n++
+			}
+		}
+		return n
+	}
+
+	// Refreshing leaves one live token per connection, listed under its app.
+	id, tok := connect(t, e, "read")
+	_, next := e.refresh(t, id, tok["refresh_token"].(string), nil)
+	if n := countApps(); n != 1 {
+		t.Fatalf("live app tokens after a refresh = %d, want 1", n)
+	}
+	if code, _ := e.json(t, "GET", "/v1/me", tok["access_token"].(string), nil); code != 401 {
+		t.Errorf("the previous access token should be revoked: %d", code)
+	}
+
+	// Revoking its token in Settings kills the refresh token too.
+	_, list := e.json(t, "GET", "/v1/tokens?limit=100", e.token, nil)
+	var tokenID string
+	for _, it := range list["data"].([]any) {
+		if m := it.(map[string]any); m["client_id"] == id && m["revoked_at"] == nil {
+			tokenID = m["id"].(string)
+		}
+	}
+	if code, out := e.json(t, "DELETE", "/v1/tokens/"+tokenID, e.token, nil); code != 200 {
+		t.Fatalf("revoke: %d %v", code, out)
+	}
+	if _, doc := e.refresh(t, id, next["refresh_token"].(string), nil); oauthError(doc) != "invalid_grant" {
+		t.Errorf("refresh after revoke: %v", doc)
+	}
+
+	// RFC 7009: revoking the refresh token ends the connection.
+	id, tok = connect(t, e, "read")
+	if status, _ := e.form(t, "/v1/auth/revoke", url.Values{"token": {tok["refresh_token"].(string)}}); status != 200 {
+		t.Fatalf("revoke refresh: %d", status)
+	}
+	if code, _ := e.json(t, "GET", "/v1/me", tok["access_token"].(string), nil); code != 401 {
+		t.Errorf("access token after revoking its refresh token: %d", code)
+	}
+	if n := countApps(); n != 0 {
+		t.Errorf("live app tokens = %d, want 0", n)
+	}
+	_ = id
+}
+
+func TestCLITokensStillNeverExpire(t *testing.T) {
+	e := newEnv(t)
+	clk := withClock(e)
+	code, out := authorize(t, e, loopback, "read write", true)
+	if code != 200 {
+		t.Fatalf("authorize: %d %v", code, out)
+	}
+	status, tok := exchange(t, e, codeFrom(t, out), verifier, loopback)
+	if status != 200 || tok["expires_in"] != nil || tok["refresh_token"] != nil {
+		t.Fatalf("cli token: %d %v", status, tok)
+	}
+	clk.add(400 * 24 * time.Hour)
+	if code, _ := e.json(t, "GET", "/v1/me", tok["access_token"].(string), nil); code != 200 {
+		t.Errorf("cli token after 400 days: %d", code)
+	}
+}

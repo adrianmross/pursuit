@@ -100,10 +100,12 @@ func (s *Server) oauthToken(w http.ResponseWriter, r *http.Request) {
 	switch f.Get("grant_type") {
 	case "authorization_code":
 		out, err = s.Svc.OAuthExchangeCode(r.Context(), f.Get("code"), f.Get("code_verifier"), f.Get("redirect_uri"), f.Get("client_id"), f.Get("resource"))
+	case "refresh_token":
+		out, err = s.Svc.OAuthRefresh(r.Context(), f.Get("refresh_token"), f.Get("client_id"), f.Get("scope"), f.Get("resource"))
 	case service.DeviceCodeGrantType:
 		out, err = s.Svc.OAuthExchangeDevice(r.Context(), f.Get("device_code"), f.Get("client_id"))
 	default:
-		err = &service.OAuthError{Code: "unsupported_grant_type", Description: "use authorization_code or " + service.DeviceCodeGrantType}
+		err = &service.OAuthError{Code: "unsupported_grant_type", Description: "use authorization_code, refresh_token or " + service.DeviceCodeGrantType}
 	}
 	if err != nil {
 		s.logOAuth("token", err)

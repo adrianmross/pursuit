@@ -73,7 +73,7 @@ func (s *Store) DeleteDemoUsers(ctx context.Context, before time.Time) (int, err
 		for _, t := range []string{
 			"events", "work_items", "approvals", "artifacts", "questions", "interviews", "tasks", "notes",
 			"applications", "posting_checks", "roles", "companies", "custom_fields", "tags",
-			"api_tokens", "standing_answers", "company_caps", "webhooks", "documents", "oauth_grants",
+			"api_tokens", "oauth_refresh_tokens", "standing_answers", "company_caps", "webhooks", "documents", "oauth_grants",
 			"webauthn_credentials", "webauthn_challenges", "billing_accounts", "entitlements", "user_features",
 			"search_chunks", "idempotency_keys", "audit_log",
 		} {
@@ -146,13 +146,17 @@ func (s *Store) CountTokens(ctx context.Context) (int, error) {
 }
 
 func (s *Store) CreateToken(ctx context.Context, t domain.Token) error {
-	_, err := s.exec(ctx, `INSERT INTO api_tokens (id, user_id, name, token_hash, token_prefix, scopes, created_at, client, ip) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		t.ID, t.UserID, t.Name, t.Hash, t.Prefix, strings.Join(t.Scopes, ","), formatTime(t.CreatedAt), t.Client, t.IP)
+	expires := ""
+	if t.ExpiresAt != nil {
+		expires = formatTime(*t.ExpiresAt)
+	}
+	_, err := s.exec(ctx, `INSERT INTO api_tokens (id, user_id, name, token_hash, token_prefix, scopes, created_at, client, ip, client_id, resource, expires_at, family_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		t.ID, t.UserID, t.Name, t.Hash, t.Prefix, strings.Join(t.Scopes, ","), formatTime(t.CreatedAt), t.Client, t.IP, t.ClientID, t.Resource, expires, t.FamilyID)
 	return mapWriteErr(err)
 }
 
 func (s *Store) GetTokenByHash(ctx context.Context, hash string) (domain.Token, error) {
-	row := s.queryRow(ctx, `SELECT id, user_id, name, token_hash, token_prefix, scopes, created_at, last_used_at, revoked_at, client, ip FROM api_tokens WHERE token_hash=?`, hash)
+	row := s.queryRow(ctx, `SELECT id, user_id, name, token_hash, token_prefix, scopes, created_at, last_used_at, revoked_at, client, ip, client_id, resource, expires_at, family_id FROM api_tokens WHERE token_hash=?`, hash)
 	t, err := scanToken(row)
 	if err == sql.ErrNoRows {
 		return domain.Token{}, domain.NotFound("token")
@@ -161,7 +165,7 @@ func (s *Store) GetTokenByHash(ctx context.Context, hash string) (domain.Token, 
 }
 
 func (s *Store) GetToken(ctx context.Context, userID, id string) (domain.Token, error) {
-	row := s.queryRow(ctx, `SELECT id, user_id, name, token_hash, token_prefix, scopes, created_at, last_used_at, revoked_at, client, ip FROM api_tokens WHERE user_id=? AND id=?`, userID, id)
+	row := s.queryRow(ctx, `SELECT id, user_id, name, token_hash, token_prefix, scopes, created_at, last_used_at, revoked_at, client, ip, client_id, resource, expires_at, family_id FROM api_tokens WHERE user_id=? AND id=?`, userID, id)
 	t, err := scanToken(row)
 	if err == sql.ErrNoRows {
 		return domain.Token{}, domain.NotFound("token")
@@ -172,8 +176,8 @@ func (s *Store) GetToken(ctx context.Context, userID, id string) (domain.Token, 
 func scanToken(row scanner) (domain.Token, error) {
 	var t domain.Token
 	var scopes, created string
-	var last, revoked sql.NullString
-	err := row.Scan(&t.ID, &t.UserID, &t.Name, &t.Hash, &t.Prefix, &scopes, &created, &last, &revoked, &t.Client, &t.IP)
+	var last, revoked, expires sql.NullString
+	err := row.Scan(&t.ID, &t.UserID, &t.Name, &t.Hash, &t.Prefix, &scopes, &created, &last, &revoked, &t.Client, &t.IP, &t.ClientID, &t.Resource, &expires, &t.FamilyID)
 	if err != nil {
 		return domain.Token{}, err
 	}
@@ -190,7 +194,10 @@ func scanToken(row scanner) (domain.Token, error) {
 	if err != nil {
 		return domain.Token{}, err
 	}
-	t.RevokedAt, err = optTime(revoked)
+	if t.RevokedAt, err = optTime(revoked); err != nil {
+		return domain.Token{}, err
+	}
+	t.ExpiresAt, err = optTime(expires)
 	return t, err
 }
 
@@ -210,7 +217,7 @@ func (s *Store) ListTokens(ctx context.Context, userID string, q domain.ListQuer
 	if limit <= 0 {
 		limit = 51
 	}
-	rows, err := s.query(ctx, `SELECT id, user_id, name, token_hash, token_prefix, scopes, created_at, last_used_at, revoked_at, client, ip FROM api_tokens `+w.sql()+` `+orderSQL(expr, "id", desc)+` LIMIT ?`, append(w.args, limit)...)
+	rows, err := s.query(ctx, `SELECT id, user_id, name, token_hash, token_prefix, scopes, created_at, last_used_at, revoked_at, client, ip, client_id, resource, expires_at, family_id FROM api_tokens `+w.sql()+` `+orderSQL(expr, "id", desc)+` LIMIT ?`, append(w.args, limit)...)
 	if err != nil {
 		return nil, 0, err
 	}

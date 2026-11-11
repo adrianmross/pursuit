@@ -7,6 +7,7 @@ import (
 	"math/big"
 	"net"
 	"net/url"
+	"slices"
 	"strings"
 	"time"
 
@@ -41,11 +42,19 @@ func (e *OAuthError) Error() string { return e.Code + ": " + e.Description }
 
 func oauthErr(code, desc string) *OAuthError { return &OAuthError{Code: code, Description: desc} }
 
+// OfflineAccess asks for a refresh token. Registered clients always get one,
+// so it is accepted and dropped.
+const OfflineAccess = "offline_access"
+
 // OAuthToken is the token endpoint's success body.
 type OAuthToken struct {
 	AccessToken string `json:"access_token"`
 	TokenType   string `json:"token_type"`
 	Scope       string `json:"scope"`
+	// ExpiresIn and RefreshToken are set for registered clients only; the
+	// CLI's tokens do not expire.
+	ExpiresIn    int    `json:"expires_in,omitempty"`
+	RefreshToken string `json:"refresh_token,omitempty"`
 }
 
 // ParseOAuthScopes accepts space- or comma-separated scopes, each exactly
@@ -54,6 +63,7 @@ type OAuthToken struct {
 // explicit PURSUIT_TOKEN a human minted on purpose.
 func ParseOAuthScopes(raw string) ([]string, error) {
 	parts := strings.FieldsFunc(raw, func(r rune) bool { return r == ' ' || r == ',' })
+	parts = slices.DeleteFunc(parts, func(p string) bool { return p == OfflineAccess })
 	if len(parts) == 0 {
 		parts = []string{"read", "write"}
 	}
@@ -514,6 +524,14 @@ func (s *Service) OAuthExchangeDevice(ctx context.Context, deviceCode, clientID 
 }
 
 func (s *Service) issueOAuthToken(ctx context.Context, g sqlstore.OAuthGrant, flow string) (OAuthToken, error) {
+	if client, err := s.DB.GetOAuthClient(ctx, g.ClientID); err == nil {
+		return s.issueClientTokens(ctx, clientGrant{
+			userID: g.UserID, approverTokenID: g.ApproverTokenID, resource: g.Resource, grantID: g.ID, flow: flow,
+			client: client, scopes: g.Scopes, family: s.NewID(), absoluteAt: s.now().Add(RefreshMaxTTL),
+		})
+	} else if !domain.IsCode(err, "not_found") {
+		return OAuthToken{}, err
+	}
 	secret, prefix, hash, err := auth.Generate()
 	if err != nil {
 		return OAuthToken{}, err
@@ -539,6 +557,9 @@ func (s *Service) OAuthRevoke(ctx context.Context, secret string) error {
 	if secret == "" {
 		return oauthErr("invalid_request", "token is required")
 	}
+	if done, err := s.revokeRefresh(ctx, secret); done {
+		return err
+	}
 	tok, err := s.DB.GetTokenByHash(ctx, auth.Hash(secret))
 	if domain.IsCode(err, "not_found") || (err == nil && tok.RevokedAt != nil) {
 		return nil
@@ -550,6 +571,11 @@ func (s *Service) OAuthRevoke(ctx context.Context, secret string) error {
 		changed, err := s.DB.RevokeToken(ctx, tok.UserID, tok.ID, domain.FormatTime(s.now()))
 		if err != nil || !changed {
 			return err
+		}
+		if tok.FamilyID != "" {
+			if err := s.DB.RevokeTokenFamily(ctx, tok.FamilyID, domain.FormatTime(s.now())); err != nil {
+				return err
+			}
 		}
 		actor := domain.Actor{UserID: tok.UserID, TokenID: tok.ID, Name: tok.Name, Scopes: tok.Scopes}
 		return s.audit(ctx, actor, "token.revoke", "token", tok.ID, "revoked token "+tok.Name+" (logout)", nil)

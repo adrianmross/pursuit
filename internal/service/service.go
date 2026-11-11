@@ -112,6 +112,9 @@ func (s *Service) Authenticate(ctx context.Context, secret string) (domain.Actor
 			return domain.Actor{}, domain.Unauthorized()
 		}
 	}
+	if tok.ExpiresAt != nil && !now.Before(*tok.ExpiresAt) {
+		return domain.Actor{}, domain.Unauthorized()
+	}
 	_ = s.DB.TouchToken(ctx, tok.ID, domain.FormatTime(now), domain.FormatTime(now.Add(-time.Minute)))
 	a := domain.Actor{UserID: tok.UserID, TokenID: tok.ID, Name: tok.Name, Scopes: tok.Scopes, Demo: tok.Name == demoTokenName}
 	if tok.Name == LoginTokenName {
@@ -509,6 +512,11 @@ func (s *Service) RevokeToken(ctx context.Context, id string) (domain.Token, err
 			return err
 		}
 		out.Hash = ""
+		if out.FamilyID != "" { // an app's access token: the whole connection goes
+			if err := s.DB.RevokeTokenFamily(ctx, out.FamilyID, domain.FormatTime(s.now())); err != nil {
+				return err
+			}
+		}
 		if changed {
 			return s.audit(ctx, a, "token.revoke", "token", id, "revoked token "+out.Name, nil)
 		}

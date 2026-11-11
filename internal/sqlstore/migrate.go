@@ -666,4 +666,33 @@ var migrations = []migration{{
 		// The resource (RFC 8707) an authorization code was asked for.
 		`ALTER TABLE oauth_grants ADD COLUMN resource TEXT NOT NULL DEFAULT ''`,
 	},
+}, {
+	version: "028",
+	stmts: []string{
+		// Tokens issued to a registered OAuth client: whose they are, the
+		// resource they are bound to, when they stop working, and the family
+		// (one consent) they belong to, so revoking one revokes the grant.
+		`ALTER TABLE api_tokens ADD COLUMN client_id TEXT NOT NULL DEFAULT ''`,
+		`ALTER TABLE api_tokens ADD COLUMN resource TEXT NOT NULL DEFAULT ''`,
+		`ALTER TABLE api_tokens ADD COLUMN expires_at TEXT NOT NULL DEFAULT ''`,
+		`ALTER TABLE api_tokens ADD COLUMN family_id TEXT NOT NULL DEFAULT ''`,
+		`CREATE INDEX IF NOT EXISTS api_tokens_family_idx ON api_tokens(family_id) WHERE family_id <> ''`,
+		// Refresh tokens rotate: each is used once and answered with the next.
+		// A second use of one revokes the whole family. Only hashes are stored.
+		`CREATE TABLE IF NOT EXISTS oauth_refresh_tokens (
+			id TEXT PRIMARY KEY,
+			token_hash TEXT NOT NULL UNIQUE,
+			family_id TEXT NOT NULL,
+			client_id TEXT NOT NULL,
+			user_id TEXT NOT NULL,
+			scopes TEXT NOT NULL,
+			resource TEXT NOT NULL DEFAULT '',
+			created_at TEXT NOT NULL,
+			expires_at TEXT NOT NULL,
+			absolute_at TEXT NOT NULL,
+			used_at TEXT NOT NULL DEFAULT '',
+			revoked_at TEXT NOT NULL DEFAULT ''
+		)`,
+		`CREATE INDEX IF NOT EXISTS oauth_refresh_family_idx ON oauth_refresh_tokens(family_id)`,
+	},
 }}

@@ -2321,6 +2321,12 @@
           "access_token": {
             "type": "string"
           },
+          "expires_in": {
+            "type": "integer"
+          },
+          "refresh_token": {
+            "type": "string"
+          },
           "scope": {
             "type": "string"
           },
@@ -3167,12 +3173,22 @@
           "client": {
             "type": "string"
           },
+          "client_id": {
+            "type": "string"
+          },
           "created_at": {
             "format": "date-time",
             "type": "string"
           },
           "current": {
             "type": "boolean"
+          },
+          "expires_at": {
+            "format": "date-time",
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "id": {
             "type": "string"
@@ -6869,7 +6885,7 @@
     },
     "/v1/auth/token": {
       "post": {
-        "description": "OAuth2 token endpoint. grant_type=authorization_code takes code, code_verifier (PKCE S256), redirect_uri, client_id; codes are single-use and last 60 seconds. grant_type=urn:ietf:params:oauth:grant-type:device_code takes device_code, client_id and answers authorization_pending, slow_down, expired_token, or access_denied until approved. The access_token is a normal pst_ API token.",
+        "description": "OAuth2 token endpoint. grant_type=authorization_code takes code, code_verifier (PKCE S256), redirect_uri, client_id; codes are single-use and last 60 seconds. grant_type=urn:ietf:params:oauth:grant-type:device_code takes device_code, client_id and answers authorization_pending, slow_down, expired_token, or access_denied until approved. The access_token is a normal pst_ API token. For a registered app (a client_id that is an https URL, or one from /v1/auth/register) it expires in an hour (expires_in) and comes with a refresh_token; grant_type=refresh_token takes refresh_token, client_id and optionally a narrower scope, and answers a new pair. Each refresh token works once: using one a second time revokes the whole connection. The CLI's tokens do not expire.",
         "operationId": "getAccessToken",
         "requestBody": {
           "content": {
@@ -6891,11 +6907,21 @@
                   "grant_type": {
                     "enum": [
                       "authorization_code",
+                      "refresh_token",
                       "urn:ietf:params:oauth:grant-type:device_code"
                     ],
                     "type": "string"
                   },
                   "redirect_uri": {
+                    "type": "string"
+                  },
+                  "refresh_token": {
+                    "type": "string"
+                  },
+                  "resource": {
+                    "type": "string"
+                  },
+                  "scope": {
                     "type": "string"
                   }
                 },

@@ -255,11 +255,11 @@ func build() []byte {
 		"status":   201,
 		"errors":   []int{400, 429},
 	})
-	add("/v1/auth/token", "post", "Get an access token. OAuth2 token endpoint. grant_type=authorization_code takes code, code_verifier (PKCE S256), redirect_uri, client_id; codes are single-use and last 60 seconds. grant_type=urn:ietf:params:oauth:grant-type:device_code takes device_code, client_id and answers authorization_pending, slow_down, expired_token, or access_denied until approved. The access_token is a normal pst_ API token", false, x{
+	add("/v1/auth/token", "post", "Get an access token. OAuth2 token endpoint. grant_type=authorization_code takes code, code_verifier (PKCE S256), redirect_uri, client_id; codes are single-use and last 60 seconds. grant_type=urn:ietf:params:oauth:grant-type:device_code takes device_code, client_id and answers authorization_pending, slow_down, expired_token, or access_denied until approved. The access_token is a normal pst_ API token. For a registered app (a client_id that is an https URL, or one from /v1/auth/register) it expires in an hour (expires_in) and comes with a refresh_token; grant_type=refresh_token takes refresh_token, client_id and optionally a narrower scope, and answers a new pair. Each refresh token works once: using one a second time revokes the whole connection. The CLI's tokens do not expire", false, x{
 		"security": []any{},
 		"requestBody": form(x{
-			"grant_type": x{"type": "string", "enum": []string{"authorization_code", "urn:ietf:params:oauth:grant-type:device_code"}},
-			"code":       str, "code_verifier": str, "redirect_uri": str, "device_code": str, "client_id": str,
+			"grant_type": x{"type": "string", "enum": []string{"authorization_code", "refresh_token", "urn:ietf:params:oauth:grant-type:device_code"}},
+			"code":       str, "code_verifier": str, "redirect_uri": str, "device_code": str, "client_id": str, "refresh_token": str, "scope": str, "resource": str,
 		}, "grant_type"),
 		"responses": oauthResp(service.OAuthToken{}),
 		"cli":       "pursuit auth login",

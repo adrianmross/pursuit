@@ -50,7 +50,8 @@ Shipped: `iss` on every authorization response and advertised in metadata; `reso
 - The consent page shows the client name, the redirect host, the scopes, and an "unverified app" line, because anyone can register. Scopes remain `read`/`write`; `approve` can never be granted to a registered client, enforced in `checkGrantable` and tested.
 - Existing step-up applies: a stale session is asked for its passkey before consent (`humanApprover` already calls `requireFresh`).
 
-### 4. Short-lived tokens and refresh rotation
+### 4. Short-lived tokens and refresh rotation (built)
+Shipped: registered clients get a 1 hour `pst_` access token plus a rotating `psr_` refresh token (30 days idle, 90 absolute); tokens carry `client_id`, `resource`, `expires_at` and `family_id` (migration `028`); `Authenticate` rejects expired tokens; reuse of a refresh token revokes the whole family; `DELETE /v1/tokens/{id}` and RFC 7009 revoke on either token kill the family; a refresh revokes the family's older access token so a connection has one live token; Settings has a "Connected apps" panel and the API tokens list hides app tokens. `offline_access` is accepted and ignored because registered clients always get a refresh token. Known gaps: two refreshes racing with the same token count as reuse (no grace window); a connection whose refresh chain died stays listed until disconnected. The resource check on use belongs to the MCP endpoint in phase 5.
 - Migration: `api_tokens` gains `client_id` and `expires_at`; `Authenticate` rejects expired tokens. New table `oauth_refresh_tokens(hash, family_id, client_id, user_id, scopes, created_at, used_at, expires_at)`.
 - The access token records its `resource`; the MCP endpoint rejects a token whose resource is not its own URL.
 - Registered clients get a 1 hour access token and a refresh token (30 days idle, 90 days absolute, matching the dashboard session lifetimes). The token response gains `expires_in` and `refresh_token`.

@@ -290,6 +290,8 @@ export type Token = {
   client?: string
   ip?: string
   current?: boolean
+  client_id?: string
+  expires_at?: string
 }
 
 export * from "./status"
