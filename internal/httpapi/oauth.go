@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"encoding/json"
 	"errors"
 	"mime"
 	"net/http"
@@ -18,6 +19,7 @@ import (
 //   POST /v1/auth/device_authorization  RFC 8628
 //   POST /v1/auth/token                 authorization_code + PKCE, device_code
 //   POST /v1/auth/revoke                RFC 7009
+//   POST /v1/auth/register              RFC 7591 (JSON), public clients only
 //
 // Authenticated with the dashboard session (approve scope), JSON:
 //   GET  /v1/oauth/authorize?...        validate a loopback request for the page
@@ -35,10 +37,12 @@ func (s *Server) registerOAuth(mux *http.ServeMux) {
 	mux.HandleFunc("POST /v1/auth/device_authorization", s.oauthDeviceAuthorization)
 	mux.HandleFunc("POST /v1/auth/token", s.oauthToken)
 	mux.HandleFunc("POST /v1/auth/revoke", s.oauthRevoke)
+	mux.HandleFunc("POST /v1/auth/register", s.oauthRegister)
 	mux.HandleFunc("GET /v1/oauth/authorize", s.oauthAuthorizeCheck)
 	mux.HandleFunc("POST /v1/oauth/authorize", s.oauthAuthorize)
 	mux.HandleFunc("GET /v1/oauth/device", s.oauthDeviceLookup)
 	mux.HandleFunc("POST /v1/oauth/device/approve", s.oauthDeviceApprove)
+	s.registerOAuthMetadata(mux)
 }
 
 func (s *Server) oauthForm(w http.ResponseWriter, r *http.Request) bool {
@@ -95,11 +99,13 @@ func (s *Server) oauthToken(w http.ResponseWriter, r *http.Request) {
 	var err error
 	switch f.Get("grant_type") {
 	case "authorization_code":
-		out, err = s.Svc.OAuthExchangeCode(r.Context(), f.Get("code"), f.Get("code_verifier"), f.Get("redirect_uri"), f.Get("client_id"))
+		out, err = s.Svc.OAuthExchangeCode(r.Context(), f.Get("code"), f.Get("code_verifier"), f.Get("redirect_uri"), f.Get("client_id"), f.Get("resource"))
+	case "refresh_token":
+		out, err = s.Svc.OAuthRefresh(r.Context(), f.Get("refresh_token"), f.Get("client_id"), f.Get("scope"), f.Get("resource"))
 	case service.DeviceCodeGrantType:
 		out, err = s.Svc.OAuthExchangeDevice(r.Context(), f.Get("device_code"), f.Get("client_id"))
 	default:
-		err = &service.OAuthError{Code: "unsupported_grant_type", Description: "use authorization_code or " + service.DeviceCodeGrantType}
+		err = &service.OAuthError{Code: "unsupported_grant_type", Description: "use authorization_code, refresh_token or " + service.DeviceCodeGrantType}
 	}
 	if err != nil {
 		s.logOAuth("token", err)
@@ -109,6 +115,32 @@ func (s *Server) oauthToken(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("Pragma", "no-cache")
 	writeJSON(w, 200, out)
+}
+
+func (s *Server) oauthRegister(w http.ResponseWriter, r *http.Request) {
+	if !s.registerLimiterFor().allow(clientIP(r)) {
+		w.Header().Set("Retry-After", "60")
+		w.Header().Set("Cache-Control", "no-store")
+		writeJSON(w, http.StatusTooManyRequests, &service.OAuthError{Code: "slow_down", Description: "too many registrations from this address; wait a minute"})
+		return
+	}
+	if mt, _, _ := mime.ParseMediaType(r.Header.Get("Content-Type")); mt != "application/json" {
+		writeOAuthErr(w, &service.OAuthError{Code: "invalid_client_metadata", Description: "send an application/json body"})
+		return
+	}
+	var in service.ClientRegistration
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 16<<10)).Decode(&in); err != nil {
+		writeOAuthErr(w, &service.OAuthError{Code: "invalid_client_metadata", Description: "the body is not valid JSON"})
+		return
+	}
+	out, err := s.Svc.RegisterOAuthClient(r.Context(), in)
+	if err != nil {
+		s.logOAuth("register", err)
+		writeOAuthErr(w, err)
+		return
+	}
+	w.Header().Set("Cache-Control", "no-store")
+	writeJSON(w, http.StatusCreated, out)
 }
 
 func (s *Server) oauthRevoke(w http.ResponseWriter, r *http.Request) {
@@ -160,7 +192,7 @@ func sameOrigin(r *http.Request) bool {
 }
 
 func (s *Server) oauthAuthorizeCheck(w http.ResponseWriter, r *http.Request) {
-	q, err := query(r, "response_type", "client_id", "redirect_uri", "code_challenge", "code_challenge_method", "state", "scope")
+	q, err := query(r, "response_type", "resource", "client_id", "redirect_uri", "code_challenge", "code_challenge_method", "state", "scope")
 	if err != nil {
 		writeErr(w, err)
 		return
@@ -168,6 +200,7 @@ func (s *Server) oauthAuthorizeCheck(w http.ResponseWriter, r *http.Request) {
 	out, err := s.Svc.OAuthAuthorizeCheck(r.Context(), service.AuthorizeInput{
 		ClientID: first(q, "client_id"), RedirectURI: first(q, "redirect_uri"), CodeChallenge: first(q, "code_challenge"),
 		CodeChallengeMethod: first(q, "code_challenge_method"), State: first(q, "state"), Scope: first(q, "scope"),
+		Resource: first(q, "resource"), Issuer: s.oauthIssuer(r),
 	})
 	if err != nil {
 		writeErr(w, err)
@@ -190,6 +223,7 @@ func (s *Server) oauthAuthorize(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, err)
 		return
 	}
+	in.Issuer = s.oauthIssuer(r)
 	to, err := s.Svc.OAuthAuthorize(r.Context(), in)
 	if err != nil {
 		writeErr(w, err)

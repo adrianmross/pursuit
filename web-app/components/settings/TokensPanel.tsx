@@ -96,7 +96,7 @@ export function TokensPanel() {
 
   const load = () =>
     api<Page<Token>>("/v1/tokens?limit=100")
-      .then((page) => setTokens((page.data || []).filter((t) => !t.revoked_at)))
+      .then((page) => setTokens((page.data || []).filter((t) => !t.revoked_at && !t.client_id)))
       .catch((err) => setError(err.message))
 
   useEffect(() => {

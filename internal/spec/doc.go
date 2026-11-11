@@ -238,6 +238,9 @@ func build() []byte {
 	add("/skill.md", "get", "Agent Skill for the pursuit CLI", false, with(hidden, "raw", "text/markdown", "id", "getSkill"))
 	add("/reference", "get", "Interactive API reference page (HTML)", false, with(hidden, "raw", "text/html", "id", "getReference"))
 
+	add("/.well-known/oauth-authorization-server", "get", "OAuth server metadata (RFC 8414)", false, with(hidden, "raw", "application/json", "id", "getOAuthServerMetadata"))
+	add("/.well-known/oauth-protected-resource", "get", "OAuth protected resource metadata (RFC 9728)", false, with(hidden, "raw", "application/json", "id", "getOAuthResourceMetadata"))
+
 	open := x{"security": []any{}}
 	add("/v1/auth/device_authorization", "post", "Start a device login. RFC 8628 device authorization for `pursuit auth login --device`. scope is space or comma separated, each exactly read or write, default read write; anything else (approve, APPROVE, Read) is invalid_scope: OAuth never grants approve. client_id is at most 64 characters. limited to 10 starts a minute per client IP (429 slow_down). device codes last 10 minutes; poll /v1/auth/token no faster than interval. there is no verification_uri_complete: the human types the code", false, x{
 		"security":    []any{},
@@ -245,11 +248,18 @@ func build() []byte {
 		"responses":   oauthResp(service.DeviceAuthorization{}),
 		"cli":         "pursuit auth login --device",
 	})
-	add("/v1/auth/token", "post", "Get an access token. OAuth2 token endpoint. grant_type=authorization_code takes code, code_verifier (PKCE S256), redirect_uri, client_id; codes are single-use and last 60 seconds. grant_type=urn:ietf:params:oauth:grant-type:device_code takes device_code, client_id and answers authorization_pending, slow_down, expired_token, or access_denied until approved. The access_token is a normal pst_ API token", false, x{
+	add("/v1/auth/register", "post", "Register an OAuth client. RFC 7591 dynamic client registration for apps that connect to Pursuit (a ChatGPT app, a Claude connector). JSON body with redirect_uris (1 to 5; https, or http on 127.0.0.1, [::1] or localhost) and client_name. Public clients only: token_endpoint_auth_method none, PKCE required. The client_id in the response is then used at /authorize. Clients can instead use an https URL as client_id that serves a client metadata document. Limited to 20 a minute per client IP (429 slow_down). A client that registered itself is shown as unverified on the consent page, and OAuth never grants approve", false, x{
+		"security": []any{},
+		"in":       service.ClientRegistration{},
+		"out":      service.ClientInfo{},
+		"status":   201,
+		"errors":   []int{400, 429},
+	})
+	add("/v1/auth/token", "post", "Get an access token. OAuth2 token endpoint. grant_type=authorization_code takes code, code_verifier (PKCE S256), redirect_uri, client_id; codes are single-use and last 60 seconds. grant_type=urn:ietf:params:oauth:grant-type:device_code takes device_code, client_id and answers authorization_pending, slow_down, expired_token, or access_denied until approved. The access_token is a normal pst_ API token. For a registered app (a client_id that is an https URL, or one from /v1/auth/register) it expires in an hour (expires_in) and comes with a refresh_token; grant_type=refresh_token takes refresh_token, client_id and optionally a narrower scope, and answers a new pair. Each refresh token works once: using one a second time revokes the whole connection. The CLI's tokens do not expire", false, x{
 		"security": []any{},
 		"requestBody": form(x{
-			"grant_type": x{"type": "string", "enum": []string{"authorization_code", "urn:ietf:params:oauth:grant-type:device_code"}},
-			"code":       str, "code_verifier": str, "redirect_uri": str, "device_code": str, "client_id": str,
+			"grant_type": x{"type": "string", "enum": []string{"authorization_code", "refresh_token", "urn:ietf:params:oauth:grant-type:device_code"}},
+			"code":       str, "code_verifier": str, "redirect_uri": str, "device_code": str, "client_id": str, "refresh_token": str, "scope": str, "resource": str,
 		}, "grant_type"),
 		"responses": oauthResp(service.OAuthToken{}),
 		"cli":       "pursuit auth login",
@@ -263,7 +273,7 @@ func build() []byte {
 		"cli": "pursuit auth logout",
 	})
 	add("/v1/oauth/authorize", "get", "Check a browser login. Validate a loopback request for the dashboard /authorize page without deciding it. requires the approve scope. returns the request as the server normalized it; a scope other than read or write is 400 invalid_scope. response_type is accepted and ignored", false, x{
-		"q": q("client_id", "redirect_uri", "code_challenge", "code_challenge_method", "state", "scope", "response_type"), "out": service.AuthorizeRequest{},
+		"q": q("client_id", "redirect_uri", "code_challenge", "code_challenge_method", "state", "scope", "response_type", "resource"), "out": service.AuthorizeRequest{},
 	})
 	add("/v1/oauth/authorize", "post", "Approve a browser login. Loopback consent, called by the dashboard /authorize page that `pursuit auth login` opens. requires a signed-in human session with the approve scope (not the PURSUIT_TRUST_PROXY_AUTH owner), Content-Type application/json, and Sec-Fetch-Site same-origin or an Origin matching the host. writes an oauth.approve or oauth.deny audit entry. redirect_uri must be http://127.0.0.1:<port>/callback or http://[::1]:<port>/callback. redirect_to is the callback with code and state, or error=access_denied when approve is false", false, x{
 		"in": service.AuthorizeInput{}, "out": Redirect{},
@@ -514,6 +524,7 @@ var queryParams = map[string]any{
 	"code_challenge_method": param("code_challenge_method", "S256.", x{"type": "string", "enum": []string{"S256"}}),
 	"state":                 param("state", "Opaque state echoed to the callback.", x{"type": "string"}),
 	"scope":                 param("scope", "read, write, or both.", x{"type": "string"}),
+	"resource":              param("resource", "RFC 8707 target; this server or empty.", x{"type": "string"}),
 	"response_type":         param("response_type", "Accepted and ignored.", x{"type": "string"}),
 	"user_code":             param("user_code", "The code the human typed.", x{"type": "string"}),
 }

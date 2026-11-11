@@ -93,6 +93,9 @@ type Server struct {
 
 	deviceLimiterOnce sync.Once
 	deviceLimiterVal  *demoLimiter
+	// registerLimiter caps client registrations per IP.
+	registerLimiterOnce sync.Once
+	registerLimiterVal  *demoLimiter
 
 	passkeyLimiterOnce sync.Once
 	passkeyLimiterVal  *demoLimiter
@@ -106,6 +109,13 @@ func (s *Server) deviceLimiterFor() *demoLimiter {
 		s.deviceLimiterVal = &demoLimiter{window: time.Minute, limit: 10, seen: map[string][]time.Time{}}
 	})
 	return s.deviceLimiterVal
+}
+
+func (s *Server) registerLimiterFor() *demoLimiter {
+	s.registerLimiterOnce.Do(func() {
+		s.registerLimiterVal = &demoLimiter{window: time.Minute, limit: 20, seen: map[string][]time.Time{}}
+	})
+	return s.registerLimiterVal
 }
 
 func (s *Server) demoLimiterFor() *demoLimiter {

@@ -25,19 +25,21 @@ type OAuthGrant struct {
 	ApproverTokenID string
 	// RequestedFrom is the client IP that started a device login.
 	RequestedFrom string
-	Status        string
-	Interval      int
-	LastPolledAt  string
-	ExpiresAt     string
-	CreatedAt     string
+	// Resource is the RFC 8707 resource a code was authorized for; empty for none.
+	Resource     string
+	Status       string
+	Interval     int
+	LastPolledAt string
+	ExpiresAt    string
+	CreatedAt    string
 }
 
-const oauthCols = `id, kind, code_hash, user_code_hash, client_id, scopes, redirect_uri, code_challenge, user_id, approver_token_id, status, interval_seconds, last_polled_at, expires_at, created_at, requested_from`
+const oauthCols = `id, kind, code_hash, user_code_hash, client_id, scopes, redirect_uri, code_challenge, user_id, approver_token_id, status, interval_seconds, last_polled_at, expires_at, created_at, requested_from, resource`
 
 func (s *Store) CreateOAuthGrant(ctx context.Context, g OAuthGrant) error {
-	_, err := s.exec(ctx, `INSERT INTO oauth_grants (`+oauthCols+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+	_, err := s.exec(ctx, `INSERT INTO oauth_grants (`+oauthCols+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		g.ID, g.Kind, g.CodeHash, nullString(g.UserCodeHash), g.ClientID, strings.Join(g.Scopes, ","), g.RedirectURI,
-		g.CodeChallenge, nullString(g.UserID), g.ApproverTokenID, g.Status, g.Interval, g.LastPolledAt, g.ExpiresAt, g.CreatedAt, g.RequestedFrom)
+		g.CodeChallenge, nullString(g.UserID), g.ApproverTokenID, g.Status, g.Interval, g.LastPolledAt, g.ExpiresAt, g.CreatedAt, g.RequestedFrom, g.Resource)
 	return mapWriteErr(err)
 }
 
@@ -57,7 +59,7 @@ func (s *Store) oauthGrant(ctx context.Context, cond string, args ...any) (OAuth
 	var scopes string
 	err := s.queryRow(ctx, `SELECT `+oauthCols+` FROM oauth_grants WHERE `+cond, args...).Scan(
 		&g.ID, &g.Kind, &g.CodeHash, &userCode, &g.ClientID, &scopes, &g.RedirectURI, &g.CodeChallenge,
-		&userID, &g.ApproverTokenID, &g.Status, &g.Interval, &g.LastPolledAt, &g.ExpiresAt, &g.CreatedAt, &g.RequestedFrom)
+		&userID, &g.ApproverTokenID, &g.Status, &g.Interval, &g.LastPolledAt, &g.ExpiresAt, &g.CreatedAt, &g.RequestedFrom, &g.Resource)
 	if err == sql.ErrNoRows {
 		return OAuthGrant{}, domain.NotFound("authorization")
 	}
@@ -106,5 +108,136 @@ func (s *Store) TouchOAuthPoll(ctx context.Context, id, prevPolled, now string, 
 
 func (s *Store) DeleteExpiredOAuthGrants(ctx context.Context, before string) error {
 	_, err := s.exec(ctx, `DELETE FROM oauth_grants WHERE expires_at < ?`, before)
+	return err
+}
+
+// OAuthClient is a registered or discovered client. Source is "cimd" or "dcr".
+type OAuthClient struct {
+	ID           string
+	Name         string
+	RedirectURIs []string
+	Source       string
+	CreatedAt    string
+	LastUsedAt   string
+	// ExpiresAt is when a cimd document must be fetched again; empty for dcr.
+	ExpiresAt string
+}
+
+const oauthClientCols = `id, name, redirect_uris, source, created_at, last_used_at, expires_at`
+
+// UpsertOAuthClient inserts a client, or refreshes the name, redirect URIs
+// and expiry of a cimd client whose document was fetched again.
+func (s *Store) UpsertOAuthClient(ctx context.Context, c OAuthClient) error {
+	_, err := s.exec(ctx, `INSERT INTO oauth_clients (`+oauthClientCols+`) VALUES (?, ?, ?, ?, ?, ?, ?)
+		ON CONFLICT(id) DO UPDATE SET name=excluded.name, redirect_uris=excluded.redirect_uris, expires_at=excluded.expires_at`,
+		c.ID, c.Name, strings.Join(c.RedirectURIs, "\n"), c.Source, c.CreatedAt, c.LastUsedAt, c.ExpiresAt)
+	return mapWriteErr(err)
+}
+
+func (s *Store) GetOAuthClient(ctx context.Context, id string) (OAuthClient, error) {
+	var c OAuthClient
+	var uris string
+	err := s.queryRow(ctx, `SELECT `+oauthClientCols+` FROM oauth_clients WHERE id=?`, id).Scan(
+		&c.ID, &c.Name, &uris, &c.Source, &c.CreatedAt, &c.LastUsedAt, &c.ExpiresAt)
+	if err == sql.ErrNoRows {
+		return OAuthClient{}, domain.NotFound("oauth client")
+	}
+	if err != nil {
+		return OAuthClient{}, err
+	}
+	if uris != "" {
+		c.RedirectURIs = strings.Split(uris, "\n")
+	}
+	return c, nil
+}
+
+func (s *Store) TouchOAuthClient(ctx context.Context, id, at string) error {
+	_, err := s.exec(ctx, `UPDATE oauth_clients SET last_used_at=? WHERE id=?`, at, id)
+	return err
+}
+
+func (s *Store) CountOAuthClients(ctx context.Context, source string) (n int, err error) {
+	err = s.queryRow(ctx, `SELECT COUNT(*) FROM oauth_clients WHERE source=?`, source).Scan(&n)
+	return n, err
+}
+
+// DeleteUnusedOAuthClients drops clients of a source that were created
+// before the cutoff and never used.
+func (s *Store) DeleteUnusedOAuthClients(ctx context.Context, source, before string) error {
+	_, err := s.exec(ctx, `DELETE FROM oauth_clients WHERE source=? AND last_used_at='' AND created_at < ?`, source, before)
+	return err
+}
+
+// RefreshToken is one link in a rotating chain. Hash is the only form of the
+// secret that is stored.
+type RefreshToken struct {
+	ID         string
+	Hash       string
+	FamilyID   string
+	ClientID   string
+	UserID     string
+	Scopes     []string
+	Resource   string
+	CreatedAt  string
+	ExpiresAt  string // idle limit: 30 days from issue
+	AbsoluteAt string // the family's hard limit
+	UsedAt     string
+	RevokedAt  string
+}
+
+const refreshCols = `id, token_hash, family_id, client_id, user_id, scopes, resource, created_at, expires_at, absolute_at, used_at, revoked_at`
+
+func (s *Store) CreateRefreshToken(ctx context.Context, r RefreshToken) error {
+	_, err := s.exec(ctx, `INSERT INTO oauth_refresh_tokens (`+refreshCols+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		r.ID, r.Hash, r.FamilyID, r.ClientID, r.UserID, strings.Join(r.Scopes, ","), r.Resource, r.CreatedAt, r.ExpiresAt, r.AbsoluteAt, r.UsedAt, r.RevokedAt)
+	return mapWriteErr(err)
+}
+
+func (s *Store) GetRefreshTokenByHash(ctx context.Context, hash string) (RefreshToken, error) {
+	var r RefreshToken
+	var scopes string
+	err := s.queryRow(ctx, `SELECT `+refreshCols+` FROM oauth_refresh_tokens WHERE token_hash=?`, hash).Scan(
+		&r.ID, &r.Hash, &r.FamilyID, &r.ClientID, &r.UserID, &scopes, &r.Resource, &r.CreatedAt, &r.ExpiresAt, &r.AbsoluteAt, &r.UsedAt, &r.RevokedAt)
+	if err == sql.ErrNoRows {
+		return RefreshToken{}, domain.NotFound("refresh token")
+	}
+	if err != nil {
+		return RefreshToken{}, err
+	}
+	if scopes != "" {
+		r.Scopes = strings.Split(scopes, ",")
+	}
+	return r, nil
+}
+
+// UseRefreshToken marks a live refresh token used. Exactly one caller across
+// all replicas gets true; any other is a replay.
+func (s *Store) UseRefreshToken(ctx context.Context, id, at string) (bool, error) {
+	res, err := s.exec(ctx, `UPDATE oauth_refresh_tokens SET used_at=? WHERE id=? AND used_at='' AND revoked_at=''`, at, id)
+	if err != nil {
+		return false, err
+	}
+	n, _ := res.RowsAffected()
+	return n == 1, nil
+}
+
+// RevokeTokenFamily kills every access and refresh token issued from one consent.
+func (s *Store) RevokeTokenFamily(ctx context.Context, familyID, at string) error {
+	if _, err := s.exec(ctx, `UPDATE api_tokens SET revoked_at=? WHERE family_id=? AND revoked_at IS NULL`, at, familyID); err != nil {
+		return err
+	}
+	_, err := s.exec(ctx, `UPDATE oauth_refresh_tokens SET revoked_at=? WHERE family_id=? AND revoked_at=''`, at, familyID)
+	return err
+}
+
+// RevokeFamilyAccessTokens revokes a family's live access tokens except one,
+// so a refresh leaves a single live token per connection.
+func (s *Store) RevokeFamilyAccessTokens(ctx context.Context, familyID, exceptID, at string) error {
+	_, err := s.exec(ctx, `UPDATE api_tokens SET revoked_at=? WHERE family_id=? AND id<>? AND revoked_at IS NULL`, at, familyID, exceptID)
+	return err
+}
+
+func (s *Store) DeleteExpiredRefreshTokens(ctx context.Context, before string) error {
+	_, err := s.exec(ctx, `DELETE FROM oauth_refresh_tokens WHERE absolute_at < ? OR (revoked_at <> '' AND revoked_at < ?)`, before, before)
 	return err
 }

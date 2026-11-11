@@ -582,6 +582,12 @@ type Token struct {
 	IP     string `json:"ip,omitempty"`
 	// Current is true on the token that made this request.
 	Current bool `json:"current,omitempty"`
+	// ClientID, ExpiresAt, Resource and FamilyID are set on tokens issued to a
+	// registered OAuth client; the family is the consent they all came from.
+	ClientID  string     `json:"client_id,omitempty"`
+	ExpiresAt *time.Time `json:"expires_at,omitempty"`
+	Resource  string     `json:"-"`
+	FamilyID  string     `json:"-"`
 }
 
 type IssuedToken struct {
@@ -958,7 +964,7 @@ var (
 	TaskFields        = []string{"id", "application_id", "stage", "round_id", "title", "notes", "due_at", "done_at", "version", "created_at", "updated_at"}
 	TagFields         = []string{"id", "name", "created_at"}
 	CustomFieldFields = []string{"id", "name", "type", "created_at"}
-	TokenFields       = []string{"id", "name", "prefix", "scopes", "created_at", "last_used_at", "revoked_at", "client", "ip", "current"}
+	TokenFields       = []string{"id", "name", "prefix", "scopes", "created_at", "last_used_at", "revoked_at", "client", "ip", "current", "client_id", "expires_at"}
 	AuditFields       = []string{"id", "token_id", "actor_name", "action", "entity_type", "entity_id", "summary", "metadata", "created_at"}
 	LinkFields        = []string{"application_id", "role_id", "company", "title", "posting_url", "status", "detail", "http_status", "changed", "checked_at"}
 )

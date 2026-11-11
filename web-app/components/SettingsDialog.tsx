@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState, type KeyboardEvent, type ReactNode } from "react"
-import { CreditCard, Database, Download, FlaskConical, History, Info, Keyboard, KeyRound, LayoutPanelTop, ScanSearch, Palette, Rows3, Search, SlidersHorizontal, User } from "lucide-react"
+import { CreditCard, Database, Download, FlaskConical, History, Info, Keyboard, KeyRound, LayoutPanelTop, Plug, ScanSearch, Palette, Rows3, Search, SlidersHorizontal, User } from "lucide-react"
 import { FILTERS, MORE, SORTS } from "@/lib/types"
 import { getDefaultSort, getDefaultStatus, ACCENTS, OUTLINE_TABS, PAGE_CARDS, getPref, setPref, setDefaultSort, setDefaultStatus, type Accent, type Density, type TabPlace, type TextSize } from "@/lib/settings"
 import { useShortcuts } from "@/lib/keybindings"
@@ -16,6 +16,7 @@ import { AboutPanel } from "@/components/settings/AboutPanel"
 import { ExperimentalPanel, PlanPanel } from "@/components/settings/ExperimentalPanel"
 import { AccountPanel } from "@/components/settings/AccountPanel"
 import { TokensPanel } from "@/components/settings/TokensPanel"
+import { ConnectedAppsPanel } from "@/components/settings/ConnectedAppsPanel"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog"
 import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field"
@@ -367,6 +368,16 @@ const SECTIONS: (Section & { items: [string, string][] })[] = [
     items: [
       ["Generate token", "api key cli agent extension"],
       ["Revoke token", "delete"],
+    ],
+  },
+  {
+    id: "apps",
+    label: "Connected apps",
+    icon: <Plug />,
+    render: () => <ConnectedAppsPanel />,
+    items: [
+      ["Connected apps", "chatgpt claude connector oauth mcp authorized"],
+      ["Disconnect app", "revoke sign out"],
     ],
   },
   {
