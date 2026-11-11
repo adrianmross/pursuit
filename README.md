@@ -263,4 +263,4 @@ MIT. See [LICENSE](LICENSE).
 
 ## Not in this build
 
-Workday autofill, clicking Submit, JSON-RPC, and gRPC. The HTTP handlers are a thin adapter over `service.Service`. `api/proto/pursuit/v1/pursuit.proto` is the future contract and is not compiled. There is no MCP server.
+Workday autofill, clicking Submit, JSON-RPC, and gRPC. The HTTP handlers are a thin adapter over `service.Service`. `api/proto/pursuit/v1/pursuit.proto` is the future contract and is not compiled. `POST /mcp` is a small MCP server over the same service for hosted chat apps (claude.ai connectors, ChatGPT apps); it signs in with OAuth and never approves or submits.

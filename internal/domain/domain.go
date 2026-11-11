@@ -528,6 +528,8 @@ type Actor struct {
 	// AuthAt is when a dashboard login token last proved who its holder is
 	// (its creation); zero for every other token.
 	AuthAt time.Time
+	// Resource is the RFC 8707 resource an OAuth token was issued for; empty for other tokens.
+	Resource string
 }
 
 func (a Actor) Can(scope string) bool {

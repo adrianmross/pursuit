@@ -116,7 +116,7 @@ func (s *Service) Authenticate(ctx context.Context, secret string) (domain.Actor
 		return domain.Actor{}, domain.Unauthorized()
 	}
 	_ = s.DB.TouchToken(ctx, tok.ID, domain.FormatTime(now), domain.FormatTime(now.Add(-time.Minute)))
-	a := domain.Actor{UserID: tok.UserID, TokenID: tok.ID, Name: tok.Name, Scopes: tok.Scopes, Demo: tok.Name == demoTokenName}
+	a := domain.Actor{UserID: tok.UserID, TokenID: tok.ID, Name: tok.Name, Scopes: tok.Scopes, Demo: tok.Name == demoTokenName, Resource: tok.Resource}
 	if tok.Name == LoginTokenName {
 		a.AuthAt = tok.CreatedAt
 	}
