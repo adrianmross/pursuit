@@ -210,6 +210,14 @@
           "type": "string"
         }
       },
+      "resource": {
+        "description": "RFC 8707 target; this server or empty.",
+        "in": "query",
+        "name": "resource",
+        "schema": {
+          "type": "string"
+        }
+      },
       "response_type": {
         "description": "Accepted and ignored.",
         "in": "query",
@@ -964,6 +972,9 @@
           "redirect_uri": {
             "type": "string"
           },
+          "resource": {
+            "type": "string"
+          },
           "scope": {
             "type": "string"
           },
@@ -982,6 +993,9 @@
             "type": "string"
           },
           "redirect_uri": {
+            "type": "string"
+          },
+          "resource": {
             "type": "string"
           },
           "scopes": {
@@ -9579,6 +9593,9 @@
           },
           {
             "$ref": "#/components/parameters/response_type"
+          },
+          {
+            "$ref": "#/components/parameters/resource"
           }
         ],
         "responses": {

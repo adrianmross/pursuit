@@ -99,7 +99,7 @@ func (s *Server) oauthToken(w http.ResponseWriter, r *http.Request) {
 	var err error
 	switch f.Get("grant_type") {
 	case "authorization_code":
-		out, err = s.Svc.OAuthExchangeCode(r.Context(), f.Get("code"), f.Get("code_verifier"), f.Get("redirect_uri"), f.Get("client_id"))
+		out, err = s.Svc.OAuthExchangeCode(r.Context(), f.Get("code"), f.Get("code_verifier"), f.Get("redirect_uri"), f.Get("client_id"), f.Get("resource"))
 	case service.DeviceCodeGrantType:
 		out, err = s.Svc.OAuthExchangeDevice(r.Context(), f.Get("device_code"), f.Get("client_id"))
 	default:
@@ -190,7 +190,7 @@ func sameOrigin(r *http.Request) bool {
 }
 
 func (s *Server) oauthAuthorizeCheck(w http.ResponseWriter, r *http.Request) {
-	q, err := query(r, "response_type", "client_id", "redirect_uri", "code_challenge", "code_challenge_method", "state", "scope")
+	q, err := query(r, "response_type", "resource", "client_id", "redirect_uri", "code_challenge", "code_challenge_method", "state", "scope")
 	if err != nil {
 		writeErr(w, err)
 		return
@@ -198,6 +198,7 @@ func (s *Server) oauthAuthorizeCheck(w http.ResponseWriter, r *http.Request) {
 	out, err := s.Svc.OAuthAuthorizeCheck(r.Context(), service.AuthorizeInput{
 		ClientID: first(q, "client_id"), RedirectURI: first(q, "redirect_uri"), CodeChallenge: first(q, "code_challenge"),
 		CodeChallengeMethod: first(q, "code_challenge_method"), State: first(q, "state"), Scope: first(q, "scope"),
+		Resource: first(q, "resource"), Issuer: s.oauthIssuer(r),
 	})
 	if err != nil {
 		writeErr(w, err)
@@ -220,6 +221,7 @@ func (s *Server) oauthAuthorize(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, err)
 		return
 	}
+	in.Issuer = s.oauthIssuer(r)
 	to, err := s.Svc.OAuthAuthorize(r.Context(), in)
 	if err != nil {
 		writeErr(w, err)

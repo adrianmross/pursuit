@@ -660,4 +660,10 @@ var migrations = []migration{{
 			expires_at TEXT NOT NULL DEFAULT ''
 		)`,
 	},
+}, {
+	version: "027",
+	stmts: []string{
+		// The resource (RFC 8707) an authorization code was asked for.
+		`ALTER TABLE oauth_grants ADD COLUMN resource TEXT NOT NULL DEFAULT ''`,
+	},
 }}

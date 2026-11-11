@@ -25,19 +25,21 @@ type OAuthGrant struct {
 	ApproverTokenID string
 	// RequestedFrom is the client IP that started a device login.
 	RequestedFrom string
-	Status        string
-	Interval      int
-	LastPolledAt  string
-	ExpiresAt     string
-	CreatedAt     string
+	// Resource is the RFC 8707 resource a code was authorized for; empty for none.
+	Resource     string
+	Status       string
+	Interval     int
+	LastPolledAt string
+	ExpiresAt    string
+	CreatedAt    string
 }
 
-const oauthCols = `id, kind, code_hash, user_code_hash, client_id, scopes, redirect_uri, code_challenge, user_id, approver_token_id, status, interval_seconds, last_polled_at, expires_at, created_at, requested_from`
+const oauthCols = `id, kind, code_hash, user_code_hash, client_id, scopes, redirect_uri, code_challenge, user_id, approver_token_id, status, interval_seconds, last_polled_at, expires_at, created_at, requested_from, resource`
 
 func (s *Store) CreateOAuthGrant(ctx context.Context, g OAuthGrant) error {
-	_, err := s.exec(ctx, `INSERT INTO oauth_grants (`+oauthCols+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+	_, err := s.exec(ctx, `INSERT INTO oauth_grants (`+oauthCols+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		g.ID, g.Kind, g.CodeHash, nullString(g.UserCodeHash), g.ClientID, strings.Join(g.Scopes, ","), g.RedirectURI,
-		g.CodeChallenge, nullString(g.UserID), g.ApproverTokenID, g.Status, g.Interval, g.LastPolledAt, g.ExpiresAt, g.CreatedAt, g.RequestedFrom)
+		g.CodeChallenge, nullString(g.UserID), g.ApproverTokenID, g.Status, g.Interval, g.LastPolledAt, g.ExpiresAt, g.CreatedAt, g.RequestedFrom, g.Resource)
 	return mapWriteErr(err)
 }
 
@@ -57,7 +59,7 @@ func (s *Store) oauthGrant(ctx context.Context, cond string, args ...any) (OAuth
 	var scopes string
 	err := s.queryRow(ctx, `SELECT `+oauthCols+` FROM oauth_grants WHERE `+cond, args...).Scan(
 		&g.ID, &g.Kind, &g.CodeHash, &userCode, &g.ClientID, &scopes, &g.RedirectURI, &g.CodeChallenge,
-		&userID, &g.ApproverTokenID, &g.Status, &g.Interval, &g.LastPolledAt, &g.ExpiresAt, &g.CreatedAt, &g.RequestedFrom)
+		&userID, &g.ApproverTokenID, &g.Status, &g.Interval, &g.LastPolledAt, &g.ExpiresAt, &g.CreatedAt, &g.RequestedFrom, &g.Resource)
 	if err == sql.ErrNoRows {
 		return OAuthGrant{}, domain.NotFound("authorization")
 	}

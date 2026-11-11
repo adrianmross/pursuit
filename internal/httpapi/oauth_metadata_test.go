@@ -32,6 +32,9 @@ func TestOAuthMetadata(t *testing.T) {
 	if m, _ := as["code_challenge_methods_supported"].([]any); len(m) != 1 || m[0] != "S256" {
 		t.Errorf("code_challenge_methods_supported: %v", m)
 	}
+	if as["authorization_response_iss_parameter_supported"] != true || as["client_id_metadata_document_supported"] != true || as["registration_endpoint"] != iss+"/v1/auth/register" {
+		t.Errorf("advertised features: %v", as)
+	}
 	// Every advertised endpoint must be a route that answers.
 	for _, k := range []string{"token_endpoint", "revocation_endpoint", "device_authorization_endpoint"} {
 		path := as[k].(string)[len(iss):]

@@ -207,3 +207,65 @@ func TestFetchClientDocRefusesPrivateAddresses(t *testing.T) {
 		}
 	}
 }
+
+func TestOAuthIssAndResource(t *testing.T) {
+	e := newEnv(t)
+	iss := e.srv.URL
+	redirect := func(code int, out map[string]any) *url.URL {
+		t.Helper()
+		if code != 200 {
+			t.Fatalf("authorize: %d %v", code, out)
+		}
+		u, _ := url.Parse(out["redirect_to"].(string))
+		return u
+	}
+
+	// Approval and denial both carry iss.
+	body := authzBody(loopback, "read", true)
+	body["resource"] = iss + "/mcp"
+	code, out := e.consent(t, "/v1/oauth/authorize", e.token, body)
+	approved := redirect(code, out)
+	if approved.Query().Get("iss") != iss {
+		t.Errorf("approved iss = %q, want %q", approved.Query().Get("iss"), iss)
+	}
+	body["approve"] = false
+	code, out = e.consent(t, "/v1/oauth/authorize", e.token, body)
+	if u := redirect(code, out); u.Query().Get("iss") != iss || u.Query().Get("error") != "access_denied" {
+		t.Errorf("denied redirect: %v", u)
+	}
+
+	// A resource on another host is refused.
+	body["resource"] = "https://evil.example.com/mcp"
+	if code, out := e.consent(t, "/v1/oauth/authorize", e.token, body); code != 400 {
+		t.Errorf("foreign resource: %d %v", code, out)
+	}
+
+	// The token request must name the resource the code was issued for.
+	body["resource"], body["approve"] = iss+"/mcp", true
+	code, out = e.consent(t, "/v1/oauth/authorize", e.token, body)
+	c := redirect(code, out).Query().Get("code")
+	tokenForm := func(resource string) url.Values {
+		return url.Values{"grant_type": {"authorization_code"}, "code": {c}, "code_verifier": {verifier}, "redirect_uri": {loopback}, "client_id": {"pursuit-cli"}, "resource": {resource}}
+	}
+	if _, doc := e.form(t, "/v1/auth/token", tokenForm(iss+"/other")); oauthError(doc) != "invalid_target" {
+		t.Errorf("wrong resource: %v", doc)
+	}
+	// The wrong-resource attempt burned the code, as any failed exchange does.
+	code, out = e.consent(t, "/v1/oauth/authorize", e.token, body)
+	c = redirect(code, out).Query().Get("code")
+	if status, doc := e.form(t, "/v1/auth/token", tokenForm(iss+"/mcp")); status != 200 || doc["access_token"] == "" {
+		t.Errorf("matching resource: %d %v", status, doc)
+	}
+}
+
+func TestOAuthRegisteredClientNeverGetsApprove(t *testing.T) {
+	e := newEnv(t)
+	_, reg := e.register(t, `{"redirect_uris":["https://app.example.com/cb"]}`)
+	for _, scope := range []string{"approve", "read approve", "read,write,approve"} {
+		b := authzFor(reg["client_id"].(string), "https://app.example.com/cb", true)
+		b["scope"] = scope
+		if code, out := e.consent(t, "/v1/oauth/authorize", e.token, b); code != 400 || out["error"].(map[string]any)["code"] != "invalid_scope" {
+			t.Errorf("scope %q: %d %v", scope, code, out)
+		}
+	}
+}

@@ -43,7 +43,8 @@ Both vendors prefer Client ID Metadata Documents, and the MCP spec now says serv
 - **Redirects:** https exactly as declared (known today: `https://claude.ai/api/mcp/auth_callback`; ChatGPT `https://chatgpt.com/connector_platform_oauth_redirect` or `https://chatgpt.com/connector/oauth/{callback_id}`). Claude Code declares `http://localhost/callback` and `http://127.0.0.1/callback` and expects the port to be ignored, so loopback matching ignores the port. See decision 1.
 - `/authorize` refuses unknown clients instead of defaulting to `pursuit-cli`.
 
-### 3. Authorize and consent for registered clients
+### 3. Authorize and consent for registered clients (built)
+Shipped: `iss` on every authorization response and advertised in metadata; `resource` accepted on authorize (must be on this server's host), stored on the grant (migration `027`), and a token request naming a different resource gets `invalid_target`; the consent page shows the client name, redirect host and an unverified warning, and only forwards the known query parameters. Binding the resource to the access token waits for phase 4, where tokens gain a `resource` column.
 - `checkAuthorize` loads the client, matches the redirect URI exactly, and stores the `resource` parameter on the grant (ChatGPT sends it on both the authorize and token requests; the MCP spec says to bind the token to it).
 - Every authorization response, success or error, carries `iss` equal to the metadata `issuer` (RFC 9207). ChatGPT rejects the response if we advertise `authorization_response_iss_parameter_supported` and the value is missing or different; with it, ChatGPT can use its stable redirect URI.
 - The consent page shows the client name, the redirect host, the scopes, and an "unverified app" line, because anyone can register. Scopes remain `read`/`write`; `approve` can never be granted to a registered client, enforced in `checkGrantable` and tested.

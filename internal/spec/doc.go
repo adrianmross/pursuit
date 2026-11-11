@@ -273,7 +273,7 @@ func build() []byte {
 		"cli": "pursuit auth logout",
 	})
 	add("/v1/oauth/authorize", "get", "Check a browser login. Validate a loopback request for the dashboard /authorize page without deciding it. requires the approve scope. returns the request as the server normalized it; a scope other than read or write is 400 invalid_scope. response_type is accepted and ignored", false, x{
-		"q": q("client_id", "redirect_uri", "code_challenge", "code_challenge_method", "state", "scope", "response_type"), "out": service.AuthorizeRequest{},
+		"q": q("client_id", "redirect_uri", "code_challenge", "code_challenge_method", "state", "scope", "response_type", "resource"), "out": service.AuthorizeRequest{},
 	})
 	add("/v1/oauth/authorize", "post", "Approve a browser login. Loopback consent, called by the dashboard /authorize page that `pursuit auth login` opens. requires a signed-in human session with the approve scope (not the PURSUIT_TRUST_PROXY_AUTH owner), Content-Type application/json, and Sec-Fetch-Site same-origin or an Origin matching the host. writes an oauth.approve or oauth.deny audit entry. redirect_uri must be http://127.0.0.1:<port>/callback or http://[::1]:<port>/callback. redirect_to is the callback with code and state, or error=access_denied when approve is false", false, x{
 		"in": service.AuthorizeInput{}, "out": Redirect{},
@@ -524,6 +524,7 @@ var queryParams = map[string]any{
 	"code_challenge_method": param("code_challenge_method", "S256.", x{"type": "string", "enum": []string{"S256"}}),
 	"state":                 param("state", "Opaque state echoed to the callback.", x{"type": "string"}),
 	"scope":                 param("scope", "read, write, or both.", x{"type": "string"}),
+	"resource":              param("resource", "RFC 8707 target; this server or empty.", x{"type": "string"}),
 	"response_type":         param("response_type", "Accepted and ignored.", x{"type": "string"}),
 	"user_code":             param("user_code", "The code the human typed.", x{"type": "string"}),
 }

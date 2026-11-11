@@ -147,7 +147,11 @@ type AuthorizeInput struct {
 	CodeChallengeMethod string `json:"code_challenge_method"`
 	State               string `json:"state"`
 	Scope               string `json:"scope"`
-	Approve             bool   `json:"approve"`
+	// Resource is the RFC 8707 target the token is for; empty or this server.
+	Resource string `json:"resource,omitempty"`
+	Approve  bool   `json:"approve"`
+	// Issuer is set by the HTTP layer: the iss returned to the client (RFC 9207).
+	Issuer string `json:"-"`
 }
 
 // AuthorizeRequest is a validated loopback request, normalized for the
@@ -157,6 +161,7 @@ type AuthorizeRequest struct {
 	ClientName  string   `json:"client_name"`
 	Scopes      []string `json:"scopes"`
 	RedirectURI string   `json:"redirect_uri"`
+	Resource    string   `json:"resource,omitempty"`
 	// Unverified is true for any client that registered itself (cimd, dcr).
 	Unverified bool `json:"unverified"`
 }
@@ -186,11 +191,28 @@ func (s *Service) checkAuthorize(ctx context.Context, in AuthorizeInput) (domain
 	if in.State == "" || len(in.State) > 512 {
 		return a, AuthorizeRequest{}, domain.Validation("state is required")
 	}
+	if err := validResource(in.Resource, in.Issuer); err != nil {
+		return a, AuthorizeRequest{}, err
+	}
 	scopes, err := ParseOAuthScopes(in.Scope)
 	if err != nil {
 		return a, AuthorizeRequest{}, invalidScope(err)
 	}
-	return a, AuthorizeRequest{ClientID: client.ID, ClientName: client.Name, Scopes: scopes, RedirectURI: in.RedirectURI, Unverified: client.Source != "builtin"}, nil
+	return a, AuthorizeRequest{ClientID: client.ID, ClientName: client.Name, Scopes: scopes, RedirectURI: in.RedirectURI, Resource: in.Resource, Unverified: client.Source != "builtin"}, nil
+}
+
+// validResource accepts an absolute URL on this server's own host: a token
+// from here is only good here (RFC 8707). An empty resource means the server.
+func validResource(resource, issuer string) error {
+	if resource == "" || issuer == "" {
+		return nil
+	}
+	r, err := url.Parse(resource)
+	i, ierr := url.Parse(issuer)
+	if err != nil || ierr != nil || r.Host == "" || r.Fragment != "" || r.User != nil || !strings.EqualFold(r.Host, i.Host) {
+		return domain.Validation("resource must be a URL on this server (%s)", issuer)
+	}
+	return nil
 }
 
 // clientValidation shows an OAuth client error on the consent page's JSON API.
@@ -200,6 +222,14 @@ func clientValidation(err error) error {
 		return domain.Validation("%s", oe.Description)
 	}
 	return err
+}
+
+// setIss adds the issuer to an authorization response, success or error, so a
+// client can tell which server answered (RFC 9207).
+func setIss(q url.Values, issuer string) {
+	if issuer != "" {
+		q.Set("iss", issuer)
+	}
 }
 
 // redirectWith adds q to a redirect URI that may already have a query.
@@ -233,12 +263,13 @@ func (s *Service) OAuthAuthorize(ctx context.Context, in AuthorizeInput) (string
 		return "", err
 	}
 	q := url.Values{"state": {in.State}}
-	meta := map[string]any{"flow": "browser", "client_id": req.ClientID, "scopes": req.Scopes}
+	meta := map[string]any{"flow": "browser", "client_id": req.ClientID, "client_name": req.ClientName, "scopes": req.Scopes, "resource": in.Resource}
 	if !in.Approve {
 		if err := s.audit(ctx, a, "oauth.deny", "oauth_grant", "", "denied a CLI login (browser)", meta); err != nil {
 			return "", err
 		}
 		q.Set("error", "access_denied")
+		setIss(q, in.Issuer)
 		return redirectWith(in.RedirectURI, q), nil
 	}
 	if err := checkGrantable(a, req.Scopes); err != nil {
@@ -252,7 +283,7 @@ func (s *Service) OAuthAuthorize(ctx context.Context, in AuthorizeInput) (string
 	_ = s.DB.DeleteExpiredOAuthGrants(ctx, domain.FormatTime(now.Add(-time.Hour)))
 	g := sqlstore.OAuthGrant{
 		ID: s.NewID(), Kind: "code", CodeHash: auth.Hash(code), ClientID: req.ClientID, Scopes: req.Scopes,
-		RedirectURI: in.RedirectURI, CodeChallenge: in.CodeChallenge, UserID: a.UserID, ApproverTokenID: a.TokenID,
+		RedirectURI: in.RedirectURI, Resource: in.Resource, CodeChallenge: in.CodeChallenge, UserID: a.UserID, ApproverTokenID: a.TokenID,
 		Status: "approved", ExpiresAt: domain.FormatTime(now.Add(OAuthCodeTTL)), CreatedAt: domain.FormatTime(now),
 	}
 	if req.Unverified {
@@ -268,12 +299,13 @@ func (s *Service) OAuthAuthorize(ctx context.Context, in AuthorizeInput) (string
 		return "", err
 	}
 	q.Set("code", code)
+	setIss(q, in.Issuer)
 	return redirectWith(in.RedirectURI, q), nil
 }
 
 // OAuthExchangeCode is grant_type=authorization_code. The code is burned
 // before anything else is checked, so a wrong verifier also spends it.
-func (s *Service) OAuthExchangeCode(ctx context.Context, code, verifier, redirectURI, clientID string) (OAuthToken, error) {
+func (s *Service) OAuthExchangeCode(ctx context.Context, code, verifier, redirectURI, clientID, resource string) (OAuthToken, error) {
 	if code == "" || verifier == "" || redirectURI == "" {
 		return OAuthToken{}, oauthErr("invalid_request", "code, code_verifier and redirect_uri are required")
 	}
@@ -300,6 +332,8 @@ func (s *Service) OAuthExchangeCode(ctx context.Context, code, verifier, redirec
 		return OAuthToken{}, oauthErr("invalid_grant", "authorization code expired")
 	case g.ClientID != clientID, g.RedirectURI != redirectURI:
 		return OAuthToken{}, oauthErr("invalid_grant", "client_id or redirect_uri does not match the authorization")
+	case resource != "" && resource != g.Resource:
+		return OAuthToken{}, oauthErr("invalid_target", "resource does not match the one the code was authorized for")
 	case !auth.ValidPKCEValue(verifier) || !auth.PKCEVerify(g.CodeChallenge, verifier):
 		return OAuthToken{}, oauthErr("invalid_grant", "code_verifier does not match code_challenge")
 	}
