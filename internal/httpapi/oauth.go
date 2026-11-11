@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"encoding/json"
 	"errors"
 	"mime"
 	"net/http"
@@ -18,6 +19,7 @@ import (
 //   POST /v1/auth/device_authorization  RFC 8628
 //   POST /v1/auth/token                 authorization_code + PKCE, device_code
 //   POST /v1/auth/revoke                RFC 7009
+//   POST /v1/auth/register              RFC 7591 (JSON), public clients only
 //
 // Authenticated with the dashboard session (approve scope), JSON:
 //   GET  /v1/oauth/authorize?...        validate a loopback request for the page
@@ -35,6 +37,7 @@ func (s *Server) registerOAuth(mux *http.ServeMux) {
 	mux.HandleFunc("POST /v1/auth/device_authorization", s.oauthDeviceAuthorization)
 	mux.HandleFunc("POST /v1/auth/token", s.oauthToken)
 	mux.HandleFunc("POST /v1/auth/revoke", s.oauthRevoke)
+	mux.HandleFunc("POST /v1/auth/register", s.oauthRegister)
 	mux.HandleFunc("GET /v1/oauth/authorize", s.oauthAuthorizeCheck)
 	mux.HandleFunc("POST /v1/oauth/authorize", s.oauthAuthorize)
 	mux.HandleFunc("GET /v1/oauth/device", s.oauthDeviceLookup)
@@ -110,6 +113,32 @@ func (s *Server) oauthToken(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("Pragma", "no-cache")
 	writeJSON(w, 200, out)
+}
+
+func (s *Server) oauthRegister(w http.ResponseWriter, r *http.Request) {
+	if !s.registerLimiterFor().allow(clientIP(r)) {
+		w.Header().Set("Retry-After", "60")
+		w.Header().Set("Cache-Control", "no-store")
+		writeJSON(w, http.StatusTooManyRequests, &service.OAuthError{Code: "slow_down", Description: "too many registrations from this address; wait a minute"})
+		return
+	}
+	if mt, _, _ := mime.ParseMediaType(r.Header.Get("Content-Type")); mt != "application/json" {
+		writeOAuthErr(w, &service.OAuthError{Code: "invalid_client_metadata", Description: "send an application/json body"})
+		return
+	}
+	var in service.ClientRegistration
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 16<<10)).Decode(&in); err != nil {
+		writeOAuthErr(w, &service.OAuthError{Code: "invalid_client_metadata", Description: "the body is not valid JSON"})
+		return
+	}
+	out, err := s.Svc.RegisterOAuthClient(r.Context(), in)
+	if err != nil {
+		s.logOAuth("register", err)
+		writeOAuthErr(w, err)
+		return
+	}
+	w.Header().Set("Cache-Control", "no-store")
+	writeJSON(w, http.StatusCreated, out)
 }
 
 func (s *Server) oauthRevoke(w http.ResponseWriter, r *http.Request) {

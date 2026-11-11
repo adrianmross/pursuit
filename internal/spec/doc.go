@@ -248,6 +248,13 @@ func build() []byte {
 		"responses":   oauthResp(service.DeviceAuthorization{}),
 		"cli":         "pursuit auth login --device",
 	})
+	add("/v1/auth/register", "post", "Register an OAuth client. RFC 7591 dynamic client registration for apps that connect to Pursuit (a ChatGPT app, a Claude connector). JSON body with redirect_uris (1 to 5; https, or http on 127.0.0.1, [::1] or localhost) and client_name. Public clients only: token_endpoint_auth_method none, PKCE required. The client_id in the response is then used at /authorize. Clients can instead use an https URL as client_id that serves a client metadata document. Limited to 20 a minute per client IP (429 slow_down). A client that registered itself is shown as unverified on the consent page, and OAuth never grants approve", false, x{
+		"security": []any{},
+		"in":       service.ClientRegistration{},
+		"out":      service.ClientInfo{},
+		"status":   201,
+		"errors":   []int{400, 429},
+	})
 	add("/v1/auth/token", "post", "Get an access token. OAuth2 token endpoint. grant_type=authorization_code takes code, code_verifier (PKCE S256), redirect_uri, client_id; codes are single-use and last 60 seconds. grant_type=urn:ietf:params:oauth:grant-type:device_code takes device_code, client_id and answers authorization_pending, slow_down, expired_token, or access_denied until approved. The access_token is a normal pst_ API token", false, x{
 		"security": []any{},
 		"requestBody": form(x{

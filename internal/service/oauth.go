@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"crypto/rand"
+	"errors"
 	"math/big"
 	"net"
 	"net/url"
@@ -91,6 +92,9 @@ func normalizeClientID(c string) (string, bool) {
 	if c == "" {
 		return DefaultCLIClientID, true
 	}
+	if isClientIDURL(c) {
+		return c, len(c) <= maxClientIDURL
+	}
 	return c, len(c) <= maxClientID
 }
 
@@ -150,8 +154,11 @@ type AuthorizeInput struct {
 // consent page to show as-is.
 type AuthorizeRequest struct {
 	ClientID    string   `json:"client_id"`
+	ClientName  string   `json:"client_name"`
 	Scopes      []string `json:"scopes"`
 	RedirectURI string   `json:"redirect_uri"`
+	// Unverified is true for any client that registered itself (cimd, dcr).
+	Unverified bool `json:"unverified"`
 }
 
 func (s *Service) checkAuthorize(ctx context.Context, in AuthorizeInput) (domain.Actor, AuthorizeRequest, error) {
@@ -159,8 +166,16 @@ func (s *Service) checkAuthorize(ctx context.Context, in AuthorizeInput) (domain
 	if err != nil {
 		return a, AuthorizeRequest{}, err
 	}
-	if err := ValidLoopbackRedirect(in.RedirectURI); err != nil {
-		return a, AuthorizeRequest{}, err
+	client, err := s.resolveClient(ctx, in.ClientID)
+	if err != nil {
+		return a, AuthorizeRequest{}, clientValidation(err)
+	}
+	if client.Source == "builtin" {
+		if err := ValidLoopbackRedirect(in.RedirectURI); err != nil {
+			return a, AuthorizeRequest{}, err
+		}
+	} else if !redirectMatches(client.RedirectURIs, in.RedirectURI) {
+		return a, AuthorizeRequest{}, domain.Validation("redirect_uri is not one of the URIs this client registered")
 	}
 	if in.CodeChallengeMethod != "S256" {
 		return a, AuthorizeRequest{}, domain.Validation("code_challenge_method must be S256")
@@ -171,15 +186,34 @@ func (s *Service) checkAuthorize(ctx context.Context, in AuthorizeInput) (domain
 	if in.State == "" || len(in.State) > 512 {
 		return a, AuthorizeRequest{}, domain.Validation("state is required")
 	}
-	clientID, ok := normalizeClientID(in.ClientID)
-	if !ok {
-		return a, AuthorizeRequest{}, domain.Validation("client_id is at most 64 characters")
-	}
 	scopes, err := ParseOAuthScopes(in.Scope)
 	if err != nil {
 		return a, AuthorizeRequest{}, invalidScope(err)
 	}
-	return a, AuthorizeRequest{ClientID: clientID, Scopes: scopes, RedirectURI: in.RedirectURI}, nil
+	return a, AuthorizeRequest{ClientID: client.ID, ClientName: client.Name, Scopes: scopes, RedirectURI: in.RedirectURI, Unverified: client.Source != "builtin"}, nil
+}
+
+// clientValidation shows an OAuth client error on the consent page's JSON API.
+func clientValidation(err error) error {
+	var oe *OAuthError
+	if errors.As(err, &oe) {
+		return domain.Validation("%s", oe.Description)
+	}
+	return err
+}
+
+// redirectWith adds q to a redirect URI that may already have a query.
+func redirectWith(base string, q url.Values) string {
+	u, err := url.Parse(base)
+	if err != nil {
+		return base + "?" + q.Encode()
+	}
+	v := u.Query()
+	for k, vs := range q {
+		v[k] = vs
+	}
+	u.RawQuery = v.Encode()
+	return u.String()
 }
 
 // OAuthAuthorizeCheck validates a loopback request without deciding it,
@@ -205,7 +239,7 @@ func (s *Service) OAuthAuthorize(ctx context.Context, in AuthorizeInput) (string
 			return "", err
 		}
 		q.Set("error", "access_denied")
-		return in.RedirectURI + "?" + q.Encode(), nil
+		return redirectWith(in.RedirectURI, q), nil
 	}
 	if err := checkGrantable(a, req.Scopes); err != nil {
 		return "", err
@@ -221,6 +255,9 @@ func (s *Service) OAuthAuthorize(ctx context.Context, in AuthorizeInput) (string
 		RedirectURI: in.RedirectURI, CodeChallenge: in.CodeChallenge, UserID: a.UserID, ApproverTokenID: a.TokenID,
 		Status: "approved", ExpiresAt: domain.FormatTime(now.Add(OAuthCodeTTL)), CreatedAt: domain.FormatTime(now),
 	}
+	if req.Unverified {
+		_ = s.DB.TouchOAuthClient(ctx, req.ClientID, domain.FormatTime(now))
+	}
 	err = s.DB.WithTx(ctx, func(ctx context.Context) error {
 		if err := s.DB.CreateOAuthGrant(ctx, g); err != nil {
 			return err
@@ -231,7 +268,7 @@ func (s *Service) OAuthAuthorize(ctx context.Context, in AuthorizeInput) (string
 		return "", err
 	}
 	q.Set("code", code)
-	return in.RedirectURI + "?" + q.Encode(), nil
+	return redirectWith(in.RedirectURI, q), nil
 }
 
 // OAuthExchangeCode is grant_type=authorization_code. The code is burned

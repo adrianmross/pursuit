@@ -643,4 +643,21 @@ var migrations = []migration{{
 		`ALTER TABLE api_tokens ADD COLUMN client TEXT NOT NULL DEFAULT ''`,
 		`ALTER TABLE api_tokens ADD COLUMN ip TEXT NOT NULL DEFAULT ''`,
 	},
+}, {
+	version: "026",
+	stmts: []string{
+		// OAuth clients that are not the CLI. source is cimd (a client
+		// metadata document at an https client_id, refetched after
+		// expires_at) or dcr (registered through /v1/auth/register).
+		// redirect_uris is newline separated.
+		`CREATE TABLE IF NOT EXISTS oauth_clients (
+			id TEXT PRIMARY KEY,
+			name TEXT NOT NULL,
+			redirect_uris TEXT NOT NULL,
+			source TEXT NOT NULL,
+			created_at TEXT NOT NULL,
+			last_used_at TEXT NOT NULL DEFAULT '',
+			expires_at TEXT NOT NULL DEFAULT ''
+		)`,
+	},
 }}

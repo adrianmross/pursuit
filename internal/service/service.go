@@ -47,6 +47,8 @@ type Service struct {
 	Capabilities map[string]bool
 	// Embedder powers smart search; nil means it isn't configured.
 	Embedder embed.Embedder
+	// ClientDoc fetches an OAuth client metadata document; nil uses FetchClientDoc.
+	ClientDoc func(ctx context.Context, url string) ([]byte, error)
 	// Blobs holds new document files when a bucket is configured; nil keeps them in the database.
 	Blobs blobstore.Store
 }

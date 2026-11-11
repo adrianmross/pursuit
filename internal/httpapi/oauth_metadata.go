@@ -12,8 +12,8 @@ import (
 //	GET /.well-known/oauth-authorization-server              RFC 8414
 //	GET /.well-known/oauth-protected-resource[/path]         RFC 9728
 //
-// Both list only what is served today. Registration, refresh tokens and the
-// iss response parameter are advertised in the phase that ships them.
+// Both list only what is served today. Refresh tokens and the iss response
+// parameter are advertised in the phase that ships them.
 
 func (s *Server) registerOAuthMetadata(mux *http.ServeMux) {
 	mux.HandleFunc("GET /.well-known/oauth-authorization-server", s.oauthServerMetadata)
@@ -40,6 +40,8 @@ func (s *Server) oauthServerMetadata(w http.ResponseWriter, r *http.Request) {
 		"authorization_endpoint":                iss + "/authorize",
 		"token_endpoint":                        iss + "/v1/auth/token",
 		"revocation_endpoint":                   iss + "/v1/auth/revoke",
+		"registration_endpoint":                 iss + "/v1/auth/register",
+		"client_id_metadata_document_supported": true,
 		"device_authorization_endpoint":         iss + "/v1/auth/device_authorization",
 		"response_types_supported":              []string{"code"},
 		"grant_types_supported":                 []string{"authorization_code", service.DeviceCodeGrantType},
