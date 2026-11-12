@@ -31,7 +31,6 @@ import (
 	"github.com/pursuit/pursuit/internal/platform/session"
 	"github.com/pursuit/pursuit/internal/service"
 	"github.com/pursuit/pursuit/internal/spec"
-	"github.com/pursuit/pursuit/internal/sqlstore"
 	"github.com/pursuit/pursuit/internal/version"
 )
 
@@ -701,109 +700,7 @@ func (s *Server) read(w http.ResponseWriter, r *http.Request) ([]byte, bool) {
 var errBusy = errors.New("idempotency in progress")
 
 func (s *Server) mutate(w http.ResponseWriter, r *http.Request, status int, allowed []string, body []byte, fn func(ctx context.Context) (any, error)) {
-	fields := fieldsOf(r.URL.Query())
-	if err := domain.ValidateFields(fields, allowed); err != nil && len(fields) > 0 {
-		if len(allowed) == 0 {
-			writeErr(w, domain.Validation("fields are not supported on this response"))
-			return
-		}
-		writeErr(w, err)
-		return
-	}
-	ctx := r.Context()
-	if dryRun(r) {
-		obj, err := fn(sqlstore.WithDryRun(ctx))
-		if err != nil {
-			writeErr(w, err)
-			return
-		}
-		payload, err := project(obj, fields)
-		if err != nil {
-			writeErr(w, err)
-			return
-		}
-		writeJSON(w, 200, map[string]any{"dry_run": true, "hint": "no changes were written", "data": payload})
-		return
-	}
-	key := strings.TrimSpace(r.Header.Get("Idempotency-Key"))
-	if key == "" {
-		obj, err := fn(ctx)
-		if err != nil {
-			writeErr(w, err)
-			return
-		}
-		writeProjected(w, status, obj, fields)
-		return
-	}
-	if len(key) > 200 {
-		writeErr(w, domain.Validation("idempotency key is too long").WithHint("keep Idempotency-Key under 200 characters"))
-		return
-	}
-	actor, _ := domain.ActorFrom(ctx)
-	hash := requestHash(r.Method, r.URL.Path, r.URL.RawQuery, body)
-	var replay []byte
-	var replayCode int
-	var replayed bool
-	for attempt := 0; attempt < 8; attempt++ {
-		err := s.Svc.DB.WithTx(ctx, func(ctx context.Context) error {
-			rec, found, err := s.Svc.DB.GetIdempotency(ctx, actor.TokenID, key)
-			if err != nil {
-				return err
-			}
-			if found {
-				if rec.RequestHash != hash {
-					return domain.IdempotencyMismatch()
-				}
-				if rec.StatusCode == 0 {
-					return errBusy
-				}
-				replay = []byte(rec.ResponseBody)
-				replayCode = rec.StatusCode
-				replayed = true
-				return nil
-			}
-			now := domain.FormatTime(time.Now().UTC())
-			if err := s.Svc.DB.InsertIdempotency(ctx, sqlstore.IdemRecord{
-				TokenID: actor.TokenID, UserID: actor.UserID, Key: key, Method: r.Method,
-				Path: r.URL.Path, RequestHash: hash, StatusCode: 0, ResponseBody: "", CreatedAt: now,
-			}); err != nil {
-				return err
-			}
-			obj, err := fn(ctx)
-			if err != nil {
-				return err
-			}
-			b, err := marshal(obj)
-			if err != nil {
-				return err
-			}
-			b, err = projectBytes(b, fields)
-			if err != nil {
-				return err
-			}
-			if err := s.Svc.DB.FinishIdempotency(ctx, actor.TokenID, key, status, string(b)); err != nil {
-				return err
-			}
-			replay = b
-			replayCode = status
-			replayed = false
-			return nil
-		})
-		if errors.Is(err, sqlstore.ErrIdempotencyRace) || errors.Is(err, errBusy) {
-			time.Sleep(time.Duration(attempt+1) * 20 * time.Millisecond)
-			continue
-		}
-		if err != nil {
-			writeErr(w, err)
-			return
-		}
-		if replayed {
-			w.Header().Set("Idempotent-Replayed", "true")
-		}
-		writeRaw(w, replayCode, replay)
-		return
-	}
-	writeErr(w, domain.Conflict("idempotency key is in progress", "retry this request shortly"))
+	httpx.Mutate(s.Svc.DB, w, r, status, allowed, body, fn)
 }
 
 func csvBody(r *http.Request, body []byte) ([]byte, error) {

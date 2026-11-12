@@ -5,7 +5,6 @@ package sqlstore
 import (
 	"context"
 	"database/sql"
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -13,11 +12,12 @@ import (
 	"time"
 
 	"github.com/pursuit/pursuit/internal/domain"
+	"github.com/pursuit/pursuit/internal/platform/httpx"
 	"github.com/pursuit/pursuit/internal/platform/sqldb"
 )
 
 // ErrIdempotencyRace means another request claimed the key first.
-var ErrIdempotencyRace = errors.New("idempotency race")
+var ErrIdempotencyRace = httpx.ErrIdempotencyRace
 
 // Store is Pursuit's tables on a sqldb.DB. db and dialect repeat the core's
 // fields for the queries that branch on them.
