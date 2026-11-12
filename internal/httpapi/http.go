@@ -23,8 +23,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/google/uuid"
-
 	"github.com/pursuit/pursuit/internal/betterauth"
 	"github.com/pursuit/pursuit/internal/dashboard"
 	"github.com/pursuit/pursuit/internal/domain"
@@ -331,46 +329,19 @@ func (s *Server) log() *slog.Logger {
 }
 
 func (s *Server) wrap(next http.Handler) http.Handler {
+	return httpx.Trace{Log: s.log, OnFailure: s.OnFailure}.Wrap(httpx.CORS(s.allowOrigin, s.authorize(next)))
+}
+
+// authorize puts the caller into the request context, or refuses the request.
+func (s *Server) authorize(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		id := r.Header.Get("X-Request-Id")
-		if id == "" {
-			id = uuid.NewString()
-		}
-		w.Header().Set("X-Request-Id", id)
-		rec := &statusRec{ResponseWriter: w, code: 200}
-		start := time.Now()
-		defer func() {
-			if p := recover(); p != nil {
-				s.log().Error("panic", "err", p, "request_id", id)
-				if s.OnFailure != nil {
-					s.OnFailure(r, id, http.StatusInternalServerError, p)
-				}
-				// Best effort: the handler may already have written a status.
-				writeErr(w, &domain.Error{Code: "internal", Message: "internal error", Hint: "retry the request", Status: http.StatusInternalServerError})
-				rec.code = http.StatusInternalServerError
-			} else if s.OnFailure != nil && rec.code >= 500 {
-				s.OnFailure(r, id, rec.code, nil)
-			}
-			s.log().Info("request", "method", r.Method, "path", r.URL.Path, "status", rec.code, "ms", time.Since(start).Milliseconds(), "request_id", id)
-		}()
-		if origin := r.Header.Get("Origin"); origin != "" && s.allowOrigin(origin) {
-			w.Header().Set("Access-Control-Allow-Origin", origin)
-			w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type, Idempotency-Key, X-Dry-Run, If-Match")
-			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PATCH, DELETE, OPTIONS")
-			w.Header().Set("Access-Control-Expose-Headers", "Idempotent-Replayed, X-Request-Id")
-			w.Header().Set("Vary", "Origin")
-			if r.Method == http.MethodOptions {
-				w.WriteHeader(http.StatusNoContent)
-				return
-			}
-		}
 		ctx := r.Context()
 		if isCron(r.URL.Path) {
 			if !s.cronAuthorized(r) {
 				writeErr(w, domain.Unauthorized())
 				return
 			}
-			next.ServeHTTP(rec, r.WithContext(ctx))
+			next.ServeHTTP(w, r.WithContext(ctx))
 			return
 		}
 		if !isPublic(r.URL.Path) {
@@ -388,7 +359,7 @@ func (s *Server) wrap(next http.Handler) http.Handler {
 			}
 			ctx = domain.WithActor(ctx, actor)
 		}
-		next.ServeHTTP(rec, r.WithContext(ctx))
+		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
 
@@ -524,34 +495,7 @@ func (s *Server) cronAuthorized(r *http.Request) bool {
 	return subtle.ConstantTimeCompare([]byte(got), []byte(secret)) == 1
 }
 
-func (s *Server) allowOrigin(origin string) bool {
-	for _, o := range s.CORS {
-		o = strings.TrimSpace(o)
-		if o == "" {
-			continue
-		}
-		if o == "*" || strings.EqualFold(o, origin) {
-			return true
-		}
-		if strings.HasSuffix(o, "*") {
-			prefix := strings.TrimSuffix(o, "*")
-			if prefix != "" && strings.HasPrefix(strings.ToLower(origin), strings.ToLower(prefix)) {
-				return true
-			}
-		}
-	}
-	return false
-}
-
-type statusRec struct {
-	http.ResponseWriter
-	code int
-}
-
-func (s *statusRec) WriteHeader(code int) {
-	s.code = code
-	s.ResponseWriter.WriteHeader(code)
-}
+func (s *Server) allowOrigin(origin string) bool { return httpx.OriginAllowed(s.CORS, origin) }
 
 func (s *Server) health(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, map[string]string{"status": "ok"})
