@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/pursuit/pursuit/internal/domain"
+	"github.com/pursuit/pursuit/internal/platform/httpx"
 )
 
 func (s *Store) CountUsers(ctx context.Context) (int, error) {
@@ -1496,34 +1497,26 @@ func (s *Store) ListAudit(ctx context.Context, userID string, q domain.ListQuery
 	return out, total, nil
 }
 
-type IdemRecord struct {
-	TokenID      string
-	UserID       string
-	Key          string
-	Method       string
-	Path         string
-	RequestHash  string
-	StatusCode   int
-	ResponseBody string
-	CreatedAt    string
-}
+type IdemRecord = httpx.IdemRecord
 
 func (s *Store) GetIdempotency(ctx context.Context, tokenID, key string) (IdemRecord, bool, error) {
 	var rec IdemRecord
+	var created string
 	err := s.queryRow(ctx, `SELECT token_id, user_id, idem_key, method, path, request_hash, status_code, response_body, created_at FROM idempotency_keys WHERE token_id=? AND idem_key=?`, tokenID, key).
-		Scan(&rec.TokenID, &rec.UserID, &rec.Key, &rec.Method, &rec.Path, &rec.RequestHash, &rec.StatusCode, &rec.ResponseBody, &rec.CreatedAt)
+		Scan(&rec.TokenID, &rec.UserID, &rec.Key, &rec.Method, &rec.Path, &rec.RequestHash, &rec.StatusCode, &rec.ResponseBody, &created)
 	if err == sql.ErrNoRows {
 		return IdemRecord{}, false, nil
 	}
 	if err != nil {
 		return IdemRecord{}, false, err
 	}
-	return rec, true, nil
+	rec.CreatedAt, err = parseTime(created)
+	return rec, err == nil, err
 }
 
 func (s *Store) InsertIdempotency(ctx context.Context, rec IdemRecord) error {
 	_, err := s.exec(ctx, `INSERT INTO idempotency_keys (token_id, user_id, idem_key, method, path, request_hash, status_code, response_body, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		rec.TokenID, rec.UserID, rec.Key, rec.Method, rec.Path, rec.RequestHash, rec.StatusCode, rec.ResponseBody, rec.CreatedAt)
+		rec.TokenID, rec.UserID, rec.Key, rec.Method, rec.Path, rec.RequestHash, rec.StatusCode, rec.ResponseBody, formatTime(rec.CreatedAt))
 	if err != nil && isUnique(err) {
 		return ErrIdempotencyRace
 	}

@@ -5,201 +5,82 @@ package sqlstore
 import (
 	"context"
 	"database/sql"
-	"errors"
 	"fmt"
-	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
 
-	"github.com/jackc/pgx/v5/pgconn"
-	_ "github.com/jackc/pgx/v5/stdlib"
-	_ "modernc.org/sqlite"
-
 	"github.com/pursuit/pursuit/internal/domain"
-)
-
-type ctxKey int
-
-const (
-	keyTx ctxKey = iota + 1
-	keyConn
-	keyDry
+	"github.com/pursuit/pursuit/internal/platform/httpx"
+	"github.com/pursuit/pursuit/internal/platform/sqldb"
 )
 
 // ErrIdempotencyRace means another request claimed the key first.
-var ErrIdempotencyRace = errors.New("idempotency race")
+var ErrIdempotencyRace = httpx.ErrIdempotencyRace
 
+// Store is Pursuit's tables on a sqldb.DB. db and dialect repeat the core's
+// fields for the queries that branch on them.
 type Store struct {
+	core    *sqldb.DB
 	db      *sql.DB
 	dialect string
 }
 
 func Open(ctx context.Context, databaseURL string) (*Store, error) {
-	db, dialect, err := openDB(databaseURL)
+	if strings.TrimSpace(databaseURL) == "" {
+		path, err := defaultSQLitePath("")
+		if err != nil {
+			return nil, err
+		}
+		databaseURL = "sqlite://" + path
+	}
+	core, err := sqldb.Open(databaseURL)
 	if err != nil {
 		return nil, err
 	}
-	if err := Migrate(ctx, db, dialect); err != nil {
-		db.Close()
+	core.LockKey = advisoryLockKey
+	if err := Migrate(ctx, core.SQL, core.Dialect); err != nil {
+		core.SQL.Close()
 		return nil, err
 	}
-	return &Store{db: db, dialect: dialect}, nil
+	return &Store{core: core, db: core.SQL, dialect: core.Dialect}, nil
 }
 
 func (s *Store) Close() error { return s.db.Close() }
 
 func (s *Store) Dialect() string { return s.dialect }
 
-func (s *Store) Ping(ctx context.Context) error {
-	var n int
-	return s.queryRow(ctx, "SELECT 1").Scan(&n)
-}
+func (s *Store) Ping(ctx context.Context) error { return s.core.Ping(ctx) }
 
-func WithDryRun(ctx context.Context) context.Context {
-	return context.WithValue(ctx, keyDry, true)
-}
-
-func IsDryRun(ctx context.Context) bool {
-	v, _ := ctx.Value(keyDry).(bool)
-	return v
-}
+var (
+	WithDryRun = sqldb.WithDryRun
+	IsDryRun   = sqldb.IsDryRun
+	rebind     = sqldb.Rebind
+	isUnique   = sqldb.IsUnique
+	isFK       = sqldb.IsFK
+)
 
 func (s *Store) WithTx(ctx context.Context, fn func(context.Context) error) error {
-	if ctx.Value(keyTx) != nil || ctx.Value(keyConn) != nil {
-		return fn(ctx)
-	}
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-	err = fn(context.WithValue(ctx, keyTx, tx))
-	if err != nil {
-		_ = tx.Rollback()
-		return err
-	}
-	if IsDryRun(ctx) {
-		return tx.Rollback()
-	}
-	return tx.Commit()
+	return s.core.WithTx(ctx, fn)
 }
 
 // WithLock holds the migration/bootstrap lock for fn.
 // Both dialects run the callback inside one transaction.
 func (s *Store) WithLock(ctx context.Context, fn func(context.Context) error) error {
-	if s.dialect == "postgres" {
-		tx, err := s.db.BeginTx(ctx, nil)
-		if err != nil {
-			return err
-		}
-		if err := lockTx(ctx, tx); err != nil {
-			_ = tx.Rollback()
-			return err
-		}
-		if err := fn(context.WithValue(ctx, keyTx, tx)); err != nil {
-			_ = tx.Rollback()
-			return err
-		}
-		return tx.Commit()
-	}
-	conn, err := s.db.Conn(ctx)
-	if err != nil {
-		return err
-	}
-	defer conn.Close()
-	if _, err := conn.ExecContext(ctx, "BEGIN IMMEDIATE"); err != nil {
-		return err
-	}
-	err = fn(context.WithValue(ctx, keyConn, conn))
-	if err != nil {
-		_, _ = conn.ExecContext(context.Background(), "ROLLBACK")
-		return err
-	}
-	_, err = conn.ExecContext(ctx, "COMMIT")
-	return err
-}
-
-type execer interface {
-	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
-	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
-	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
-}
-
-func (s *Store) ex(ctx context.Context) execer {
-	if tx, ok := ctx.Value(keyTx).(*sql.Tx); ok && tx != nil {
-		return tx
-	}
-	if c, ok := ctx.Value(keyConn).(*sql.Conn); ok && c != nil {
-		return c
-	}
-	return s.db
+	return s.core.WithLock(ctx, fn)
 }
 
 func (s *Store) exec(ctx context.Context, query string, args ...any) (sql.Result, error) {
-	return s.ex(ctx).ExecContext(ctx, rebind(s.dialect, query), args...)
+	return s.core.Exec(ctx, query, args...)
 }
 
 func (s *Store) query(ctx context.Context, query string, args ...any) (*sql.Rows, error) {
-	return s.ex(ctx).QueryContext(ctx, rebind(s.dialect, query), args...)
+	return s.core.Query(ctx, query, args...)
 }
 
 func (s *Store) queryRow(ctx context.Context, query string, args ...any) *sql.Row {
-	return s.ex(ctx).QueryRowContext(ctx, rebind(s.dialect, query), args...)
-}
-
-func rebind(dialect, query string) string {
-	if dialect != "postgres" {
-		return query
-	}
-	var b strings.Builder
-	n := 1
-	for _, r := range query {
-		if r == '?' {
-			b.WriteByte('$')
-			b.WriteString(fmt.Sprint(n))
-			n++
-			continue
-		}
-		b.WriteRune(r)
-	}
-	return b.String()
-}
-
-func openDB(raw string) (*sql.DB, string, error) {
-	raw = strings.TrimSpace(raw)
-	if raw == "" {
-		path, err := defaultSQLitePath("")
-		if err != nil {
-			return nil, "", err
-		}
-		raw = "sqlite://" + path
-	}
-	if strings.HasPrefix(raw, "postgres://") || strings.HasPrefix(raw, "postgresql://") {
-		db, err := sql.Open("pgx", raw)
-		if err != nil {
-			return nil, "", err
-		}
-		db.SetMaxOpenConns(10)
-		db.SetMaxIdleConns(10)
-		db.SetConnMaxLifetime(30 * time.Minute)
-		return db, "postgres", nil
-	}
-	path, err := sqlitePath(raw)
-	if err != nil {
-		return nil, "", err
-	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return nil, "", err
-	}
-	dsn := sqliteDSN(path)
-	db, err := sql.Open("sqlite", dsn)
-	if err != nil {
-		return nil, "", err
-	}
-	db.SetMaxOpenConns(8)
-	db.SetMaxIdleConns(8)
-	return db, "sqlite", nil
+	return s.core.QueryRow(ctx, query, args...)
 }
 
 func defaultSQLitePath(dataDir string) (string, error) {
@@ -218,50 +99,6 @@ func defaultSQLitePath(dataDir string) (string, error) {
 	return filepath.Join(dataDir, "pursuit.db"), nil
 }
 
-func sqlitePath(raw string) (string, error) {
-	path := raw
-	switch {
-	case strings.HasPrefix(raw, "sqlite://"):
-		path = strings.TrimPrefix(raw, "sqlite://")
-	case strings.HasPrefix(raw, "sqlite:"):
-		path = strings.TrimPrefix(raw, "sqlite:")
-	case strings.HasPrefix(raw, "file:"):
-		u, err := url.Parse(raw)
-		if err != nil {
-			return "", err
-		}
-		path = u.Path
-	default:
-		return "", fmt.Errorf("unsupported database url %q", raw)
-	}
-	if strings.HasPrefix(path, "~/") || path == "~" {
-		home, err := os.UserHomeDir()
-		if err != nil {
-			return "", err
-		}
-		if path == "~" {
-			path = home
-		} else {
-			path = filepath.Join(home, strings.TrimPrefix(path, "~/"))
-		}
-	}
-	abs, err := filepath.Abs(path)
-	if err != nil {
-		return "", err
-	}
-	return abs, nil
-}
-
-func sqliteDSN(path string) string {
-	q := url.Values{}
-	q.Add("_pragma", "busy_timeout(5000)")
-	q.Add("_pragma", "foreign_keys(1)")
-	q.Add("_pragma", "journal_mode(WAL)")
-	q.Add("_txlock", "immediate")
-	u := url.URL{Scheme: "file", Path: filepath.ToSlash(path), RawQuery: q.Encode()}
-	return u.String()
-}
-
 func mapWriteErr(err error) error {
 	if err == nil {
 		return nil
@@ -273,23 +110,6 @@ func mapWriteErr(err error) error {
 		return domain.Conflict("resource is still referenced", "delete dependent roles or applications first")
 	}
 	return err
-}
-
-func isUnique(err error) bool {
-	var pg *pgconn.PgError
-	if errors.As(err, &pg) && pg.Code == "23505" {
-		return true
-	}
-	return strings.Contains(strings.ToLower(err.Error()), "unique")
-}
-
-func isFK(err error) bool {
-	var pg *pgconn.PgError
-	if errors.As(err, &pg) && pg.Code == "23503" {
-		return true
-	}
-	msg := strings.ToLower(err.Error())
-	return strings.Contains(msg, "foreign key")
 }
 
 func formatTime(t time.Time) string { return domain.FormatTime(t) }

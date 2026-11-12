@@ -10,19 +10,6 @@ import (
 // advisoryLockKey is the Postgres session lock that serializes migrations and bootstrap.
 const advisoryLockKey int64 = 594132718233451
 
-// lockTx holds advisoryLockKey until tx ends. It is a transaction lock, not a
-// session lock, so commit, rollback, or a dropped connection releases it, and
-// it stays on one backend behind a transaction-mode pooler (Neon's pooled URL,
-// PgBouncer). A session lock there can leak and hang every later boot.
-// lock_timeout turns a stuck holder into an error instead of a 504.
-func lockTx(ctx context.Context, tx *sql.Tx) error {
-	if _, err := tx.ExecContext(ctx, "SET LOCAL lock_timeout = '15s'"); err != nil {
-		return err
-	}
-	_, err := tx.ExecContext(ctx, "SELECT pg_advisory_xact_lock($1)", advisoryLockKey)
-	return err
-}
-
 // Migrate applies every pending migration in one transaction, under the
 // same lock as bootstrap.
 func Migrate(ctx context.Context, db *sql.DB, dialect string) error {
