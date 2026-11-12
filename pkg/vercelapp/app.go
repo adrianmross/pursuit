@@ -86,6 +86,7 @@ func ensure(ctx context.Context) (*runtime, error) {
 	api.WebAnalytics = strings.TrimSpace(os.Getenv("PURSUIT_CF_BEACON_TOKEN")) != ""
 	api.OnFailure = sentryHook(log)
 	api.ConnectOrigins = webConnectOrigins(os.Getenv)
+	api.Ready.Store(true)
 	booted = &runtime{handler: api.Handler()}
 	return booted, nil
 }
