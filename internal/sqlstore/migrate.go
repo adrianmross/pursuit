@@ -3,7 +3,8 @@ package sqlstore
 import (
 	"context"
 	"database/sql"
-	"fmt"
+
+	"github.com/adrianmross/ratchet"
 )
 
 // advisoryLockKey is the Postgres session lock that serializes migrations and bootstrap.
@@ -22,77 +23,14 @@ func lockTx(ctx context.Context, tx *sql.Tx) error {
 	return err
 }
 
+// Migrate applies every pending migration in one transaction, under the
+// same lock as bootstrap.
 func Migrate(ctx context.Context, db *sql.DB, dialect string) error {
-	if dialect == "postgres" {
-		tx, err := db.BeginTx(ctx, nil)
-		if err != nil {
-			return err
-		}
-		if err := lockTx(ctx, tx); err != nil {
-			_ = tx.Rollback()
-			return fmt.Errorf("migration lock: %w", err)
-		}
-		if err := applyMigrations(ctx, tx, dialect); err != nil {
-			_ = tx.Rollback()
-			return err
-		}
-		return tx.Commit()
+	ms := make([]ratchet.Migration, len(migrations))
+	for i, m := range migrations {
+		ms[i] = ratchet.Migration{Version: m.version, Stmts: m.stmts}
 	}
-
-	conn, err := db.Conn(ctx)
-	if err != nil {
-		return err
-	}
-	defer conn.Close()
-	if _, err := conn.ExecContext(ctx, "PRAGMA foreign_keys = ON"); err != nil {
-		return err
-	}
-	if _, err := conn.ExecContext(ctx, "BEGIN IMMEDIATE"); err != nil {
-		return fmt.Errorf("migration lock: %w", err)
-	}
-	if err := applyMigrations(ctx, conn, dialect); err != nil {
-		_, _ = conn.ExecContext(context.Background(), "ROLLBACK")
-		return err
-	}
-	if _, err := conn.ExecContext(ctx, "COMMIT"); err != nil {
-		return err
-	}
-	return nil
-}
-
-type querier interface {
-	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
-	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
-}
-
-func applyMigrations(ctx context.Context, conn querier, dialect string) error {
-	preamble := rebind(dialect, `CREATE TABLE IF NOT EXISTS schema_migrations (
-		version TEXT PRIMARY KEY,
-		applied_at TEXT NOT NULL
-	)`)
-	if _, err := conn.ExecContext(ctx, preamble); err != nil {
-		return fmt.Errorf("schema_migrations: %w", err)
-	}
-	for _, m := range migrations {
-		var n int
-		q := rebind(dialect, `SELECT COUNT(*) FROM schema_migrations WHERE version=?`)
-		if err := conn.QueryRowContext(ctx, q, m.version).Scan(&n); err != nil {
-			return err
-		}
-		if n > 0 {
-			continue
-		}
-		for _, stmt := range m.stmts {
-			if _, err := conn.ExecContext(ctx, stmt); err != nil {
-				return fmt.Errorf("migration %s: %w", m.version, err)
-			}
-		}
-		ins := rebind(dialect, `INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)`)
-		if _, err := conn.ExecContext(ctx, ins, m.version, "1970-01-01T00:00:00.000000000Z"); err != nil {
-			return err
-		}
-	}
-	return nil
+	return ratchet.Runner{Dialect: dialect, LockKey: advisoryLockKey}.Up(ctx, db, ms)
 }
 
 type migration struct {
