@@ -50,7 +50,12 @@ func TestFixedClock(t *testing.T) {
 	}
 	c, err := fixedClock("2026-11-09T15:00:00Z")
 	want := time.Date(2026, 11, 9, 15, 0, 0, 0, time.UTC)
-	if err != nil || !c().Equal(want) || !c().Equal(c()) {
-		t.Fatalf("got %v, err %v", c(), err)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// It starts at the given time and each reading is a microsecond later,
+	// so rows created back to back keep their order.
+	if a, b := c(), c(); !a.Equal(want) || b.Sub(a) != time.Microsecond {
+		t.Fatalf("got %v then %v", a, b)
 	}
 }

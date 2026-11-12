@@ -14,6 +14,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -287,7 +288,9 @@ func redact(raw string) string {
 
 // fixedClock returns a clock stopped at v (RFC 3339), or nil when v is
 // empty. A frozen clock makes the example data's dates the same on every
-// run, which a repeatable screen recording needs.
+// run, which a repeatable screen recording needs. Each reading is one
+// microsecond after the last: rows made in a row otherwise share a
+// timestamp and sort by their random IDs, a different order every run.
 func fixedClock(v string) (func() time.Time, error) {
 	if v = strings.TrimSpace(v); v == "" {
 		return nil, nil
@@ -296,5 +299,6 @@ func fixedClock(v string) (func() time.Time, error) {
 	if err != nil {
 		return nil, fmt.Errorf("PURSUIT_FIXED_TIME must be an RFC 3339 time like 2026-11-09T15:00:00Z: %w", err)
 	}
-	return func() time.Time { return t }, nil
+	var n atomic.Int64
+	return func() time.Time { return t.Add(time.Duration(n.Add(1)-1) * time.Microsecond) }, nil
 }
