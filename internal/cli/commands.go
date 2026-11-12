@@ -31,9 +31,9 @@ func rootCommand() *Command {
 		Example: "pursuit apps list --status to_apply --fields id,company,title,status",
 		Children: []*Command{
 			cmdServe(),
-			{Name: "version", Summary: "print the CLI version", Run: func(e *exec) error { localVersion(e.stdout, e.json); return nil }},
-			{Name: "health", Summary: "check liveness", Run: func(e *exec) error { return e.send("GET", "/healthz", nil, nil, "", false, false) }},
-			{Name: "ready", Summary: "check readiness", Run: func(e *exec) error { return e.send("GET", "/readyz", nil, nil, "", false, false) }},
+			{Name: "version", Summary: "print the CLI version", Run: func(e *exec) error { localVersion(e.Stdout, e.JSON); return nil }},
+			{Name: "health", Summary: "check liveness", Run: func(e *exec) error { return e.Send("GET", "/healthz", nil, nil, "", false, false) }},
+			{Name: "ready", Summary: "check readiness", Run: func(e *exec) error { return e.Send("GET", "/readyz", nil, nil, "", false, false) }},
 			cmdApps(),
 			{Name: "list", Summary: "list applications", Usage: "pursuit list [flags]", Example: "pursuit list --stale --fields id,company,title,link_status", Flags: appListFlags(), Run: runAppList},
 			cmdRoles(),
@@ -49,11 +49,11 @@ func rootCommand() *Command {
 				{Name: "list", Summary: "list questions across applications", Usage: "pursuit questions list [--q text]", Example: "pursuit questions list --q \"why snowflake\" --fields prompt,answer,company", Flags: []Flag{{Name: "q", Type: "string", Help: "filter prompt, answer, company and title"}, {Name: "limit", Type: "string", Help: "page size"}, {Name: "cursor", Type: "string", Help: "cursor"}}, Run: func(e *exec) error {
 					q := url.Values{}
 					for _, k := range []string{"q", "limit", "cursor"} {
-						if v := e.flag(k); v != "" {
+						if v := e.Flag(k); v != "" {
 							q.Set(k, v)
 						}
 					}
-					return e.send("GET", "/v1/questions", q, nil, "", false, true)
+					return e.Send("GET", "/v1/questions", q, nil, "", false, true)
 				}},
 			}},
 			cmdAuth(),
@@ -99,55 +99,55 @@ func cmdServe() *Command {
 		},
 		Run: func(e *exec) error {
 			cfg := e.cfg
-			if v := e.flag("addr"); v != "" {
+			if v := e.Flag("addr"); v != "" {
 				cfg.Addr = v
 			}
-			if v := e.flag("database-url"); v != "" {
+			if v := e.Flag("database-url"); v != "" {
 				cfg.DatabaseURL = v
 			}
-			if v := e.flag("log-level"); v != "" {
+			if v := e.Flag("log-level"); v != "" {
 				cfg.LogLevel = v
 			}
-			if v := e.flag("log-format"); v != "" {
+			if v := e.Flag("log-format"); v != "" {
 				cfg.LogFormat = v
 			}
-			if v := e.flag("owner-name"); v != "" {
+			if v := e.Flag("owner-name"); v != "" {
 				cfg.OwnerName = v
 			}
-			if v := e.flag("owner-email"); v != "" {
+			if v := e.Flag("owner-email"); v != "" {
 				cfg.OwnerEmail = v
 			}
-			if v := e.flag("bootstrap-token"); v != "" {
+			if v := e.Flag("bootstrap-token"); v != "" {
 				cfg.BootstrapToken = v
 			}
-			if v := e.flag("bootstrap-name"); v != "" {
+			if v := e.Flag("bootstrap-name"); v != "" {
 				cfg.BootstrapName = v
 			}
-			if v := e.flag("cors-origins"); v != "" {
+			if v := e.Flag("cors-origins"); v != "" {
 				cfg.CORSOrigins = strings.Split(v, ",")
 			}
-			if v := e.flag("shutdown-timeout"); v != "" {
+			if v := e.Flag("shutdown-timeout"); v != "" {
 				n, err := strconv.Atoi(v)
 				if err != nil || n < 1 {
-					return &exitError{code: 2, message: "invalid --shutdown-timeout", hint: "pass seconds"}
+					return &exitError{Code: 2, Message: "invalid --shutdown-timeout", Hint: "pass seconds"}
 				}
 				cfg.ShutdownTimeout = time.Duration(n) * time.Second
 			}
-			if v := e.flag("check-interval"); v != "" {
+			if v := e.Flag("check-interval"); v != "" {
 				n, err := strconv.Atoi(v)
 				if err != nil || n < 1 {
-					return &exitError{code: 2, message: "invalid --check-interval", hint: "pass seconds"}
+					return &exitError{Code: 2, Message: "invalid --check-interval", Hint: "pass seconds"}
 				}
 				cfg.CheckInterval = time.Duration(n) * time.Second
 			}
-			if v := e.flag("profile"); v != "" {
+			if v := e.Flag("profile"); v != "" {
 				cfg.ProfilePath = v
 			}
-			if v := e.flag("resume-file"); v != "" {
+			if v := e.Flag("resume-file"); v != "" {
 				cfg.ResumeFile = v
 			}
 			if err := app.Run(context.Background(), cfg); err != nil {
-				return &exitError{code: 1, message: err.Error(), hint: "check the database URL and address"}
+				return &exitError{Code: 1, Message: err.Error(), Hint: "check the database URL and address"}
 			}
 			return nil
 		},
@@ -177,7 +177,7 @@ func cmdApps() *Command {
 		Children: []*Command{
 			{Name: "list", Summary: "list applications", Usage: "pursuit apps list [flags]", Example: "pursuit apps list --status applied --fields id,company,title,status", Flags: appListFlags(), Run: runAppList},
 			{Name: "get", Summary: "get one application", Usage: "pursuit apps get <id>", Args: []Arg{{Name: "id", Required: true}}, Run: func(e *exec) error {
-				return e.send("GET", "/v1/applications/"+url.PathEscape(e.args[0]), nil, nil, "", false, true)
+				return e.Send("GET", "/v1/applications/"+url.PathEscape(e.Args[0]), nil, nil, "", false, true)
 			}},
 			{Name: "create", Summary: "create an application", Mutating: true, Usage: "pursuit apps create --company <name> --title <title>", Example: "pursuit apps create --company Example --title Engineer --status to_apply", Flags: []Flag{
 				{Name: "company", Type: "string", Help: "company name"},
@@ -194,17 +194,17 @@ func cmdApps() *Command {
 				{Name: "notes", Type: "string", Help: "notes"},
 				{Name: "contact-email", Type: "string", Help: "contact email"},
 			}, Run: func(e *exec) error {
-				body, err := e.jsonBody(map[string]any{
-					"company": e.flag("company"), "company_id": e.flag("company-id"), "title": e.flag("title"),
-					"location": e.flag("location"), "salary": e.flag("salary"), "fit": e.flag("fit"),
-					"posting_url": e.flag("posting-url"), "source": e.flag("source"), "status": e.flag("status"),
-					"applied_date": e.flag("applied-date"), "next_step": e.flag("next-step"), "notes": e.flag("notes"),
-					"contact_email": e.flag("contact-email"),
+				body, err := e.JSONBody(map[string]any{
+					"company": e.Flag("company"), "company_id": e.Flag("company-id"), "title": e.Flag("title"),
+					"location": e.Flag("location"), "salary": e.Flag("salary"), "fit": e.Flag("fit"),
+					"posting_url": e.Flag("posting-url"), "source": e.Flag("source"), "status": e.Flag("status"),
+					"applied_date": e.Flag("applied-date"), "next_step": e.Flag("next-step"), "notes": e.Flag("notes"),
+					"contact_email": e.Flag("contact-email"),
 				})
 				if err != nil {
 					return err
 				}
-				return e.send("POST", "/v1/applications", nil, body, "application/json", true, true)
+				return e.Send("POST", "/v1/applications", nil, body, "application/json", true, true)
 			}},
 			{Name: "update", Summary: "update an application", Mutating: true, Usage: "pursuit apps update <id> [flags]", Example: "pursuit apps update APP --status interviewing --next-step 'Schedule call'", Args: []Arg{{Name: "id", Required: true}}, Flags: []Flag{
 				{Name: "version", Type: "string", Help: "required if you already know it; otherwise the CLI fetches it"},
@@ -223,15 +223,15 @@ func cmdApps() *Command {
 				{Name: "tracked-by", Type: "string", Help: "id of the application at the same company whose process covers this one; empty to clear"},
 			}, Run: runAppUpdate},
 			{Name: "delete", Summary: "delete an application", Mutating: true, Usage: "pursuit apps delete <id>", Args: []Arg{{Name: "id", Required: true}}, Flags: []Flag{{Name: "version", Type: "string", Help: "object version"}}, Run: func(e *exec) error {
-				return e.delete("/v1/applications/" + url.PathEscape(e.args[0]))
+				return e.delete("/v1/applications/" + url.PathEscape(e.Args[0]))
 			}},
 			{Name: "notes", Summary: "print an application's compiled notes as markdown: its notes, then each round in notes", Usage: "pursuit apps notes <id> > notes.md", Args: []Arg{{Name: "id", Required: true}}, Run: func(e *exec) error {
-				resp, err := e.client.Do(nil, "GET", "/v1/applications/"+url.PathEscape(e.args[0])+"/notes", nil, nil, "", apiclient.Options{})
+				resp, err := e.client.Do(nil, "GET", "/v1/applications/"+url.PathEscape(e.Args[0])+"/notes", nil, nil, "", apiclient.Options{})
 				if err != nil {
-					return &exitError{code: 1, message: err.Error(), hint: "check that pursuit serve is running and PURSUIT_SERVER is correct"}
+					return &exitError{Code: 1, Message: err.Error(), Hint: "check that pursuit serve is running and PURSUIT_SERVER is correct"}
 				}
 				if resp.Status >= 400 {
-					return &exitError{code: exitStatus(resp.Status), raw: resp.Body}
+					return &exitError{Code: exitStatus(resp.Status), Raw: resp.Body}
 				}
 				var doc struct {
 					Markdown string `json:"markdown"`
@@ -239,7 +239,7 @@ func cmdApps() *Command {
 				if err := json.Unmarshal(resp.Body, &doc); err != nil {
 					return err
 				}
-				_, err = fmt.Fprint(e.stdout, doc.Markdown)
+				_, err = fmt.Fprint(e.Stdout, doc.Markdown)
 				return err
 			}},
 			{Name: "transition", Summary: "change status and append an event", Mutating: true, Usage: "pursuit apps transition <id> --status <status>", Args: []Arg{{Name: "id", Required: true}}, Flags: []Flag{
@@ -248,60 +248,60 @@ func cmdApps() *Command {
 				{Name: "next-step", Type: "string", Help: "next step"},
 				{Name: "note", Type: "string", Help: "event note"},
 			}, Run: func(e *exec) error {
-				ver, err := e.ensureVersion("/v1/applications/" + url.PathEscape(e.args[0]))
+				ver, err := e.ensureVersion("/v1/applications/" + url.PathEscape(e.Args[0]))
 				if err != nil {
 					return err
 				}
-				payload := map[string]any{"version": ver, "status": e.flag("status"), "note": e.flag("note")}
-				if v := e.flag("next-step"); v != "" {
+				payload := map[string]any{"version": ver, "status": e.Flag("status"), "note": e.Flag("note")}
+				if v := e.Flag("next-step"); v != "" {
 					payload["next_step"] = v
 				}
-				body, err := e.jsonBody(payload)
+				body, err := e.JSONBody(payload)
 				if err != nil {
 					return err
 				}
-				return e.send("POST", "/v1/applications/"+url.PathEscape(e.args[0])+"/transition", nil, body, "application/json", true, true)
+				return e.Send("POST", "/v1/applications/"+url.PathEscape(e.Args[0])+"/transition", nil, body, "application/json", true, true)
 			}},
 			{Name: "archive", Summary: "hide an application from the default list without changing its status", Mutating: true, Usage: "pursuit apps archive <id>", Args: []Arg{{Name: "id", Required: true}}, Flags: []Flag{{Name: "version", Type: "string", Help: "object version"}}, Run: func(e *exec) error {
-				ver, err := e.ensureVersion("/v1/applications/" + url.PathEscape(e.args[0]))
+				ver, err := e.ensureVersion("/v1/applications/" + url.PathEscape(e.Args[0]))
 				if err != nil {
 					return err
 				}
-				body, err := e.jsonBody(map[string]any{"version": ver})
+				body, err := e.JSONBody(map[string]any{"version": ver})
 				if err != nil {
 					return err
 				}
-				return e.send("POST", "/v1/applications/"+url.PathEscape(e.args[0])+"/archive", nil, body, "application/json", true, true)
+				return e.Send("POST", "/v1/applications/"+url.PathEscape(e.Args[0])+"/archive", nil, body, "application/json", true, true)
 			}},
 			{Name: "unarchive", Summary: "restore an archived application to the default list", Mutating: true, Usage: "pursuit apps unarchive <id>", Args: []Arg{{Name: "id", Required: true}}, Flags: []Flag{{Name: "version", Type: "string", Help: "object version"}}, Run: func(e *exec) error {
-				ver, err := e.ensureVersion("/v1/applications/" + url.PathEscape(e.args[0]))
+				ver, err := e.ensureVersion("/v1/applications/" + url.PathEscape(e.Args[0]))
 				if err != nil {
 					return err
 				}
-				body, err := e.jsonBody(map[string]any{"version": ver})
+				body, err := e.JSONBody(map[string]any{"version": ver})
 				if err != nil {
 					return err
 				}
-				return e.send("POST", "/v1/applications/"+url.PathEscape(e.args[0])+"/unarchive", nil, body, "application/json", true, true)
+				return e.Send("POST", "/v1/applications/"+url.PathEscape(e.Args[0])+"/unarchive", nil, body, "application/json", true, true)
 			}},
 			{Name: "tag", Summary: "application tags", Children: []*Command{
 				{Name: "add", Summary: "attach a tag", Mutating: true, Usage: "pursuit apps tag add <id> --name <tag>", Args: []Arg{{Name: "id", Required: true}}, Flags: []Flag{{Name: "name", Type: "string", Help: "tag name"}, {Name: "tag-id", Type: "string", Help: "existing tag id"}}, Run: func(e *exec) error {
-					body, err := e.jsonBody(map[string]string{"name": e.flag("name"), "tag_id": e.flag("tag-id")})
+					body, err := e.JSONBody(map[string]string{"name": e.Flag("name"), "tag_id": e.Flag("tag-id")})
 					if err != nil {
 						return err
 					}
-					return e.send("POST", "/v1/applications/"+url.PathEscape(e.args[0])+"/tags", nil, body, "application/json", true, true)
+					return e.Send("POST", "/v1/applications/"+url.PathEscape(e.Args[0])+"/tags", nil, body, "application/json", true, true)
 				}},
 				{Name: "remove", Summary: "detach a tag", Mutating: true, Usage: "pursuit apps tag remove <id> <tag-id>", Args: []Arg{{Name: "id", Required: true}, {Name: "tag-id", Required: true}}, Run: func(e *exec) error {
-					return e.send("DELETE", "/v1/applications/"+url.PathEscape(e.args[0])+"/tags/"+url.PathEscape(e.args[1]), nil, nil, "", true, true)
+					return e.Send("DELETE", "/v1/applications/"+url.PathEscape(e.Args[0])+"/tags/"+url.PathEscape(e.Args[1]), nil, nil, "", true, true)
 				}},
 			}},
 			{Name: "set-field", Summary: "set a custom field's value", Mutating: true, Usage: "pursuit apps set-field <id> <field-id> --value <value>", Args: []Arg{{Name: "id", Required: true}, {Name: "field-id", Required: true}}, Flags: []Flag{{Name: "value", Type: "string", Help: "the value; empty clears it"}}, Run: func(e *exec) error {
-				body, err := e.jsonBody(map[string]string{"value": e.flag("value")})
+				body, err := e.JSONBody(map[string]string{"value": e.Flag("value")})
 				if err != nil {
 					return err
 				}
-				return e.send("POST", "/v1/applications/"+url.PathEscape(e.args[0])+"/fields/"+url.PathEscape(e.args[1]), nil, body, "application/json", true, true)
+				return e.Send("POST", "/v1/applications/"+url.PathEscape(e.Args[0])+"/fields/"+url.PathEscape(e.Args[1]), nil, body, "application/json", true, true)
 			}},
 		},
 	}
@@ -309,36 +309,36 @@ func cmdApps() *Command {
 
 func runAppList(e *exec) error {
 	q := url.Values{}
-	for _, st := range e.flags["status"] {
+	for _, st := range e.Flags["status"] {
 		q.Add("status", st)
 	}
-	for _, st := range e.flags["status-not"] {
+	for _, st := range e.Flags["status-not"] {
 		q.Add("status_not", st)
 	}
 	for _, k := range []string{"company", "fit", "source", "tag", "q", "limit", "cursor", "sort"} {
-		if v := e.flag(k); v != "" {
+		if v := e.Flag(k); v != "" {
 			q.Set(strings.ReplaceAll(k, "-", "_"), v)
 		}
 	}
-	if e.flag("stale") == "true" {
+	if e.Flag("stale") == "true" {
 		q.Set("stale", "true")
 	}
-	if e.flag("archived") == "true" {
+	if e.Flag("archived") == "true" {
 		q.Set("archived", "true")
 	}
-	return e.send("GET", "/v1/applications", q, nil, "", false, true)
+	return e.Send("GET", "/v1/applications", q, nil, "", false, true)
 }
 
 func runAppUpdate(e *exec) error {
-	id := url.PathEscape(e.args[0])
+	id := url.PathEscape(e.Args[0])
 	ver, err := e.ensureVersion("/v1/applications/" + id)
 	if err != nil {
 		return err
 	}
 	payload := map[string]any{"version": ver}
 	put := func(jsonKey, flag string) {
-		if _, ok := e.flags[flag]; ok {
-			payload[jsonKey] = e.flag(flag)
+		if _, ok := e.Flags[flag]; ok {
+			payload[jsonKey] = e.Flag(flag)
 		}
 	}
 	put("status", "status")
@@ -353,25 +353,25 @@ func runAppUpdate(e *exec) error {
 	put("resume_version", "resume-version")
 	put("contact_email", "contact-email")
 	put("tracked_by", "tracked-by")
-	if _, ok := e.flags["applied-date"]; ok {
-		if strings.EqualFold(e.flag("applied-date"), "null") {
+	if _, ok := e.Flags["applied-date"]; ok {
+		if strings.EqualFold(e.Flag("applied-date"), "null") {
 			payload["applied_date"] = nil
 		} else {
-			payload["applied_date"] = e.flag("applied-date")
+			payload["applied_date"] = e.Flag("applied-date")
 		}
 	}
-	body, err := e.jsonBody(payload)
+	body, err := e.JSONBody(payload)
 	if err != nil {
 		return err
 	}
-	return e.send("PATCH", "/v1/applications/"+id, nil, body, "application/json", true, true)
+	return e.Send("PATCH", "/v1/applications/"+id, nil, body, "application/json", true, true)
 }
 
 func (e *exec) ensureVersion(path string) (int, error) {
-	if v := e.flag("version"); v != "" {
+	if v := e.Flag("version"); v != "" {
 		return atoiFlag(v)
 	}
-	return e.versionOf(path)
+	return e.VersionOf(path)
 }
 
 func (e *exec) delete(path string) error {
@@ -380,50 +380,50 @@ func (e *exec) delete(path string) error {
 		return err
 	}
 	q := url.Values{"version": {strconv.Itoa(ver)}}
-	return e.send("DELETE", path, q, nil, "", true, false)
+	return e.Send("DELETE", path, q, nil, "", true, false)
 }
 
 func cmdCompanies() *Command {
 	return &Command{Name: "companies", Summary: "companies", Children: []*Command{
 		{Name: "list", Summary: "list companies", Flags: []Flag{{Name: "q", Type: "string", Help: "search"}, {Name: "limit", Type: "string", Help: "page size"}, {Name: "cursor", Type: "string", Help: "cursor"}, {Name: "sort", Type: "string", Help: "sort"}}, Run: func(e *exec) error {
-			return e.send("GET", "/v1/companies", listQ(e), nil, "", false, true)
+			return e.Send("GET", "/v1/companies", listQ(e), nil, "", false, true)
 		}},
 		{Name: "get", Summary: "get a company", Args: []Arg{{Name: "id", Required: true}}, Run: func(e *exec) error {
-			return e.send("GET", "/v1/companies/"+url.PathEscape(e.args[0]), nil, nil, "", false, true)
+			return e.Send("GET", "/v1/companies/"+url.PathEscape(e.Args[0]), nil, nil, "", false, true)
 		}},
 		{Name: "create", Summary: "create a company", Mutating: true, Flags: []Flag{{Name: "name", Type: "string", Help: "name"}, {Name: "website", Type: "string", Help: "website"}, {Name: "icon-url", Type: "string", Help: "favicon override url"}, {Name: "notes", Type: "string", Help: "notes"}}, Run: func(e *exec) error {
-			body, err := e.jsonBody(map[string]string{"name": e.flag("name"), "website": e.flag("website"), "icon_url": e.flag("icon-url"), "notes": e.flag("notes")})
+			body, err := e.JSONBody(map[string]string{"name": e.Flag("name"), "website": e.Flag("website"), "icon_url": e.Flag("icon-url"), "notes": e.Flag("notes")})
 			if err != nil {
 				return err
 			}
-			return e.send("POST", "/v1/companies", nil, body, "application/json", true, true)
+			return e.Send("POST", "/v1/companies", nil, body, "application/json", true, true)
 		}},
 		{Name: "update", Summary: "update a company", Mutating: true, Args: []Arg{{Name: "id", Required: true}}, Flags: []Flag{{Name: "version", Type: "string", Help: "version"}, {Name: "name", Type: "string", Help: "name"}, {Name: "website", Type: "string", Help: "website"}, {Name: "icon-url", Type: "string", Help: "favicon override url"}, {Name: "notes", Type: "string", Help: "notes"}}, Run: func(e *exec) error {
-			ver, err := e.ensureVersion("/v1/companies/" + url.PathEscape(e.args[0]))
+			ver, err := e.ensureVersion("/v1/companies/" + url.PathEscape(e.Args[0]))
 			if err != nil {
 				return err
 			}
 			payload := map[string]any{"version": ver}
-			if _, ok := e.flags["name"]; ok {
-				payload["name"] = e.flag("name")
+			if _, ok := e.Flags["name"]; ok {
+				payload["name"] = e.Flag("name")
 			}
-			if _, ok := e.flags["website"]; ok {
-				payload["website"] = e.flag("website")
+			if _, ok := e.Flags["website"]; ok {
+				payload["website"] = e.Flag("website")
 			}
-			if _, ok := e.flags["icon-url"]; ok {
-				payload["icon_url"] = e.flag("icon-url")
+			if _, ok := e.Flags["icon-url"]; ok {
+				payload["icon_url"] = e.Flag("icon-url")
 			}
-			if _, ok := e.flags["notes"]; ok {
-				payload["notes"] = e.flag("notes")
+			if _, ok := e.Flags["notes"]; ok {
+				payload["notes"] = e.Flag("notes")
 			}
-			body, err := e.jsonBody(payload)
+			body, err := e.JSONBody(payload)
 			if err != nil {
 				return err
 			}
-			return e.send("PATCH", "/v1/companies/"+url.PathEscape(e.args[0]), nil, body, "application/json", true, true)
+			return e.Send("PATCH", "/v1/companies/"+url.PathEscape(e.Args[0]), nil, body, "application/json", true, true)
 		}},
 		{Name: "delete", Summary: "delete a company", Mutating: true, Args: []Arg{{Name: "id", Required: true}}, Flags: []Flag{{Name: "version", Type: "string", Help: "version"}}, Run: func(e *exec) error {
-			return e.delete("/v1/companies/" + url.PathEscape(e.args[0]))
+			return e.delete("/v1/companies/" + url.PathEscape(e.Args[0]))
 		}},
 	}}
 }
@@ -431,10 +431,10 @@ func cmdCompanies() *Command {
 func cmdRoles() *Command {
 	return &Command{Name: "roles", Summary: "roles", Children: []*Command{
 		{Name: "list", Summary: "list roles", Flags: []Flag{{Name: "q", Type: "string", Help: "search"}, {Name: "company", Type: "string", Help: "company name"}, {Name: "fit", Type: "string", Help: "fit"}, {Name: "source", Type: "string", Help: "source"}, {Name: "limit", Type: "string", Help: "page size"}, {Name: "cursor", Type: "string", Help: "cursor"}, {Name: "sort", Type: "string", Help: "sort"}}, Run: func(e *exec) error {
-			return e.send("GET", "/v1/roles", listQ(e), nil, "", false, true)
+			return e.Send("GET", "/v1/roles", listQ(e), nil, "", false, true)
 		}},
 		{Name: "get", Summary: "get a role", Args: []Arg{{Name: "id", Required: true}}, Run: func(e *exec) error {
-			return e.send("GET", "/v1/roles/"+url.PathEscape(e.args[0]), nil, nil, "", false, true)
+			return e.Send("GET", "/v1/roles/"+url.PathEscape(e.Args[0]), nil, nil, "", false, true)
 		}},
 		{Name: "create", Summary: "create a role", Mutating: true, Flags: []Flag{
 			{Name: "company", Type: "string", Help: "company name"}, {Name: "company-id", Type: "string", Help: "company id"},
@@ -442,31 +442,31 @@ func cmdRoles() *Command {
 			{Name: "salary", Type: "string", Help: "salary"}, {Name: "fit", Type: "string", Help: "fit"},
 			{Name: "posting-url", Type: "string", Help: "posting URL"}, {Name: "source", Type: "string", Help: "source"},
 		}, Run: func(e *exec) error {
-			body, err := e.jsonBody(map[string]string{"company": e.flag("company"), "company_id": e.flag("company-id"), "title": e.flag("title"), "location": e.flag("location"), "salary": e.flag("salary"), "fit": e.flag("fit"), "posting_url": e.flag("posting-url"), "source": e.flag("source")})
+			body, err := e.JSONBody(map[string]string{"company": e.Flag("company"), "company_id": e.Flag("company-id"), "title": e.Flag("title"), "location": e.Flag("location"), "salary": e.Flag("salary"), "fit": e.Flag("fit"), "posting_url": e.Flag("posting-url"), "source": e.Flag("source")})
 			if err != nil {
 				return err
 			}
-			return e.send("POST", "/v1/roles", nil, body, "application/json", true, true)
+			return e.Send("POST", "/v1/roles", nil, body, "application/json", true, true)
 		}},
 		{Name: "update", Summary: "update a role", Mutating: true, Args: []Arg{{Name: "id", Required: true}}, Flags: []Flag{{Name: "version", Type: "string", Help: "version"}, {Name: "title", Type: "string", Help: "title"}, {Name: "location", Type: "string", Help: "location"}, {Name: "salary", Type: "string", Help: "salary"}, {Name: "fit", Type: "string", Help: "fit"}, {Name: "posting-url", Type: "string", Help: "posting URL"}}, Run: func(e *exec) error {
-			ver, err := e.ensureVersion("/v1/roles/" + url.PathEscape(e.args[0]))
+			ver, err := e.ensureVersion("/v1/roles/" + url.PathEscape(e.Args[0]))
 			if err != nil {
 				return err
 			}
 			payload := map[string]any{"version": ver}
 			for _, pair := range [][2]string{{"title", "title"}, {"location", "location"}, {"salary", "salary"}, {"fit", "fit"}, {"posting_url", "posting-url"}} {
-				if _, ok := e.flags[pair[1]]; ok {
-					payload[pair[0]] = e.flag(pair[1])
+				if _, ok := e.Flags[pair[1]]; ok {
+					payload[pair[0]] = e.Flag(pair[1])
 				}
 			}
-			body, err := e.jsonBody(payload)
+			body, err := e.JSONBody(payload)
 			if err != nil {
 				return err
 			}
-			return e.send("PATCH", "/v1/roles/"+url.PathEscape(e.args[0]), nil, body, "application/json", true, true)
+			return e.Send("PATCH", "/v1/roles/"+url.PathEscape(e.Args[0]), nil, body, "application/json", true, true)
 		}},
 		{Name: "delete", Summary: "delete a role", Mutating: true, Args: []Arg{{Name: "id", Required: true}}, Flags: []Flag{{Name: "version", Type: "string", Help: "version"}}, Run: func(e *exec) error {
-			return e.delete("/v1/roles/" + url.PathEscape(e.args[0]))
+			return e.delete("/v1/roles/" + url.PathEscape(e.Args[0]))
 		}},
 	}}
 }
@@ -474,14 +474,14 @@ func cmdRoles() *Command {
 func listQ(e *exec) url.Values {
 	q := url.Values{}
 	for _, k := range []string{"q", "company", "fit", "source", "limit", "cursor", "sort", "actor", "action", "since", "until"} {
-		if v := e.flag(k); v != "" {
+		if v := e.Flag(k); v != "" {
 			q.Set(k, v)
 		}
 	}
-	if v := e.flag("entity-type"); v != "" {
+	if v := e.Flag("entity-type"); v != "" {
 		q.Set("entity_type", v)
 	}
-	if v := e.flag("entity-id"); v != "" {
+	if v := e.Flag("entity-id"); v != "" {
 		q.Set("entity_id", v)
 	}
 	return q
@@ -497,34 +497,34 @@ func cmdEvents() *Command {
 	}, Run: runEvents, Children: []*Command{
 		{Name: "list", Summary: "list events", Flags: []Flag{{Name: "application", Type: "string", Help: "application id"}, {Name: "after", Type: "string", Help: "event id cursor"}, {Name: "follow", Type: "bool", Help: "long-poll"}, {Name: "timeout", Type: "string", Help: "wait"}, {Name: "limit", Type: "string", Help: "page size"}}, Run: runEvents},
 		{Name: "add", Summary: "append an email, interview, or note", Mutating: true, Usage: "pursuit events add <application-id> --kind note --body <text>", Args: []Arg{{Name: "application-id", Required: true}}, Flags: []Flag{{Name: "kind", Type: "string", Help: "email_received, interview_scheduled, or note"}, {Name: "title", Type: "string", Help: "title"}, {Name: "body", Type: "string", Help: "body"}}, Run: func(e *exec) error {
-			body, err := e.jsonBody(map[string]string{"kind": e.flag("kind"), "title": e.flag("title"), "body": e.flag("body")})
+			body, err := e.JSONBody(map[string]string{"kind": e.Flag("kind"), "title": e.Flag("title"), "body": e.Flag("body")})
 			if err != nil {
 				return err
 			}
-			return e.send("POST", "/v1/applications/"+url.PathEscape(e.args[0])+"/events", nil, body, "application/json", true, true)
+			return e.Send("POST", "/v1/applications/"+url.PathEscape(e.Args[0])+"/events", nil, body, "application/json", true, true)
 		}},
 	}}
 }
 
 func runEvents(e *exec) error {
 	q := url.Values{}
-	if v := e.flag("application"); v != "" {
+	if v := e.Flag("application"); v != "" {
 		q.Set("application_id", v)
 	}
-	if v := e.flag("after"); v != "" {
+	if v := e.Flag("after"); v != "" {
 		q.Set("after", v)
 	}
-	if v := e.flag("limit"); v != "" {
+	if v := e.Flag("limit"); v != "" {
 		q.Set("limit", v)
 	}
-	if e.flag("follow") == "true" {
+	if e.Flag("follow") == "true" {
 		wait := 25000
-		if v := e.flag("timeout"); v != "" {
+		if v := e.Flag("timeout"); v != "" {
 			d, err := time.ParseDuration(v)
 			if err != nil {
 				n, nerr := strconv.Atoi(v)
 				if nerr != nil {
-					return &exitError{code: 2, message: "invalid --timeout", hint: "use a duration such as 25s"}
+					return &exitError{Code: 2, Message: "invalid --timeout", Hint: "use a duration such as 25s"}
 				}
 				d = time.Duration(n) * time.Second
 			}
@@ -532,37 +532,37 @@ func runEvents(e *exec) error {
 		}
 		q.Set("wait_ms", strconv.Itoa(wait))
 	}
-	return e.send("GET", "/v1/events", q, nil, "", false, true)
+	return e.Send("GET", "/v1/events", q, nil, "", false, true)
 }
 
 func cmdTags() *Command {
 	return &Command{Name: "tags", Summary: "tags", Children: []*Command{
-		{Name: "list", Summary: "list tags", Run: func(e *exec) error { return e.send("GET", "/v1/tags", nil, nil, "", false, true) }},
+		{Name: "list", Summary: "list tags", Run: func(e *exec) error { return e.Send("GET", "/v1/tags", nil, nil, "", false, true) }},
 		{Name: "create", Summary: "create a tag", Mutating: true, Flags: []Flag{{Name: "name", Type: "string", Help: "tag name"}}, Run: func(e *exec) error {
-			body, err := e.jsonBody(map[string]string{"name": e.flag("name")})
+			body, err := e.JSONBody(map[string]string{"name": e.Flag("name")})
 			if err != nil {
 				return err
 			}
-			return e.send("POST", "/v1/tags", nil, body, "application/json", true, true)
+			return e.Send("POST", "/v1/tags", nil, body, "application/json", true, true)
 		}},
 		{Name: "delete", Summary: "delete a tag", Mutating: true, Args: []Arg{{Name: "id", Required: true}}, Run: func(e *exec) error {
-			return e.send("DELETE", "/v1/tags/"+url.PathEscape(e.args[0]), nil, nil, "", true, false)
+			return e.Send("DELETE", "/v1/tags/"+url.PathEscape(e.Args[0]), nil, nil, "", true, false)
 		}},
 	}}
 }
 
 func cmdFields() *Command {
 	return &Command{Name: "fields", Summary: "custom application fields", Children: []*Command{
-		{Name: "list", Summary: "list custom fields", Run: func(e *exec) error { return e.send("GET", "/v1/fields", nil, nil, "", false, true) }},
+		{Name: "list", Summary: "list custom fields", Run: func(e *exec) error { return e.Send("GET", "/v1/fields", nil, nil, "", false, true) }},
 		{Name: "create", Summary: "create a custom field", Mutating: true, Usage: "pursuit fields create --name <name> --type text|number|date", Flags: []Flag{{Name: "name", Type: "string", Help: "field name"}, {Name: "type", Type: "string", Help: "text, number, or date"}}, Run: func(e *exec) error {
-			body, err := e.jsonBody(map[string]string{"name": e.flag("name"), "type": e.flag("type")})
+			body, err := e.JSONBody(map[string]string{"name": e.Flag("name"), "type": e.Flag("type")})
 			if err != nil {
 				return err
 			}
-			return e.send("POST", "/v1/fields", nil, body, "application/json", true, true)
+			return e.Send("POST", "/v1/fields", nil, body, "application/json", true, true)
 		}},
 		{Name: "delete", Summary: "delete a custom field", Mutating: true, Args: []Arg{{Name: "id", Required: true}}, Run: func(e *exec) error {
-			return e.send("DELETE", "/v1/fields/"+url.PathEscape(e.args[0]), nil, nil, "", true, false)
+			return e.Send("DELETE", "/v1/fields/"+url.PathEscape(e.Args[0]), nil, nil, "", true, false)
 		}},
 	}}
 }
@@ -592,7 +592,7 @@ func roundCommands() []*Command {
 			b, err = os.ReadFile(path)
 		}
 		if err != nil {
-			return "", &exitError{code: 2, message: err.Error(), hint: "check --" + flag}
+			return "", &exitError{Code: 2, Message: err.Error(), Hint: "check --" + flag}
 		}
 		return string(b), nil
 	}
@@ -600,12 +600,12 @@ func roundCommands() []*Command {
 	// leaves everything else alone.
 	put := func(e *exec, payload map[string]any) error {
 		for key, flag := range map[string]string{"stage": "stage", "kind": "kind", "interviewer": "interviewer", "scheduled_at": "when", "prep": "prep", "notes": "notes", "append": "append"} {
-			if _, ok := e.flags[flag]; ok {
-				payload[key] = e.flag(flag)
+			if _, ok := e.Flags[flag]; ok {
+				payload[key] = e.Flag(flag)
 			}
 		}
 		for key, flag := range map[string]string{"prep": "prep-file", "notes": "notes-file"} {
-			if path := e.flag(flag); path != "" {
+			if path := e.Flag(flag); path != "" {
 				text, err := read(path, flag)
 				if err != nil {
 					return err
@@ -613,42 +613,42 @@ func roundCommands() []*Command {
 				payload[key] = text
 			}
 		}
-		if v, ok := e.flags["in-notes"]; ok {
+		if v, ok := e.Flags["in-notes"]; ok {
 			payload["in_notes"] = len(v) == 0 || v[0] != "false"
 		}
-		if _, ok := e.flags["question"]; ok {
-			payload["set_question"] = map[string]string{"prompt": e.flag("question"), "answer": e.flag("answer")}
+		if _, ok := e.Flags["question"]; ok {
+			payload["set_question"] = map[string]string{"prompt": e.Flag("question"), "answer": e.Flag("answer")}
 		}
 		return nil
 	}
 	return []*Command{
 		{Name: "list", Summary: "list an application's rounds", Usage: "pursuit rounds list <application-id>", Args: []Arg{{Name: "application-id", Required: true}}, Run: func(e *exec) error {
-			return e.send("GET", "/v1/applications/"+url.PathEscape(e.args[0])+"/rounds", nil, nil, "", false, true)
+			return e.Send("GET", "/v1/applications/"+url.PathEscape(e.Args[0])+"/rounds", nil, nil, "", false, true)
 		}},
 		{Name: "add", Summary: "add a round", Mutating: true, Usage: "pursuit rounds add <application-id> --kind \"System design\" --when 2026-11-05 --prep-file prep.md", Args: []Arg{{Name: "application-id", Required: true}}, Flags: append(append([]Flag{}, fields...), Flag{Name: "done", Type: "bool", Help: "already happened"}), Run: func(e *exec) error {
 			payload := map[string]any{}
 			if err := put(e, payload); err != nil {
 				return err
 			}
-			if e.flag("done") == "true" {
+			if e.Flag("done") == "true" {
 				payload["done"] = true
 			}
-			body, err := e.jsonBody(payload)
+			body, err := e.JSONBody(payload)
 			if err != nil {
 				return err
 			}
-			return e.send("POST", "/v1/applications/"+url.PathEscape(e.args[0])+"/rounds", nil, body, "application/json", true, true)
+			return e.Send("POST", "/v1/applications/"+url.PathEscape(e.Args[0])+"/rounds", nil, body, "application/json", true, true)
 		}},
 		{Name: "get", Summary: "get a round, with its notes and parsed questions", Args: []Arg{{Name: "id", Required: true}}, Run: func(e *exec) error {
-			return e.send("GET", "/v1/rounds/"+url.PathEscape(e.args[0]), nil, nil, "", false, true)
+			return e.Send("GET", "/v1/rounds/"+url.PathEscape(e.Args[0]), nil, nil, "", false, true)
 		}},
 		{Name: "notes", Summary: "print a round's notes as raw markdown", Usage: "pursuit rounds notes <id> > notes.md", Args: []Arg{{Name: "id", Required: true}}, Run: func(e *exec) error {
-			resp, err := e.client.Do(nil, "GET", "/v1/rounds/"+url.PathEscape(e.args[0]), nil, nil, "", apiclient.Options{})
+			resp, err := e.client.Do(nil, "GET", "/v1/rounds/"+url.PathEscape(e.Args[0]), nil, nil, "", apiclient.Options{})
 			if err != nil {
-				return &exitError{code: 1, message: err.Error(), hint: "check that pursuit serve is running and PURSUIT_SERVER is correct"}
+				return &exitError{Code: 1, Message: err.Error(), Hint: "check that pursuit serve is running and PURSUIT_SERVER is correct"}
 			}
 			if resp.Status >= 400 {
-				return &exitError{code: exitStatus(resp.Status), raw: resp.Body}
+				return &exitError{Code: exitStatus(resp.Status), Raw: resp.Body}
 			}
 			var round struct {
 				Notes string `json:"notes"`
@@ -656,23 +656,23 @@ func roundCommands() []*Command {
 			if err := json.Unmarshal(resp.Body, &round); err != nil {
 				return err
 			}
-			_, err = fmt.Fprintln(e.stdout, round.Notes)
+			_, err = fmt.Fprintln(e.Stdout, round.Notes)
 			return err
 		}},
 		{Name: "set", Summary: "change a round", Mutating: true, Usage: "pursuit rounds set <id> [--append ...] [--question ... --answer ...] [--notes-file notes.md] [--done|--undone]", Example: "pursuit rounds set ROUND_ID --question \"Why Snowflake?\" --answer \"Query engine work at scale.\"", Args: []Arg{{Name: "id", Required: true}}, Flags: append(append([]Flag{}, fields...), Flag{Name: "done", Type: "bool", Help: "mark done"}, Flag{Name: "undone", Type: "bool", Help: "mark not done"}, Flag{Name: "version", Type: "string", Help: "object version"}), Run: func(e *exec) error {
-			return patchDone(e, "/v1/rounds/"+url.PathEscape(e.args[0]), put)
+			return patchDone(e, "/v1/rounds/"+url.PathEscape(e.Args[0]), put)
 		}},
 		{Name: "done", Summary: "mark a round done", Mutating: true, Usage: "pursuit rounds done <id> [--notes ...]", Args: []Arg{{Name: "id", Required: true}}, Flags: []Flag{{Name: "notes", Type: "string", Help: "added at the end of the notes"}, {Name: "version", Type: "string", Help: "object version"}}, Run: func(e *exec) error {
-			e.flags["done"] = []string{"true"}
+			e.Flags["done"] = []string{"true"}
 			// Finishing a round adds to its notes; it never replaces them.
-			if v, ok := e.flags["notes"]; ok {
-				e.flags["append"] = v
-				delete(e.flags, "notes")
+			if v, ok := e.Flags["notes"]; ok {
+				e.Flags["append"] = v
+				delete(e.Flags, "notes")
 			}
-			return patchDone(e, "/v1/rounds/"+url.PathEscape(e.args[0]), put)
+			return patchDone(e, "/v1/rounds/"+url.PathEscape(e.Args[0]), put)
 		}},
 		{Name: "delete", Summary: "delete a round", Mutating: true, Args: []Arg{{Name: "id", Required: true}}, Flags: []Flag{{Name: "version", Type: "string", Help: "object version"}}, Run: func(e *exec) error {
-			return e.delete("/v1/rounds/" + url.PathEscape(e.args[0]))
+			return e.delete("/v1/rounds/" + url.PathEscape(e.Args[0]))
 		}},
 	}
 }
@@ -682,11 +682,11 @@ func roundCommands() []*Command {
 func cmdNotes() *Command {
 	put := func(e *exec, payload map[string]any) error {
 		for key, flag := range map[string]string{"name": "name", "body": "body", "append": "append"} {
-			if _, ok := e.flags[flag]; ok {
-				payload[key] = e.flag(flag)
+			if _, ok := e.Flags[flag]; ok {
+				payload[key] = e.Flag(flag)
 			}
 		}
-		if path := e.flag("file"); path != "" {
+		if path := e.Flag("file"); path != "" {
 			var b []byte
 			var err error
 			if path == "-" {
@@ -695,12 +695,12 @@ func cmdNotes() *Command {
 				b, err = os.ReadFile(path)
 			}
 			if err != nil {
-				return &exitError{code: 2, message: err.Error(), hint: "check --file"}
+				return &exitError{Code: 2, Message: err.Error(), Hint: "check --file"}
 			}
 			payload["body"] = string(b)
 		}
-		if _, ok := e.flags["question"]; ok {
-			payload["set_question"] = map[string]string{"prompt": e.flag("question"), "answer": e.flag("answer")}
+		if _, ok := e.Flags["question"]; ok {
+			payload["set_question"] = map[string]string{"prompt": e.Flag("question"), "answer": e.Flag("answer")}
 		}
 		return nil
 	}
@@ -714,27 +714,27 @@ func cmdNotes() *Command {
 	}
 	return &Command{Name: "notes", Summary: "an application's notes files: markdown beside its notes and rounds", Children: []*Command{
 		{Name: "list", Summary: "list an application's notes files", Usage: "pursuit notes list <application-id>", Args: []Arg{{Name: "application-id", Required: true}}, Run: func(e *exec) error {
-			return e.send("GET", "/v1/applications/"+url.PathEscape(e.args[0])+"/notes/files", nil, nil, "", false, true)
+			return e.Send("GET", "/v1/applications/"+url.PathEscape(e.Args[0])+"/notes/files", nil, nil, "", false, true)
 		}},
 		{Name: "add", Summary: "add a notes file", Mutating: true, Usage: "pursuit notes add <application-id> --name \"Salary research\" [--file notes.md]", Args: []Arg{{Name: "application-id", Required: true}}, Flags: fields, Run: func(e *exec) error {
 			payload := map[string]any{}
 			if err := put(e, payload); err != nil {
 				return err
 			}
-			body, err := e.jsonBody(payload)
+			body, err := e.JSONBody(payload)
 			if err != nil {
 				return err
 			}
-			return e.send("POST", "/v1/applications/"+url.PathEscape(e.args[0])+"/notes/files", nil, body, "application/json", true, true)
+			return e.Send("POST", "/v1/applications/"+url.PathEscape(e.Args[0])+"/notes/files", nil, body, "application/json", true, true)
 		}},
 		{Name: "get", Summary: "get a notes file", Args: []Arg{{Name: "id", Required: true}}, Run: func(e *exec) error {
-			return e.send("GET", "/v1/notes/"+url.PathEscape(e.args[0]), nil, nil, "", false, true)
+			return e.Send("GET", "/v1/notes/"+url.PathEscape(e.Args[0]), nil, nil, "", false, true)
 		}},
 		{Name: "set", Summary: "change a notes file", Mutating: true, Usage: "pursuit notes set <id> [--append ...] [--question ... --answer ...] [--file notes.md] [--name ...]", Args: []Arg{{Name: "id", Required: true}}, Flags: append(append([]Flag{}, fields...), Flag{Name: "version", Type: "string", Help: "object version"}), Run: func(e *exec) error {
-			return patchDone(e, "/v1/notes/"+url.PathEscape(e.args[0]), put)
+			return patchDone(e, "/v1/notes/"+url.PathEscape(e.Args[0]), put)
 		}},
 		{Name: "delete", Summary: "delete a notes file", Mutating: true, Args: []Arg{{Name: "id", Required: true}}, Flags: []Flag{{Name: "version", Type: "string", Help: "object version"}}, Run: func(e *exec) error {
-			return e.delete("/v1/notes/" + url.PathEscape(e.args[0]))
+			return e.delete("/v1/notes/" + url.PathEscape(e.Args[0]))
 		}},
 	}}
 }
@@ -749,39 +749,39 @@ func cmdTasks() *Command {
 	}
 	put := func(e *exec, payload map[string]any) error {
 		for key, flag := range map[string]string{"title": "title", "stage": "stage", "notes": "notes", "due_at": "due", "round_id": "round"} {
-			if _, ok := e.flags[flag]; ok {
-				payload[key] = e.flag(flag)
+			if _, ok := e.Flags[flag]; ok {
+				payload[key] = e.Flag(flag)
 			}
 		}
 		return nil
 	}
 	return &Command{Name: "tasks", Summary: "to-dos on an application, things waiting on you", Children: []*Command{
 		{Name: "list", Summary: "list an application's tasks", Usage: "pursuit tasks list <application-id>", Args: []Arg{{Name: "application-id", Required: true}}, Run: func(e *exec) error {
-			return e.send("GET", "/v1/applications/"+url.PathEscape(e.args[0])+"/tasks", nil, nil, "", false, true)
+			return e.Send("GET", "/v1/applications/"+url.PathEscape(e.Args[0])+"/tasks", nil, nil, "", false, true)
 		}},
 		{Name: "add", Summary: "add a task", Mutating: true, Usage: "pursuit tasks add <application-id> --title \"Send references\" [--stage ...] [--due 2026-11-05]", Args: []Arg{{Name: "application-id", Required: true}}, Flags: append(append([]Flag{}, fields...), Flag{Name: "done", Type: "bool", Help: "already done"}), Run: func(e *exec) error {
 			payload := map[string]any{}
 			if err := put(e, payload); err != nil {
 				return err
 			}
-			if e.flag("done") == "true" {
+			if e.Flag("done") == "true" {
 				payload["done"] = true
 			}
-			body, err := e.jsonBody(payload)
+			body, err := e.JSONBody(payload)
 			if err != nil {
 				return err
 			}
-			return e.send("POST", "/v1/applications/"+url.PathEscape(e.args[0])+"/tasks", nil, body, "application/json", true, true)
+			return e.Send("POST", "/v1/applications/"+url.PathEscape(e.Args[0])+"/tasks", nil, body, "application/json", true, true)
 		}},
 		{Name: "set", Summary: "change a task", Mutating: true, Usage: "pursuit tasks set <id> [--title ...] [--due ...] [--done|--undone]", Args: []Arg{{Name: "id", Required: true}}, Flags: append(append([]Flag{}, fields...), Flag{Name: "done", Type: "bool", Help: "mark done"}, Flag{Name: "undone", Type: "bool", Help: "mark not done"}, Flag{Name: "version", Type: "string", Help: "object version"}), Run: func(e *exec) error {
-			return patchDone(e, "/v1/tasks/"+url.PathEscape(e.args[0]), put)
+			return patchDone(e, "/v1/tasks/"+url.PathEscape(e.Args[0]), put)
 		}},
 		{Name: "done", Summary: "mark a task done", Mutating: true, Usage: "pursuit tasks done <id>", Args: []Arg{{Name: "id", Required: true}}, Flags: []Flag{{Name: "notes", Type: "string", Help: "details"}, {Name: "version", Type: "string", Help: "object version"}}, Run: func(e *exec) error {
-			e.flags["done"] = []string{"true"}
-			return patchDone(e, "/v1/tasks/"+url.PathEscape(e.args[0]), put)
+			e.Flags["done"] = []string{"true"}
+			return patchDone(e, "/v1/tasks/"+url.PathEscape(e.Args[0]), put)
 		}},
 		{Name: "delete", Summary: "delete a task", Mutating: true, Args: []Arg{{Name: "id", Required: true}}, Flags: []Flag{{Name: "version", Type: "string", Help: "object version"}}, Run: func(e *exec) error {
-			return e.delete("/v1/tasks/" + url.PathEscape(e.args[0]))
+			return e.delete("/v1/tasks/" + url.PathEscape(e.Args[0]))
 		}},
 	}}
 }
@@ -797,32 +797,32 @@ func patchDone(e *exec, path string, put func(*exec, map[string]any) error) erro
 	if err := put(e, payload); err != nil {
 		return err
 	}
-	if e.flag("done") == "true" {
+	if e.Flag("done") == "true" {
 		payload["done"] = true
 	}
-	if e.flag("undone") == "true" {
+	if e.Flag("undone") == "true" {
 		payload["done"] = false
 	}
-	body, err := e.jsonBody(payload)
+	body, err := e.JSONBody(payload)
 	if err != nil {
 		return err
 	}
-	return e.send("PATCH", path, nil, body, "application/json", true, true)
+	return e.Send("PATCH", path, nil, body, "application/json", true, true)
 }
 
 func cmdTokens() *Command {
 	return &Command{Name: "tokens", Summary: "API tokens", Children: []*Command{
-		{Name: "list", Summary: "list tokens", Run: func(e *exec) error { return e.send("GET", "/v1/tokens", nil, nil, "", false, true) }},
+		{Name: "list", Summary: "list tokens", Run: func(e *exec) error { return e.Send("GET", "/v1/tokens", nil, nil, "", false, true) }},
 		{Name: "create", Summary: "create a token", Mutating: true, Example: "pursuit tokens create --name agent --scope read --scope write", Flags: []Flag{{Name: "name", Type: "string", Help: "token name"}, {Name: "scope", Type: "string", Help: "read, write, or approve; only scopes your own token holds, and approve only from a human token", Repeatable: true}, {Name: "expires-in-days", Type: "string", Help: "stop the token working after this many days (default never)"}}, Run: func(e *exec) error {
-			days, _ := strconv.Atoi(e.flag("expires-in-days"))
-			body, err := e.jsonBody(map[string]any{"name": e.flag("name"), "scopes": e.flags["scope"], "expires_in_days": days})
+			days, _ := strconv.Atoi(e.Flag("expires-in-days"))
+			body, err := e.JSONBody(map[string]any{"name": e.Flag("name"), "scopes": e.Flags["scope"], "expires_in_days": days})
 			if err != nil {
 				return err
 			}
-			return e.send("POST", "/v1/tokens", nil, body, "application/json", true, false)
+			return e.Send("POST", "/v1/tokens", nil, body, "application/json", true, false)
 		}},
 		{Name: "revoke", Summary: "revoke a token", Mutating: true, Args: []Arg{{Name: "id", Required: true}}, Run: func(e *exec) error {
-			return e.send("DELETE", "/v1/tokens/"+url.PathEscape(e.args[0]), nil, nil, "", true, false)
+			return e.Send("DELETE", "/v1/tokens/"+url.PathEscape(e.Args[0]), nil, nil, "", true, false)
 		}},
 	}}
 }
@@ -830,7 +830,7 @@ func cmdTokens() *Command {
 func cmdAudit() *Command {
 	return &Command{Name: "audit", Summary: "audit log", Children: []*Command{
 		{Name: "list", Summary: "list audit entries", Flags: []Flag{{Name: "actor", Type: "string", Help: "actor name"}, {Name: "action", Type: "string", Help: "action"}, {Name: "entity-type", Type: "string", Help: "entity type"}, {Name: "entity-id", Type: "string", Help: "entity id, for example an application id to trace its history"}, {Name: "q", Type: "string", Help: "text in the summary, action, entity, actor, or metadata"}, {Name: "since", Type: "string", Help: "entries at or after this date or RFC 3339 time"}, {Name: "until", Type: "string", Help: "entries at or before this date or RFC 3339 time"}, {Name: "sort", Type: "string", Help: "created_at or -created_at (default newest first)"}, {Name: "limit", Type: "string", Help: "page size"}, {Name: "cursor", Type: "string", Help: "cursor"}}, Run: func(e *exec) error {
-			return e.send("GET", "/v1/audit", listQ(e), nil, "", false, true)
+			return e.Send("GET", "/v1/audit", listQ(e), nil, "", false, true)
 		}},
 	}}
 }
@@ -842,7 +842,7 @@ func cmdImport() *Command {
 		{Name: "json", Summary: "import a JSON array of postings", Mutating: true, Usage: "pursuit import json <file>", Args: file, Run: func(e *exec) error { return e.importFile("json", "/v1/import/json", "application/json") }},
 		{Name: "markdown", Summary: "import markdown tables as to_apply", Mutating: true, Usage: "pursuit import markdown <file>", Args: file, Run: func(e *exec) error { return e.importFile("markdown", "/v1/import/markdown", "text/markdown") }},
 		{Name: "seed", Summary: "import the example applications and role batches", Mutating: true, Usage: "pursuit import seed", Run: func(e *exec) error {
-			return e.send("POST", "/v1/import/seed", nil, []byte("{}"), "application/json", true, false)
+			return e.Send("POST", "/v1/import/seed", nil, []byte("{}"), "application/json", true, false)
 		}},
 	}}
 }
@@ -850,46 +850,46 @@ func cmdImport() *Command {
 func (e *exec) importFile(kind, path, ct string) error {
 	var b []byte
 	var err error
-	if e.args[0] == "-" {
+	if e.Args[0] == "-" {
 		b, err = io.ReadAll(os.Stdin)
 	} else {
-		b, err = os.ReadFile(e.args[0])
+		b, err = os.ReadFile(e.Args[0])
 	}
 	if err != nil {
-		return &exitError{code: 2, message: err.Error(), hint: "pass a readable " + kind + " file"}
+		return &exitError{Code: 2, Message: err.Error(), Hint: "pass a readable " + kind + " file"}
 	}
 	if kind == "csv" {
-		if dsn := strings.TrimSpace(e.flag("database-url")); dsn != "" {
+		if dsn := strings.TrimSpace(e.Flag("database-url")); dsn != "" {
 			return e.importCSVDatabase(b, dsn)
 		}
 	}
-	return e.send("POST", path, nil, b, ct, true, false)
+	return e.Send("POST", path, nil, b, ct, true, false)
 }
 
 func (e *exec) importCSVDatabase(body []byte, dsn string) error {
 	ctx := context.Background()
 	store, err := sqlstore.Open(ctx, dsn)
 	if err != nil {
-		return &exitError{code: 1, message: redactSecret(err.Error(), dsn), hint: "pass a postgres:// or sqlite:// URL"}
+		return &exitError{Code: 1, Message: redactSecret(err.Error(), dsn), Hint: "pass a postgres:// or sqlite:// URL"}
 	}
 	defer store.Close()
 	svc := service.New(store)
 	supplied := strings.TrimSpace(e.cfg.BootstrapToken)
 	secret, created, err := svc.Bootstrap(ctx, e.cfg.OwnerName, e.cfg.OwnerEmail, e.cfg.BootstrapName, supplied)
 	if err != nil {
-		return &exitError{code: 1, message: redactSecret(err.Error(), dsn), hint: "check the database URL"}
+		return &exitError{Code: 1, Message: redactSecret(err.Error(), dsn), Hint: "check the database URL"}
 	}
 	user, err := store.FirstUser(ctx)
 	if err != nil {
-		return &exitError{code: 1, message: err.Error(), hint: "check the database URL"}
+		return &exitError{Code: 1, Message: err.Error(), Hint: "check the database URL"}
 	}
 	ctx = domain.WithActor(ctx, domain.Actor{UserID: user.ID, Name: "import", Scopes: []string{"read", "write", "approve"}})
 	result, err := svc.ImportCSV(ctx, bytes.NewReader(body))
 	if err != nil {
 		if de, ok := domain.As(err); ok {
-			return &exitError{code: exitStatus(de.Status), message: de.Message, hint: de.Hint}
+			return &exitError{Code: exitStatus(de.Status), Message: de.Message, Hint: de.Hint}
 		}
-		return &exitError{code: 1, message: err.Error(), hint: "check the CSV columns"}
+		return &exitError{Code: 1, Message: err.Error(), Hint: "check the CSV columns"}
 	}
 	out := struct {
 		service.ImportResult
@@ -919,30 +919,30 @@ func cmdExport() *Command {
 func (e *exec) export(path, name string) error {
 	resp, err := e.client.Do(nil, "GET", path, nil, nil, "", apiclient.Options{})
 	if err != nil {
-		return &exitError{code: 1, message: err.Error(), hint: "check that pursuit serve is running and PURSUIT_SERVER is correct"}
+		return &exitError{Code: 1, Message: err.Error(), Hint: "check that pursuit serve is running and PURSUIT_SERVER is correct"}
 	}
 	if resp.Status >= 400 {
-		return &exitError{code: exitStatus(resp.Status), raw: resp.Body}
+		return &exitError{Code: exitStatus(resp.Status), Raw: resp.Body}
 	}
-	out := e.flag("output")
+	out := e.Flag("output")
 	if out == "" {
-		out = e.flag("o")
+		out = e.Flag("o")
 	}
 	if out != "" {
 		if err := os.WriteFile(out, resp.Body, 0o644); err != nil {
-			return &exitError{code: 1, message: err.Error(), hint: "choose a writable --output path"}
+			return &exitError{Code: 1, Message: err.Error(), Hint: "choose a writable --output path"}
 		}
 		return e.printObj(map[string]any{"path": out, "bytes": len(resp.Body)})
 	}
-	return e.print(resp.Body, resp.ContentType)
+	return e.Print(resp.Body, resp.ContentType)
 }
 
 func (e *exec) printObj(v any) error {
-	b, err := e.jsonBody(v)
+	b, err := e.JSONBody(v)
 	if err != nil {
 		return err
 	}
-	return e.print(b, "application/json")
+	return e.Print(b, "application/json")
 }
 
 func cmdApply() *Command {
@@ -959,20 +959,20 @@ func cmdApply() *Command {
 			{Name: "worker", Type: "string", Help: "worker id for a synchronous prepare"},
 		},
 		Run: func(e *exec) error {
-			prepare := e.flag("prepare") == "true"
-			async := e.flag("async") == "true"
-			if len(e.flags["batch"]) > 0 {
+			prepare := e.Flag("prepare") == "true"
+			async := e.Flag("async") == "true"
+			if len(e.Flags["batch"]) > 0 {
 				if prepare && async {
-					return &exitError{code: 2, message: "pass only one of --prepare or --async", hint: "batch takes one mode"}
+					return &exitError{Code: 2, Message: "pass only one of --prepare or --async", Hint: "batch takes one mode"}
 				}
 				if !prepare && !async {
 					async = true
 				}
 				body := map[string]any{"prepare": prepare, "async": async && !prepare}
-				for _, raw := range e.flags["batch"] {
+				for _, raw := range e.Flags["batch"] {
 					k, v, ok := strings.Cut(raw, "=")
 					if !ok {
-						return &exitError{code: 2, message: "batch filter must be key=value", hint: "for example --batch status=to_apply"}
+						return &exitError{Code: 2, Message: "batch filter must be key=value", Hint: "for example --batch status=to_apply"}
 					}
 					switch k {
 					case "status":
@@ -984,34 +984,34 @@ func cmdApply() *Command {
 					case "stale":
 						body["stale"] = v == "true" || v == "1"
 					default:
-						return &exitError{code: 2, message: "unknown batch filter " + k, hint: "filters are status, company, q, stale"}
+						return &exitError{Code: 2, Message: "unknown batch filter " + k, Hint: "filters are status, company, q, stale"}
 					}
 				}
-				b, err := e.jsonBody(body)
+				b, err := e.JSONBody(body)
 				if err != nil {
 					return err
 				}
-				return e.send("POST", "/v1/apply", nil, b, "application/json", true, false)
+				return e.Send("POST", "/v1/apply", nil, b, "application/json", true, false)
 			}
-			if len(e.args) != 1 {
-				return &exitError{code: 2, message: "application id required", hint: "pursuit apply <id> --prepare or --batch status=to_apply --async"}
+			if len(e.Args) != 1 {
+				return &exitError{Code: 2, Message: "application id required", Hint: "pursuit apply <id> --prepare or --batch status=to_apply --async"}
 			}
 			if prepare == async {
-				return &exitError{code: 2, message: "choose --prepare or --async", hint: "prepare runs now; async enqueues"}
+				return &exitError{Code: 2, Message: "choose --prepare or --async", Hint: "prepare runs now; async enqueues"}
 			}
-			id := url.PathEscape(e.args[0])
+			id := url.PathEscape(e.Args[0])
 			if prepare {
 				q := url.Values{}
-				if w := e.flag("worker"); w != "" {
+				if w := e.Flag("worker"); w != "" {
 					q.Set("worker", w)
 				}
-				return e.send("POST", "/v1/applications/"+id+"/prepare", q, []byte("{}"), "application/json", true, false)
+				return e.Send("POST", "/v1/applications/"+id+"/prepare", q, []byte("{}"), "application/json", true, false)
 			}
-			b, err := e.jsonBody(map[string]string{"kind": "prepare"})
+			b, err := e.JSONBody(map[string]string{"kind": "prepare"})
 			if err != nil {
 				return err
 			}
-			return e.send("POST", "/v1/applications/"+id+"/enqueue", nil, b, "application/json", true, false)
+			return e.Send("POST", "/v1/applications/"+id+"/enqueue", nil, b, "application/json", true, false)
 		},
 	}
 }
@@ -1025,11 +1025,11 @@ func cmdApprove() *Command {
 		Args: []Arg{{Name: "id", Required: true, Many: true}},
 		Flags: []Flag{{Name: "note", Type: "string", Help: "note stored with the approval"}},
 		Run: func(e *exec) error {
-			b, err := e.jsonBody(map[string]any{"ids": e.args, "note": e.flag("note")})
+			b, err := e.JSONBody(map[string]any{"ids": e.Args, "note": e.Flag("note")})
 			if err != nil {
 				return err
 			}
-			return e.send("POST", "/v1/approvals", nil, b, "application/json", true, false)
+			return e.Send("POST", "/v1/approvals", nil, b, "application/json", true, false)
 		},
 	}
 }
@@ -1043,11 +1043,11 @@ func cmdReject() *Command {
 		Args: []Arg{{Name: "id", Required: true, Many: true}},
 		Flags: []Flag{{Name: "note", Type: "string", Help: "note stored with the rejection"}},
 		Run: func(e *exec) error {
-			b, err := e.jsonBody(map[string]any{"ids": e.args, "note": e.flag("note")})
+			b, err := e.JSONBody(map[string]any{"ids": e.Args, "note": e.Flag("note")})
 			if err != nil {
 				return err
 			}
-			return e.send("POST", "/v1/approvals/reject", nil, b, "application/json", true, false)
+			return e.Send("POST", "/v1/approvals/reject", nil, b, "application/json", true, false)
 		},
 	}
 }
@@ -1056,25 +1056,25 @@ func cmdQueue() *Command {
 	worker := Flag{Name: "worker", Type: "string", Help: "worker id that holds the lease"}
 	return &Command{Name: "queue", Summary: "lease application work", Children: []*Command{
 		{Name: "claim", Summary: "lease the next job", Mutating: true, Usage: "pursuit queue claim --worker <id>", Example: "pursuit queue claim --worker agent-1", Flags: []Flag{worker}, Run: func(e *exec) error {
-			b, err := e.jsonBody(map[string]string{"worker": e.flag("worker")})
+			b, err := e.JSONBody(map[string]string{"worker": e.Flag("worker")})
 			if err != nil {
 				return err
 			}
-			return e.send("POST", "/v1/queue/claim", nil, b, "application/json", true, false)
+			return e.Send("POST", "/v1/queue/claim", nil, b, "application/json", true, false)
 		}},
 		{Name: "heartbeat", Summary: "extend a lease", Mutating: true, Usage: "pursuit queue heartbeat <work-id> --worker <id>", Args: []Arg{{Name: "work-id", Required: true}}, Flags: []Flag{worker}, Run: func(e *exec) error {
-			b, err := e.jsonBody(map[string]string{"worker": e.flag("worker")})
+			b, err := e.JSONBody(map[string]string{"worker": e.Flag("worker")})
 			if err != nil {
 				return err
 			}
-			return e.send("POST", "/v1/queue/"+url.PathEscape(e.args[0])+"/heartbeat", nil, b, "application/json", true, false)
+			return e.Send("POST", "/v1/queue/"+url.PathEscape(e.Args[0])+"/heartbeat", nil, b, "application/json", true, false)
 		}},
 		{Name: "complete", Summary: "finish leased work", Mutating: true, Usage: "pursuit queue complete <work-id> --worker <id> --status <status>", Args: []Arg{{Name: "work-id", Required: true}}, Flags: []Flag{worker, {Name: "status", Type: "string", Help: "awaiting_review, needs_input, submitted, or failed"}, {Name: "note", Type: "string", Help: "event note"}}, Run: func(e *exec) error {
-			b, err := e.jsonBody(map[string]string{"worker": e.flag("worker"), "status": e.flag("status"), "note": e.flag("note")})
+			b, err := e.JSONBody(map[string]string{"worker": e.Flag("worker"), "status": e.Flag("status"), "note": e.Flag("note")})
 			if err != nil {
 				return err
 			}
-			return e.send("POST", "/v1/queue/"+url.PathEscape(e.args[0])+"/complete", nil, b, "application/json", true, false)
+			return e.Send("POST", "/v1/queue/"+url.PathEscape(e.Args[0])+"/complete", nil, b, "application/json", true, false)
 		}},
 	}}
 }
@@ -1082,50 +1082,50 @@ func cmdQueue() *Command {
 func cmdArtifacts() *Command {
 	return &Command{Name: "artifacts", Summary: "files attached to an application", Children: []*Command{
 		{Name: "list", Summary: "list artifacts", Args: []Arg{{Name: "application-id", Required: true}}, Run: func(e *exec) error {
-			return e.send("GET", "/v1/applications/"+url.PathEscape(e.args[0])+"/artifacts", nil, nil, "", false, false)
+			return e.Send("GET", "/v1/applications/"+url.PathEscape(e.Args[0])+"/artifacts", nil, nil, "", false, false)
 		}},
 		{Name: "add", Summary: "attach a file", Mutating: true, Usage: "pursuit artifacts add <application-id> --kind <kind> --file <path>", Args: []Arg{{Name: "application-id", Required: true}}, Flags: []Flag{{Name: "kind", Type: "string", Help: "resume_pdf, cover_letter, answers_json, form_snapshot, or confirmation"}, {Name: "file", Type: "string", Help: "file path"}}, Run: func(e *exec) error {
-			body, ct, err := uploadForm(e.flag("kind"), "", e.flag("file"))
+			body, ct, err := uploadForm(e.Flag("kind"), "", e.Flag("file"))
 			if err != nil {
 				return err
 			}
-			return e.send("POST", "/v1/applications/"+url.PathEscape(e.args[0])+"/artifacts", nil, body, ct, true, false)
+			return e.Send("POST", "/v1/applications/"+url.PathEscape(e.Args[0])+"/artifacts", nil, body, ct, true, false)
 		}},
 		{Name: "get", Summary: "fetch one artifact", Args: []Arg{{Name: "artifact-id", Required: true}}, Run: func(e *exec) error {
-			return e.send("GET", "/v1/artifacts/"+url.PathEscape(e.args[0]), nil, nil, "", false, false)
+			return e.Send("GET", "/v1/artifacts/"+url.PathEscape(e.Args[0]), nil, nil, "", false, false)
 		}},
 	}}
 }
 
 func cmdDocuments() *Command {
 	return &Command{Name: "documents", Summary: "your files: résumés, cover letters, other", Children: []*Command{
-		{Name: "list", Summary: "list documents", Run: func(e *exec) error { return e.send("GET", "/v1/documents", nil, nil, "", false, false) }},
+		{Name: "list", Summary: "list documents", Run: func(e *exec) error { return e.Send("GET", "/v1/documents", nil, nil, "", false, false) }},
 		{Name: "add", Summary: "upload a document; the first résumé and cover letter become the main ones prepare attaches", Mutating: true, Usage: "pursuit documents add --kind base_resume --file resume.pdf [--label Backend]", Flags: []Flag{{Name: "kind", Type: "string", Help: "base_resume, cover_letter, or other"}, {Name: "file", Type: "string", Help: "file path"}, {Name: "label", Type: "string", Help: "name for this version"}}, Run: func(e *exec) error {
-			body, ct, err := uploadForm(e.flag("kind"), e.flag("label"), e.flag("file"))
+			body, ct, err := uploadForm(e.Flag("kind"), e.Flag("label"), e.Flag("file"))
 			if err != nil {
 				return err
 			}
-			return e.send("POST", "/v1/documents", nil, body, ct, true, false)
+			return e.Send("POST", "/v1/documents", nil, body, ct, true, false)
 		}},
 		{Name: "get", Summary: "fetch one document; binary bodies are base64", Args: []Arg{{Name: "document-id", Required: true}}, Run: func(e *exec) error {
-			return e.send("GET", "/v1/documents/"+url.PathEscape(e.args[0]), nil, nil, "", false, false)
+			return e.Send("GET", "/v1/documents/"+url.PathEscape(e.Args[0]), nil, nil, "", false, false)
 		}},
 		{Name: "set", Summary: "rename a document, or make it the main résumé or cover letter", Mutating: true, Usage: "pursuit documents set <document-id> [--label ...] [--primary]", Args: []Arg{{Name: "document-id", Required: true}}, Flags: []Flag{{Name: "label", Type: "string", Help: "name for this version"}, {Name: "primary", Type: "bool", Help: "make it the one prepare attaches"}}, Run: func(e *exec) error {
 			payload := map[string]any{}
-			if v, ok := e.flags["label"]; ok && len(v) > 0 {
+			if v, ok := e.Flags["label"]; ok && len(v) > 0 {
 				payload["label"] = v[0]
 			}
-			if e.flag("primary") == "true" {
+			if e.Flag("primary") == "true" {
 				payload["primary"] = true
 			}
-			b, err := e.jsonBody(payload)
+			b, err := e.JSONBody(payload)
 			if err != nil {
 				return err
 			}
-			return e.send("PATCH", "/v1/documents/"+url.PathEscape(e.args[0]), nil, b, "application/json", true, false)
+			return e.Send("PATCH", "/v1/documents/"+url.PathEscape(e.Args[0]), nil, b, "application/json", true, false)
 		}},
 		{Name: "delete", Summary: "delete a document; deleting the main one makes the newest left the main one", Mutating: true, Args: []Arg{{Name: "document-id", Required: true}}, Run: func(e *exec) error {
-			return e.send("DELETE", "/v1/documents/"+url.PathEscape(e.args[0]), nil, nil, "", true, false)
+			return e.Send("DELETE", "/v1/documents/"+url.PathEscape(e.Args[0]), nil, nil, "", true, false)
 		}},
 	}}
 }
@@ -1135,7 +1135,7 @@ func cmdDocuments() *Command {
 func uploadForm(kind, label, path string) ([]byte, string, error) {
 	b, err := os.ReadFile(path)
 	if err != nil {
-		return nil, "", &exitError{code: 2, message: err.Error(), hint: "pass --file"}
+		return nil, "", &exitError{Code: 2, Message: err.Error(), Hint: "pass --file"}
 	}
 	var buf bytes.Buffer
 	mw := multipart.NewWriter(&buf)
@@ -1154,23 +1154,23 @@ func uploadForm(kind, label, path string) ([]byte, string, error) {
 
 func cmdStanding() *Command {
 	return &Command{Name: "standing", Summary: "reusable answers for form questions", Children: []*Command{
-		{Name: "list", Summary: "list standing answers", Run: func(e *exec) error { return e.send("GET", "/v1/standing", nil, nil, "", false, false) }},
+		{Name: "list", Summary: "list standing answers", Run: func(e *exec) error { return e.Send("GET", "/v1/standing", nil, nil, "", false, false) }},
 		{Name: "set", Summary: "set one standing answer", Mutating: true, Usage: "pursuit standing set --key <key> --value <text>", Flags: []Flag{{Name: "key", Type: "string", Help: "answer key"}, {Name: "value", Type: "string", Help: "answer text"}}, Run: func(e *exec) error {
-			b, err := e.jsonBody(map[string]string{"key": e.flag("key"), "answer": e.flag("value")})
+			b, err := e.JSONBody(map[string]string{"key": e.Flag("key"), "answer": e.Flag("value")})
 			if err != nil {
 				return err
 			}
-			return e.send("POST", "/v1/standing", nil, b, "application/json", true, false)
+			return e.Send("POST", "/v1/standing", nil, b, "application/json", true, false)
 		}},
 		{Name: "delete", Summary: "delete one standing answer", Mutating: true, Usage: "pursuit standing delete <key>", Args: []Arg{{Name: "key", Required: true}}, Run: func(e *exec) error {
-			return e.send("DELETE", "/v1/standing/"+url.PathEscape(e.args[0]), nil, nil, "", true, false)
+			return e.Send("DELETE", "/v1/standing/"+url.PathEscape(e.Args[0]), nil, nil, "", true, false)
 		}},
 	}}
 }
 
 func cmdCaps() *Command {
 	return &Command{Name: "caps", Summary: "per-company application caps", Run: func(e *exec) error {
-		return e.send("GET", "/v1/caps", nil, nil, "", false, false)
+		return e.Send("GET", "/v1/caps", nil, nil, "", false, false)
 	}}
 }
 
@@ -1183,17 +1183,17 @@ func cmdCheckLinks() *Command {
 		Args: []Arg{{Name: "application-id"}},
 		Flags: []Flag{{Name: "all", Type: "bool", Help: "sweep every to_apply and awaiting_review posting"}},
 		Run: func(e *exec) error {
-			if e.flag("all") == "true" {
-				b, err := e.jsonBody(map[string]string{"owner": "cli"})
+			if e.Flag("all") == "true" {
+				b, err := e.JSONBody(map[string]string{"owner": "cli"})
 				if err != nil {
 					return err
 				}
-				return e.send("POST", "/v1/links/check", nil, b, "application/json", true, false)
+				return e.Send("POST", "/v1/links/check", nil, b, "application/json", true, false)
 			}
-			if len(e.args) != 1 {
-				return &exitError{code: 2, message: "pass --all or an application id", hint: "pursuit check-links --all"}
+			if len(e.Args) != 1 {
+				return &exitError{Code: 2, Message: "pass --all or an application id", Hint: "pursuit check-links --all"}
 			}
-			return e.send("POST", "/v1/applications/"+url.PathEscape(e.args[0])+"/check-link", nil, []byte("{}"), "application/json", true, false)
+			return e.Send("POST", "/v1/applications/"+url.PathEscape(e.Args[0])+"/check-link", nil, []byte("{}"), "application/json", true, false)
 		},
 	}
 }
@@ -1214,33 +1214,33 @@ func cmdLinks() *Command {
 		Run: func(e *exec) error {
 			q := url.Values{}
 			for _, k := range []string{"status", "limit", "cursor", "sort"} {
-				if v := e.flag(k); v != "" {
+				if v := e.Flag(k); v != "" {
 					q.Set(k, v)
 				}
 			}
-			if e.flag("changed") == "true" {
+			if e.Flag("changed") == "true" {
 				q.Set("changed", "true")
 			}
-			if e.flag("all") != "true" && q.Get("status") == "" && q.Get("changed") == "" {
+			if e.Flag("all") != "true" && q.Get("status") == "" && q.Get("changed") == "" {
 				q.Set("attention", "true")
 			}
-			return e.send("GET", "/v1/links", q, nil, "", false, true)
+			return e.Send("GET", "/v1/links", q, nil, "", false, true)
 		},
 	}
 }
 
 func cmdWebhooks() *Command {
 	return &Command{Name: "webhooks", Summary: "event webhooks", Children: []*Command{
-		{Name: "list", Summary: "list webhooks", Run: func(e *exec) error { return e.send("GET", "/v1/webhooks", nil, nil, "", false, false) }},
+		{Name: "list", Summary: "list webhooks", Run: func(e *exec) error { return e.Send("GET", "/v1/webhooks", nil, nil, "", false, false) }},
 		{Name: "add", Summary: "register a webhook", Mutating: true, Flags: []Flag{{Name: "url", Type: "string", Help: "https endpoint"}, {Name: "secret", Type: "string", Help: "sent as X-Pursuit-Secret"}}, Run: func(e *exec) error {
-			b, err := e.jsonBody(map[string]string{"url": e.flag("url"), "secret": e.flag("secret")})
+			b, err := e.JSONBody(map[string]string{"url": e.Flag("url"), "secret": e.Flag("secret")})
 			if err != nil {
 				return err
 			}
-			return e.send("POST", "/v1/webhooks", nil, b, "application/json", true, false)
+			return e.Send("POST", "/v1/webhooks", nil, b, "application/json", true, false)
 		}},
 		{Name: "delete", Summary: "delete a webhook", Mutating: true, Args: []Arg{{Name: "id", Required: true}}, Run: func(e *exec) error {
-			return e.send("DELETE", "/v1/webhooks/"+url.PathEscape(e.args[0]), nil, nil, "", true, false)
+			return e.Send("DELETE", "/v1/webhooks/"+url.PathEscape(e.Args[0]), nil, nil, "", true, false)
 		}},
 	}}
 }
@@ -1254,22 +1254,22 @@ func cmdBatch() *Command {
 		Run: func(e *exec) error {
 			var b []byte
 			var err error
-			if e.args[0] == "-" {
+			if e.Args[0] == "-" {
 				b, err = io.ReadAll(os.Stdin)
 			} else {
-				b, err = os.ReadFile(e.args[0])
+				b, err = os.ReadFile(e.Args[0])
 			}
 			if err != nil {
-				return &exitError{code: 2, message: err.Error(), hint: "pass a readable JSON file or -"}
+				return &exitError{Code: 2, Message: err.Error(), Hint: "pass a readable JSON file or -"}
 			}
-			resp, err := e.client.Do(nil, "POST", "/v1/batch", nil, b, "application/json", apiclient.Options{DryRun: e.g.DryRun, IdempotencyKey: e.g.Idem})
+			resp, err := e.client.Do(nil, "POST", "/v1/batch", nil, b, "application/json", apiclient.Options{DryRun: e.G.DryRun, IdempotencyKey: e.G.Idem})
 			if err != nil {
-				return &exitError{code: 1, message: strings.TrimPrefix(err.Error(), "unavailable: "), hint: "check that pursuit serve is running and PURSUIT_SERVER is correct"}
+				return &exitError{Code: 1, Message: strings.TrimPrefix(err.Error(), "unavailable: "), Hint: "check that pursuit serve is running and PURSUIT_SERVER is correct"}
 			}
 			if resp.Status >= 400 {
-				return &exitError{code: exitStatus(resp.Status), raw: resp.Body}
+				return &exitError{Code: exitStatus(resp.Status), Raw: resp.Body}
 			}
-			if err := e.print(resp.Body, resp.ContentType); err != nil {
+			if err := e.Print(resp.Body, resp.ContentType); err != nil {
 				return err
 			}
 			var out struct {
@@ -1280,7 +1280,7 @@ func cmdBatch() *Command {
 			_ = json.Unmarshal(resp.Body, &out)
 			for _, r := range out.Results {
 				if r.Status >= 400 {
-					return &exitError{code: exitStatus(r.Status), message: "one or more batch items failed", hint: "check each result status"}
+					return &exitError{Code: exitStatus(r.Status), Message: "one or more batch items failed", Hint: "check each result status"}
 				}
 			}
 			return nil

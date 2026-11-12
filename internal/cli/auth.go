@@ -67,20 +67,20 @@ func tokenSource(g globals, cfg config.Config) string {
 
 func runAuthLogin(e *exec) error {
 	server := config.ServerKey(e.cfg.ServerURL)
-	raw := e.flag("scope")
+	raw := e.Flag("scope")
 	if raw == "" {
 		raw = defaultCLIScopes
 	}
 	if strings.Contains(strings.ToLower(raw), "approve") {
-		return &exitError{code: 2, message: "pursuit auth login never grants approve", hint: "approve in the dashboard, or have a human mint an approve token and pass it as PURSUIT_TOKEN"}
+		return &exitError{Code: 2, Message: "pursuit auth login never grants approve", Hint: "approve in the dashboard, or have a human mint an approve token and pass it as PURSUIT_TOKEN"}
 	}
 	scopes, err := service.ParseOAuthScopes(raw)
 	if err != nil {
-		return &exitError{code: 2, message: "invalid --scope " + raw, hint: "use read, write, or read,write (lowercase)"}
+		return &exitError{Code: 2, Message: "invalid --scope " + raw, Hint: "use read, write, or read,write (lowercase)"}
 	}
 	scope := strings.Join(scopes, " ")
 	method := "browser"
-	if e.flag("device") == "true" || headless() {
+	if e.Flag("device") == "true" || headless() {
 		method = "device"
 	}
 	var token string
@@ -100,14 +100,14 @@ func runAuthLogin(e *exec) error {
 		Token: token, Method: method, Scopes: me.Token.Scopes, CreatedAt: domain.FormatTime(time.Now().UTC()),
 	})
 	if err != nil {
-		return &exitError{code: 1, message: "save credentials: " + err.Error(), hint: "check permissions on ~/.config/pursuit"}
+		return &exitError{Code: 1, Message: "save credentials: " + err.Error(), Hint: "check permissions on ~/.config/pursuit"}
 	}
 	path, _ := config.CredentialsPath()
 	preferred := config.KeyringBackend()
 	if preferred == "" {
 		preferred = "file"
 	}
-	fmt.Fprintln(e.stderr, "Logged in to "+server+" as "+me.User.Email+".")
+	fmt.Fprintln(e.Stderr, "Logged in to "+server+" as "+me.User.Email+".")
 	return e.printValue(map[string]any{
 		"status": "logged_in", "server": server, "auth_method": method,
 		"user":   map[string]string{"id": me.User.ID, "name": me.User.Name, "email": me.User.Email},
@@ -121,22 +121,22 @@ func runAuthLogout(e *exec) error {
 	server := config.ServerKey(e.cfg.ServerURL)
 	c, ok, err := config.LoadCredential(server)
 	if err != nil {
-		return &exitError{code: 1, message: "cannot read the stored token, so nothing was revoked or removed: " + err.Error(), hint: "unlock the keychain and run pursuit auth logout again"}
+		return &exitError{Code: 1, Message: "cannot read the stored token, so nothing was revoked or removed: " + err.Error(), Hint: "unlock the keychain and run pursuit auth logout again"}
 	}
 	revoked := false
 	if ok {
 		status, _, err := postForm(e.cfg.VercelBypass, server, "/v1/auth/revoke", url.Values{"token": {c.Token}})
 		revoked = err == nil && status == 200
 		if !revoked {
-			fmt.Fprintln(e.stderr, "Could not revoke the token on "+server+"; deleting it locally anyway.")
+			fmt.Fprintln(e.Stderr, "Could not revoke the token on "+server+"; deleting it locally anyway.")
 		}
 	}
 	removed, err := config.DeleteCredential(server)
 	if err != nil {
-		return &exitError{code: 1, message: fmt.Sprintf("revoked=%v, but the stored credential was not removed: %s", revoked, err.Error()), hint: "unlock the keychain and run pursuit auth logout again"}
+		return &exitError{Code: 1, Message: fmt.Sprintf("revoked=%v, but the stored credential was not removed: %s", revoked, err.Error()), Hint: "unlock the keychain and run pursuit auth logout again"}
 	}
 	out := map[string]any{"status": "logged_out", "server": server, "revoked": revoked, "removed": removed}
-	if src := tokenSource(e.g, e.cfg); src == "env" || src == "flag" {
+	if src := tokenSource(e.G, e.cfg); src == "env" || src == "flag" {
 		out["note"] = "a token from " + src + " is still set; it was not changed"
 	}
 	return e.printValue(out)
@@ -145,7 +145,7 @@ func runAuthLogout(e *exec) error {
 func runAuthStatus(e *exec) error {
 	server := config.ServerKey(e.cfg.ServerURL)
 	if e.client.Token == "" {
-		return &exitError{code: 5, message: "not logged in to " + server, hint: "run pursuit auth login, or set PURSUIT_TOKEN"}
+		return &exitError{Code: 5, Message: "not logged in to " + server, Hint: "run pursuit auth login, or set PURSUIT_TOKEN"}
 	}
 	me, err := whoami(e.cfg.VercelBypass, server, e.client.Token)
 	if err != nil {
@@ -160,25 +160,25 @@ func runAuthStatus(e *exec) error {
 }
 
 func (e *exec) printValue(v any) error {
-	b, err := e.jsonBody(v)
+	b, err := e.JSONBody(v)
 	if err != nil {
 		return err
 	}
-	return e.print(b, "application/json")
+	return e.Print(b, "application/json")
 }
 
 func whoami(bypass, server, token string) (domain.Me, error) {
 	c := &apiclient.Client{BaseURL: server, Token: token, Bypass: bypass}
 	resp, err := c.Do(nil, "GET", "/v1/me", nil, nil, "", apiclient.Options{})
 	if err != nil {
-		return domain.Me{}, &exitError{code: 1, message: strings.TrimPrefix(err.Error(), "unavailable: ")}
+		return domain.Me{}, &exitError{Code: 1, Message: strings.TrimPrefix(err.Error(), "unavailable: ")}
 	}
 	if resp.Status >= 400 {
-		return domain.Me{}, &exitError{code: exitStatus(resp.Status), raw: resp.Body}
+		return domain.Me{}, &exitError{Code: exitStatus(resp.Status), Raw: resp.Body}
 	}
 	var me domain.Me
 	if err := json.Unmarshal(resp.Body, &me); err != nil {
-		return domain.Me{}, &exitError{code: 1, message: "unexpected /v1/me response"}
+		return domain.Me{}, &exitError{Code: 1, Message: "unexpected /v1/me response"}
 	}
 	return me, nil
 }
@@ -188,7 +188,7 @@ func postForm(bypass, server, path string, vals url.Values) (int, map[string]any
 	c := &apiclient.Client{BaseURL: server, Bypass: bypass}
 	resp, err := c.Do(nil, "POST", path, nil, []byte(vals.Encode()), "application/x-www-form-urlencoded", apiclient.Options{})
 	if err != nil {
-		return 0, nil, &exitError{code: 1, message: strings.TrimPrefix(err.Error(), "unavailable: "), hint: "check --server or PURSUIT_SERVER"}
+		return 0, nil, &exitError{Code: 1, Message: strings.TrimPrefix(err.Error(), "unavailable: "), Hint: "check --server or PURSUIT_SERVER"}
 	}
 	var doc map[string]any
 	_ = json.Unmarshal(resp.Body, &doc)
@@ -213,7 +213,7 @@ func tokenFrom(status int, doc map[string]any, flow string) (string, error) {
 	} else {
 		msg += fmt.Sprintf(": HTTP %d", status)
 	}
-	return "", &exitError{code: 5, message: msg, hint: "run pursuit auth login again"}
+	return "", &exitError{Code: 5, Message: msg, Hint: "run pursuit auth login again"}
 }
 
 // loopbackLogin is RFC 8252 authorization code + PKCE with a one-shot
@@ -222,7 +222,7 @@ func tokenFrom(status int, doc map[string]any, flow string) (string, error) {
 func loopbackLogin(e *exec, server, scope string) (string, error) {
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
-		return "", &exitError{code: 1, message: "listen on 127.0.0.1: " + err.Error(), hint: "use pursuit auth login --device"}
+		return "", &exitError{Code: 1, Message: "listen on 127.0.0.1: " + err.Error(), Hint: "use pursuit auth login --device"}
 	}
 	redirect := fmt.Sprintf("http://127.0.0.1:%d/callback", ln.Addr().(*net.TCPAddr).Port)
 	verifier, err := auth.RandomURLToken(48)
@@ -263,25 +263,25 @@ func loopbackLogin(e *exec, server, scope string) (string, error) {
 	defer srv.Close()
 
 	if err := openBrowser(authURL); err != nil {
-		fmt.Fprintln(e.stderr, "Could not open a browser. Open this URL to sign in:")
+		fmt.Fprintln(e.Stderr, "Could not open a browser. Open this URL to sign in:")
 	} else {
-		fmt.Fprintln(e.stderr, "Opened your browser. If it did not open, visit:")
+		fmt.Fprintln(e.Stderr, "Opened your browser. If it did not open, visit:")
 	}
-	fmt.Fprintln(e.stderr, "  "+authURL)
-	fmt.Fprintln(e.stderr, "Waiting for the browser on "+redirect+" (or run pursuit auth login --device) ...")
+	fmt.Fprintln(e.Stderr, "  "+authURL)
+	fmt.Fprintln(e.Stderr, "Waiting for the browser on "+redirect+" (or run pursuit auth login --device) ...")
 
 	var res result
 	select {
 	case res = <-done:
 	case <-time.After(loginTimeout):
-		return "", &exitError{code: 5, message: "timed out waiting for the browser", hint: "run pursuit auth login --device"}
+		return "", &exitError{Code: 5, Message: "timed out waiting for the browser", Hint: "run pursuit auth login --device"}
 	}
 	if res.code == "" {
 		code := res.errCode
 		if code == "" {
 			code = "no code returned"
 		}
-		return "", &exitError{code: 5, message: "browser login failed: " + code, hint: "run pursuit auth login again"}
+		return "", &exitError{Code: 5, Message: "browser login failed: " + code, Hint: "run pursuit auth login again"}
 	}
 	status, doc, err := postForm(e.cfg.VercelBypass, server, "/v1/auth/token", url.Values{
 		"grant_type": {"authorization_code"}, "code": {res.code}, "code_verifier": {verifier},
@@ -313,9 +313,9 @@ func deviceLogin(e *exec, server, scope string) (string, error) {
 	if n, ok := d["expires_in"].(float64); ok && n > 0 {
 		expires = int(n)
 	}
-	fmt.Fprintln(e.stderr, "Open "+str(d, "verification_uri")+" while signed in to the dashboard and enter:")
-	fmt.Fprintln(e.stderr, "  "+str(d, "user_code"))
-	fmt.Fprintln(e.stderr, "Waiting for approval ...")
+	fmt.Fprintln(e.Stderr, "Open "+str(d, "verification_uri")+" while signed in to the dashboard and enter:")
+	fmt.Fprintln(e.Stderr, "  "+str(d, "user_code"))
+	fmt.Fprintln(e.Stderr, "Waiting for approval ...")
 	deadline := time.Now().Add(time.Duration(expires) * time.Second)
 	for time.Now().Before(deadline) {
 		sleep(time.Duration(interval) * time.Second)
@@ -330,13 +330,13 @@ func deviceLogin(e *exec, server, scope string) (string, error) {
 			interval += 5
 			continue
 		case "expired_token":
-			return "", &exitError{code: 5, message: "the device code expired before it was approved", hint: "run pursuit auth login --device again"}
+			return "", &exitError{Code: 5, Message: "the device code expired before it was approved", Hint: "run pursuit auth login --device again"}
 		case "access_denied":
-			return "", &exitError{code: 5, message: "the login was denied in the dashboard", hint: "run pursuit auth login --device again to retry"}
+			return "", &exitError{Code: 5, Message: "the login was denied in the dashboard", Hint: "run pursuit auth login --device again to retry"}
 		}
 		return tokenFrom(status, doc, "device")
 	}
-	return "", &exitError{code: 5, message: "the device code expired before it was approved", hint: "run pursuit auth login --device again"}
+	return "", &exitError{Code: 5, Message: "the device code expired before it was approved", Hint: "run pursuit auth login --device again"}
 }
 
 // headless guesses that a browser on this machine can't reach us: an SSH
