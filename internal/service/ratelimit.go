@@ -12,9 +12,11 @@ import (
 // cannot do on serverless. It is a fixed window: a burst straddling a window
 // edge can reach twice limit, which is fine for abuse control. A database
 // error lets the request through, since refusing sign-ins because the
-// limiter is down is the worse failure.
+// limiter is down is the worse failure. It reads the real clock, not
+// s.now: under a frozen clock (PURSUIT_FIXED_TIME) the window would never
+// end and the sixth demo of a recording session would be refused for good.
 func (s *Service) RateAllow(ctx context.Context, rule, subject string, limit int, window time.Duration) bool {
-	now := s.now().Unix()
+	now := time.Now().Unix()
 	secs := int64(window / time.Second)
 	bucket := now / secs
 	hits, err := s.DB.RateHit(ctx, rule+"|"+subject+"|"+strconv.FormatInt(bucket, 10), now, (bucket+2)*secs)
