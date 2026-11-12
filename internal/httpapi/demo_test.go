@@ -124,7 +124,7 @@ func TestDemoModeMintsIsolatedSandboxAndCanReplay(t *testing.T) {
 
 func TestDemoModeRateLimitsMinting(t *testing.T) {
 	srv := newDemoEnv(t)
-	limit := newDemoLimiter().limit
+	limit := ruleDemo.limit
 
 	var last int
 	for i := 0; i <= limit; i++ {

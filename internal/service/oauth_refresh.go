@@ -20,6 +20,10 @@ const (
 	RefreshIdleTTL  = 30 * 24 * time.Hour
 	RefreshMaxTTL   = 90 * 24 * time.Hour
 	refreshPrefix   = "psr_"
+	// RefreshGrace is how long after a refresh token is used that presenting
+	// it again is taken as a client retry or a parallel request, not theft.
+	// It gets another valid pair; after the window the whole connection goes.
+	RefreshGrace = 10 * time.Second
 )
 
 type clientGrant struct {
@@ -64,7 +68,7 @@ func (s *Service) issueClientTokens(ctx context.Context, g clientGrant) (OAuthTo
 		if err := s.DB.CreateRefreshToken(ctx, rt); err != nil {
 			return err
 		}
-		if g.flow == "refresh" {
+		if g.flow == "refresh" { // not refresh-grace: see OAuthRefresh
 			if err := s.DB.RevokeFamilyAccessTokens(ctx, g.family, tok.ID, domain.FormatTime(now)); err != nil {
 				return err
 			}
@@ -104,7 +108,7 @@ func (s *Service) OAuthRefresh(ctx context.Context, refreshToken, clientID, scop
 	switch {
 	case rt.ClientID != clientID, rt.RevokedAt != "":
 		return OAuthToken{}, dead
-	case rt.UsedAt != "":
+	case rt.UsedAt != "" && !s.withinGrace(rt, now):
 		return OAuthToken{}, s.refreshReuse(ctx, rt, dead)
 	case nowS >= rt.ExpiresAt, nowS >= rt.AbsoluteAt:
 		return OAuthToken{}, dead
@@ -128,19 +132,34 @@ func (s *Service) OAuthRefresh(ctx context.Context, refreshToken, clientID, scop
 	if err != nil {
 		return OAuthToken{}, dead
 	}
-	used, err := s.DB.UseRefreshToken(ctx, rt.ID, nowS)
-	if err != nil {
-		return OAuthToken{}, err
+	flow := "refresh"
+	used := false
+	if rt.UsedAt == "" {
+		if used, err = s.DB.UseRefreshToken(ctx, rt.ID, nowS); err != nil {
+			return OAuthToken{}, err
+		}
 	}
-	if !used { // lost a race with another use of the same token
-		return OAuthToken{}, s.refreshReuse(ctx, rt, dead)
+	if !used {
+		// Used already: by an earlier request inside the grace window, or by
+		// one that won a race just now. Re-read to see which, and whether it
+		// was revoked meanwhile.
+		cur, err := s.DB.GetRefreshTokenByHash(ctx, auth.Hash(refreshToken))
+		if err != nil || cur.RevokedAt != "" {
+			return OAuthToken{}, dead
+		}
+		if !s.withinGrace(cur, now) {
+			return OAuthToken{}, s.refreshReuse(ctx, cur, dead)
+		}
+		// A parallel request is holding the family's live access token, so
+		// this one must not revoke it.
+		flow = "refresh-grace"
 	}
 	abs, err := domain.ParseTime(rt.AbsoluteAt)
 	if err != nil {
 		return OAuthToken{}, err
 	}
 	return s.issueClientTokens(ctx, clientGrant{
-		userID: rt.UserID, resource: rt.Resource, client: client, scopes: scopes, family: rt.FamilyID, absoluteAt: abs, flow: "refresh",
+		userID: rt.UserID, resource: rt.Resource, client: client, scopes: scopes, family: rt.FamilyID, absoluteAt: abs, flow: flow,
 	})
 }
 
@@ -159,6 +178,11 @@ func (s *Service) refreshReuse(ctx context.Context, rt sqlstore.RefreshToken, de
 		return err
 	}
 	return dead
+}
+
+func (s *Service) withinGrace(rt sqlstore.RefreshToken, now time.Time) bool {
+	used, err := domain.ParseTime(rt.UsedAt)
+	return err == nil && now.Sub(used) <= RefreshGrace
 }
 
 func contains(list []string, s string) bool {

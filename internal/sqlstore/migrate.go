@@ -633,4 +633,18 @@ var migrations = []migration{{
 		)`,
 		`CREATE INDEX IF NOT EXISTS oauth_refresh_family_idx ON oauth_refresh_tokens(family_id)`,
 	},
+}, {
+	version: "029",
+	stmts: []string{
+		// Fixed-window request counters shared by every instance, so a rate
+		// limit holds on serverless where each instance has its own memory.
+		// The window index is part of the key; expires_at (unix seconds) lets
+		// old windows be deleted.
+		`CREATE TABLE IF NOT EXISTS rate_limits (
+			key TEXT PRIMARY KEY,
+			hits BIGINT NOT NULL,
+			expires_at BIGINT NOT NULL
+		)`,
+		`CREATE INDEX IF NOT EXISTS rate_limits_expires_idx ON rate_limits(expires_at)`,
+	},
 }}

@@ -21,7 +21,6 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
-	"sync"
 	"sync/atomic"
 	"time"
 
@@ -88,39 +87,7 @@ type Server struct {
 	// production/real-data deployment: see demo.go.
 	DemoMode bool
 
-	demoLimiterOnce sync.Once
-	demoLimiterVal  *demoLimiter
-
-	deviceLimiterOnce sync.Once
-	deviceLimiterVal  *demoLimiter
-	// registerLimiter caps client registrations per IP.
-	registerLimiterOnce sync.Once
-	registerLimiterVal  *demoLimiter
-
-	passkeyLimiterOnce sync.Once
-	passkeyLimiterVal  *demoLimiter
-
 	mux *http.ServeMux
-}
-
-// deviceLimiterFor caps device_authorization starts per client IP.
-func (s *Server) deviceLimiterFor() *demoLimiter {
-	s.deviceLimiterOnce.Do(func() {
-		s.deviceLimiterVal = &demoLimiter{window: time.Minute, limit: 10, seen: map[string][]time.Time{}}
-	})
-	return s.deviceLimiterVal
-}
-
-func (s *Server) registerLimiterFor() *demoLimiter {
-	s.registerLimiterOnce.Do(func() {
-		s.registerLimiterVal = &demoLimiter{window: time.Minute, limit: 20, seen: map[string][]time.Time{}}
-	})
-	return s.registerLimiterVal
-}
-
-func (s *Server) demoLimiterFor() *demoLimiter {
-	s.demoLimiterOnce.Do(func() { s.demoLimiterVal = newDemoLimiter() })
-	return s.demoLimiterVal
 }
 
 func (s *Server) multiTenant() bool {

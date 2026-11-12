@@ -72,7 +72,7 @@ func writeOAuthErr(w http.ResponseWriter, err error) {
 
 func (s *Server) oauthDeviceAuthorization(w http.ResponseWriter, r *http.Request) {
 	ip := clientIP(r)
-	if !s.deviceLimiterFor().allow(ip) {
+	if !s.allow(r.Context(), ruleDevice, ip) {
 		w.Header().Set("Retry-After", "60")
 		w.Header().Set("Cache-Control", "no-store")
 		writeJSON(w, http.StatusTooManyRequests, &service.OAuthError{Code: "slow_down", Description: "too many device logins from this address; wait a minute"})
@@ -92,6 +92,12 @@ func (s *Server) oauthDeviceAuthorization(w http.ResponseWriter, r *http.Request
 }
 
 func (s *Server) oauthToken(w http.ResponseWriter, r *http.Request) {
+	if !s.allow(r.Context(), ruleToken, clientIP(r)) {
+		w.Header().Set("Retry-After", "60")
+		w.Header().Set("Cache-Control", "no-store")
+		writeJSON(w, http.StatusTooManyRequests, &service.OAuthError{Code: "slow_down", Description: "too many token requests from this address; wait a minute"})
+		return
+	}
 	if !s.oauthForm(w, r) {
 		return
 	}
@@ -119,7 +125,7 @@ func (s *Server) oauthToken(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) oauthRegister(w http.ResponseWriter, r *http.Request) {
-	if !s.registerLimiterFor().allow(clientIP(r)) {
+	if !s.allow(r.Context(), ruleRegister, clientIP(r)) {
 		w.Header().Set("Retry-After", "60")
 		w.Header().Set("Cache-Control", "no-store")
 		writeJSON(w, http.StatusTooManyRequests, &service.OAuthError{Code: "slow_down", Description: "too many registrations from this address; wait a minute"})

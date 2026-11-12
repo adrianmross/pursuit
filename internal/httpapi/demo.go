@@ -6,56 +6,32 @@ import (
 	"net/http"
 	"os"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/pursuit/pursuit/internal/domain"
 	"github.com/pursuit/pursuit/internal/service"
 )
 
-// demoLimiter caps how many new demo tenants a single client IP can mint
-// per window — minting is the only expensive/abusable part of demo mode
-// (it writes a user, a token, and the seed data).
-//
-// ponytail: an in-memory map, so the limit is per function instance, not
-// global — fine for how small-scale this is; move to a shared store
-// (Redis, a DB row) if that ever matters.
-type demoLimiter struct {
-	mu     sync.Mutex
-	window time.Duration
+// rateRule is a named limit on one kind of request, counted per subject
+// (usually the client IP) in the database so it holds across instances.
+type rateRule struct {
+	name   string
 	limit  int
-	seen   map[string][]time.Time
+	window time.Duration
 }
 
-func newDemoLimiter() *demoLimiter {
-	return &demoLimiter{window: time.Minute, limit: 5, seen: map[string][]time.Time{}}
-}
+var (
+	ruleDemo     = rateRule{"demo", 5, time.Minute}      // minting a throwaway tenant writes a user, a token and seed data
+	ruleDevice   = rateRule{"device", 10, time.Minute}   // device login starts
+	ruleRegister = rateRule{"register", 20, time.Minute} // OAuth client registrations
+	rulePasskey  = rateRule{"passkey", 20, time.Minute}  // public passkey login calls
+	ruleToken    = rateRule{"token", 60, time.Minute}    // OAuth token endpoint, per IP
+	ruleMCP      = rateRule{"mcp", 120, time.Minute}     // MCP calls, per token
+)
 
-func (l *demoLimiter) allow(key string) bool {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	now := time.Now()
-	cutoff := now.Add(-l.window)
-	kept := l.seen[key][:0]
-	for _, t := range l.seen[key] {
-		if t.After(cutoff) {
-			kept = append(kept, t)
-		}
-	}
-	if len(kept) >= l.limit {
-		l.seen[key] = kept
-		return false
-	}
-	l.seen[key] = append(kept, now)
-	// ponytail: full sweep when the map grows; a ring or LRU if it ever shows in profiles.
-	if len(l.seen) > 10000 {
-		for k, ts := range l.seen {
-			if len(ts) == 0 || !ts[len(ts)-1].After(cutoff) {
-				delete(l.seen, k)
-			}
-		}
-	}
-	return true
+// allow counts one request by subject against rule.
+func (s *Server) allow(ctx context.Context, rule rateRule, subject string) bool {
+	return s.Svc.RateAllow(ctx, rule.name, subject, rule.limit, rule.window)
 }
 
 // clientIP keys the rate limiters. X-Forwarded-For is trusted only on
@@ -90,7 +66,7 @@ func (s *Server) startDemo(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, domain.NotFound("demo"))
 		return
 	}
-	if !s.demoLimiterFor().allow(clientIP(r)) {
+	if !s.allow(r.Context(), ruleDemo, clientIP(r)) {
 		writeErr(w, domain.RateLimited("too many demo sessions from this address; wait a minute and try again"))
 		return
 	}

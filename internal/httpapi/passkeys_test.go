@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"context"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
@@ -265,7 +266,7 @@ func TestPasskeyRegisterAndLogin(t *testing.T) {
 		t.Fatalf("login again %d %s", code, b)
 	}
 
-	e.api.passkeyLimiterFor().seen = map[string][]time.Time{} // the extra sign-ins below are not what this test limits
+	_ = e.svc.ResetRateLimits(context.Background()) // the extra sign-ins below are not what this test limits
 
 	// Step-up: approving needs a passkey sign-in in the last StepUpWindow once the
 	// user has a passkey; signing in again replaces the old session.

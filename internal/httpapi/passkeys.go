@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
-	"time"
 
 	"github.com/pursuit/pursuit/internal/domain"
 )
@@ -27,14 +26,6 @@ func (s *Server) registerPasskeys(mux *http.ServeMux) {
 	mux.HandleFunc("DELETE /v1/passkeys/{id}", s.deletePasskey)
 	mux.HandleFunc("POST /v1/auth/passkey/login/begin", s.passkeyLoginBegin)
 	mux.HandleFunc("POST /v1/auth/passkey/login/finish", s.passkeyLoginFinish)
-}
-
-// passkeyLimiterFor caps public passkey login calls (begin and finish) per client IP.
-func (s *Server) passkeyLimiterFor() *demoLimiter {
-	s.passkeyLimiterOnce.Do(func() {
-		s.passkeyLimiterVal = &demoLimiter{window: time.Minute, limit: 20, seen: map[string][]time.Time{}}
-	})
-	return s.passkeyLimiterVal
 }
 
 // passkeyBody reads a same-origin JSON body.
@@ -96,7 +87,7 @@ func (s *Server) deletePasskey(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) passkeyLimited(w http.ResponseWriter, r *http.Request) bool {
-	if s.passkeyLimiterFor().allow(clientIP(r)) {
+	if s.allow(r.Context(), rulePasskey, clientIP(r)) {
 		return false
 	}
 	w.Header().Set("Retry-After", "60")
