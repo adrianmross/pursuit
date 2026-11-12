@@ -47,6 +47,8 @@ type Service struct {
 	Capabilities map[string]bool
 	// Embedder powers smart search; nil means it isn't configured.
 	Embedder embed.Embedder
+	// ClientDoc fetches an OAuth client metadata document; nil uses FetchClientDoc.
+	ClientDoc func(ctx context.Context, url string) ([]byte, error)
 	// Blobs holds new document files when a bucket is configured; nil keeps them in the database.
 	Blobs blobstore.Store
 }
@@ -101,8 +103,24 @@ func (s *Service) Authenticate(ctx context.Context, secret string) (domain.Actor
 		return domain.Actor{}, err
 	}
 	now := s.now()
+	if tok.Name == LoginTokenName {
+		last := tok.CreatedAt
+		if tok.LastUsedAt != nil {
+			last = *tok.LastUsedAt
+		}
+		if now.Sub(last) > LoginIdleTTL || now.Sub(tok.CreatedAt) > LoginMaxTTL {
+			return domain.Actor{}, domain.Unauthorized()
+		}
+	}
+	if tok.ExpiresAt != nil && !now.Before(*tok.ExpiresAt) {
+		return domain.Actor{}, domain.Unauthorized()
+	}
 	_ = s.DB.TouchToken(ctx, tok.ID, domain.FormatTime(now), domain.FormatTime(now.Add(-time.Minute)))
-	return domain.Actor{UserID: tok.UserID, TokenID: tok.ID, Name: tok.Name, Scopes: tok.Scopes, Demo: tok.Name == demoTokenName}, nil
+	a := domain.Actor{UserID: tok.UserID, TokenID: tok.ID, Name: tok.Name, Scopes: tok.Scopes, Demo: tok.Name == demoTokenName, Resource: tok.Resource}
+	if tok.Name == LoginTokenName {
+		a.AuthAt = tok.CreatedAt
+	}
+	return a, nil
 }
 
 // Bootstrap creates the owner and the first token when the database is empty.
@@ -184,6 +202,74 @@ const demoTokenName = "demo"
 // LoginTokenName names the token a dashboard sign-in mints (OIDC or Better
 // Auth); sign-out revokes only tokens with this name.
 const LoginTokenName = "login"
+
+// LoginIdleTTL is how long a dashboard sign-in survives without a request.
+// Each request refreshes it, so an in-use session never lapses.
+const LoginIdleTTL = 30 * 24 * time.Hour
+
+// LoginMaxTTL caps a dashboard sign-in however busy it is. A fresh sign-in
+// (including a step-up) starts a new session, so this is "days since you last
+// proved who you are".
+const LoginMaxTTL = 90 * 24 * time.Hour
+
+// StepUpWindow is how recently a dashboard sign-in must have authenticated to
+// approve, or to mint an approve token, when the user has a passkey.
+const StepUpWindow = 15 * time.Minute
+
+type originKey struct{}
+
+// Origin is where a sign-in request came from.
+type Origin struct{ IP, UserAgent string }
+
+// WithOrigin lets mintLogin record where a sign-in came from.
+func WithOrigin(ctx context.Context, o Origin) context.Context {
+	return context.WithValue(ctx, originKey{}, o)
+}
+
+// sweepLogins revokes dashboard sign-ins past their idle or absolute lifetime.
+// Opportunistic instead of a sweeper; failure is harmless.
+func (s *Service) sweepLogins(ctx context.Context, now time.Time) {
+	_ = s.DB.RevokeExpiredLogins(ctx, LoginTokenName, domain.FormatTime(now), domain.FormatTime(now.Add(-LoginIdleTTL)), domain.FormatTime(now.Add(-LoginMaxTTL)))
+}
+
+// requireFresh asks a dashboard session to re-prove itself before a
+// sensitive action, but only when the user has a passkey to do it with:
+// without one the session keeps working as before. Other tokens pass.
+func (s *Service) requireFresh(ctx context.Context, a domain.Actor) error {
+	if a.Name != LoginTokenName || s.WebAuthn == nil || s.now().Sub(a.AuthAt) <= StepUpWindow {
+		return nil
+	}
+	rows, err := s.DB.ListWebAuthnCredentials(ctx, a.UserID)
+	if err != nil || len(rows) == 0 {
+		return err
+	}
+	return &domain.Error{Code: "step_up_required", Message: "confirm it's you with your passkey to continue", Hint: "sign in again with a passkey, then retry", Status: 403}
+}
+
+// clientLabel turns a User-Agent into "Chrome on macOS"; unknown parts drop out.
+func clientLabel(ua string) string {
+	browser := ""
+	for _, b := range [][2]string{{"Edg/", "Edge"}, {"Firefox/", "Firefox"}, {"Chrome/", "Chrome"}, {"Safari/", "Safari"}} {
+		if strings.Contains(ua, b[0]) {
+			browser = b[1]
+			break
+		}
+	}
+	os := ""
+	for _, o := range [][2]string{{"iPhone", "iOS"}, {"iPad", "iOS"}, {"Android", "Android"}, {"Mac OS X", "macOS"}, {"Windows", "Windows"}, {"Linux", "Linux"}} {
+		if strings.Contains(ua, o[0]) {
+			os = o[1]
+			break
+		}
+	}
+	switch {
+	case browser != "" && os != "":
+		return browser + " on " + os
+	case browser != "":
+		return browser
+	}
+	return os
+}
 
 // CreateDemoSession provisions a throwaway tenant for the "try it without
 // an account" tutorial: a synthetic, unroutable user plus a token scoped
@@ -318,9 +404,13 @@ func (s *Service) mintLogin(ctx context.Context, userID, summary string, meta ma
 	if err != nil {
 		return "", err
 	}
+	now := s.now()
+	// Opportunistic cleanup instead of a sweeper; failure is harmless.
+	s.sweepLogins(ctx, now)
+	o, _ := ctx.Value(originKey{}).(Origin)
 	tok := domain.Token{
 		ID: s.NewID(), UserID: userID, Name: LoginTokenName, Hash: hash,
-		Prefix: prefix, Scopes: scopes, CreatedAt: s.now(),
+		Prefix: prefix, Scopes: scopes, CreatedAt: now, Client: clientLabel(o.UserAgent), IP: o.IP,
 	}
 	if err := s.DB.CreateToken(ctx, tok); err != nil {
 		return "", err
@@ -361,6 +451,11 @@ func (s *Service) CreateToken(ctx context.Context, in TokenInput) (domain.Issued
 		if !a.Can(sc) || (sc == "approve" && (a.Demo || a.Proxy)) {
 			return domain.IssuedToken{}, domain.Forbidden(sc).WithHint("a token can only create tokens with scopes it already holds; approve tokens are created by a signed-in human")
 		}
+		if sc == "approve" {
+			if err := s.requireFresh(ctx, a); err != nil {
+				return domain.IssuedToken{}, err
+			}
+		}
 	}
 	secret, prefix, hash, err := auth.Generate()
 	if err != nil {
@@ -384,9 +479,13 @@ func (s *Service) CreateToken(ctx context.Context, in TokenInput) (domain.Issued
 
 func (s *Service) ListTokens(ctx context.Context, q domain.ListQuery) (domain.Page[domain.Token], error) {
 	return listPage(s, ctx, false, "token", q, func(ctx context.Context, user string, q domain.ListQuery) ([]domain.Token, int, error) {
+		now := s.now()
+		s.sweepLogins(ctx, now)
 		items, total, err := s.DB.ListTokens(ctx, user, q)
+		cur, _ := domain.ActorFrom(ctx)
 		for i := range items {
 			items[i].Hash = ""
+			items[i].Current = items[i].ID == cur.TokenID
 		}
 		return items, total, err
 	}, func(t domain.Token) string {
@@ -413,6 +512,11 @@ func (s *Service) RevokeToken(ctx context.Context, id string) (domain.Token, err
 			return err
 		}
 		out.Hash = ""
+		if out.FamilyID != "" { // an app's access token: the whole connection goes
+			if err := s.DB.RevokeTokenFamily(ctx, out.FamilyID, domain.FormatTime(s.now())); err != nil {
+				return err
+			}
+		}
 		if changed {
 			return s.audit(ctx, a, "token.revoke", "token", id, "revoked token "+out.Name, nil)
 		}

@@ -160,7 +160,7 @@ Production finds its own public URL. With `PURSUIT_SERVER` unset, it uses `VERCE
 
 With Better Auth (Neon Auth, `NEXT_PUBLIC_NEON_AUTH_URL` at build time), the dashboard's sign-in card has email and password, a verification code on first sign-in, and "Forgot password?": it emails a 6-digit code, you set a new password, and you are signed in. Codes work with Neon's shared sender; nothing extra to configure.
 
-Passkeys are pursuit's own (WebAuthn in the Go server), not Neon Auth's, so they work for `pursuit serve` too. They are off until `PURSUIT_WEBAUTHN_RP_ID` is set. Then a signed-in user adds one under Settings, Account, Passkeys, and the sign-in page shows "Sign in with a passkey". It signs in an existing account only, never creates one, and gives the same 30-day `pursuit_session` cookie with a `login` token as the other sign-ins. The password or token stays the fallback: lose every passkey and you sign in that way, then remove the old passkey. A passkey only works on the RP ID it was made under, so moving to a new domain retires every passkey made for the old one.
+Passkeys are pursuit's own (WebAuthn in the Go server), not Neon Auth's, so they work for `pursuit serve` too. They are off until `PURSUIT_WEBAUTHN_RP_ID` is set. Then a signed-in user adds one under Settings, Account, Passkeys, and the sign-in page shows "Sign in with a passkey". It signs in an existing account only, never creates one, and gives the same `pursuit_session` cookie with a `login` token as the other sign-ins (`__Host-pursuit_session` over HTTPS). A dashboard sign-in lapses after 30 days unused or 90 days in total. Once you have a passkey, approving, minting an approve token, and changing passkeys need a passkey sign-in from the last 15 minutes; the dashboard asks for it and retries. The password or token stays the fallback: lose every passkey and you sign in that way, then remove the old passkey. A passkey only works on the RP ID it was made under, so moving to a new domain retires every passkey made for the old one.
 
 ### Environment
 
@@ -263,4 +263,4 @@ MIT. See [LICENSE](LICENSE).
 
 ## Not in this build
 
-Workday autofill, clicking Submit, JSON-RPC, and gRPC. The HTTP handlers are a thin adapter over `service.Service`. `api/proto/pursuit/v1/pursuit.proto` is the future contract and is not compiled. There is no MCP server.
+Workday autofill, clicking Submit, JSON-RPC, and gRPC. The HTTP handlers are a thin adapter over `service.Service`. `api/proto/pursuit/v1/pursuit.proto` is the future contract and is not compiled. `POST /mcp` is a small MCP server over the same service for hosted chat apps (claude.ai connectors, ChatGPT apps); it signs in with OAuth and never approves or submits.

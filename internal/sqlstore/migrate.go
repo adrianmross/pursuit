@@ -3,7 +3,8 @@ package sqlstore
 import (
 	"context"
 	"database/sql"
-	"fmt"
+
+	"github.com/adrianmross/ratchet"
 )
 
 // advisoryLockKey is the Postgres session lock that serializes migrations and bootstrap.
@@ -22,77 +23,14 @@ func lockTx(ctx context.Context, tx *sql.Tx) error {
 	return err
 }
 
+// Migrate applies every pending migration in one transaction, under the
+// same lock as bootstrap.
 func Migrate(ctx context.Context, db *sql.DB, dialect string) error {
-	if dialect == "postgres" {
-		tx, err := db.BeginTx(ctx, nil)
-		if err != nil {
-			return err
-		}
-		if err := lockTx(ctx, tx); err != nil {
-			_ = tx.Rollback()
-			return fmt.Errorf("migration lock: %w", err)
-		}
-		if err := applyMigrations(ctx, tx, dialect); err != nil {
-			_ = tx.Rollback()
-			return err
-		}
-		return tx.Commit()
+	ms := make([]ratchet.Migration, len(migrations))
+	for i, m := range migrations {
+		ms[i] = ratchet.Migration{Version: m.version, Stmts: m.stmts}
 	}
-
-	conn, err := db.Conn(ctx)
-	if err != nil {
-		return err
-	}
-	defer conn.Close()
-	if _, err := conn.ExecContext(ctx, "PRAGMA foreign_keys = ON"); err != nil {
-		return err
-	}
-	if _, err := conn.ExecContext(ctx, "BEGIN IMMEDIATE"); err != nil {
-		return fmt.Errorf("migration lock: %w", err)
-	}
-	if err := applyMigrations(ctx, conn, dialect); err != nil {
-		_, _ = conn.ExecContext(context.Background(), "ROLLBACK")
-		return err
-	}
-	if _, err := conn.ExecContext(ctx, "COMMIT"); err != nil {
-		return err
-	}
-	return nil
-}
-
-type querier interface {
-	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
-	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
-}
-
-func applyMigrations(ctx context.Context, conn querier, dialect string) error {
-	preamble := rebind(dialect, `CREATE TABLE IF NOT EXISTS schema_migrations (
-		version TEXT PRIMARY KEY,
-		applied_at TEXT NOT NULL
-	)`)
-	if _, err := conn.ExecContext(ctx, preamble); err != nil {
-		return fmt.Errorf("schema_migrations: %w", err)
-	}
-	for _, m := range migrations {
-		var n int
-		q := rebind(dialect, `SELECT COUNT(*) FROM schema_migrations WHERE version=?`)
-		if err := conn.QueryRowContext(ctx, q, m.version).Scan(&n); err != nil {
-			return err
-		}
-		if n > 0 {
-			continue
-		}
-		for _, stmt := range m.stmts {
-			if _, err := conn.ExecContext(ctx, stmt); err != nil {
-				return fmt.Errorf("migration %s: %w", m.version, err)
-			}
-		}
-		ins := rebind(dialect, `INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)`)
-		if _, err := conn.ExecContext(ctx, ins, m.version, "1970-01-01T00:00:00.000000000Z"); err != nil {
-			return err
-		}
-	}
-	return nil
+	return ratchet.Runner{Dialect: dialect, LockKey: advisoryLockKey}.Up(ctx, db, ms)
 }
 
 type migration struct {
@@ -635,5 +573,64 @@ var migrations = []migration{{
 		// The time of the newest feed announcement this user dismissed
 		// (RFC 3339, UTC), so a dismissal follows the account across devices.
 		`ALTER TABLE users ADD COLUMN announcements_seen TEXT NOT NULL DEFAULT ''`,
+	},
+}, {
+	version: "025",
+	stmts: []string{
+		// Where a dashboard sign-in came from, so Settings can tell sessions apart.
+		`ALTER TABLE api_tokens ADD COLUMN client TEXT NOT NULL DEFAULT ''`,
+		`ALTER TABLE api_tokens ADD COLUMN ip TEXT NOT NULL DEFAULT ''`,
+	},
+}, {
+	version: "026",
+	stmts: []string{
+		// OAuth clients that are not the CLI. source is cimd (a client
+		// metadata document at an https client_id, refetched after
+		// expires_at) or dcr (registered through /v1/auth/register).
+		// redirect_uris is newline separated.
+		`CREATE TABLE IF NOT EXISTS oauth_clients (
+			id TEXT PRIMARY KEY,
+			name TEXT NOT NULL,
+			redirect_uris TEXT NOT NULL,
+			source TEXT NOT NULL,
+			created_at TEXT NOT NULL,
+			last_used_at TEXT NOT NULL DEFAULT '',
+			expires_at TEXT NOT NULL DEFAULT ''
+		)`,
+	},
+}, {
+	version: "027",
+	stmts: []string{
+		// The resource (RFC 8707) an authorization code was asked for.
+		`ALTER TABLE oauth_grants ADD COLUMN resource TEXT NOT NULL DEFAULT ''`,
+	},
+}, {
+	version: "028",
+	stmts: []string{
+		// Tokens issued to a registered OAuth client: whose they are, the
+		// resource they are bound to, when they stop working, and the family
+		// (one consent) they belong to, so revoking one revokes the grant.
+		`ALTER TABLE api_tokens ADD COLUMN client_id TEXT NOT NULL DEFAULT ''`,
+		`ALTER TABLE api_tokens ADD COLUMN resource TEXT NOT NULL DEFAULT ''`,
+		`ALTER TABLE api_tokens ADD COLUMN expires_at TEXT NOT NULL DEFAULT ''`,
+		`ALTER TABLE api_tokens ADD COLUMN family_id TEXT NOT NULL DEFAULT ''`,
+		`CREATE INDEX IF NOT EXISTS api_tokens_family_idx ON api_tokens(family_id) WHERE family_id <> ''`,
+		// Refresh tokens rotate: each is used once and answered with the next.
+		// A second use of one revokes the whole family. Only hashes are stored.
+		`CREATE TABLE IF NOT EXISTS oauth_refresh_tokens (
+			id TEXT PRIMARY KEY,
+			token_hash TEXT NOT NULL UNIQUE,
+			family_id TEXT NOT NULL,
+			client_id TEXT NOT NULL,
+			user_id TEXT NOT NULL,
+			scopes TEXT NOT NULL,
+			resource TEXT NOT NULL DEFAULT '',
+			created_at TEXT NOT NULL,
+			expires_at TEXT NOT NULL,
+			absolute_at TEXT NOT NULL,
+			used_at TEXT NOT NULL DEFAULT '',
+			revoked_at TEXT NOT NULL DEFAULT ''
+		)`,
+		`CREATE INDEX IF NOT EXISTS oauth_refresh_family_idx ON oauth_refresh_tokens(family_id)`,
 	},
 }}

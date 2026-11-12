@@ -287,6 +287,11 @@ export type Token = {
   created_at: string
   last_used_at: string | null
   revoked_at: string | null
+  client?: string
+  ip?: string
+  current?: boolean
+  client_id?: string
+  expires_at?: string
 }
 
 export * from "./status"

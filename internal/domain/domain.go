@@ -2,10 +2,7 @@
 package domain
 
 import (
-	"context"
-	"encoding/base64"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"math"
 	"net/url"
@@ -511,47 +508,6 @@ func DefaultEventTitle(kind string) string {
 	}
 }
 
-// Actor is the token that authorized a request.
-type Actor struct {
-	UserID  string
-	TokenID string
-	Name    string
-	Scopes  []string
-	// Demo is true for an anonymous preview visitor's throwaway tenant
-	// (see Service.CreateDemoSession). It withholds scopes that would let
-	// an anonymous caller drive outbound HTTP from the server (link
-	// checks, favicon fetches) — an SSRF vector a verified sign-up doesn't have.
-	Demo bool
-	// Proxy is the PURSUIT_TRUST_PROXY_AUTH owner: trusted for the
-	// dashboard, but never allowed to approve an OAuth login.
-	Proxy bool
-}
-
-func (a Actor) Can(scope string) bool {
-	for _, s := range a.Scopes {
-		if s == scope || (s == "write" && scope == "read") {
-			return true
-		}
-	}
-	return false
-}
-
-type actorKey struct{}
-
-func WithActor(ctx context.Context, a Actor) context.Context {
-	return context.WithValue(ctx, actorKey{}, a)
-}
-
-func ActorFrom(ctx context.Context) (Actor, bool) {
-	a, ok := ctx.Value(actorKey{}).(Actor)
-	return a, ok
-}
-
-type ActorRef struct {
-	TokenID string `json:"token_id,omitempty"`
-	Name    string `json:"name,omitempty"`
-}
-
 type User struct {
 	ID    string `json:"id"`
 	Name  string `json:"name"`
@@ -574,6 +530,17 @@ type Token struct {
 	CreatedAt  time.Time  `json:"created_at"`
 	LastUsedAt *time.Time `json:"last_used_at"`
 	RevokedAt  *time.Time `json:"revoked_at"`
+	// Client and IP say where a dashboard sign-in came from; empty for other tokens.
+	Client string `json:"client,omitempty"`
+	IP     string `json:"ip,omitempty"`
+	// Current is true on the token that made this request.
+	Current bool `json:"current,omitempty"`
+	// ClientID, ExpiresAt, Resource and FamilyID are set on tokens issued to a
+	// registered OAuth client; the family is the consent they all came from.
+	ClientID  string     `json:"client_id,omitempty"`
+	ExpiresAt *time.Time `json:"expires_at,omitempty"`
+	Resource  string     `json:"-"`
+	FamilyID  string     `json:"-"`
 }
 
 type IssuedToken struct {
@@ -848,18 +815,6 @@ type Audit struct {
 	CreatedAt  time.Time       `json:"created_at"`
 }
 
-type PageMeta struct {
-	Limit      int    `json:"limit"`
-	HasMore    bool   `json:"has_more"`
-	NextCursor string `json:"next_cursor"`
-	Total      int    `json:"total"`
-}
-
-type Page[T any] struct {
-	Data []T      `json:"data"`
-	Page PageMeta `json:"page"`
-}
-
 type Deleted struct {
 	ID      string `json:"id"`
 	Deleted bool   `json:"deleted"`
@@ -900,47 +855,6 @@ type ListQuery struct {
 	Attention  bool
 }
 
-type Cursor struct {
-	V    int    `json:"v"`
-	Sort string `json:"sort"`
-	K    string `json:"k"`
-	ID   string `json:"id"`
-}
-
-func EncodeCursor(sort, key, id string) string {
-	b, _ := json.Marshal(Cursor{V: 1, Sort: sort, K: key, ID: id})
-	return base64.RawURLEncoding.EncodeToString(b)
-}
-
-func DecodeCursor(s string) (Cursor, error) {
-	s = strings.TrimSpace(s)
-	if s == "" {
-		return Cursor{}, nil
-	}
-	raw, err := base64.RawURLEncoding.DecodeString(s)
-	if err != nil {
-		raw, err = base64.URLEncoding.DecodeString(s)
-		if err != nil {
-			return Cursor{}, Validation("invalid cursor").WithHint("pass next_cursor from the previous page unchanged")
-		}
-	}
-	var c Cursor
-	if err := json.Unmarshal(raw, &c); err != nil || c.V != 1 || c.ID == "" {
-		return Cursor{}, Validation("invalid cursor").WithHint("pass next_cursor from the previous page unchanged")
-	}
-	return c, nil
-}
-
-func CheckCursorSort(c Cursor, sort string) error {
-	if c.ID == "" {
-		return nil
-	}
-	if c.Sort != sort {
-		return Validation("cursor does not match sort %q", sort).WithHint("reuse the cursor only with the same sort, or omit the cursor")
-	}
-	return nil
-}
-
 var (
 	CompanyFields     = []string{"id", "name", "website", "icon_url", "notes", "version", "created_at", "updated_at"}
 	RoleFields        = []string{"id", "company_id", "company", "title", "location", "salary", "salary_min_cents", "salary_max_cents", "fit", "posting_url", "source", "job_type", "version", "created_at", "updated_at"}
@@ -950,7 +864,7 @@ var (
 	TaskFields        = []string{"id", "application_id", "stage", "round_id", "title", "notes", "due_at", "done_at", "version", "created_at", "updated_at"}
 	TagFields         = []string{"id", "name", "created_at"}
 	CustomFieldFields = []string{"id", "name", "type", "created_at"}
-	TokenFields       = []string{"id", "name", "prefix", "scopes", "created_at", "last_used_at", "revoked_at"}
+	TokenFields       = []string{"id", "name", "prefix", "scopes", "created_at", "last_used_at", "revoked_at", "client", "ip", "current", "client_id", "expires_at"}
 	AuditFields       = []string{"id", "token_id", "actor_name", "action", "entity_type", "entity_id", "summary", "metadata", "created_at"}
 	LinkFields        = []string{"application_id", "role_id", "company", "title", "posting_url", "status", "detail", "http_status", "changed", "checked_at"}
 )
@@ -969,91 +883,8 @@ type LinkHealth struct {
 	CheckedAt     string `json:"checked_at"`
 }
 
-func ValidateFields(requested, allowed []string) error {
-	allow := map[string]bool{}
-	for _, f := range allowed {
-		allow[f] = true
-	}
-	var unknown []string
-	for _, f := range requested {
-		if !allow[f] {
-			unknown = append(unknown, f)
-		}
-	}
-	if len(unknown) > 0 {
-		return Validation("unknown field %s", strings.Join(unknown, ", ")).WithHint("allowed fields: " + strings.Join(allowed, ", "))
-	}
-	return nil
-}
-
-// Error is a structured failure safe to show to an agent.
-type Error struct {
-	Code    string         `json:"code"`
-	Message string         `json:"message"`
-	Hint    string         `json:"hint,omitempty"`
-	Details map[string]any `json:"details,omitempty"`
-	Status  int            `json:"-"`
-}
-
-func (e *Error) Error() string {
-	if e == nil {
-		return ""
-	}
-	return e.Code + ": " + e.Message
-}
-
-func (e *Error) WithHint(h string) *Error {
-	if e == nil {
-		return nil
-	}
-	cp := *e
-	cp.Hint = h
-	return &cp
-}
-
-func (e *Error) WithDetails(d map[string]any) *Error {
-	if e == nil {
-		return nil
-	}
-	cp := *e
-	cp.Details = d
-	return &cp
-}
-
-func Validation(format string, args ...any) *Error {
-	return &Error{Code: "validation", Message: fmt.Sprintf(format, args...), Status: 400, Hint: "see /openapi.json for the request shape"}
-}
-
-func NotFound(entity string) *Error {
-	return &Error{Code: "not_found", Message: entity + " not found", Hint: "check the id with the matching list command", Status: 404}
-}
-
-func Conflict(message, hint string) *Error {
-	return &Error{Code: "conflict", Message: message, Hint: hint, Status: 409}
-}
-
-func VersionConflict(entity string, current int) *Error {
-	return Conflict(entity+" was modified", "fetch the current "+entity+" and retry with its version").WithDetails(map[string]any{"current_version": current})
-}
-
 func Unauthorized() *Error {
 	return &Error{Code: "unauthorized", Message: "invalid or revoked token", Hint: "set Authorization: Bearer to a pursuit token, or pass --token / PURSUIT_TOKEN", Status: 401}
-}
-
-func Forbidden(scope string) *Error {
-	return &Error{Code: "forbidden", Message: "token is missing the " + scope + " scope", Hint: "create a token with --scope " + scope, Status: 403}
-}
-
-func RateLimited(hint string) *Error {
-	return &Error{Code: "rate_limited", Message: "too many requests", Hint: hint, Status: 429}
-}
-
-// FeatureUnavailable is a feature this user can't use right now. reason is
-// "not_configured" (the deployment lacks it), "not_entitled" (needs a plan),
-// or "disabled" (the user turned it off).
-func FeatureUnavailable(feature, reason, hint string) *Error {
-	return &Error{Code: "feature_unavailable", Message: feature + " is unavailable: " + strings.ReplaceAll(reason, "_", " "), Hint: hint, Status: 403,
-		Details: map[string]any{"feature": feature, "reason": reason}}
 }
 
 func CapExceeded(company string, used, max, windowDays int) *Error {
@@ -1061,23 +892,6 @@ func CapExceeded(company string, used, max, windowDays int) *Error {
 		fmt.Sprintf("%s application cap reached (%d/%d in %d days)", company, used, max, windowDays),
 		"wait for the window to pass, withdraw an application, or raise the cap",
 	).WithDetails(map[string]any{"company": company, "used": used, "max": max, "window_days": windowDays})
-}
-
-func IdempotencyMismatch() *Error {
-	return &Error{Code: "idempotency_mismatch", Message: "idempotency key was reused with a different request", Hint: "reuse a key only with an identical request, or send a new key", Status: 409}
-}
-
-func IsCode(err error, code string) bool {
-	var e *Error
-	return errors.As(err, &e) && e != nil && e.Code == code
-}
-
-func As(err error) (*Error, bool) {
-	var e *Error
-	if errors.As(err, &e) && e != nil {
-		return e, true
-	}
-	return nil, false
 }
 
 func RequireText(name, value string, max int) (string, error) {

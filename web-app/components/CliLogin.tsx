@@ -138,7 +138,17 @@ function useApprover(allowTokenLogin: boolean): { gate: ReactNode | null; ready:
   return { gate: null, ready: true }
 }
 
-type AuthorizeRequest = { client_id: string; scopes: string[]; redirect_uri: string }
+type AuthorizeRequest = {
+  client_id: string
+  client_name: string
+  scopes: string[]
+  redirect_uri: string
+  resource?: string
+  unverified: boolean
+}
+
+// Only these reach the API, which refuses any other query parameter.
+const AUTHORIZE_PARAMS = ["response_type", "resource", "client_id", "redirect_uri", "code_challenge", "code_challenge_method", "state", "scope"]
 
 export function AuthorizeConsent({ params, allowTokenLogin }: { params: URLSearchParams; allowTokenLogin: boolean }) {
   const { me } = useAuth()
@@ -147,7 +157,7 @@ export function AuthorizeConsent({ params, allowTokenLogin }: { params: URLSearc
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [done, setDone] = useState<"approved" | "denied" | null>(null)
-  const query = params.toString()
+  const query = new URLSearchParams(AUTHORIZE_PARAMS.flatMap((k) => (params.has(k) ? [[k, params.get(k) as string]] : []))).toString()
 
   useEffect(() => {
     if (!ready) return
@@ -180,6 +190,7 @@ export function AuthorizeConsent({ params, allowTokenLogin }: { params: URLSearc
           code_challenge_method: params.get("code_challenge_method") || "",
           state: params.get("state") || "",
           scope: params.get("scope") || "",
+          resource: params.get("resource") || undefined,
           approve,
         },
       })
@@ -194,8 +205,8 @@ export function AuthorizeConsent({ params, allowTokenLogin }: { params: URLSearc
   if (done) {
     return (
       <Shell>
-        <Notice title={done === "approved" ? "CLI signed in" : "Login denied"}>
-          Return to your terminal. You can close this tab.
+        <Notice title={done === "approved" ? (request?.unverified ? "App connected" : "CLI signed in") : "Login denied"}>
+          {request?.unverified ? "Return to the app." : "Return to your terminal. You can close this tab."}
         </Notice>
       </Shell>
     )
@@ -224,10 +235,22 @@ export function AuthorizeConsent({ params, allowTokenLogin }: { params: URLSearc
     <Shell>
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Sign in the Pursuit CLI?</CardTitle>
+          <CardTitle className="text-base">
+            {request.unverified ? `Connect ${request.client_name}?` : "Sign in the Pursuit CLI?"}
+          </CardTitle>
           <CardDescription>
-            <code>{request.client_id}</code> on this computer ({target}) is asking for a token for{" "}
-            {me?.user?.email || "your account"}. Only approve if you just ran <code>pursuit auth login</code>.
+            {request.unverified ? (
+              <>
+                <strong>{request.client_name}</strong> ({target}) is asking to use Pursuit as{" "}
+                {me?.user?.email || "your account"}. Anyone can register an app, and Pursuit hasn&apos;t verified this
+                one. Only approve if you just asked it to connect.
+              </>
+            ) : (
+              <>
+                <code>{request.client_id}</code> on this computer ({target}) is asking for a token for{" "}
+                {me?.user?.email || "your account"}. Only approve if you just ran <code>pursuit auth login</code>.
+              </>
+            )}
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-4 pt-0">

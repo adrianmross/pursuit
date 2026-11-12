@@ -210,6 +210,14 @@
           "type": "string"
         }
       },
+      "resource": {
+        "description": "RFC 8707 target; this server or empty.",
+        "in": "query",
+        "name": "resource",
+        "schema": {
+          "type": "string"
+        }
+      },
       "response_type": {
         "description": "Accepted and ignored.",
         "in": "query",
@@ -964,6 +972,9 @@
           "redirect_uri": {
             "type": "string"
           },
+          "resource": {
+            "type": "string"
+          },
           "scope": {
             "type": "string"
           },
@@ -978,7 +989,13 @@
           "client_id": {
             "type": "string"
           },
+          "client_name": {
+            "type": "string"
+          },
           "redirect_uri": {
+            "type": "string"
+          },
+          "resource": {
             "type": "string"
           },
           "scopes": {
@@ -986,12 +1003,17 @@
               "type": "string"
             },
             "type": "array"
+          },
+          "unverified": {
+            "type": "boolean"
           }
         },
         "required": [
           "client_id",
+          "client_name",
           "scopes",
-          "redirect_uri"
+          "redirect_uri",
+          "unverified"
         ],
         "type": "object"
       },
@@ -1233,6 +1255,79 @@
         "required": [
           "work"
         ],
+        "type": "object"
+      },
+      "ClientInfo": {
+        "properties": {
+          "client_id": {
+            "type": "string"
+          },
+          "client_id_issued_at": {
+            "type": "integer"
+          },
+          "client_name": {
+            "type": "string"
+          },
+          "grant_types": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "redirect_uris": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "response_types": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "token_endpoint_auth_method": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "client_id",
+          "client_name",
+          "redirect_uris",
+          "token_endpoint_auth_method",
+          "grant_types",
+          "response_types",
+          "client_id_issued_at"
+        ],
+        "type": "object"
+      },
+      "ClientRegistration": {
+        "properties": {
+          "client_name": {
+            "type": "string"
+          },
+          "grant_types": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "redirect_uris": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "response_types": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "token_endpoint_auth_method": {
+            "type": "string"
+          }
+        },
         "type": "object"
       },
       "Company": {
@@ -2226,6 +2321,12 @@
           "access_token": {
             "type": "string"
           },
+          "expires_in": {
+            "type": "integer"
+          },
+          "refresh_token": {
+            "type": "string"
+          },
           "scope": {
             "type": "string"
           },
@@ -3069,11 +3170,30 @@
       },
       "Token": {
         "properties": {
+          "client": {
+            "type": "string"
+          },
+          "client_id": {
+            "type": "string"
+          },
           "created_at": {
             "format": "date-time",
             "type": "string"
           },
+          "current": {
+            "type": "boolean"
+          },
+          "expires_at": {
+            "format": "date-time",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "id": {
+            "type": "string"
+          },
+          "ip": {
             "type": "string"
           },
           "last_used_at": {
@@ -3314,7 +3434,7 @@
     }
   },
   "info": {
-    "description": "The HTTP API behind the Pursuit dashboard and the `pursuit` CLI. Agents should prefer the CLI: `pursuit schema <command>` describes one command. The short agent guide is [/llms.txt](/llms.txt).\n\n## Authentication\n\nSend `Authorization: Bearer pst_...`. A token holds the scopes `read`, `write`, and `approve`. `write` does not include `approve`, and only `approve` can move an application toward submission. Tokens, scopes, and OAuth login are in [/auth.md](/auth.md).\n\n## Errors\n\nErrors are JSON: `{\"error\": {\"code\", \"message\", \"hint\", \"details\"}}`. 400 is validation, 401 a missing or bad token, 403 a missing scope, 404 not found, 409 a version or cap conflict.\n\n## Writes\n\nEvery write accepts `Idempotency-Key`, which replays a successful response, and `X-Dry-Run: true` (or `?dry_run=true`), which validates and writes nothing. A dry run answers `{\"dry_run\": true, \"hint\", \"data\"}` instead of the response shown. Creates answer 201. Updates and deletes of versioned records take `version` in the body, the query, or `If-Match`.\n\n## Pagination\n\nLists answer `{\"data\": [...], \"page\": {\"limit\", \"has_more\", \"next_cursor\", \"total\"}}`. They take `limit` (1-200) and `cursor`; pass `page.next_cursor` back unchanged until `has_more` is false. `fields=id,company` trims each record to those fields. `POST /v1/batch` runs up to 100 requests in one call.\n\n## Webhooks\n\nA registered webhook receives every new event as a POST; see **Webhooks** at the end of this page for the payload.",
+    "description": "The HTTP API behind the Pursuit dashboard and the `pursuit` CLI. Agents should prefer the CLI: `pursuit schema \u003ccommand\u003e` describes one command. The short agent guide is [/llms.txt](/llms.txt).\n\n## Authentication\n\nSend `Authorization: Bearer pst_...`. A token holds the scopes `read`, `write`, and `approve`. `write` does not include `approve`, and only `approve` can move an application toward submission. Tokens, scopes, and OAuth login are in [/auth.md](/auth.md).\n\n## Errors\n\nErrors are JSON: `{\"error\": {\"code\", \"message\", \"hint\", \"details\"}}`. 400 is validation, 401 a missing or bad token, 403 a missing scope, 404 not found, 409 a version or cap conflict.\n\n## Writes\n\nEvery write accepts `Idempotency-Key`, which replays a successful response, and `X-Dry-Run: true` (or `?dry_run=true`), which validates and writes nothing. A dry run answers `{\"dry_run\": true, \"hint\", \"data\"}` instead of the response shown. Creates answer 201. Updates and deletes of versioned records take `version` in the body, the query, or `If-Match`.\n\n## Pagination\n\nLists answer `{\"data\": [...], \"page\": {\"limit\", \"has_more\", \"next_cursor\", \"total\"}}`. They take `limit` (1-200) and `cursor`; pass `page.next_cursor` back unchanged until `has_more` is false. `fields=id,company` trims each record to those fields. `POST /v1/batch` runs up to 100 requests in one call.\n\n## Webhooks\n\nA registered webhook receives every new event as a POST; see **Webhooks** at the end of this page for the payload.",
     "license": {
       "identifier": "MIT",
       "name": "MIT"
@@ -3324,6 +3444,66 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/.well-known/oauth-authorization-server": {
+      "get": {
+        "operationId": "getOAuthServerMetadata",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "error"
+          }
+        },
+        "security": [],
+        "summary": "OAuth server metadata (RFC 8414)",
+        "x-internal": true
+      }
+    },
+    "/.well-known/oauth-protected-resource": {
+      "get": {
+        "operationId": "getOAuthResourceMetadata",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "error"
+          }
+        },
+        "security": [],
+        "summary": "OAuth protected resource metadata (RFC 9728)",
+        "x-internal": true
+      }
+    },
     "/auth.md": {
       "get": {
         "operationId": "getAuthGuide",
@@ -3411,6 +3591,43 @@
         },
         "security": [],
         "summary": "Short agent guide",
+        "x-internal": true
+      }
+    },
+    "/mcp": {
+      "post": {
+        "description": "Send Authorization: Bearer with an OAuth access token; without one the answer is 401 with a WWW-Authenticate header naming the resource metadata. Tools: list_applications, get_application, capture_posting, prepare_application, enqueue_prepare. Nothing here approves, rejects or submits.",
+        "operationId": "mcp",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "error"
+          }
+        },
+        "security": [],
+        "summary": "Model Context Protocol server (Streamable HTTP, JSON-RPC 2.0) for hosted chat apps such as claude.ai connectors and ChatGPT apps",
         "x-internal": true
       }
     },
@@ -6509,6 +6726,55 @@
         ]
       }
     },
+    "/v1/auth/register": {
+      "post": {
+        "description": "RFC 7591 dynamic client registration for apps that connect to Pursuit (a ChatGPT app, a Claude connector). JSON body with redirect_uris (1 to 5; https, or http on 127.0.0.1, [::1] or localhost) and client_name. Public clients only: token_endpoint_auth_method none, PKCE required. The client_id in the response is then used at /authorize. Clients can instead use an https URL as client_id that serves a client metadata document. Limited to 20 a minute per client IP (429 slow_down). A client that registered itself is shown as unverified on the consent page, and OAuth never grants approve.",
+        "operationId": "registerOAuthClient",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ClientRegistration"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientInfo"
+                }
+              }
+            },
+            "description": "Created"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "error"
+          }
+        },
+        "security": [],
+        "summary": "Register an OAuth client",
+        "tags": [
+          "Dashboard sign-in"
+        ]
+      }
+    },
     "/v1/auth/revoke": {
       "post": {
         "description": "RFC 7009 token revocation. Holding the token is the authority; unknown tokens still return 200.",
@@ -6656,7 +6922,7 @@
     },
     "/v1/auth/token": {
       "post": {
-        "description": "OAuth2 token endpoint. grant_type=authorization_code takes code, code_verifier (PKCE S256), redirect_uri, client_id; codes are single-use and last 60 seconds. grant_type=urn:ietf:params:oauth:grant-type:device_code takes device_code, client_id and answers authorization_pending, slow_down, expired_token, or access_denied until approved. The access_token is a normal pst_ API token.",
+        "description": "OAuth2 token endpoint. grant_type=authorization_code takes code, code_verifier (PKCE S256), redirect_uri, client_id; codes are single-use and last 60 seconds. grant_type=urn:ietf:params:oauth:grant-type:device_code takes device_code, client_id and answers authorization_pending, slow_down, expired_token, or access_denied until approved. The access_token is a normal pst_ API token. For a registered app (a client_id that is an https URL, or one from /v1/auth/register) it expires in an hour (expires_in) and comes with a refresh_token; grant_type=refresh_token takes refresh_token, client_id and optionally a narrower scope, and answers a new pair. Each refresh token works once: using one a second time revokes the whole connection. The CLI's tokens do not expire.",
         "operationId": "getAccessToken",
         "requestBody": {
           "content": {
@@ -6678,11 +6944,21 @@
                   "grant_type": {
                     "enum": [
                       "authorization_code",
+                      "refresh_token",
                       "urn:ietf:params:oauth:grant-type:device_code"
                     ],
                     "type": "string"
                   },
                   "redirect_uri": {
+                    "type": "string"
+                  },
+                  "refresh_token": {
+                    "type": "string"
+                  },
+                  "resource": {
+                    "type": "string"
+                  },
+                  "scope": {
                     "type": "string"
                   }
                 },
@@ -6733,7 +7009,7 @@
     },
     "/v1/auth/{provider}/callback": {
       "get": {
-        "description": "Redirects to /#token=<secret>.",
+        "description": "Redirects to /#token=\u003csecret\u003e.",
         "operationId": "finishOIDCSignin",
         "parameters": [
           {
@@ -9380,6 +9656,9 @@
           },
           {
             "$ref": "#/components/parameters/response_type"
+          },
+          {
+            "$ref": "#/components/parameters/resource"
           }
         ],
         "responses": {
@@ -9419,7 +9698,7 @@
         ]
       },
       "post": {
-        "description": "Loopback consent, called by the dashboard /authorize page that `pursuit auth login` opens. Requires a signed-in human session with the approve scope (not the PURSUIT_TRUST_PROXY_AUTH owner), Content-Type application/json, and Sec-Fetch-Site same-origin or an Origin matching the host. Writes an oauth.approve or oauth.deny audit entry. redirect_uri must be http://127.0.0.1:<port>/callback or http://[::1]:<port>/callback. redirect_to is the callback with code and state, or error=access_denied when approve is false.",
+        "description": "Loopback consent, called by the dashboard /authorize page that `pursuit auth login` opens. Requires a signed-in human session with the approve scope (not the PURSUIT_TRUST_PROXY_AUTH owner), Content-Type application/json, and Sec-Fetch-Site same-origin or an Origin matching the host. Writes an oauth.approve or oauth.deny audit entry. redirect_uri must be http://127.0.0.1:\u003cport\u003e/callback or http://[::1]:\u003cport\u003e/callback. redirect_to is the callback with code and state, or error=access_denied when approve is false.",
         "operationId": "approveBrowserLogin",
         "requestBody": {
           "content": {

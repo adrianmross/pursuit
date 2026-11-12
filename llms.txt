@@ -2,4 +2,4 @@
 
 The agent guide lives in internal/spec/llms.txt so the server can embed it. A running server serves it at GET /llms.txt.
 
-Short version: use the `pursuit` CLI, not an MCP server. HTTP shapes are at GET /openapi.json, auth at GET /auth.md, the Agent Skill at GET /skill.md.
+Short version: use the `pursuit` CLI, not an MCP server (`POST /mcp` exists only for hosted chat apps such as claude.ai and ChatGPT). HTTP shapes are at GET /openapi.json, auth at GET /auth.md, the Agent Skill at GET /skill.md.

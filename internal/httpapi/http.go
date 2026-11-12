@@ -93,6 +93,9 @@ type Server struct {
 
 	deviceLimiterOnce sync.Once
 	deviceLimiterVal  *demoLimiter
+	// registerLimiter caps client registrations per IP.
+	registerLimiterOnce sync.Once
+	registerLimiterVal  *demoLimiter
 
 	passkeyLimiterOnce sync.Once
 	passkeyLimiterVal  *demoLimiter
@@ -106,6 +109,13 @@ func (s *Server) deviceLimiterFor() *demoLimiter {
 		s.deviceLimiterVal = &demoLimiter{window: time.Minute, limit: 10, seen: map[string][]time.Time{}}
 	})
 	return s.deviceLimiterVal
+}
+
+func (s *Server) registerLimiterFor() *demoLimiter {
+	s.registerLimiterOnce.Do(func() {
+		s.registerLimiterVal = &demoLimiter{window: time.Minute, limit: 20, seen: map[string][]time.Time{}}
+	})
+	return s.registerLimiterVal
 }
 
 func (s *Server) demoLimiterFor() *demoLimiter {
@@ -330,16 +340,15 @@ func (s *Server) wrap(next http.Handler) http.Handler {
 		rec := &statusRec{ResponseWriter: w, code: 200}
 		start := time.Now()
 		defer func() {
-			if rec := recover(); rec != nil {
-				s.log().Error("panic", "err", rec, "request_id", id)
+			if p := recover(); p != nil {
+				s.log().Error("panic", "err", p, "request_id", id)
 				if s.OnFailure != nil {
-					s.OnFailure(r, id, http.StatusInternalServerError, rec)
+					s.OnFailure(r, id, http.StatusInternalServerError, p)
 				}
-				writeErr(w, domain.Conflict("internal error", "retry the request").WithDetails(nil))
-				// status already maybe written; best effort
-				_ = rec
-			}
-			if s.OnFailure != nil && rec.code >= 500 {
+				// Best effort: the handler may already have written a status.
+				writeErr(w, &domain.Error{Code: "internal", Message: "internal error", Hint: "retry the request", Status: http.StatusInternalServerError})
+				rec.code = http.StatusInternalServerError
+			} else if s.OnFailure != nil && rec.code >= 500 {
 				s.OnFailure(r, id, rec.code, nil)
 			}
 			s.log().Info("request", "method", r.Method, "path", r.URL.Path, "status", rec.code, "ms", time.Since(start).Milliseconds(), "request_id", id)
@@ -372,14 +381,14 @@ func (s *Server) wrap(next http.Handler) http.Handler {
 					return
 				}
 				ctx = domain.WithActor(ctx, actor)
-			} else if c, err := r.Cookie(sessionCookie); err == nil && c.Value != "" {
+			} else if c := sessionCookieValue(r); c != "" {
 				// The dashboard's session: a browser credential, so a write
 				// must come from the dashboard's own origin (CSRF).
 				if unsafeMethod(r.Method) && !sameOrigin(r) {
 					writeErr(w, crossSiteRefused())
 					return
 				}
-				actor, err := s.authenticate(ctx, c.Value)
+				actor, err := s.authenticate(ctx, c)
 				if err != nil {
 					clearSessionCookie(w, r)
 					writeErr(w, err)
@@ -502,10 +511,13 @@ func (s *Server) authCallback(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, domain.Unauthorized())
 		return
 	}
-	secret, err := s.Svc.LoginIdentity(r.Context(), identity.Email, identity.Name, s.signupsOpen())
+	secret, err := s.Svc.LoginIdentity(originCtx(r), identity.Email, identity.Name, s.signupsOpen())
 	if err != nil {
 		writeErr(w, s.signupsPaused(err))
 		return
+	}
+	if actor, err := s.Svc.Authenticate(r.Context(), secret); err == nil {
+		s.retireSession(r, actor.UserID)
 	}
 	setSessionCookie(w, r, secret)
 	http.Redirect(w, r, "/start", http.StatusFound)

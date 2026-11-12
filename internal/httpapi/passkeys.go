@@ -130,7 +130,7 @@ func (s *Server) passkeyLoginFinish(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	secret, err := s.Svc.FinishPasskeyLogin(r.Context(), body)
+	secret, err := s.Svc.FinishPasskeyLogin(originCtx(r), body)
 	if err != nil {
 		writeErr(w, err)
 		return
@@ -140,6 +140,7 @@ func (s *Server) passkeyLoginFinish(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, err)
 		return
 	}
+	s.retireSession(r, actor.UserID)
 	setSessionCookie(w, r, secret)
 	s.me(w, r.WithContext(domain.WithActor(r.Context(), actor)))
 }
