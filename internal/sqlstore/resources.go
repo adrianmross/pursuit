@@ -254,13 +254,13 @@ func (s *Store) RevokeToken(ctx context.Context, userID, id, at string) (bool, e
 
 // RevokeExpiredLogins revokes every live token with this name that was last
 // used (or, never used, created) before idleBefore, or created before maxBefore.
-func (s *Store) RevokeExpiredLogins(ctx context.Context, name, at, idleBefore, maxBefore string) error {
-	_, err := s.exec(ctx, `UPDATE api_tokens SET revoked_at=? WHERE name=? AND revoked_at IS NULL AND (COALESCE(last_used_at, created_at) < ? OR created_at < ?)`, at, name, idleBefore, maxBefore)
+func (s *Store) RevokeExpiredLogins(ctx context.Context, name string, at, idleBefore, maxBefore time.Time) error {
+	_, err := s.exec(ctx, `UPDATE api_tokens SET revoked_at=? WHERE name=? AND revoked_at IS NULL AND (COALESCE(last_used_at, created_at) < ? OR created_at < ?)`, formatTime(at), name, formatTime(idleBefore), formatTime(maxBefore))
 	return err
 }
 
-func (s *Store) TouchToken(ctx context.Context, id, at, staleBefore string) error {
-	_, err := s.exec(ctx, `UPDATE api_tokens SET last_used_at=? WHERE id=? AND (last_used_at IS NULL OR last_used_at < ?)`, at, id, staleBefore)
+func (s *Store) TouchToken(ctx context.Context, id string, at, staleBefore time.Time) error {
+	_, err := s.exec(ctx, `UPDATE api_tokens SET last_used_at=? WHERE id=? AND (last_used_at IS NULL OR last_used_at < ?)`, formatTime(at), id, formatTime(staleBefore))
 	return err
 }
 

@@ -4,6 +4,7 @@ import (
 	"github.com/pursuit/pursuit/internal/platform/actor"
 	"github.com/pursuit/pursuit/internal/platform/apperr"
 	"github.com/pursuit/pursuit/internal/platform/paging"
+	"github.com/pursuit/pursuit/internal/platform/session"
 )
 
 // The app-agnostic types live in internal/platform. These aliases keep the
@@ -18,6 +19,8 @@ type (
 	PageMeta    = paging.PageMeta
 	Page[T any] = paging.Page[T]
 	Cursor      = paging.Cursor
+
+	Token = session.Token
 )
 
 var (

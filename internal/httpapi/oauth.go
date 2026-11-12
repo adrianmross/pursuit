@@ -5,11 +5,10 @@ import (
 	"errors"
 	"mime"
 	"net/http"
-	"net/url"
 	"strings"
 
 	"github.com/pursuit/pursuit/internal/domain"
-
+	"github.com/pursuit/pursuit/internal/platform/session"
 	"github.com/pursuit/pursuit/internal/service"
 )
 
@@ -178,19 +177,8 @@ func sameOriginJSON(r *http.Request) error {
 	return nil
 }
 
-// sameOrigin reports whether a browser sent r from this origin. Requests
-// without either header (curl, the CLI) are not same-origin.
-func sameOrigin(r *http.Request) bool {
-	if r.Header.Get("Sec-Fetch-Site") == "same-origin" {
-		return true
-	}
-	if o := r.Header.Get("Origin"); o != "" {
-		if u, err := url.Parse(o); err == nil && strings.EqualFold(u.Host, r.Host) {
-			return true
-		}
-	}
-	return false
-}
+// sameOrigin reports whether a browser sent r from this origin.
+var sameOrigin = session.SameOrigin
 
 func (s *Server) oauthAuthorizeCheck(w http.ResponseWriter, r *http.Request) {
 	q, err := query(r, "response_type", "resource", "client_id", "redirect_uri", "code_challenge", "code_challenge_method", "state", "scope")

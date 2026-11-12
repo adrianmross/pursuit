@@ -18,6 +18,7 @@ import (
 	"github.com/pursuit/pursuit/internal/embed"
 	"github.com/pursuit/pursuit/internal/domain"
 	"github.com/pursuit/pursuit/internal/links"
+	"github.com/pursuit/pursuit/internal/platform/session"
 	"github.com/pursuit/pursuit/internal/sqlstore"
 )
 
@@ -51,10 +52,49 @@ type Service struct {
 	ClientDoc func(ctx context.Context, url string) ([]byte, error)
 	// Blobs holds new document files when a bucket is configured; nil keeps them in the database.
 	Blobs blobstore.Store
+	// OnUserCreated runs right after a user row is inserted. Sign-in and
+	// bootstrap call it inside their lock, so a failure there undoes the
+	// user. It is where an app gives a new account its starting data. New
+	// sets it to the default caps.
+	OnUserCreated func(ctx context.Context, u domain.User) error
 }
 
 func New(db *sqlstore.Store) *Service {
-	return &Service{DB: db, Now: time.Now, NewID: uuid.NewString}
+	s := &Service{DB: db, Now: time.Now, NewID: uuid.NewString}
+	s.OnUserCreated = func(ctx context.Context, u domain.User) error { return s.ensureDefaultCaps(ctx, u.ID) }
+	return s
+}
+
+// createUser inserts a user and runs OnUserCreated. An empty name falls back
+// to the email.
+func (s *Service) createUser(ctx context.Context, name, email string) (domain.User, error) {
+	if strings.TrimSpace(name) == "" {
+		name = email
+	}
+	u := domain.User{ID: s.NewID(), Name: name, Email: email, CreatedAt: s.now()}
+	if err := s.DB.CreateUser(ctx, u); err != nil {
+		return domain.User{}, err
+	}
+	if s.OnUserCreated != nil {
+		if err := s.OnUserCreated(ctx, u); err != nil {
+			return domain.User{}, err
+		}
+	}
+	return u, nil
+}
+
+// findOrCreateUser returns the user with this email, creating one when
+// allowCreate is set. Call it inside DB.WithLock, so two first sign-ins with
+// the same email cannot both create.
+func (s *Service) findOrCreateUser(ctx context.Context, email, name string, allowCreate bool) (domain.User, error) {
+	u, err := s.DB.FindUserByEmail(ctx, email)
+	if !domain.IsCode(err, "not_found") {
+		return u, err
+	}
+	if !allowCreate {
+		return domain.User{}, domain.Unauthorized()
+	}
+	return s.createUser(ctx, name, email)
 }
 
 func (s *Service) now() time.Time { return s.Now().UTC() }
@@ -90,37 +130,27 @@ func (s *Service) audit(ctx context.Context, a domain.Actor, action, entityType,
 	})
 }
 
+// sessions is the token check and dashboard sign-in rules, with Pursuit's
+// names and lifetimes.
+func (s *Service) sessions() *session.Manager {
+	m := &session.Manager{
+		Store: s.DB, Now: s.now, NewID: s.NewID,
+		LoginName: LoginTokenName, DemoName: demoTokenName,
+		IdleTTL: LoginIdleTTL, MaxTTL: LoginMaxTTL, StepUpWindow: StepUpWindow,
+		Scopes:       []string{"read", "write", "approve"},
+		Unauthorized: func() error { return domain.Unauthorized() },
+	}
+	if s.WebAuthn != nil {
+		m.HasStepUp = func(ctx context.Context, userID string) (bool, error) {
+			rows, err := s.DB.ListWebAuthnCredentials(ctx, userID)
+			return len(rows) > 0, err
+		}
+	}
+	return m
+}
+
 func (s *Service) Authenticate(ctx context.Context, secret string) (domain.Actor, error) {
-	secret = strings.TrimSpace(secret)
-	if secret == "" {
-		return domain.Actor{}, domain.Unauthorized()
-	}
-	tok, err := s.DB.GetTokenByHash(ctx, auth.Hash(secret))
-	if domain.IsCode(err, "not_found") || (err == nil && tok.RevokedAt != nil) {
-		return domain.Actor{}, domain.Unauthorized()
-	}
-	if err != nil {
-		return domain.Actor{}, err
-	}
-	now := s.now()
-	if tok.Name == LoginTokenName {
-		last := tok.CreatedAt
-		if tok.LastUsedAt != nil {
-			last = *tok.LastUsedAt
-		}
-		if now.Sub(last) > LoginIdleTTL || now.Sub(tok.CreatedAt) > LoginMaxTTL {
-			return domain.Actor{}, domain.Unauthorized()
-		}
-	}
-	if tok.ExpiresAt != nil && !now.Before(*tok.ExpiresAt) {
-		return domain.Actor{}, domain.Unauthorized()
-	}
-	_ = s.DB.TouchToken(ctx, tok.ID, domain.FormatTime(now), domain.FormatTime(now.Add(-time.Minute)))
-	a := domain.Actor{UserID: tok.UserID, TokenID: tok.ID, Name: tok.Name, Scopes: tok.Scopes, Demo: tok.Name == demoTokenName, Resource: tok.Resource}
-	if tok.Name == LoginTokenName {
-		a.AuthAt = tok.CreatedAt
-	}
-	return a, nil
+	return s.sessions().Authenticate(ctx, secret)
 }
 
 // Bootstrap creates the owner and the first token when the database is empty.
@@ -144,8 +174,8 @@ func (s *Service) Bootstrap(ctx context.Context, ownerName, ownerEmail, tokenNam
 		}
 		var user domain.User
 		if n == 0 {
-			user = domain.User{ID: s.NewID(), Name: ownerName, Email: ownerEmail, CreatedAt: s.now()}
-			if err := s.DB.CreateUser(ctx, user); err != nil {
+			user, err = s.createUser(ctx, ownerName, ownerEmail)
+			if err != nil {
 				return err
 			}
 		} else {
@@ -153,12 +183,13 @@ func (s *Service) Bootstrap(ctx context.Context, ownerName, ownerEmail, tokenNam
 			if err != nil {
 				return err
 			}
+			// An owner from before a default cap existed gets it on the next boot.
+			if err := s.ensureDefaultCaps(ctx, user.ID); err != nil {
+				return err
+			}
 		}
 		tn, err := s.DB.CountTokens(ctx)
 		if err != nil {
-			return err
-		}
-		if err := s.ensureDefaultCaps(ctx, user.ID); err != nil {
 			return err
 		}
 		if tn > 0 {
@@ -216,59 +247,19 @@ const LoginMaxTTL = 90 * 24 * time.Hour
 // approve, or to mint an approve token, when the user has a passkey.
 const StepUpWindow = 15 * time.Minute
 
-type originKey struct{}
-
 // Origin is where a sign-in request came from.
-type Origin struct{ IP, UserAgent string }
+type Origin = session.Origin
 
 // WithOrigin lets mintLogin record where a sign-in came from.
-func WithOrigin(ctx context.Context, o Origin) context.Context {
-	return context.WithValue(ctx, originKey{}, o)
-}
+var WithOrigin = session.WithOrigin
 
 // sweepLogins revokes dashboard sign-ins past their idle or absolute lifetime.
-// Opportunistic instead of a sweeper; failure is harmless.
-func (s *Service) sweepLogins(ctx context.Context, now time.Time) {
-	_ = s.DB.RevokeExpiredLogins(ctx, LoginTokenName, domain.FormatTime(now), domain.FormatTime(now.Add(-LoginIdleTTL)), domain.FormatTime(now.Add(-LoginMaxTTL)))
-}
+func (s *Service) sweepLogins(ctx context.Context, now time.Time) { s.sessions().Sweep(ctx, now) }
 
 // requireFresh asks a dashboard session to re-prove itself before a
-// sensitive action, but only when the user has a passkey to do it with:
-// without one the session keeps working as before. Other tokens pass.
+// sensitive action, when the user has a passkey to do it with.
 func (s *Service) requireFresh(ctx context.Context, a domain.Actor) error {
-	if a.Name != LoginTokenName || s.WebAuthn == nil || s.now().Sub(a.AuthAt) <= StepUpWindow {
-		return nil
-	}
-	rows, err := s.DB.ListWebAuthnCredentials(ctx, a.UserID)
-	if err != nil || len(rows) == 0 {
-		return err
-	}
-	return &domain.Error{Code: "step_up_required", Message: "confirm it's you with your passkey to continue", Hint: "sign in again with a passkey, then retry", Status: 403}
-}
-
-// clientLabel turns a User-Agent into "Chrome on macOS"; unknown parts drop out.
-func clientLabel(ua string) string {
-	browser := ""
-	for _, b := range [][2]string{{"Edg/", "Edge"}, {"Firefox/", "Firefox"}, {"Chrome/", "Chrome"}, {"Safari/", "Safari"}} {
-		if strings.Contains(ua, b[0]) {
-			browser = b[1]
-			break
-		}
-	}
-	os := ""
-	for _, o := range [][2]string{{"iPhone", "iOS"}, {"iPad", "iOS"}, {"Android", "Android"}, {"Mac OS X", "macOS"}, {"Windows", "Windows"}, {"Linux", "Linux"}} {
-		if strings.Contains(ua, o[0]) {
-			os = o[1]
-			break
-		}
-	}
-	switch {
-	case browser != "" && os != "":
-		return browser + " on " + os
-	case browser != "":
-		return browser
-	}
-	return os
+	return s.sessions().RequireFresh(ctx, a)
 }
 
 // CreateDemoSession provisions a throwaway tenant for the "try it without
@@ -280,11 +271,8 @@ func clientLabel(ua string) string {
 // auth path. Nothing here is persisted beyond that token: discarding it
 // (or minting a new one — e.g. "replay tutorial") abandons this tenant.
 func (s *Service) CreateDemoSession(ctx context.Context) (secret string, actor domain.Actor, err error) {
-	user := domain.User{ID: s.NewID(), Name: "Demo visitor", Email: "demo-" + s.NewID() + "@pursuit.invalid", CreatedAt: s.now()}
-	if err := s.DB.CreateUser(ctx, user); err != nil {
-		return "", domain.Actor{}, err
-	}
-	if err := s.ensureDefaultCaps(ctx, user.ID); err != nil {
+	user, err := s.createUser(ctx, "Demo visitor", "demo-"+s.NewID()+"@pursuit.invalid")
+	if err != nil {
 		return "", domain.Actor{}, err
 	}
 	secret, prefix, hash, err := auth.Generate()
@@ -332,20 +320,8 @@ func (s *Service) ResolveTenantUser(ctx context.Context, email, name string, all
 			return domain.Actor{}, domain.Unauthorized()
 		}
 		if err := s.DB.WithLock(ctx, func(ctx context.Context) error {
-			if existing, ferr := s.DB.FindUserByEmail(ctx, email); ferr == nil {
-				user = existing
-				return nil
-			} else if !domain.IsCode(ferr, "not_found") {
-				return ferr
-			}
-			if strings.TrimSpace(name) == "" {
-				name = email
-			}
-			user = domain.User{ID: s.NewID(), Name: name, Email: email, CreatedAt: s.now()}
-			if err := s.DB.CreateUser(ctx, user); err != nil {
-				return err
-			}
-			return s.ensureDefaultCaps(ctx, user.ID)
+			user, err = s.findOrCreateUser(ctx, email, name, true)
+			return err
 		}); err != nil {
 			return domain.Actor{}, err
 		}
@@ -368,22 +344,8 @@ func (s *Service) LoginIdentity(ctx context.Context, email, name string, allowCr
 		return "", domain.Unauthorized()
 	}
 	err = s.DB.WithLock(ctx, func(ctx context.Context) error {
-		user, err := s.DB.FindUserByEmail(ctx, email)
-		if domain.IsCode(err, "not_found") {
-			if !allowCreate {
-				return domain.Unauthorized()
-			}
-			if strings.TrimSpace(name) == "" {
-				name = email
-			}
-			user = domain.User{ID: s.NewID(), Name: name, Email: email, CreatedAt: s.now()}
-			if err := s.DB.CreateUser(ctx, user); err != nil {
-				return err
-			}
-			if err := s.ensureDefaultCaps(ctx, user.ID); err != nil {
-				return err
-			}
-		} else if err != nil {
+		user, err := s.findOrCreateUser(ctx, email, name, allowCreate)
+		if err != nil {
 			return err
 		}
 		secret, err = s.mintLogin(ctx, user.ID, "oidc login token", nil)
@@ -396,26 +358,11 @@ func (s *Service) LoginIdentity(ctx context.Context, email, name string, allowCr
 // sign-out revokes it) for userID and audits it. meta adds to the audit
 // entry, for example where the sign-in came from.
 func (s *Service) mintLogin(ctx context.Context, userID, summary string, meta map[string]any) (string, error) {
-	scopes, err := auth.NormalizeScopes([]string{"read", "write", "approve"})
+	raw, tok, err := s.sessions().Mint(ctx, userID)
 	if err != nil {
 		return "", err
 	}
-	raw, prefix, hash, err := auth.Generate()
-	if err != nil {
-		return "", err
-	}
-	now := s.now()
-	// Opportunistic cleanup instead of a sweeper; failure is harmless.
-	s.sweepLogins(ctx, now)
-	o, _ := ctx.Value(originKey{}).(Origin)
-	tok := domain.Token{
-		ID: s.NewID(), UserID: userID, Name: LoginTokenName, Hash: hash,
-		Prefix: prefix, Scopes: scopes, CreatedAt: now, Client: clientLabel(o.UserAgent), IP: o.IP,
-	}
-	if err := s.DB.CreateToken(ctx, tok); err != nil {
-		return "", err
-	}
-	actor := domain.Actor{UserID: userID, TokenID: tok.ID, Name: tok.Name, Scopes: scopes}
+	actor := domain.Actor{UserID: userID, TokenID: tok.ID, Name: tok.Name, Scopes: tok.Scopes}
 	m := map[string]any{"prefix": tok.Prefix}
 	for k, v := range meta {
 		m[k] = v

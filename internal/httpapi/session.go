@@ -7,50 +7,23 @@ import (
 	"strings"
 
 	"github.com/pursuit/pursuit/internal/domain"
+	"github.com/pursuit/pursuit/internal/platform/session"
 	"github.com/pursuit/pursuit/internal/service"
 )
 
 // sessionCookie holds the dashboard's token where page scripts can't read
 // it (httpOnly), instead of localStorage. Requests with a bearer token
-// never look at it. Over HTTPS the cookie is __Host- prefixed, which browsers
-// only accept with Secure, Path=/ and no Domain, so a sibling subdomain can't
-// plant one. Plain-http `pursuit serve` can't set Secure, so it keeps the bare name.
+// never look at it. See session.Cookie for the __Host- prefix over HTTPS.
 const sessionCookie = "pursuit_session"
 
-func sessionCookieName(r *http.Request) string {
-	if isHTTPS(r) {
-		return "__Host-" + sessionCookie
-	}
-	return sessionCookie
-}
+var cookie = session.Cookie{Name: sessionCookie, MaxAge: service.LoginMaxTTL}
 
 // sessionCookieValue is the request's session token, "" without one.
-func sessionCookieValue(r *http.Request) string {
-	if c, err := r.Cookie(sessionCookieName(r)); err == nil {
-		return c.Value
-	}
-	return ""
-}
+func sessionCookieValue(r *http.Request) string { return cookie.Value(r) }
 
-func setSessionCookie(w http.ResponseWriter, r *http.Request, token string) {
-	http.SetCookie(w, &http.Cookie{
-		Name:     sessionCookieName(r),
-		Value:    token,
-		Path:     "/",
-		MaxAge:   int(service.LoginMaxTTL.Seconds()),
-		HttpOnly: true,
-		Secure:   isHTTPS(r),
-		SameSite: http.SameSiteLaxMode,
-	})
-}
+func setSessionCookie(w http.ResponseWriter, r *http.Request, token string) { cookie.Set(w, r, token) }
 
-// clearSessionCookie also clears the pre-prefix name, so a browser signed in
-// before the rename doesn't keep a dead cookie.
-func clearSessionCookie(w http.ResponseWriter, r *http.Request) {
-	for _, name := range []string{sessionCookie, "__Host-" + sessionCookie} {
-		http.SetCookie(w, &http.Cookie{Name: name, Value: "", Path: "/", MaxAge: -1, HttpOnly: true, Secure: isHTTPS(r), SameSite: http.SameSiteLaxMode})
-	}
-}
+func clearSessionCookie(w http.ResponseWriter, r *http.Request) { cookie.Clear(w, r) }
 
 // retireSession replaces the browser's current dashboard session with a new
 // sign-in: a re-login (or step-up) must not leave the old token alive beside
@@ -69,13 +42,7 @@ func (s *Server) retireSession(r *http.Request, userID string) {
 
 // isHTTPS is true behind a TLS-terminating proxy (Vercel) too, so a local
 // `pursuit serve` on plain http still gets a cookie it can send back.
-func isHTTPS(r *http.Request) bool {
-	return r.TLS != nil || strings.EqualFold(r.Header.Get("X-Forwarded-Proto"), "https")
-}
-
-func unsafeMethod(method string) bool {
-	return method != http.MethodGet && method != http.MethodHead && method != http.MethodOptions
-}
+var isHTTPS = session.IsHTTPS
 
 func crossSiteRefused() error {
 	return &domain.Error{Code: "forbidden", Message: "cross-origin request refused", Hint: "send Authorization: Bearer <token>, or make the change from the dashboard itself", Status: 403}
