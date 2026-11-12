@@ -32,6 +32,7 @@ import (
 	"github.com/pursuit/pursuit/internal/domain"
 	"github.com/pursuit/pursuit/internal/impex"
 	"github.com/pursuit/pursuit/internal/oidcauth"
+	"github.com/pursuit/pursuit/internal/platform/session"
 	"github.com/pursuit/pursuit/internal/service"
 	"github.com/pursuit/pursuit/internal/spec"
 	"github.com/pursuit/pursuit/internal/sqlstore"
@@ -374,44 +375,19 @@ func (s *Server) wrap(next http.Handler) http.Handler {
 			return
 		}
 		if !isPublic(r.URL.Path) {
-			if raw, ok := bearerToken(r.Header.Get("Authorization")); ok {
-				actor, err := s.authenticate(ctx, raw)
-				if err != nil {
-					writeErr(w, err)
-					return
-				}
-				ctx = domain.WithActor(ctx, actor)
-			} else if c := sessionCookieValue(r); c != "" {
-				// The dashboard's session: a browser credential, so a write
-				// must come from the dashboard's own origin (CSRF).
-				if unsafeMethod(r.Method) && !sameOrigin(r) {
-					writeErr(w, crossSiteRefused())
-					return
-				}
-				actor, err := s.authenticate(ctx, c)
-				if err != nil {
-					clearSessionCookie(w, r)
-					writeErr(w, err)
-					return
-				}
-				ctx = domain.WithActor(ctx, actor)
-			} else if s.trustVercel() {
-				// Deployment protection's cookie rides along on any request
-				// the browser makes, so the same CSRF rule applies.
-				if unsafeMethod(r.Method) && !sameOrigin(r) {
-					writeErr(w, crossSiteRefused())
-					return
-				}
-				actor, err := s.proxyOwner(ctx)
-				if err != nil {
-					writeErr(w, err)
-					return
-				}
-				ctx = domain.WithActor(ctx, actor)
-			} else {
-				writeErr(w, domain.Unauthorized())
+			gate := session.Gate{
+				Cookie: cookie, Authenticate: s.authenticate,
+				Unauthorized: func() error { return domain.Unauthorized() }, CrossSite: crossSiteRefused,
+			}
+			if s.trustVercel() {
+				gate.Fallback = s.proxyOwner
+			}
+			actor, err := gate.Actor(w, r.WithContext(ctx))
+			if err != nil {
+				writeErr(w, err)
 				return
 			}
+			ctx = domain.WithActor(ctx, actor)
 		}
 		next.ServeHTTP(rec, r.WithContext(ctx))
 	})
@@ -428,18 +404,7 @@ func isCron(path string) bool {
 	return path == "/v1/cron/links"
 }
 
-func bearerToken(header string) (string, bool) {
-	header = strings.TrimSpace(header)
-	const prefix = "bearer "
-	if len(header) < len(prefix) || !strings.EqualFold(header[:len(prefix)], prefix) {
-		return "", false
-	}
-	raw := strings.TrimSpace(header[len(prefix):])
-	if raw == "" {
-		return "", false
-	}
-	return raw, true
-}
+var bearerToken = session.BearerToken
 
 // trustVercel is off unless PURSUIT_TRUST_PROXY_AUTH is exactly "vercel".
 // That mode is only safe when deployment protection already gates the process.
