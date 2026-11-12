@@ -14,15 +14,9 @@ import (
 	"os"
 	"strings"
 	"sync"
-	"time"
 
-	"github.com/go-webauthn/webauthn/webauthn"
-
-	"github.com/pursuit/pursuit/internal/betterauth"
-	"github.com/pursuit/pursuit/internal/httpapi"
-	"github.com/pursuit/pursuit/internal/links"
-	"github.com/pursuit/pursuit/internal/oidcauth"
-	"github.com/pursuit/pursuit/internal/service"
+	"github.com/pursuit/pursuit/internal/app"
+	"github.com/pursuit/pursuit/internal/config"
 	"github.com/pursuit/pursuit/internal/sqlstore"
 )
 
@@ -63,32 +57,8 @@ func ensure(ctx context.Context) (*runtime, error) {
 		slog.Error("database", "err", err.Error())
 		return nil, fmt.Errorf("postgres database is unavailable")
 	}
-	svc := service.New(store)
-	svc.HTTP = &http.Client{Timeout: 20 * time.Second}
-	svc.Links = &links.Client{HTTP: svc.HTTP, Now: svc.Now}
-	for _, w := range svc.ConfigureFromEnv(os.Getenv, publicURL(os.Getenv)) {
-		slog.Warn("config", "problem", w)
-	}
-	if svc.WebAuthn, err = webAuthnFromEnv(os.Getenv); err != nil {
-		store.Close()
-		slog.Error("passkeys", "err", err.Error())
-		return nil, fmt.Errorf("passkey configuration failed")
-	}
-	owner := env("PURSUIT_OWNER_NAME", "Adrian")
-	email := env("PURSUIT_OWNER_EMAIL", "adrian@localhost")
-	tokenName := env("PURSUIT_BOOTSTRAP_NAME", "owner")
-	supplied := strings.TrimSpace(os.Getenv("PURSUIT_BOOTSTRAP_TOKEN"))
-	secret, created, err := svc.Bootstrap(ctx, owner, email, tokenName, supplied)
-	if err != nil {
-		store.Close()
-		slog.Error("bootstrap", "err", err.Error())
-		return nil, fmt.Errorf("bootstrap failed")
-	}
 	log := slog.New(slog.NewJSONHandler(os.Stderr, nil))
 	slog.SetDefault(log)
-	if created && supplied == "" {
-		log.Info("bootstrap token created", "token", secret, "hint", "save this token; it will not be shown again")
-	}
 	trust, why := trustFromEnv(os.Getenv)
 	if why != "" {
 		log.Warn("PURSUIT_TRUST_PROXY_AUTH ignored", "value", os.Getenv("PURSUIT_TRUST_PROXY_AUTH"), "reason", why)
@@ -96,67 +66,66 @@ func ensure(ctx context.Context) (*runtime, error) {
 	if trust != "" {
 		log.Warn("proxy auth is on", "hint", "PURSUIT_TRUST_PROXY_AUTH=vercel treats a request with no Pursuit token as the owner. Only use this behind Vercel Authentication.")
 	}
-	tenantMode := strings.ToLower(env("PURSUIT_TENANT_MODE", "single"))
-	oidcMgr, err := buildOIDC(ctx, log)
-	if err != nil {
-		store.Close()
-		slog.Error("oidc", "err", err.Error())
-		return nil, fmt.Errorf("oidc configuration failed")
-	}
-	var betterAuthVerifier *betterauth.Verifier
-	var betterAuthOrigin string
-	if baseURL := strings.TrimSpace(os.Getenv("PURSUIT_BETTERAUTH_BASE_URL")); baseURL != "" {
-		betterAuthVerifier = betterauth.New(ctx, baseURL, os.Getenv("PURSUIT_BETTERAUTH_ISSUER"), os.Getenv("PURSUIT_BETTERAUTH_AUDIENCE"))
-		betterAuthOrigin = betterauth.Origin(baseURL)
-	}
-	hideTokenLogin := strings.EqualFold(strings.TrimSpace(os.Getenv("PURSUIT_HIDE_TOKEN_LOGIN")), "true")
-	demoMode := strings.EqualFold(strings.TrimSpace(os.Getenv("PURSUIT_DEMO_MODE")), "true")
-	if demoMode {
+	cfg := configFromEnv(os.Getenv)
+	cfg.TrustProxyAuth = trust
+	if cfg.DemoMode {
 		log.Warn("demo mode is on", "hint", "every unauthenticated caller gets a fresh throwaway tenant; never set PURSUIT_DEMO_MODE on a real-data deployment")
 	}
-	api := &httpapi.Server{Svc: svc, Log: log, TrustProxyAuth: trust, TenantMode: tenantMode, OIDC: oidcMgr, BetterAuth: betterAuthVerifier, BetterAuthOrigin: betterAuthOrigin, HideTokenLogin: hideTokenLogin, WebAnalytics: strings.TrimSpace(os.Getenv("PURSUIT_CF_BEACON_TOKEN")) != "", SignupsClosed: strings.EqualFold(strings.TrimSpace(os.Getenv("PURSUIT_SIGNUPS")), "closed"), DemoMode: demoMode, NoDocs: strings.EqualFold(strings.TrimSpace(os.Getenv("PURSUIT_NO_DOCS")), "true"), OnFailure: sentryHook(log), ConnectOrigins: webConnectOrigins(os.Getenv)}
+	api, stage, err := app.NewServer(ctx, store, cfg, log, cfg.ServerURL)
+	if err != nil {
+		store.Close()
+		slog.Error(cmp.Or(stage, "wiring"), "err", err.Error())
+		switch stage {
+		case app.StagePasskeys:
+			return nil, fmt.Errorf("passkey configuration failed")
+		case app.StageOIDC:
+			return nil, fmt.Errorf("oidc configuration failed")
+		}
+		return nil, fmt.Errorf("bootstrap failed")
+	}
+	api.WebAnalytics = strings.TrimSpace(os.Getenv("PURSUIT_CF_BEACON_TOKEN")) != ""
+	api.OnFailure = sentryHook(log)
+	api.ConnectOrigins = webConnectOrigins(os.Getenv)
 	api.Ready.Store(true)
 	booted = &runtime{handler: api.Handler()}
 	return booted, nil
 }
 
-// buildOIDC returns nil when no provider is configured.
-func buildOIDC(ctx context.Context, log *slog.Logger) (*oidcauth.Manager, error) {
-	var specs []oidcauth.Spec
-	if id, secret := os.Getenv("PURSUIT_OIDC_GOOGLE_CLIENT_ID"), os.Getenv("PURSUIT_OIDC_GOOGLE_CLIENT_SECRET"); id != "" && secret != "" {
-		specs = append(specs, oidcauth.Spec{Name: "google", Label: "Google", IssuerURL: "https://accounts.google.com", ClientID: id, ClientSecret: secret})
-	}
-	if issuer, id, secret := os.Getenv("PURSUIT_OIDC_ISSUER_URL"), os.Getenv("PURSUIT_OIDC_ISSUER_CLIENT_ID"), os.Getenv("PURSUIT_OIDC_ISSUER_CLIENT_SECRET"); issuer != "" && id != "" && secret != "" {
-		specs = append(specs, oidcauth.Spec{Name: "custom", Label: env("PURSUIT_OIDC_ISSUER_NAME", "SSO"), IssuerURL: issuer, ClientID: id, ClientSecret: secret})
-	}
-	if len(specs) == 0 {
-		return nil, nil
-	}
-	secret := strings.TrimSpace(os.Getenv("PURSUIT_SESSION_SECRET"))
-	if secret == "" {
-		return nil, fmt.Errorf("PURSUIT_SESSION_SECRET is required when an OIDC provider is configured")
-	}
-	base := publicURL(os.Getenv)
-	if base == "" {
-		return nil, fmt.Errorf("PURSUIT_SERVER (the deployment's public URL) is required when an OIDC provider is configured")
-	}
-	redirect := func(name string) string { return base + "/v1/auth/" + name + "/callback" }
-	return oidcauth.New(ctx, []byte(secret), specs, redirect)
-}
-
-// webAuthnFromEnv is nil (passkeys off) unless PURSUIT_WEBAUTHN_RP_ID is
-// set. Origins default to the deployment's public URL.
-func webAuthnFromEnv(getenv func(string) string) (*webauthn.WebAuthn, error) {
+// configFromEnv is the settings the function honors. It has no config file,
+// data directory, profile file or link-check schedule.
+func configFromEnv(getenv func(string) string) config.Config {
+	get := func(k string) string { return strings.TrimSpace(getenv(k)) }
+	on := func(k, v string) bool { return strings.EqualFold(get(k), v) }
 	var origins []string
 	for _, o := range strings.Split(getenv("PURSUIT_WEBAUTHN_ORIGINS"), ",") {
 		if o = strings.TrimSpace(o); o != "" {
 			origins = append(origins, o)
 		}
 	}
-	if len(origins) == 0 {
-		origins = []string{publicURL(getenv)}
+	return config.Config{
+		ServerURL:          publicURL(getenv),
+		OwnerName:          cmp.Or(get("PURSUIT_OWNER_NAME"), "Adrian"),
+		OwnerEmail:         cmp.Or(get("PURSUIT_OWNER_EMAIL"), "adrian@localhost"),
+		BootstrapName:      cmp.Or(get("PURSUIT_BOOTSTRAP_NAME"), "owner"),
+		BootstrapToken:     get("PURSUIT_BOOTSTRAP_TOKEN"),
+		TenantMode:         strings.ToLower(cmp.Or(get("PURSUIT_TENANT_MODE"), "single")),
+		SessionSecret:      get("PURSUIT_SESSION_SECRET"),
+		OIDCGoogleID:       getenv("PURSUIT_OIDC_GOOGLE_CLIENT_ID"),
+		OIDCGoogleSecret:   getenv("PURSUIT_OIDC_GOOGLE_CLIENT_SECRET"),
+		OIDCIssuerURL:      getenv("PURSUIT_OIDC_ISSUER_URL"),
+		OIDCIssuerName:     get("PURSUIT_OIDC_ISSUER_NAME"),
+		OIDCIssuerID:       getenv("PURSUIT_OIDC_ISSUER_CLIENT_ID"),
+		OIDCIssuerSecret:   getenv("PURSUIT_OIDC_ISSUER_CLIENT_SECRET"),
+		BetterAuthBaseURL:  get("PURSUIT_BETTERAUTH_BASE_URL"),
+		BetterAuthIssuer:   getenv("PURSUIT_BETTERAUTH_ISSUER"),
+		BetterAuthAudience: getenv("PURSUIT_BETTERAUTH_AUDIENCE"),
+		HideTokenLogin:     on("PURSUIT_HIDE_TOKEN_LOGIN", "true"),
+		DemoMode:           on("PURSUIT_DEMO_MODE", "true"),
+		SignupsClosed:      on("PURSUIT_SIGNUPS", "closed"),
+		NoDocs:             on("PURSUIT_NO_DOCS", "true"),
+		WebAuthnRPID:       getenv("PURSUIT_WEBAUTHN_RP_ID"),
+		WebAuthnOrigins:    origins,
 	}
-	return service.NewWebAuthn(getenv("PURSUIT_WEBAUTHN_RP_ID"), origins)
 }
 
 // trustFromEnv returns "vercel" only on a Vercel preview deployment, where
@@ -210,14 +179,6 @@ func postgresURLFrom(getenv func(string) string) (string, error) {
 		return "", fmt.Errorf("%s must be a postgres or postgresql URL", key)
 	}
 	return "", fmt.Errorf("set DATABASE_URL or POSTGRES_URL to a postgres URL")
-}
-
-func env(key, fallback string) string {
-	v := strings.TrimSpace(os.Getenv(key))
-	if v == "" {
-		return fallback
-	}
-	return v
 }
 
 // withOriginalPath keeps the caller's path when a rewrite reports the function path.

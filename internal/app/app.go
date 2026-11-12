@@ -43,70 +43,24 @@ func Run(ctx context.Context, cfg config.Config) error {
 	defer store.Close()
 	log.Info("database", "dialect", store.Dialect(), "url", redact(dbURL))
 
-	profile, err := loadProfile(cfg.ProfilePath)
-	if err != nil {
-		return err
-	}
-	svc := service.New(store)
-	svc.Profile = profile
-	svc.ResumeFile = cfg.ResumeFile
-	if cfg.ContactEmail != "" {
-		if svc.Profile == nil {
-			svc.Profile = map[string]string{}
-		}
-		if _, ok := svc.Profile["email"]; !ok {
-			svc.Profile["email"] = cfg.ContactEmail
-		}
-	}
-	svc.HTTP = &http.Client{Timeout: 20 * time.Second}
-	svc.Links = &links.Client{HTTP: svc.HTTP, Now: svc.Now, Gap: cfg.CheckGap}
-	svc.Hooks = func(userID string, ev domain.Event) {
-		go svc.DeliverWebhooks(context.Background(), userID, ev)
-	}
-	// Only an explicit PURSUIT_SERVER: the default 127.0.0.1 address isn't where a browser came from.
-	for _, w := range svc.ConfigureFromEnv(os.Getenv, os.Getenv("PURSUIT_SERVER")) {
-		log.Warn("config", "problem", w)
-	}
-	if svc.Stripe != nil {
-		log.Info("billing on")
-	}
-
-	origins := cfg.WebAuthnOrigins
-	if len(origins) == 0 {
-		origins = []string{strings.TrimRight(cfg.ServerURL, "/")}
-	}
-	if svc.WebAuthn, err = service.NewWebAuthn(cfg.WebAuthnRPID, origins); err != nil {
-		return fmt.Errorf("passkeys: %w", err)
-	}
-	if svc.WebAuthn != nil {
-		log.Info("passkeys on", "rp_id", cfg.WebAuthnRPID, "origins", origins)
-	}
-
-	secret, created, err := svc.Bootstrap(ctx, cfg.OwnerName, cfg.OwnerEmail, cfg.BootstrapName, cfg.BootstrapToken)
-	if err != nil {
-		return err
-	}
-	if created && strings.TrimSpace(cfg.BootstrapToken) == "" {
-		log.Info("bootstrap token created", "token", secret, "hint", "save this token; it will not be shown again")
-	}
-
 	if v := strings.TrimSpace(cfg.TrustProxyAuth); v != "" && !strings.EqualFold(v, "vercel") {
 		log.Warn("PURSUIT_TRUST_PROXY_AUTH ignored", "value", v)
 	}
 	if strings.EqualFold(strings.TrimSpace(cfg.TrustProxyAuth), "vercel") {
 		log.Warn("proxy auth is on", "hint", "PURSUIT_TRUST_PROXY_AUTH=vercel treats a request with no Pursuit token as the owner. Only use this behind deployment protection.")
 	}
-	oidcMgr, err := buildOIDC(ctx, cfg)
+	// Only an explicit PURSUIT_SERVER: the default 127.0.0.1 address isn't where a browser came from.
+	api, stage, err := NewServer(ctx, store, cfg, log, os.Getenv("PURSUIT_SERVER"))
+	if stage == StagePasskeys {
+		return fmt.Errorf("passkeys: %w", err)
+	}
 	if err != nil {
 		return err
 	}
-	var betterAuthVerifier *betterauth.Verifier
-	var betterAuthOrigin string
-	if cfg.BetterAuthBaseURL != "" {
-		betterAuthVerifier = betterauth.New(ctx, cfg.BetterAuthBaseURL, cfg.BetterAuthIssuer, cfg.BetterAuthAudience)
-		betterAuthOrigin = betterauth.Origin(cfg.BetterAuthBaseURL)
+	svc := api.Svc
+	svc.Hooks = func(userID string, ev domain.Event) {
+		go svc.DeliverWebhooks(context.Background(), userID, ev)
 	}
-	api := &httpapi.Server{Svc: svc, Log: log, CORS: cfg.CORSOrigins, TrustProxyAuth: cfg.TrustProxyAuth, TenantMode: cfg.TenantMode, FaviconService: cfg.FaviconService, OIDC: oidcMgr, BetterAuth: betterAuthVerifier, BetterAuthOrigin: betterAuthOrigin, HideTokenLogin: cfg.HideTokenLogin, DemoMode: cfg.DemoMode, SignupsClosed: cfg.SignupsClosed, NoDocs: cfg.NoDocs}
 	srv := &http.Server{
 		Addr:              cfg.Addr,
 		Handler:           api.Handler(),
@@ -151,6 +105,76 @@ func Run(ctx context.Context, cfg config.Config) error {
 	return err
 }
 
+// The step of NewServer that failed, for a host that reports them differently.
+const (
+	StagePasskeys  = "passkeys"
+	StageBootstrap = "bootstrap"
+	StageOIDC      = "oidc"
+)
+
+// NewServer wires the service and the API server from cfg, the same way for
+// `pursuit serve` and the Vercel function. It creates the owner and first
+// token on an empty database. browserURL is where browsers reach this
+// server, "" when unknown. The caller sets what only it knows (webhooks,
+// failure reporting) on the result before calling Handler. On an error,
+// stage names the step that failed when it is one of the Stage constants.
+func NewServer(ctx context.Context, store *sqlstore.Store, cfg config.Config, log *slog.Logger, browserURL string) (api *httpapi.Server, stage string, err error) {
+	profile, err := loadProfile(cfg.ProfilePath)
+	if err != nil {
+		return nil, "", err
+	}
+	svc := service.New(store)
+	svc.Profile = profile
+	svc.ResumeFile = cfg.ResumeFile
+	if cfg.ContactEmail != "" {
+		if svc.Profile == nil {
+			svc.Profile = map[string]string{}
+		}
+		if _, ok := svc.Profile["email"]; !ok {
+			svc.Profile["email"] = cfg.ContactEmail
+		}
+	}
+	svc.HTTP = &http.Client{Timeout: 20 * time.Second}
+	svc.Links = &links.Client{HTTP: svc.HTTP, Now: svc.Now, Gap: cfg.CheckGap}
+	for _, w := range svc.ConfigureFromEnv(os.Getenv, browserURL) {
+		log.Warn("config", "problem", w)
+	}
+	if svc.Stripe != nil {
+		log.Info("billing on")
+	}
+
+	origins := cfg.WebAuthnOrigins
+	if len(origins) == 0 {
+		origins = []string{strings.TrimRight(cfg.ServerURL, "/")}
+	}
+	if svc.WebAuthn, err = service.NewWebAuthn(cfg.WebAuthnRPID, origins); err != nil {
+		return nil, StagePasskeys, err
+	}
+	if svc.WebAuthn != nil {
+		log.Info("passkeys on", "rp_id", cfg.WebAuthnRPID, "origins", origins)
+	}
+
+	secret, created, err := svc.Bootstrap(ctx, cfg.OwnerName, cfg.OwnerEmail, cfg.BootstrapName, cfg.BootstrapToken)
+	if err != nil {
+		return nil, StageBootstrap, err
+	}
+	if created && strings.TrimSpace(cfg.BootstrapToken) == "" {
+		log.Info("bootstrap token created", "token", secret, "hint", "save this token; it will not be shown again")
+	}
+
+	oidcMgr, err := buildOIDC(ctx, cfg)
+	if err != nil {
+		return nil, StageOIDC, err
+	}
+	var betterAuthVerifier *betterauth.Verifier
+	var betterAuthOrigin string
+	if cfg.BetterAuthBaseURL != "" {
+		betterAuthVerifier = betterauth.New(ctx, cfg.BetterAuthBaseURL, cfg.BetterAuthIssuer, cfg.BetterAuthAudience)
+		betterAuthOrigin = betterauth.Origin(cfg.BetterAuthBaseURL)
+	}
+	return &httpapi.Server{Svc: svc, Log: log, CORS: cfg.CORSOrigins, TrustProxyAuth: cfg.TrustProxyAuth, TenantMode: cfg.TenantMode, FaviconService: cfg.FaviconService, OIDC: oidcMgr, BetterAuth: betterAuthVerifier, BetterAuthOrigin: betterAuthOrigin, HideTokenLogin: cfg.HideTokenLogin, DemoMode: cfg.DemoMode, SignupsClosed: cfg.SignupsClosed, NoDocs: cfg.NoDocs}, "", nil
+}
+
 // buildOIDC returns nil when no provider is configured.
 func buildOIDC(ctx context.Context, cfg config.Config) (*oidcauth.Manager, error) {
 	var specs []oidcauth.Spec
@@ -171,6 +195,9 @@ func buildOIDC(ctx context.Context, cfg config.Config) (*oidcauth.Manager, error
 		return nil, fmt.Errorf("PURSUIT_SESSION_SECRET is required when an OIDC provider is configured")
 	}
 	base := strings.TrimRight(cfg.ServerURL, "/")
+	if base == "" {
+		return nil, fmt.Errorf("PURSUIT_SERVER (the deployment's public URL) is required when an OIDC provider is configured")
+	}
 	redirect := func(name string) string { return base + "/v1/auth/" + name + "/callback" }
 	return oidcauth.New(ctx, []byte(cfg.SessionSecret), specs, redirect)
 }
