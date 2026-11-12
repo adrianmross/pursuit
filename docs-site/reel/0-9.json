@@ -1,0 +1,80 @@
+{
+  "url": "http://127.0.0.1:53999/",
+  "width": 960,
+  "height": 600,
+  "scale": 2,
+  "fps": 60,
+  "epoch": 1794236400,
+  "hold": [
+    "wait_ms="
+  ],
+  "block": [
+    "*/favicon*"
+  ],
+  "hide": [
+    "[role=\"menu\"] span.truncate.text-xs"
+  ],
+  "setup": [
+    {
+      "click": "text:Log in"
+    },
+    {
+      "click": "text:Try it without an account"
+    },
+    {
+      "click": "text:Skip for now"
+    },
+    {
+      "pause": 0.5
+    }
+  ],
+  "style": {
+    "bare": true,
+    "width": 1440,
+    "height": 900,
+    "crf": 24
+  },
+  "dir": "../public/whats-new/0-9",
+  "scenes": [
+    {
+      "name": "whats-new",
+      "steps": [
+        {
+          "pause": 0.8
+        },
+        {
+          "click": "text:What's new"
+        },
+        {
+          "pause": 2.5
+        }
+      ]
+    },
+    {
+      "name": "tour",
+      "steps": [
+        {
+          "pause": 0.6
+        },
+        {
+          "click": "text:DV"
+        },
+        {
+          "click": "text:Settings"
+        },
+        {
+          "click": "text:About"
+        },
+        {
+          "pause": 0.6
+        },
+        {
+          "click": "text:Replay tour"
+        },
+        {
+          "pause": 3
+        }
+      ]
+    }
+  ]
+}
