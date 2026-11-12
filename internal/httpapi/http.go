@@ -340,16 +340,15 @@ func (s *Server) wrap(next http.Handler) http.Handler {
 		rec := &statusRec{ResponseWriter: w, code: 200}
 		start := time.Now()
 		defer func() {
-			if rec := recover(); rec != nil {
-				s.log().Error("panic", "err", rec, "request_id", id)
+			if p := recover(); p != nil {
+				s.log().Error("panic", "err", p, "request_id", id)
 				if s.OnFailure != nil {
-					s.OnFailure(r, id, http.StatusInternalServerError, rec)
+					s.OnFailure(r, id, http.StatusInternalServerError, p)
 				}
-				writeErr(w, domain.Conflict("internal error", "retry the request").WithDetails(nil))
-				// status already maybe written; best effort
-				_ = rec
-			}
-			if s.OnFailure != nil && rec.code >= 500 {
+				// Best effort: the handler may already have written a status.
+				writeErr(w, &domain.Error{Code: "internal", Message: "internal error", Hint: "retry the request", Status: http.StatusInternalServerError})
+				rec.code = http.StatusInternalServerError
+			} else if s.OnFailure != nil && rec.code >= 500 {
 				s.OnFailure(r, id, rec.code, nil)
 			}
 			s.log().Info("request", "method", r.Method, "path", r.URL.Path, "status", rec.code, "ms", time.Since(start).Milliseconds(), "request_id", id)
