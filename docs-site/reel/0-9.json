@@ -3,7 +3,7 @@
   "width": 960,
   "height": 600,
   "scale": 2,
-  "fps": 30,
+  "fps": 60,
   "epoch": 1794236400,
   "hold": [
     "wait_ms="
