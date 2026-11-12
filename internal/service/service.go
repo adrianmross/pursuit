@@ -25,6 +25,7 @@ import (
 type Service struct {
 	DB         *sqlstore.Store
 	Now        func() time.Time
+	RateNow    func() time.Time // clock for rate limits; nil means Now
 	NewID      func() string
 	HTTP       *http.Client
 	Links      *links.Client

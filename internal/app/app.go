@@ -128,6 +128,7 @@ func NewServer(ctx context.Context, store *sqlstore.Store, cfg config.Config, lo
 		return nil, "", err
 	} else if clock != nil {
 		svc.Now = clock
+		svc.RateNow = time.Now // limits must still expire
 		log.Warn("clock is frozen", "at", clock().Format(time.RFC3339), "env", "PURSUIT_FIXED_TIME")
 	}
 	svc.Profile = profile
