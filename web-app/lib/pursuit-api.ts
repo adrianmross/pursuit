@@ -1,7 +1,10 @@
 import { cookies } from "next/headers"
 import { redirect } from "next/navigation"
 
-const TOKEN_COOKIE = "pursuit_token"
+// The __Host- prefix makes browsers refuse the cookie unless it is Secure,
+// has Path=/ and sets no Domain, so a subdomain or a plain-http response
+// cannot plant or overwrite it. It needs HTTPS, so it is production only.
+const TOKEN_COOKIE = process.env.NODE_ENV === "production" ? "__Host-pursuit_token" : "pursuit_token"
 const API_BASE = process.env.PURSUIT_API_URL || "http://127.0.0.1:8787"
 
 export class ApiError extends Error {

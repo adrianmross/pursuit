@@ -328,7 +328,10 @@ func (s *Service) DeletePasskey(ctx context.Context, id string) (domain.Deleted,
 		if err := s.DB.DeleteWebAuthnCredential(ctx, a.UserID, id); err != nil {
 			return err
 		}
-		return s.audit(ctx, a, "passkey.delete", "passkey", id, "removed a passkey", nil)
+		if err := s.audit(ctx, a, "passkey.delete", "passkey", id, "removed a passkey", nil); err != nil {
+			return err
+		}
+		return s.signOutOthers(ctx, a, "a passkey was removed")
 	})
 	if err != nil {
 		return domain.Deleted{}, err
