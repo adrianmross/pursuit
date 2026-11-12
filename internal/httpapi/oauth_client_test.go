@@ -166,7 +166,7 @@ func TestOAuthClientRegistration(t *testing.T) {
 		t.Errorf("non-JSON content type: %d", code)
 	}
 
-	e.api.registerLimiterFor().seen = map[string][]time.Time{}
+	_ = e.svc.ResetRateLimits(context.Background())
 	var last int
 	for i := 0; i < 25; i++ {
 		last, _ = e.register(t, `{"redirect_uris":["https://a.com/cb"]}`)
@@ -332,7 +332,8 @@ func TestOAuthRefreshRotation(t *testing.T) {
 		t.Fatalf("new access token: %d", code)
 	}
 
-	// Replaying the old one is a theft signal: the whole connection goes.
+	// Replaying the old one after the grace window is a theft signal: the whole connection goes.
+	clk.add(service.RefreshGrace + time.Second)
 	if status, doc := e.refresh(t, clientID, refresh, nil); status != 400 || oauthError(doc) != "invalid_grant" {
 		t.Fatalf("replay: %d %v", status, doc)
 	}
@@ -462,5 +463,89 @@ func TestCLITokensStillNeverExpire(t *testing.T) {
 	clk.add(400 * 24 * time.Hour)
 	if code, _ := e.json(t, "GET", "/v1/me", tok["access_token"].(string), nil); code != 200 {
 		t.Errorf("cli token after 400 days: %d", code)
+	}
+}
+
+func TestOAuthRefreshGraceWindow(t *testing.T) {
+	e := newEnv(t)
+	clk := withClock(e)
+	clientID, tok := connect(t, e, "read write")
+	refresh := tok["refresh_token"].(string)
+
+	// Two requests carrying the same refresh token, as a client retrying or
+	// refreshing from two threads sends, both succeed and both stay usable.
+	s1, a := e.refresh(t, clientID, refresh, nil)
+	clk.add(2 * time.Second)
+	s2, b := e.refresh(t, clientID, refresh, nil)
+	if s1 != 200 || s2 != 200 || a["refresh_token"] == b["refresh_token"] {
+		t.Fatalf("parallel refresh: %d %v / %d %v", s1, a, s2, b)
+	}
+	for _, r := range []map[string]any{a, b} {
+		if code, _ := e.json(t, "GET", "/v1/me", r["access_token"].(string), nil); code != 200 {
+			t.Errorf("access token from a parallel refresh: %d", code)
+		}
+	}
+	// Each child is single-use like any other.
+	if status, _ := e.refresh(t, clientID, a["refresh_token"].(string), nil); status != 200 {
+		t.Errorf("child of the first refresh: %d", status)
+	}
+
+	// Past the window the same token is reuse and the connection is revoked.
+	clk.add(service.RefreshGrace + time.Second)
+	if _, doc := e.refresh(t, clientID, refresh, nil); oauthError(doc) != "invalid_grant" {
+		t.Errorf("late replay: %v", doc)
+	}
+	if _, doc := e.refresh(t, clientID, b["refresh_token"].(string), nil); oauthError(doc) != "invalid_grant" {
+		t.Errorf("sibling survived reuse detection: %v", doc)
+	}
+}
+
+func TestRateLimitsAreSharedAndWindowed(t *testing.T) {
+	e := newEnv(t)
+	clk := withClock(e)
+	tokenCall := func() int {
+		code, _ := e.form(t, "/v1/auth/token", url.Values{"grant_type": {"authorization_code"}})
+		return code
+	}
+	for i := 0; i < ruleToken.limit; i++ {
+		if code := tokenCall(); code != 400 {
+			t.Fatalf("call %d: %d", i+1, code)
+		}
+	}
+	if code := tokenCall(); code != 429 {
+		t.Fatalf("over the limit: %d", code)
+	}
+	// A second server on the same database sees the same count: this is what
+	// an in-memory counter cannot do on serverless.
+	other := &Server{Svc: e.svc, Log: e.api.Log}
+	other.Ready.Store(true)
+	srv2 := httptest.NewServer(other.Handler())
+	defer srv2.Close()
+	resp, err := http.Post(srv2.URL+"/v1/auth/token", "application/x-www-form-urlencoded", strings.NewReader("grant_type=authorization_code"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != 429 || resp.Header.Get("Retry-After") == "" {
+		t.Errorf("second instance: %d", resp.StatusCode)
+	}
+	clk.add(2 * time.Minute)
+	if code := tokenCall(); code != 400 {
+		t.Errorf("next window: %d", code)
+	}
+}
+
+func TestMCPRateLimitIsPerToken(t *testing.T) {
+	e := newEnv(t)
+	other := mintToken(t, e, "read")
+	var last int
+	for i := 0; i <= ruleMCP.limit; i++ {
+		last, _, _ = e.rpc(t, e.token, 1, "ping", nil)
+	}
+	if last != 429 {
+		t.Fatalf("over the limit: %d", last)
+	}
+	if code, _, _ := e.rpc(t, other, 1, "ping", nil); code != 200 {
+		t.Errorf("another token should not be limited: %d", code)
 	}
 }

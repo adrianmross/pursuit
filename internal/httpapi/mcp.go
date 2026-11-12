@@ -214,6 +214,12 @@ func (s *Server) mcp(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "invalid_token", "error_description": "the token is invalid, expired or for another resource"})
 		return
 	}
+	// Per token, so one connected app cannot starve the service for the rest.
+	if !s.allow(r.Context(), ruleMCP, actor.TokenID) {
+		w.Header().Set("Retry-After", "60")
+		writeJSON(w, http.StatusTooManyRequests, map[string]string{"error": "rate_limited", "error_description": "too many requests from this app; wait a minute"})
+		return
+	}
 	ctx := domain.WithActor(r.Context(), actor)
 
 	var req rpcRequest
