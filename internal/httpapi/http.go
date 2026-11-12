@@ -5,9 +5,7 @@ import (
 	"bytes"
 	"cmp"
 	"context"
-	"crypto/sha256"
 	"crypto/subtle"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"io"
@@ -32,6 +30,7 @@ import (
 	"github.com/pursuit/pursuit/internal/domain"
 	"github.com/pursuit/pursuit/internal/impex"
 	"github.com/pursuit/pursuit/internal/oidcauth"
+	"github.com/pursuit/pursuit/internal/platform/httpx"
 	"github.com/pursuit/pursuit/internal/platform/session"
 	"github.com/pursuit/pursuit/internal/service"
 	"github.com/pursuit/pursuit/internal/spec"
@@ -406,6 +405,24 @@ func isCron(path string) bool {
 
 var bearerToken = session.BearerToken
 
+// The request and response helpers live in internal/platform/httpx.
+var (
+	query          = httpx.Query
+	fieldsOf       = httpx.FieldsOf
+	first          = httpx.First
+	decode         = httpx.Decode
+	dryRun         = httpx.DryRun
+	requestHash    = httpx.RequestHash
+	writeProjected = httpx.WriteProjected
+	project        = httpx.Project
+	projectBytes   = httpx.ProjectBytes
+	marshal        = httpx.Marshal
+	writeJSON      = httpx.WriteJSON
+	writeRaw       = httpx.WriteRaw
+	writeErr       = httpx.WriteErr
+	versionParam   = httpx.VersionParam
+)
+
 // trustVercel is off unless PURSUIT_TRUST_PROXY_AUTH is exactly "vercel".
 // That mode is only safe when deployment protection already gates the process.
 func (s *Server) trustVercel() bool {
@@ -661,41 +678,6 @@ func (s *Server) dashboard(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write(body)
 }
 
-func query(r *http.Request, allowed ...string) (map[string][]string, error) {
-	allow := map[string]bool{}
-	for _, k := range allowed {
-		allow[k] = true
-	}
-	var unknown []string
-	for k := range r.URL.Query() {
-		if !allow[k] {
-			unknown = append(unknown, k)
-		}
-	}
-	if len(unknown) > 0 {
-		return nil, domain.Validation("unknown query parameter %s", strings.Join(unknown, ", ")).WithHint("allowed: " + strings.Join(allowed, ", "))
-	}
-	return r.URL.Query(), nil
-}
-
-func fieldsOf(q map[string][]string) []string {
-	if q == nil {
-		return nil
-	}
-	raw := strings.TrimSpace(strings.Join(q["fields"], ","))
-	if raw == "" {
-		return nil
-	}
-	var out []string
-	for _, p := range strings.Split(raw, ",") {
-		p = strings.TrimSpace(p)
-		if p != "" {
-			out = append(out, p)
-		}
-	}
-	return out
-}
-
 // auditTime turns a date or RFC 3339 time into the stored fixed-width form.
 func auditTime(raw, name string) (string, error) {
 	if raw == "" {
@@ -788,13 +770,6 @@ func listQuery(q map[string][]string) (domain.ListQuery, error) {
 	return out, nil
 }
 
-func first(q map[string][]string, k string) string {
-	if len(q[k]) == 0 {
-		return ""
-	}
-	return q[k][0]
-}
-
 func (s *Server) read(w http.ResponseWriter, r *http.Request) ([]byte, bool) {
 	limit := int64(1 << 20)
 	if strings.Contains(r.URL.Path, "/import/") || strings.Contains(r.URL.Path, "/artifacts") || strings.HasPrefix(r.URL.Path, "/v1/documents") {
@@ -810,26 +785,6 @@ func (s *Server) read(w http.ResponseWriter, r *http.Request) ([]byte, bool) {
 		return nil, false
 	}
 	return b, true
-}
-
-func decode(body []byte, dst any) error {
-	if len(bytes.TrimSpace(body)) == 0 {
-		return domain.Validation("json body is required").WithHint("see /openapi.json for the request shape")
-	}
-	dec := json.NewDecoder(bytes.NewReader(body))
-	dec.DisallowUnknownFields()
-	if err := dec.Decode(dst); err != nil {
-		return domain.Validation("invalid json: %s", err.Error()).WithHint("see /openapi.json for the request shape")
-	}
-	return nil
-}
-
-func dryRun(r *http.Request) bool {
-	if strings.EqualFold(r.Header.Get("X-Dry-Run"), "true") || r.Header.Get("X-Dry-Run") == "1" {
-		return true
-	}
-	v := strings.ToLower(r.URL.Query().Get("dry_run"))
-	return v == "1" || v == "true"
 }
 
 var errBusy = errors.New("idempotency in progress")
@@ -938,146 +893,6 @@ func (s *Server) mutate(w http.ResponseWriter, r *http.Request, status int, allo
 		return
 	}
 	writeErr(w, domain.Conflict("idempotency key is in progress", "retry this request shortly"))
-}
-
-func requestHash(method, path, rawQuery string, body []byte) string {
-	h := sha256.New()
-	h.Write([]byte(method))
-	h.Write([]byte{0})
-	h.Write([]byte(path))
-	h.Write([]byte{0})
-	h.Write([]byte(rawQuery))
-	h.Write([]byte{0})
-	h.Write(body)
-	return hex.EncodeToString(h.Sum(nil))
-}
-
-func writeProjected(w http.ResponseWriter, status int, v any, fields []string) {
-	b, err := marshal(v)
-	if err != nil {
-		writeErr(w, err)
-		return
-	}
-	b, err = projectBytes(b, fields)
-	if err != nil {
-		writeErr(w, err)
-		return
-	}
-	writeRaw(w, status, b)
-}
-
-func project(v any, fields []string) (any, error) {
-	b, err := marshal(v)
-	if err != nil {
-		return nil, err
-	}
-	b, err = projectBytes(b, fields)
-	if err != nil {
-		return nil, err
-	}
-	var out any
-	dec := json.NewDecoder(bytes.NewReader(b))
-	dec.UseNumber()
-	if err := dec.Decode(&out); err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func projectBytes(b []byte, fields []string) ([]byte, error) {
-	if len(fields) == 0 {
-		return b, nil
-	}
-	dec := json.NewDecoder(bytes.NewReader(b))
-	dec.UseNumber()
-	var v any
-	if err := dec.Decode(&v); err != nil {
-		return nil, err
-	}
-	v = projectValue(v, fields)
-	return marshal(v)
-}
-
-func projectValue(v any, fields []string) any {
-	m, ok := v.(map[string]any)
-	if !ok {
-		return v
-	}
-	if data, ok := m["data"].([]any); ok {
-		if _, has := m["page"]; has {
-			for i, item := range data {
-				if im, ok := item.(map[string]any); ok {
-					data[i] = pick(im, fields)
-				}
-			}
-			m["data"] = data
-			return m
-		}
-	}
-	return pick(m, fields)
-}
-
-func pick(m map[string]any, fields []string) map[string]any {
-	out := map[string]any{}
-	for _, f := range fields {
-		if v, ok := m[f]; ok {
-			out[f] = v
-		}
-	}
-	return out
-}
-
-func marshal(v any) ([]byte, error) {
-	var buf bytes.Buffer
-	enc := json.NewEncoder(&buf)
-	enc.SetEscapeHTML(false)
-	if err := enc.Encode(v); err != nil {
-		return nil, err
-	}
-	return bytes.TrimRight(buf.Bytes(), "\n"), nil
-}
-
-func writeJSON(w http.ResponseWriter, status int, v any) {
-	b, err := marshal(v)
-	if err != nil {
-		http.Error(w, `{"error":{"code":"internal","message":"encode failed"}}`, 500)
-		return
-	}
-	writeRaw(w, status, b)
-}
-
-func writeRaw(w http.ResponseWriter, status int, b []byte) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	_, _ = w.Write(append(b, '\n'))
-}
-
-func writeErr(w http.ResponseWriter, err error) {
-	de, ok := domain.As(err)
-	if !ok {
-		// The client only sees "internal error"; the cause goes to the server log.
-		slog.Error("request failed", "err", err.Error())
-		de = &domain.Error{Code: "internal", Message: "internal error", Hint: "check server logs", Status: 500}
-	}
-	if de.Status == 0 {
-		de.Status = 500
-	}
-	writeJSON(w, de.Status, map[string]any{"error": de})
-}
-
-func versionParam(r *http.Request) (int, error) {
-	raw := strings.TrimSpace(r.URL.Query().Get("version"))
-	if raw == "" {
-		raw = strings.Trim(strings.TrimSpace(r.Header.Get("If-Match")), `"`)
-	}
-	if raw == "" {
-		return 0, domain.Validation("version is required").WithHint("pass version as a query parameter or If-Match header")
-	}
-	n, err := strconv.Atoi(raw)
-	if err != nil || n < 1 {
-		return 0, domain.Validation("invalid version").WithHint("version is a positive integer from the latest get")
-	}
-	return n, nil
 }
 
 func csvBody(r *http.Request, body []byte) ([]byte, error) {
