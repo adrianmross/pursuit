@@ -18,7 +18,7 @@ export const metadata: Metadata = {
   },
   // Feed readers and bots find the release feed from any docs page.
   alternates: { types: { "application/atom+xml": "/docs/changelog.xml", "application/feed+json": "/docs/changelog.json" } },
-  description: "API and CLI reference for pursuit, a self-hosted job-application tracker.",
+  description: "API and CLI reference for pursuit, a job-application tracker you can use hosted or self-host.",
 }
 
 const navbar = (

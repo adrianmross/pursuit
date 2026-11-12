@@ -1,6 +1,6 @@
 # Pursuit
 
-Self-hosted job-application tracker. The CLI is the agent interface. Agents with a shell should not expect an MCP server; `POST /mcp` is only for hosted chat apps (claude.ai, ChatGPT) that sign in with OAuth.
+Job-application tracker, hosted at https://hirepursuit.app or self-hosted. The CLI is the agent interface. Agents with a shell should not expect an MCP server; `POST /mcp` is only for hosted chat apps (claude.ai, ChatGPT) that sign in with OAuth.
 
 Auth: `Authorization: Bearer $PURSUIT_TOKEN` or `pursuit --token`. Scopes: read, write, approve. write does not grant approve. Nothing moves to submitting without `pursuit approve` from an approve-scoped token. A human can run `pursuit auth login` (browser, or `--device`) to store a read,write token per server; OAuth never grants approve (`invalid_scope`). `PURSUIT_TOKEN` and `--token` still win over it; without them, the CLI uses the stored login. Agents must not approve a login: approving at `/authorize` or `/device` needs a same-origin dashboard session with approve. OAuth2 endpoints: POST /v1/auth/device_authorization, POST /v1/auth/token, POST /v1/auth/revoke.
 

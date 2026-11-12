@@ -108,7 +108,8 @@ export function Welcome() {
         <img className="wl-mark" src="/docs/brand/app-icon.svg" alt="" />
         <h1>For your higher pursuits.</h1>
         <p>
-          {PRODUCT_NAME} is a self-hosted job-application tracker for one person. Agents prepare applications through the{" "}
+          {PRODUCT_NAME} is a simple yet powerful job-application tracker. Use it at{" "}
+          <a href="https://hirepursuit.app">hirepursuit.app</a> or self-host it. Agents prepare applications through the{" "}
           <code>pursuit</code> CLI. Nothing goes out until you approve it.
         </p>
         <div className="wl-cta">

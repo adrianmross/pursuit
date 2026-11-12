@@ -9,7 +9,7 @@ export const metadata: Metadata = {
     default: PRODUCT_NAME,
     template: `%s — ${PRODUCT_NAME}`,
   },
-  description: "A self-hosted job-application tracker.",
+  description: "A job-application tracker you can use hosted or self-host.",
   icons: {
     icon: [{ url: "/favicon.ico", sizes: "48x48" }, { url: "/favicon.svg", type: "image/svg+xml" }],
     apple: "/apple-touch-icon.png",
