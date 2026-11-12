@@ -520,29 +520,6 @@ type User struct {
 	CreatedAt         time.Time `json:"created_at"`
 }
 
-type Token struct {
-	ID         string     `json:"id"`
-	UserID     string     `json:"-"`
-	Name       string     `json:"name"`
-	Hash       string     `json:"-"`
-	Prefix     string     `json:"prefix"`
-	Scopes     []string   `json:"scopes"`
-	CreatedAt  time.Time  `json:"created_at"`
-	LastUsedAt *time.Time `json:"last_used_at"`
-	RevokedAt  *time.Time `json:"revoked_at"`
-	// Client and IP say where a dashboard sign-in came from; empty for other tokens.
-	Client string `json:"client,omitempty"`
-	IP     string `json:"ip,omitempty"`
-	// Current is true on the token that made this request.
-	Current bool `json:"current,omitempty"`
-	// ClientID, ExpiresAt, Resource and FamilyID are set on tokens issued to a
-	// registered OAuth client; the family is the consent they all came from.
-	ClientID  string     `json:"client_id,omitempty"`
-	ExpiresAt *time.Time `json:"expires_at,omitempty"`
-	Resource  string     `json:"-"`
-	FamilyID  string     `json:"-"`
-}
-
 type IssuedToken struct {
 	Token  Token  `json:"token"`
 	Secret string `json:"secret"`

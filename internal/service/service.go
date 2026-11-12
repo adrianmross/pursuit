@@ -18,6 +18,7 @@ import (
 	"github.com/pursuit/pursuit/internal/embed"
 	"github.com/pursuit/pursuit/internal/domain"
 	"github.com/pursuit/pursuit/internal/links"
+	"github.com/pursuit/pursuit/internal/platform/session"
 	"github.com/pursuit/pursuit/internal/sqlstore"
 )
 
@@ -129,37 +130,27 @@ func (s *Service) audit(ctx context.Context, a domain.Actor, action, entityType,
 	})
 }
 
+// sessions is the token check and dashboard sign-in rules, with Pursuit's
+// names and lifetimes.
+func (s *Service) sessions() *session.Manager {
+	m := &session.Manager{
+		Store: s.DB, Now: s.now, NewID: s.NewID,
+		LoginName: LoginTokenName, DemoName: demoTokenName,
+		IdleTTL: LoginIdleTTL, MaxTTL: LoginMaxTTL, StepUpWindow: StepUpWindow,
+		Scopes:       []string{"read", "write", "approve"},
+		Unauthorized: func() error { return domain.Unauthorized() },
+	}
+	if s.WebAuthn != nil {
+		m.HasStepUp = func(ctx context.Context, userID string) (bool, error) {
+			rows, err := s.DB.ListWebAuthnCredentials(ctx, userID)
+			return len(rows) > 0, err
+		}
+	}
+	return m
+}
+
 func (s *Service) Authenticate(ctx context.Context, secret string) (domain.Actor, error) {
-	secret = strings.TrimSpace(secret)
-	if secret == "" {
-		return domain.Actor{}, domain.Unauthorized()
-	}
-	tok, err := s.DB.GetTokenByHash(ctx, auth.Hash(secret))
-	if domain.IsCode(err, "not_found") || (err == nil && tok.RevokedAt != nil) {
-		return domain.Actor{}, domain.Unauthorized()
-	}
-	if err != nil {
-		return domain.Actor{}, err
-	}
-	now := s.now()
-	if tok.Name == LoginTokenName {
-		last := tok.CreatedAt
-		if tok.LastUsedAt != nil {
-			last = *tok.LastUsedAt
-		}
-		if now.Sub(last) > LoginIdleTTL || now.Sub(tok.CreatedAt) > LoginMaxTTL {
-			return domain.Actor{}, domain.Unauthorized()
-		}
-	}
-	if tok.ExpiresAt != nil && !now.Before(*tok.ExpiresAt) {
-		return domain.Actor{}, domain.Unauthorized()
-	}
-	_ = s.DB.TouchToken(ctx, tok.ID, domain.FormatTime(now), domain.FormatTime(now.Add(-time.Minute)))
-	a := domain.Actor{UserID: tok.UserID, TokenID: tok.ID, Name: tok.Name, Scopes: tok.Scopes, Demo: tok.Name == demoTokenName, Resource: tok.Resource}
-	if tok.Name == LoginTokenName {
-		a.AuthAt = tok.CreatedAt
-	}
-	return a, nil
+	return s.sessions().Authenticate(ctx, secret)
 }
 
 // Bootstrap creates the owner and the first token when the database is empty.
@@ -256,59 +247,19 @@ const LoginMaxTTL = 90 * 24 * time.Hour
 // approve, or to mint an approve token, when the user has a passkey.
 const StepUpWindow = 15 * time.Minute
 
-type originKey struct{}
-
 // Origin is where a sign-in request came from.
-type Origin struct{ IP, UserAgent string }
+type Origin = session.Origin
 
 // WithOrigin lets mintLogin record where a sign-in came from.
-func WithOrigin(ctx context.Context, o Origin) context.Context {
-	return context.WithValue(ctx, originKey{}, o)
-}
+var WithOrigin = session.WithOrigin
 
 // sweepLogins revokes dashboard sign-ins past their idle or absolute lifetime.
-// Opportunistic instead of a sweeper; failure is harmless.
-func (s *Service) sweepLogins(ctx context.Context, now time.Time) {
-	_ = s.DB.RevokeExpiredLogins(ctx, LoginTokenName, domain.FormatTime(now), domain.FormatTime(now.Add(-LoginIdleTTL)), domain.FormatTime(now.Add(-LoginMaxTTL)))
-}
+func (s *Service) sweepLogins(ctx context.Context, now time.Time) { s.sessions().Sweep(ctx, now) }
 
 // requireFresh asks a dashboard session to re-prove itself before a
-// sensitive action, but only when the user has a passkey to do it with:
-// without one the session keeps working as before. Other tokens pass.
+// sensitive action, when the user has a passkey to do it with.
 func (s *Service) requireFresh(ctx context.Context, a domain.Actor) error {
-	if a.Name != LoginTokenName || s.WebAuthn == nil || s.now().Sub(a.AuthAt) <= StepUpWindow {
-		return nil
-	}
-	rows, err := s.DB.ListWebAuthnCredentials(ctx, a.UserID)
-	if err != nil || len(rows) == 0 {
-		return err
-	}
-	return &domain.Error{Code: "step_up_required", Message: "confirm it's you with your passkey to continue", Hint: "sign in again with a passkey, then retry", Status: 403}
-}
-
-// clientLabel turns a User-Agent into "Chrome on macOS"; unknown parts drop out.
-func clientLabel(ua string) string {
-	browser := ""
-	for _, b := range [][2]string{{"Edg/", "Edge"}, {"Firefox/", "Firefox"}, {"Chrome/", "Chrome"}, {"Safari/", "Safari"}} {
-		if strings.Contains(ua, b[0]) {
-			browser = b[1]
-			break
-		}
-	}
-	os := ""
-	for _, o := range [][2]string{{"iPhone", "iOS"}, {"iPad", "iOS"}, {"Android", "Android"}, {"Mac OS X", "macOS"}, {"Windows", "Windows"}, {"Linux", "Linux"}} {
-		if strings.Contains(ua, o[0]) {
-			os = o[1]
-			break
-		}
-	}
-	switch {
-	case browser != "" && os != "":
-		return browser + " on " + os
-	case browser != "":
-		return browser
-	}
-	return os
+	return s.sessions().RequireFresh(ctx, a)
 }
 
 // CreateDemoSession provisions a throwaway tenant for the "try it without
@@ -407,26 +358,11 @@ func (s *Service) LoginIdentity(ctx context.Context, email, name string, allowCr
 // sign-out revokes it) for userID and audits it. meta adds to the audit
 // entry, for example where the sign-in came from.
 func (s *Service) mintLogin(ctx context.Context, userID, summary string, meta map[string]any) (string, error) {
-	scopes, err := auth.NormalizeScopes([]string{"read", "write", "approve"})
+	raw, tok, err := s.sessions().Mint(ctx, userID)
 	if err != nil {
 		return "", err
 	}
-	raw, prefix, hash, err := auth.Generate()
-	if err != nil {
-		return "", err
-	}
-	now := s.now()
-	// Opportunistic cleanup instead of a sweeper; failure is harmless.
-	s.sweepLogins(ctx, now)
-	o, _ := ctx.Value(originKey{}).(Origin)
-	tok := domain.Token{
-		ID: s.NewID(), UserID: userID, Name: LoginTokenName, Hash: hash,
-		Prefix: prefix, Scopes: scopes, CreatedAt: now, Client: clientLabel(o.UserAgent), IP: o.IP,
-	}
-	if err := s.DB.CreateToken(ctx, tok); err != nil {
-		return "", err
-	}
-	actor := domain.Actor{UserID: userID, TokenID: tok.ID, Name: tok.Name, Scopes: scopes}
+	actor := domain.Actor{UserID: userID, TokenID: tok.ID, Name: tok.Name, Scopes: tok.Scopes}
 	m := map[string]any{"prefix": tok.Prefix}
 	for k, v := range meta {
 		m[k] = v
