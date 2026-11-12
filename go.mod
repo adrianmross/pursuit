@@ -19,6 +19,7 @@ require (
 )
 
 require (
+	github.com/adrianmross/oauthlite v0.2.0
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/fxamacker/cbor/v2 v2.9.4 // indirect
