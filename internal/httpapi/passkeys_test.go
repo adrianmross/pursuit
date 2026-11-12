@@ -334,9 +334,29 @@ func TestPasskeyRegisterAndLogin(t *testing.T) {
 		t.Fatalf("unknown handle %d %s", code, b)
 	}
 
-	// Delete, then the passkey no longer signs in.
+	// Delete, then the passkey no longer signs in, and other dashboard
+	// sessions are signed out (API keys are not).
+	var others []string
+	for i := 0; i < 2; i++ {
+		secret, err := e.svc.LoginIdentity(context.Background(), "adrian@localhost", "Adrian", false)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if code, _ := e.json(t, http.MethodGet, "/v1/me", secret, nil); code != 200 {
+			t.Fatalf("login session %d: %d", i, code)
+		}
+		others = append(others, secret)
+	}
 	if code, b, _ := e.do(t, http.MethodDelete, "/v1/passkeys/"+id, e.token, nil, nil); code != 200 {
 		t.Fatalf("delete %d %s", code, b)
+	}
+	for i, secret := range others {
+		if code, _ := e.json(t, http.MethodGet, "/v1/me", secret, nil); code != 401 {
+			t.Errorf("session %d after removing a passkey: %d", i, code)
+		}
+	}
+	if code, _ := e.json(t, http.MethodGet, "/v1/me", e.token, nil); code != 200 {
+		t.Errorf("the API key should survive: %d", code)
 	}
 	if code, _, _ := e.do(t, http.MethodDelete, "/v1/passkeys/"+id, e.token, nil, nil); code != 404 {
 		t.Fatalf("delete again %d", code)

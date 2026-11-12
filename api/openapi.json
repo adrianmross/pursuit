@@ -3236,6 +3236,9 @@
       },
       "TokenInput": {
         "properties": {
+          "expires_in_days": {
+            "type": "integer"
+          },
           "name": {
             "type": "string"
           },

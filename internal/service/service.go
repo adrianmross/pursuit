@@ -4,6 +4,7 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"encoding/json"
 	"net/http"
 	"strings"
@@ -234,6 +235,18 @@ const demoTokenName = "demo"
 // Auth); sign-out revokes only tokens with this name.
 const LoginTokenName = "login"
 
+// signOutOthers ends every other dashboard sign-in of the actor's user. A
+// credential change (a passkey removed, the email changed) calls it, because
+// whoever added or relied on the old credential may still hold a session.
+// API keys and connected apps are untouched: they do not depend on it.
+func (s *Service) signOutOthers(ctx context.Context, a domain.Actor, why string) error {
+	n, err := s.DB.RevokeOtherLogins(ctx, a.UserID, LoginTokenName, a.TokenID, s.now())
+	if err != nil || n == 0 {
+		return err
+	}
+	return s.audit(ctx, a, "session.revoke_others", "token", a.TokenID, fmt.Sprintf("signed out %d other sessions: %s", n, why), map[string]any{"count": n})
+}
+
 // LoginIdleTTL is how long a dashboard sign-in survives without a request.
 // Each request refreshes it, so an in-use session never lapses.
 const LoginIdleTTL = 30 * 24 * time.Hour
@@ -376,7 +389,12 @@ func (s *Service) mintLogin(ctx context.Context, userID, summary string, meta ma
 type TokenInput struct {
 	Name   string   `json:"name"`
 	Scopes []string `json:"scopes"`
+	// ExpiresInDays makes the key stop working after that many days; 0 never.
+	ExpiresInDays int `json:"expires_in_days,omitempty"`
 }
+
+// maxTokenDays is the longest an expiring key may live (ten years).
+const maxTokenDays = 3650
 
 func (s *Service) CreateToken(ctx context.Context, in TokenInput) (domain.IssuedToken, error) {
 	a, err := s.actor(ctx, true)
@@ -404,17 +422,24 @@ func (s *Service) CreateToken(ctx context.Context, in TokenInput) (domain.Issued
 			}
 		}
 	}
+	if in.ExpiresInDays < 0 || in.ExpiresInDays > maxTokenDays {
+		return domain.IssuedToken{}, domain.Validation("expires_in_days is 0 for never, or 1 to %d", maxTokenDays)
+	}
 	secret, prefix, hash, err := auth.Generate()
 	if err != nil {
 		return domain.IssuedToken{}, err
 	}
 	tok := domain.Token{ID: s.NewID(), UserID: a.UserID, Name: name, Hash: hash, Prefix: prefix, Scopes: scopes, CreatedAt: s.now()}
+	if in.ExpiresInDays > 0 {
+		exp := tok.CreatedAt.AddDate(0, 0, in.ExpiresInDays)
+		tok.ExpiresAt = &exp
+	}
 	var out domain.IssuedToken
 	err = s.DB.WithTx(ctx, func(ctx context.Context) error {
 		if err := s.DB.CreateToken(ctx, tok); err != nil {
 			return err
 		}
-		if err := s.audit(ctx, a, "token.create", "token", tok.ID, "created token "+name, map[string]any{"prefix": prefix, "scopes": scopes}); err != nil {
+		if err := s.audit(ctx, a, "token.create", "token", tok.ID, "created token "+name, map[string]any{"prefix": prefix, "scopes": scopes, "expires_in_days": in.ExpiresInDays}); err != nil {
 			return err
 		}
 		tok.Hash = ""

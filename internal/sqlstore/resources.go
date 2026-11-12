@@ -259,6 +259,16 @@ func (s *Store) RevokeExpiredLogins(ctx context.Context, name string, at, idleBe
 	return err
 }
 
+// RevokeOtherLogins revokes a user's dashboard sign-ins except one.
+func (s *Store) RevokeOtherLogins(ctx context.Context, userID, name, exceptID string, at time.Time) (int, error) {
+	res, err := s.exec(ctx, `UPDATE api_tokens SET revoked_at=? WHERE user_id=? AND name=? AND id<>? AND revoked_at IS NULL`, formatTime(at), userID, name, exceptID)
+	if err != nil {
+		return 0, err
+	}
+	n, _ := res.RowsAffected()
+	return int(n), nil
+}
+
 func (s *Store) TouchToken(ctx context.Context, id string, at, staleBefore time.Time) error {
 	_, err := s.exec(ctx, `UPDATE api_tokens SET last_used_at=? WHERE id=? AND (last_used_at IS NULL OR last_used_at < ?)`, formatTime(at), id, formatTime(staleBefore))
 	return err

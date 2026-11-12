@@ -73,6 +73,9 @@ function TokenList({ tokens, revoke, session }: { tokens: Token[]; revoke: (id: 
             <ItemDescription className="text-xs">
               {session ? t.ip || "unknown IP" : <code>{t.prefix}…</code>} · created {new Date(t.created_at).toLocaleDateString()} ·{" "}
               {t.last_used_at ? "used " + new Date(t.last_used_at).toLocaleDateString() : "never used"}
+              {t.expires_at && !session
+                ? " · " + (new Date(t.expires_at) < new Date() ? "expired " : "expires ") + new Date(t.expires_at).toLocaleDateString()
+                : ""}
             </ItemDescription>
           </ItemContent>
           <ItemActions>
@@ -90,6 +93,7 @@ export function TokensPanel() {
   const [tokens, setTokens] = useState<Token[] | null>(null)
   const [name, setName] = useState("")
   const [scope, setScope] = useState("write")
+  const [days, setDays] = useState("0")
   const [secret, setSecret] = useState("")
   const [error, setError] = useState("")
   const [busy, setBusy] = useState(false)
@@ -110,7 +114,7 @@ export function TokensPanel() {
     try {
       const issued = await api<{ secret: string }>("/v1/tokens", {
         method: "POST",
-        body: { name: name.trim(), scopes: scope === "write" ? ["read", "write"] : ["read"] },
+        body: { name: name.trim(), scopes: scope === "write" ? ["read", "write"] : ["read"], expires_in_days: Number(days) },
       })
       setSecret(issued.secret)
       setName("")
@@ -171,6 +175,17 @@ export function TokensPanel() {
                 <ToggleGroupItem value="write">
                   Read &amp; write
                 </ToggleGroupItem>
+              </ToggleGroup>
+            </div>
+          </Field>
+          <Field>
+            <FieldLabel>Expires</FieldLabel>
+            <div>
+              <ToggleGroup type="single" variant="outline" value={days} onValueChange={(v) => v && setDays(v)}>
+                <ToggleGroupItem value="0">Never</ToggleGroupItem>
+                <ToggleGroupItem value="30">30 days</ToggleGroupItem>
+                <ToggleGroupItem value="90">90 days</ToggleGroupItem>
+                <ToggleGroupItem value="365">1 year</ToggleGroupItem>
               </ToggleGroup>
             </div>
           </Field>

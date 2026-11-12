@@ -34,6 +34,7 @@ func (s *Service) UpdateMe(ctx context.Context, in MePatch) (domain.User, error)
 	if err != nil {
 		return domain.User{}, err
 	}
+	oldEmail := user.Email
 	if in.Name != nil {
 		if user.Name, err = domain.RequireText("name", *in.Name, 200); err != nil {
 			return domain.User{}, err
@@ -75,7 +76,13 @@ func (s *Service) UpdateMe(ctx context.Context, in MePatch) (domain.User, error)
 		if err := s.DB.UpdateUserProfile(ctx, user); err != nil {
 			return err
 		}
-		return s.audit(ctx, a, "user.update", "user", user.ID, "updated profile", nil)
+		if err := s.audit(ctx, a, "user.update", "user", user.ID, "updated profile", nil); err != nil {
+			return err
+		}
+		if user.Email != oldEmail {
+			return s.signOutOthers(ctx, a, "the email changed")
+		}
+		return nil
 	})
 	return user, err
 }

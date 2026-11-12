@@ -549,3 +549,34 @@ func TestMCPRateLimitIsPerToken(t *testing.T) {
 		t.Errorf("another token should not be limited: %d", code)
 	}
 }
+
+func TestAPIKeyExpiry(t *testing.T) {
+	e := newEnv(t)
+	clk := withClock(e)
+	mint := func(days int) (int, map[string]any) {
+		return e.json(t, "POST", "/v1/tokens", e.token, map[string]any{"name": "agent", "scopes": []string{"read"}, "expires_in_days": days})
+	}
+	code, doc := mint(7)
+	if code != 201 || doc["token"].(map[string]any)["expires_at"] == nil {
+		t.Fatalf("mint: %d %v", code, doc)
+	}
+	secret := doc["secret"].(string)
+	forever := mintToken(t, e, "read")
+
+	clk.add(6 * 24 * time.Hour)
+	if code, _ := e.json(t, "GET", "/v1/me", secret, nil); code != 200 {
+		t.Errorf("before expiry: %d", code)
+	}
+	clk.add(2 * 24 * time.Hour)
+	if code, _ := e.json(t, "GET", "/v1/me", secret, nil); code != 401 {
+		t.Errorf("after expiry: %d", code)
+	}
+	if code, _ := e.json(t, "GET", "/v1/me", forever, nil); code != 200 {
+		t.Errorf("a key without expiry: %d", code)
+	}
+	for _, bad := range []int{-1, 4000} {
+		if code, _ := mint(bad); code != 400 {
+			t.Errorf("expires_in_days %d: %d", bad, code)
+		}
+	}
+}
