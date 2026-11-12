@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"strings"
 	"time"
 
@@ -1058,6 +1059,18 @@ func (s *Store) SetApplicationArchived(ctx context.Context, userID, id string, v
 }
 
 func (s *Store) DeleteApplication(ctx context.Context, userID, id string, version int) error {
+	return s.WithTx(ctx, func(ctx context.Context) error {
+		if err := s.deleteApplication(ctx, userID, id, version); err != nil {
+			return err
+		}
+		// Events name their subject without a foreign key, so nothing
+		// cascades to them.
+		_, err := s.exec(ctx, `DELETE FROM events WHERE user_id=? AND subject_type='application' AND subject_id=?`, userID, id)
+		return err
+	})
+}
+
+func (s *Store) deleteApplication(ctx context.Context, userID, id string, version int) error {
 	res, err := s.exec(ctx, `DELETE FROM applications WHERE id=? AND user_id=? AND version=?`, id, userID, version)
 	if err != nil {
 		return mapWriteErr(err)
@@ -1083,8 +1096,12 @@ func (s *Store) CountTrackedBy(ctx context.Context, userID, id string) (int, err
 }
 
 func (s *Store) CreateEvent(ctx context.Context, e domain.Event) error {
-	_, err := s.exec(ctx, `INSERT INTO events (id, user_id, application_id, kind, from_status, to_status, title, body, occurred_at, created_at, actor_token_id, actor_name) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		e.ID, e.UserID, e.ApplicationID, e.Kind, e.FromStatus, e.ToStatus, e.Title, e.Body, formatTime(e.OccurredAt), formatTime(e.CreatedAt), e.Actor.TokenID, e.Actor.Name)
+	data, err := json.Marshal(eventData{FromStatus: e.FromStatus, ToStatus: e.ToStatus})
+	if err != nil {
+		return err
+	}
+	_, err = s.exec(ctx, `INSERT INTO events (id, user_id, subject_type, subject_id, kind, data, title, body, occurred_at, created_at, actor_token_id, actor_name) VALUES (?, ?, 'application', ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		e.ID, e.UserID, e.ApplicationID, e.Kind, string(data), e.Title, e.Body, formatTime(e.OccurredAt), formatTime(e.CreatedAt), e.Actor.TokenID, e.Actor.Name)
 	return err
 }
 
@@ -1094,14 +1111,15 @@ func (s *Store) ListEvents(ctx context.Context, userID string, q domain.ListQuer
 		return nil, 0, err
 	}
 	w := where{}
-	w.add("a.user_id=?", userID)
+	w.add("e.user_id=?", userID)
+	w.add("e.subject_type='application'")
 	if q.ApplicationID != "" {
-		w.add("e.application_id=?", q.ApplicationID)
+		w.add("e.subject_id=?", q.ApplicationID)
 	}
 	if q.AfterTime != "" && q.AfterID != "" {
 		w.add("(e.occurred_at > ? OR (e.occurred_at = ? AND e.id > ?))", q.AfterTime, q.AfterTime, q.AfterID)
 	}
-	countSQL := `SELECT COUNT(*) FROM events e JOIN applications a ON a.id = e.application_id ` + w.sql()
+	countSQL := `SELECT COUNT(*) FROM events e ` + w.sql()
 	countArgs := append([]any{}, w.args...)
 	if q.Cursor != nil && q.Cursor.ID != "" {
 		w.add(cursorSQL(expr, "e.id", desc), q.Cursor.K, q.Cursor.K, q.Cursor.ID)
@@ -1110,7 +1128,7 @@ func (s *Store) ListEvents(ctx context.Context, userID string, q domain.ListQuer
 	if limit <= 0 {
 		limit = 51
 	}
-	rows, err := s.query(ctx, `SELECT e.id, e.user_id, e.application_id, e.kind, e.from_status, e.to_status, e.title, e.body, e.occurred_at, e.created_at, e.actor_token_id, e.actor_name FROM events e JOIN applications a ON a.id = e.application_id `+w.sql()+` `+orderSQL(expr, "e.id", desc)+` LIMIT ?`, append(w.args, limit)...)
+	rows, err := s.query(ctx, `SELECT `+eventCols+` FROM events e `+w.sql()+` `+orderSQL(expr, "e.id", desc)+` LIMIT ?`, append(w.args, limit)...)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -1136,13 +1154,28 @@ func (s *Store) ListEvents(ctx context.Context, userID string, q domain.ListQuer
 	return out, total, nil
 }
 
+// An event row names its subject by type and id and keeps what is particular
+// to its kind in data, a JSON object. Pursuit's events are all about an
+// application, and their data is the status change.
+const eventCols = `e.id, e.user_id, e.subject_id, e.kind, e.data, e.title, e.body, e.occurred_at, e.created_at, e.actor_token_id, e.actor_name`
+
+type eventData struct {
+	FromStatus string `json:"from_status,omitempty"`
+	ToStatus   string `json:"to_status,omitempty"`
+}
+
 func scanEvent(row scanner) (domain.Event, error) {
 	var e domain.Event
-	var occurred, created string
-	err := row.Scan(&e.ID, &e.UserID, &e.ApplicationID, &e.Kind, &e.FromStatus, &e.ToStatus, &e.Title, &e.Body, &occurred, &created, &e.Actor.TokenID, &e.Actor.Name)
+	var data, occurred, created string
+	err := row.Scan(&e.ID, &e.UserID, &e.ApplicationID, &e.Kind, &data, &e.Title, &e.Body, &occurred, &created, &e.Actor.TokenID, &e.Actor.Name)
 	if err != nil {
 		return domain.Event{}, err
 	}
+	var d eventData
+	if err := json.Unmarshal([]byte(data), &d); err != nil {
+		return domain.Event{}, fmt.Errorf("event %s data: %w", e.ID, err)
+	}
+	e.FromStatus, e.ToStatus = d.FromStatus, d.ToStatus
 	if e.OccurredAt, err = parseTime(occurred); err != nil {
 		return domain.Event{}, err
 	}
