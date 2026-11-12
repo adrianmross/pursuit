@@ -51,10 +51,49 @@ type Service struct {
 	ClientDoc func(ctx context.Context, url string) ([]byte, error)
 	// Blobs holds new document files when a bucket is configured; nil keeps them in the database.
 	Blobs blobstore.Store
+	// OnUserCreated runs right after a user row is inserted. Sign-in and
+	// bootstrap call it inside their lock, so a failure there undoes the
+	// user. It is where an app gives a new account its starting data. New
+	// sets it to the default caps.
+	OnUserCreated func(ctx context.Context, u domain.User) error
 }
 
 func New(db *sqlstore.Store) *Service {
-	return &Service{DB: db, Now: time.Now, NewID: uuid.NewString}
+	s := &Service{DB: db, Now: time.Now, NewID: uuid.NewString}
+	s.OnUserCreated = func(ctx context.Context, u domain.User) error { return s.ensureDefaultCaps(ctx, u.ID) }
+	return s
+}
+
+// createUser inserts a user and runs OnUserCreated. An empty name falls back
+// to the email.
+func (s *Service) createUser(ctx context.Context, name, email string) (domain.User, error) {
+	if strings.TrimSpace(name) == "" {
+		name = email
+	}
+	u := domain.User{ID: s.NewID(), Name: name, Email: email, CreatedAt: s.now()}
+	if err := s.DB.CreateUser(ctx, u); err != nil {
+		return domain.User{}, err
+	}
+	if s.OnUserCreated != nil {
+		if err := s.OnUserCreated(ctx, u); err != nil {
+			return domain.User{}, err
+		}
+	}
+	return u, nil
+}
+
+// findOrCreateUser returns the user with this email, creating one when
+// allowCreate is set. Call it inside DB.WithLock, so two first sign-ins with
+// the same email cannot both create.
+func (s *Service) findOrCreateUser(ctx context.Context, email, name string, allowCreate bool) (domain.User, error) {
+	u, err := s.DB.FindUserByEmail(ctx, email)
+	if !domain.IsCode(err, "not_found") {
+		return u, err
+	}
+	if !allowCreate {
+		return domain.User{}, domain.Unauthorized()
+	}
+	return s.createUser(ctx, name, email)
 }
 
 func (s *Service) now() time.Time { return s.Now().UTC() }
@@ -144,8 +183,8 @@ func (s *Service) Bootstrap(ctx context.Context, ownerName, ownerEmail, tokenNam
 		}
 		var user domain.User
 		if n == 0 {
-			user = domain.User{ID: s.NewID(), Name: ownerName, Email: ownerEmail, CreatedAt: s.now()}
-			if err := s.DB.CreateUser(ctx, user); err != nil {
+			user, err = s.createUser(ctx, ownerName, ownerEmail)
+			if err != nil {
 				return err
 			}
 		} else {
@@ -153,12 +192,13 @@ func (s *Service) Bootstrap(ctx context.Context, ownerName, ownerEmail, tokenNam
 			if err != nil {
 				return err
 			}
+			// An owner from before a default cap existed gets it on the next boot.
+			if err := s.ensureDefaultCaps(ctx, user.ID); err != nil {
+				return err
+			}
 		}
 		tn, err := s.DB.CountTokens(ctx)
 		if err != nil {
-			return err
-		}
-		if err := s.ensureDefaultCaps(ctx, user.ID); err != nil {
 			return err
 		}
 		if tn > 0 {
@@ -280,11 +320,8 @@ func clientLabel(ua string) string {
 // auth path. Nothing here is persisted beyond that token: discarding it
 // (or minting a new one — e.g. "replay tutorial") abandons this tenant.
 func (s *Service) CreateDemoSession(ctx context.Context) (secret string, actor domain.Actor, err error) {
-	user := domain.User{ID: s.NewID(), Name: "Demo visitor", Email: "demo-" + s.NewID() + "@pursuit.invalid", CreatedAt: s.now()}
-	if err := s.DB.CreateUser(ctx, user); err != nil {
-		return "", domain.Actor{}, err
-	}
-	if err := s.ensureDefaultCaps(ctx, user.ID); err != nil {
+	user, err := s.createUser(ctx, "Demo visitor", "demo-"+s.NewID()+"@pursuit.invalid")
+	if err != nil {
 		return "", domain.Actor{}, err
 	}
 	secret, prefix, hash, err := auth.Generate()
@@ -332,20 +369,8 @@ func (s *Service) ResolveTenantUser(ctx context.Context, email, name string, all
 			return domain.Actor{}, domain.Unauthorized()
 		}
 		if err := s.DB.WithLock(ctx, func(ctx context.Context) error {
-			if existing, ferr := s.DB.FindUserByEmail(ctx, email); ferr == nil {
-				user = existing
-				return nil
-			} else if !domain.IsCode(ferr, "not_found") {
-				return ferr
-			}
-			if strings.TrimSpace(name) == "" {
-				name = email
-			}
-			user = domain.User{ID: s.NewID(), Name: name, Email: email, CreatedAt: s.now()}
-			if err := s.DB.CreateUser(ctx, user); err != nil {
-				return err
-			}
-			return s.ensureDefaultCaps(ctx, user.ID)
+			user, err = s.findOrCreateUser(ctx, email, name, true)
+			return err
 		}); err != nil {
 			return domain.Actor{}, err
 		}
@@ -368,22 +393,8 @@ func (s *Service) LoginIdentity(ctx context.Context, email, name string, allowCr
 		return "", domain.Unauthorized()
 	}
 	err = s.DB.WithLock(ctx, func(ctx context.Context) error {
-		user, err := s.DB.FindUserByEmail(ctx, email)
-		if domain.IsCode(err, "not_found") {
-			if !allowCreate {
-				return domain.Unauthorized()
-			}
-			if strings.TrimSpace(name) == "" {
-				name = email
-			}
-			user = domain.User{ID: s.NewID(), Name: name, Email: email, CreatedAt: s.now()}
-			if err := s.DB.CreateUser(ctx, user); err != nil {
-				return err
-			}
-			if err := s.ensureDefaultCaps(ctx, user.ID); err != nil {
-				return err
-			}
-		} else if err != nil {
+		user, err := s.findOrCreateUser(ctx, email, name, allowCreate)
+		if err != nil {
 			return err
 		}
 		secret, err = s.mintLogin(ctx, user.ID, "oidc login token", nil)
