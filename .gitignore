@@ -27,3 +27,6 @@
 /docs-site/public/changelog.xml
 /docs-site/public/changelog.json
 /web-app/lib/releases.generated.json
+
+# reel captures (docs-site/reel/*.json are the storyboards)
+/docs-site/reel/.reel/

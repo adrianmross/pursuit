@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/pursuit/pursuit/internal/config"
 	"github.com/pursuit/pursuit/internal/sqlstore"
@@ -45,5 +46,19 @@ func TestNewServer(t *testing.T) {
 	api, stage, err = NewServer(ctx, store, cfg, slog.New(slog.DiscardHandler), "")
 	if err != nil || api.OIDC == nil || api.OIDC.After != "/start" || api.BetterAuthOrigin != "https://auth.example.com" {
 		t.Fatalf("stage %q: %v %+v", stage, err, api)
+	}
+}
+
+func TestFixedClock(t *testing.T) {
+	if c, err := fixedClock("  "); c != nil || err != nil {
+		t.Fatalf("empty: clock set %v, err %v", c != nil, err)
+	}
+	if _, err := fixedClock("yesterday"); err == nil {
+		t.Fatal("bad time accepted")
+	}
+	c, err := fixedClock("2026-11-09T15:00:00Z")
+	want := time.Date(2026, 11, 9, 15, 0, 0, 0, time.UTC)
+	if err != nil || !c().Equal(want) || !c().Equal(c()) {
+		t.Fatalf("got %v, err %v", c(), err)
 	}
 }
