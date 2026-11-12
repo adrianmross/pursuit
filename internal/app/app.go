@@ -124,6 +124,12 @@ func NewServer(ctx context.Context, store *sqlstore.Store, cfg config.Config, lo
 		return nil, "", err
 	}
 	svc := service.New(store)
+	if clock, err := fixedClock(os.Getenv("PURSUIT_FIXED_TIME")); err != nil {
+		return nil, "", err
+	} else if clock != nil {
+		svc.Now = clock
+		log.Warn("clock is frozen", "at", clock().Format(time.RFC3339), "env", "PURSUIT_FIXED_TIME")
+	}
 	svc.Profile = profile
 	svc.ResumeFile = cfg.ResumeFile
 	if cfg.ContactEmail != "" {
@@ -276,4 +282,18 @@ func redact(raw string) string {
 		return raw
 	}
 	return u.Redacted()
+}
+
+// fixedClock returns a clock stopped at v (RFC 3339), or nil when v is
+// empty. A frozen clock makes the example data's dates the same on every
+// run, which a repeatable screen recording needs.
+func fixedClock(v string) (func() time.Time, error) {
+	if v = strings.TrimSpace(v); v == "" {
+		return nil, nil
+	}
+	t, err := time.Parse(time.RFC3339, v)
+	if err != nil {
+		return nil, fmt.Errorf("PURSUIT_FIXED_TIME must be an RFC 3339 time like 2026-11-09T15:00:00Z: %w", err)
+	}
+	return func() time.Time { return t }, nil
 }

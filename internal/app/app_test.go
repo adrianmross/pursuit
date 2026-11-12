@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/pursuit/pursuit/internal/config"
 	"github.com/pursuit/pursuit/internal/sqlstore"
@@ -37,5 +38,19 @@ func TestNewServer(t *testing.T) {
 	cfg.OIDCGoogleID, cfg.OIDCGoogleSecret = "id", "secret"
 	if _, stage, err := NewServer(ctx, store, cfg, slog.New(slog.DiscardHandler), ""); err == nil || stage != StageOIDC {
 		t.Fatalf("OIDC without a session secret: stage %q err %v", stage, err)
+	}
+}
+
+func TestFixedClock(t *testing.T) {
+	if c, err := fixedClock("  "); c != nil || err != nil {
+		t.Fatalf("empty: clock set %v, err %v", c != nil, err)
+	}
+	if _, err := fixedClock("yesterday"); err == nil {
+		t.Fatal("bad time accepted")
+	}
+	c, err := fixedClock("2026-11-09T15:00:00Z")
+	want := time.Date(2026, 11, 9, 15, 0, 0, 0, time.UTC)
+	if err != nil || !c().Equal(want) || !c().Equal(c()) {
+		t.Fatalf("got %v, err %v", c(), err)
 	}
 }
