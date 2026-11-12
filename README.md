@@ -1,10 +1,10 @@
 # Pursuit
 
-Self-hosted job-application tracker for one person, driven from the command line. Agents prepare applications. A human token with the `approve` scope is what allows a submit.
+Simple yet powerful job-application tracker. Get started at [hirepursuit.app](https://hirepursuit.app) or self-host if you're built like that. Best leveraged with always-on/personal agents.
 
-SQLite is the default database for a local daemon. Postgres is the option when you run more than one replica.
+SQLite is the default auto-created database for local storage. Switch to postgres when you run more than one replica which is overkill for individual use.
 
-Licensed under MIT. Copyright Adrian Ross. See [LICENSE](LICENSE). Commit messages use [Conventional Commits](https://www.conventionalcommits.org/). See [CONTRIBUTING.md](CONTRIBUTING.md).
+OSS and under MIT. Copyright Adrian Ross. See [LICENSE](LICENSE).
 
 ## Quick start
 
