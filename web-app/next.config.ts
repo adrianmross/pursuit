@@ -6,6 +6,8 @@ import type { NextConfig } from "next"
 const exportMode = process.env.NEXT_PUBLIC_EXPORT_MODE === "1"
 
 const nextConfig: NextConfig = {
+  // appkit-ui ships TypeScript source.
+  transpilePackages: ["@adrianmross/appkit-ui"],
   ...(exportMode ? { output: "export" as const } : {}),
   // pursuit-preview runs the docs dev server beside this one; the real site and
   // the embedded binary serve both from one origin, so /docs goes there too.
