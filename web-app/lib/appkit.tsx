@@ -7,7 +7,19 @@ import { SiteFooter } from "@/components/SiteFooter"
 import { SnakeEyes } from "@/components/Sketch"
 import { BRAND } from "@/lib/brand"
 
-configure({ ...BRAND, footer: <SiteFooter />, failArt: <SnakeEyes className="w-full" /> })
+configure({
+  ...BRAND,
+  records: "applications",
+  footer: <SiteFooter />,
+  // size-auto opts out of the Alert's size-4 icon rule so the art keeps its width.
+  failArt: <SnakeEyes className="size-auto w-11 shrink-0" />,
+  tokensNote: (
+    <>
+      The browser extension uses one too. This form makes read and write tokens. An approve token can only be created
+      through <code>POST /v1/tokens</code> by a signed-in human who holds approve, never by an agent.
+    </>
+  ),
+})
 
 registerPrefs({
   roundCounter: "wheel", faviconService: "default", funnel: "off",

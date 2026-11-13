@@ -18,6 +18,7 @@ import {
   type PaletteGroup,
   type SearchSource,
   type ShellProps,
+  type TourStep,
 } from "@adrianmross/appkit-ui"
 import { Button } from "@adrianmross/appkit-ui/ui/button"
 import { Die, Sketch, Track } from "@/components/Sketch"
@@ -33,8 +34,6 @@ const PARENT = "/applications"
 // The page shown before this one, if it was inside the app.
 let lastPath = ""
 
-// ponytail: appkit-ui does not export TourStep yet; take it from the shell's props until it does.
-type TourStep = Extract<NonNullable<ShellProps["tour"]>["steps"], unknown[]>[number]
 
 // A feed event as Pursuit's API sends it, plus the application the shell looked up for it.
 type AppEvent = LiveEvent & {
