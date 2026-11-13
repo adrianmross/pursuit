@@ -2,9 +2,9 @@
 
 import { Fragment, useEffect, useRef, useState } from "react"
 import { Check, ChevronRight, Copy, Search } from "lucide-react"
-import { api } from "@/lib/api-client"
+import { api } from "@adrianmross/appkit-ui"
 import type { Audit, Page } from "@/lib/types"
-import { cn } from "@/lib/utils"
+import { cn } from "@adrianmross/appkit-ui"
 import { Button } from "@adrianmross/appkit-ui/ui/button"
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@adrianmross/appkit-ui/ui/input-group"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@adrianmross/appkit-ui/ui/select"

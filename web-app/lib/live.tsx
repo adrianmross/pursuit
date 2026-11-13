@@ -7,8 +7,8 @@
 // while you are typing, so a refetch never lands on a half-made edit.
 
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react"
-import { api } from "@/lib/api-client"
-import { useAuth } from "@/lib/auth"
+import { api } from "@adrianmross/appkit-ui"
+import { useAuth } from "@adrianmross/appkit-ui"
 import type { Application, Event, Page } from "@/lib/types"
 
 export type LiveEvent = Event & { app?: Pick<Application, "id" | "title" | "company" | "status"> }

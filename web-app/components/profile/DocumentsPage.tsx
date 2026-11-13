@@ -2,7 +2,7 @@
 
 import { useState, type FormEvent } from "react"
 import { Eye, MoreHorizontal, PenLine, Star } from "lucide-react"
-import { api } from "@/lib/api-client"
+import { api } from "@adrianmross/appkit-ui"
 import type { Document } from "@/lib/types"
 import { ConfirmDialog } from "@/components/ConfirmDialog"
 import { FileDrop } from "@/components/FileDrop"

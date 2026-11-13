@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { CircleAlert, Plug, Unplug } from "lucide-react"
-import { api } from "@/lib/api-client"
+import { api } from "@adrianmross/appkit-ui"
 import type { Page, Token } from "@/lib/types"
 import { Alert, AlertDescription } from "@adrianmross/appkit-ui/ui/alert"
 import { Badge } from "@adrianmross/appkit-ui/ui/badge"

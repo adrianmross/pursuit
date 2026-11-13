@@ -2,8 +2,8 @@
 
 import { Fragment, useState, type ReactNode } from "react"
 import { Minus, Plus, X } from "lucide-react"
-import { api, ApiError } from "@/lib/api-client"
-import { cn } from "@/lib/utils"
+import { api, ApiError } from "@adrianmross/appkit-ui"
+import { cn } from "@adrianmross/appkit-ui"
 import { ROUND_STAGES, STAGE_STOPS, type Interview, type Task } from "@/lib/types"
 import { Button } from "@adrianmross/appkit-ui/ui/button"
 import { Checkbox } from "@adrianmross/appkit-ui/ui/checkbox"

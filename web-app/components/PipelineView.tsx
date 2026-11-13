@@ -26,14 +26,14 @@ import {
   Trash2,
   X,
 } from "lucide-react"
-import { api, ApiError } from "@/lib/api-client"
-import { useAuth } from "@/lib/auth"
+import { api, ApiError } from "@adrianmross/appkit-ui"
+import { useAuth } from "@adrianmross/appkit-ui"
 import { useRevision } from "@/lib/live"
-import { useShortcuts } from "@/lib/keybindings"
+import { useShortcuts } from "@adrianmross/appkit-ui"
 import { Kbd } from "@adrianmross/appkit-ui/ui/kbd"
 import { getDefaultSort, getDefaultStatus } from "@/lib/settings"
-import { usePref } from "@/lib/use-pref"
-import { cn } from "@/lib/utils"
+import { usePref } from "@adrianmross/appkit-ui"
+import { cn } from "@adrianmross/appkit-ui"
 import { buildApplicationsQuery } from "@/lib/pipeline-query"
 import { applicationHref } from "@/lib/links"
 import {

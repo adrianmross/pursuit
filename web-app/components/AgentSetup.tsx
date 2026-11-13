@@ -2,7 +2,7 @@
 
 import { useState, useSyncExternalStore } from "react"
 import { CircleAlert, ShieldCheck, Trash2 } from "lucide-react"
-import { api, serverUrl } from "@/lib/api-client"
+import { api, serverUrl } from "@adrianmross/appkit-ui"
 import type { Token } from "@/lib/types"
 import { CommandBlock } from "@/components/CommandBlock"
 import { Secret } from "@/components/settings/TokensPanel"

@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { api } from "@/lib/api-client"
+import { api } from "@adrianmross/appkit-ui"
 import type { Application, Page } from "@/lib/types"
 import { HomeCta } from "@/components/HomeCta"
 

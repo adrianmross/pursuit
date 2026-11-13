@@ -2,7 +2,7 @@
 
 import { useRef, useState, type KeyboardEvent } from "react"
 import { CircleAlert } from "lucide-react"
-import { cn } from "@/lib/utils"
+import { cn } from "@adrianmross/appkit-ui"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@adrianmross/appkit-ui/ui/select"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@adrianmross/appkit-ui/ui/tooltip"
 

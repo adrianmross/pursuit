@@ -2,7 +2,7 @@
 
 import { useEffect, useSyncExternalStore } from "react"
 import { useRouter } from "next/navigation"
-import { useAuth } from "@/lib/auth"
+import { useAuth } from "@adrianmross/appkit-ui"
 import { SignInForm } from "@/components/SignInForm"
 
 const noop = () => () => {}

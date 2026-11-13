@@ -2,12 +2,12 @@
 
 import { useCallback, useEffect, useId, useRef, useState } from "react"
 import { usePathname, useRouter } from "next/navigation"
-import { api } from "@/lib/api-client"
+import { api } from "@adrianmross/appkit-ui"
 import { applicationHref } from "@/lib/links"
 import { PRODUCT_NAME } from "@/lib/brand"
-import { setPref } from "@/lib/settings"
-import { useAuth } from "@/lib/auth"
-import { usePref } from "@/lib/use-pref"
+import { setPref } from "@adrianmross/appkit-ui"
+import { useAuth } from "@adrianmross/appkit-ui"
+import { usePref } from "@adrianmross/appkit-ui"
 import type { Application, Page } from "@/lib/types"
 import { Button } from "@adrianmross/appkit-ui/ui/button"
 

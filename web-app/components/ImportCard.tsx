@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react"
 import { FileUp } from "lucide-react"
-import { api, ApiError } from "@/lib/api-client"
+import { api, ApiError } from "@adrianmross/appkit-ui"
 import type { ImportResult } from "@/lib/types"
 import type { IMPORTERS } from "@/lib/importers"
 import { Button } from "@adrianmross/appkit-ui/ui/button"

@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react"
 import { EditorState } from "@codemirror/state"
 import { EditorView } from "@codemirror/view"
 import { MergeView, unifiedMergeView } from "@codemirror/merge"
-import { api } from "@/lib/api-client"
+import { api } from "@adrianmross/appkit-ui"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@adrianmross/appkit-ui/ui/dialog"
 import { Spinner } from "@adrianmross/appkit-ui/ui/spinner"
 

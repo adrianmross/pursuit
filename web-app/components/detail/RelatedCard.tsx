@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react"
 import Link from "next/link"
 import { Link2, Unlink, X } from "lucide-react"
-import { api, ApiError } from "@/lib/api-client"
+import { api, ApiError } from "@adrianmross/appkit-ui"
 import { applicationHref } from "@/lib/links"
 import { displayed, markOf, outcomeKind, type Application, type Page } from "@/lib/types"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@adrianmross/appkit-ui/ui/dialog"

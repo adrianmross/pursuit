@@ -2,8 +2,8 @@
 
 import { useState } from "react"
 import { Check, MoreHorizontal, X } from "lucide-react"
-import { api } from "@/lib/api-client"
-import { useShortcuts } from "@/lib/keybindings"
+import { api } from "@adrianmross/appkit-ui"
+import { useShortcuts } from "@adrianmross/appkit-ui"
 import { displayed, markOf, ROUND_STAGES, shown, type Application } from "@/lib/types"
 import { useRounds } from "@/components/Rounds"
 import { CompanyAvatar, forgetFavicon } from "@/components/CompanyAvatar"

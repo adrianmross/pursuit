@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useState } from "react"
-import { api } from "@/lib/api-client"
+import { api } from "@adrianmross/appkit-ui"
 
 // GET /v1/features. available = configured && entitled && enabled; the
 // server enforces it, this only decides what to show.

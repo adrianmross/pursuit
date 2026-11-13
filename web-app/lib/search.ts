@@ -1,4 +1,4 @@
-import { getPref } from "@/lib/settings"
+import { getPref } from "@adrianmross/appkit-ui"
 
 export type SearchQualifier = { key: string; op: "=" | ">" | ">=" | "<" | "<="; value: string }
 

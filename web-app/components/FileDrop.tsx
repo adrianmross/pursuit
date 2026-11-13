@@ -2,8 +2,8 @@
 
 import { useState, type DragEvent } from "react"
 import { FileUp } from "lucide-react"
-import { apiHeaders, apiUrl } from "@/lib/api-client"
-import { cn } from "@/lib/utils"
+import { apiHeaders, apiUrl } from "@adrianmross/appkit-ui"
+import { cn } from "@adrianmross/appkit-ui"
 import { Button } from "@adrianmross/appkit-ui/ui/button"
 import { ButtonGroup } from "@adrianmross/appkit-ui/ui/button-group"
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@adrianmross/appkit-ui/ui/empty"

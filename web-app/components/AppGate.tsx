@@ -2,8 +2,8 @@
 
 import { useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { EXPORT_MODE } from "@/lib/api-client"
-import { useAuth } from "@/lib/auth"
+import { EXPORT_MODE } from "@adrianmross/appkit-ui"
+import { useAuth } from "@adrianmross/appkit-ui"
 
 // Hosted build: proxy.ts already redirected unauthenticated requests to
 // /sign-in server-side before this ever renders — this is a no-op there.

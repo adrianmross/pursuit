@@ -2,8 +2,8 @@
 
 import { useState } from "react"
 import dynamic from "next/dynamic"
-import { useAuth } from "@/lib/auth"
-import { usePref } from "@/lib/use-pref"
+import { useAuth } from "@adrianmross/appkit-ui"
+import { usePref } from "@adrianmross/appkit-ui"
 
 // The overlay loads only when a tour is due, so everyone else never downloads it.
 const TourOverlay = dynamic(() => import("@/components/TourOverlay").then((m) => m.TourOverlay), { ssr: false })

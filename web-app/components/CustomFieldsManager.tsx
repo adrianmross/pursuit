@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { Plus, SlidersHorizontal, Trash2 } from "lucide-react"
-import { api } from "@/lib/api-client"
+import { api } from "@adrianmross/appkit-ui"
 import type { CustomField, Page } from "@/lib/types"
 import { Badge } from "@adrianmross/appkit-ui/ui/badge"
 import { Button } from "@adrianmross/appkit-ui/ui/button"

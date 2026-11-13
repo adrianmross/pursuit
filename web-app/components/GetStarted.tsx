@@ -3,11 +3,12 @@
 import { useEffect, useState, useSyncExternalStore, type ReactNode } from "react"
 import Link from "next/link"
 import { ArrowRight, BookOpen, Bot, Download, Megaphone, Puzzle, RotateCcw, Sparkles, Terminal, X } from "lucide-react"
-import { api, serverUrl } from "@/lib/api-client"
-import { useAnnouncement } from "@/lib/announcements"
-import { useAuth } from "@/lib/auth"
-import { setPref, type Pref } from "@/lib/settings"
-import { usePref } from "@/lib/use-pref"
+import { api, serverUrl } from "@adrianmross/appkit-ui"
+import { useAnnouncement } from "@adrianmross/appkit-ui"
+import { latest } from "@/lib/announcements"
+import { useAuth } from "@adrianmross/appkit-ui"
+import { setPref, type Pref } from "@adrianmross/appkit-ui"
+import { usePref } from "@adrianmross/appkit-ui"
 import type { Document, Page, StandingAnswer } from "@/lib/types"
 import { Button } from "@adrianmross/appkit-ui/ui/button"
 import { CommandBlock } from "@/components/CommandBlock"
@@ -146,7 +147,7 @@ export function GetStarted() {
   const server = useSyncExternalStore(noop, serverUrl, () => "")
   const profileOpen = usePref("hintProfile") === "on"
   const [missing, setMissing] = useState<string[]>([])
-  const announcement = useAnnouncement()
+  const announcement = useAnnouncement(latest)
   const [leaving, setLeaving] = useState<string | null>(null)
   useEffect(() => {
     if (!profileOpen || !can("write")) return

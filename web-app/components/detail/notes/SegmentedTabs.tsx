@@ -1,7 +1,7 @@
 "use client"
 
 import { useLayoutEffect, useRef, useState } from "react"
-import { cn } from "@/lib/utils"
+import { cn } from "@adrianmross/appkit-ui"
 
 // One connected control with a bubble that slides to the picked tab. The
 // count beside each label reads strongest on the active one.

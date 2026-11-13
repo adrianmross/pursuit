@@ -13,8 +13,8 @@ import { ThemeToggle } from "@/components/ThemeToggle"
 import { Button, buttonVariants } from "@adrianmross/appkit-ui/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@adrianmross/appkit-ui/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@adrianmross/appkit-ui/ui/table"
-import { cn } from "@/lib/utils"
-import { useAuth } from "@/lib/auth"
+import { cn } from "@adrianmross/appkit-ui"
+import { useAuth } from "@adrianmross/appkit-ui"
 
 // Everything in the hero is scripted, not real daemon data. The terminal run
 // stops at `approved` because this build enqueues submit work but never clicks Submit.

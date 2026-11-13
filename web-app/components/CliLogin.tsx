@@ -7,9 +7,9 @@
 // parses scopes itself, and the server re-checks on approve.
 
 import { useEffect, useState, type FormEvent, type ReactNode } from "react"
-import { api, ApiError } from "@/lib/api-client"
+import { api, ApiError } from "@adrianmross/appkit-ui"
 import { PRODUCT_NAME } from "@/lib/brand"
-import { useAuth } from "@/lib/auth"
+import { useAuth } from "@adrianmross/appkit-ui"
 import { SignInForm } from "@/components/SignInForm"
 import { ThemeToggle } from "@/components/ThemeToggle"
 import { Button } from "@adrianmross/appkit-ui/ui/button"

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, type ReactNode } from "react"
 import { Braces, Download, File, FileImage, FileText } from "lucide-react"
-import { api } from "@/lib/api-client"
+import { api } from "@adrianmross/appkit-ui"
 import { Button } from "@adrianmross/appkit-ui/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@adrianmross/appkit-ui/ui/dialog"
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@adrianmross/appkit-ui/ui/empty"

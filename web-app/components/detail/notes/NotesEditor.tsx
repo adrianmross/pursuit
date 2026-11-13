@@ -9,7 +9,7 @@ import { EditorState, type Extension } from "@codemirror/state"
 import { EditorView, keymap } from "@codemirror/view"
 import { tags } from "@lezer/highlight"
 import { vim } from "@replit/codemirror-vim"
-import { usePref } from "@/lib/use-pref"
+import { usePref } from "@adrianmross/appkit-ui"
 import { Button } from "@adrianmross/appkit-ui/ui/button"
 
 export type NoteSection = {

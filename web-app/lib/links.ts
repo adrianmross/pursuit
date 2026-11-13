@@ -1,4 +1,4 @@
-import { EXPORT_MODE } from "@/lib/api-client"
+import { EXPORT_MODE } from "@adrianmross/appkit-ui"
 
 // Hosted: a real dynamic route, /app/[id]/page.tsx.
 // Export mode: static export can't enumerate every application id via

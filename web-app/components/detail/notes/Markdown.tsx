@@ -1,8 +1,8 @@
 "use client"
 
 import { Fragment, useEffect, useState, type ReactNode } from "react"
-import { getPref } from "@/lib/settings"
-import { cn } from "@/lib/utils"
+import { getPref } from "@adrianmross/appkit-ui"
+import { cn } from "@adrianmross/appkit-ui"
 
 // Where text reveal runs: the notes view, or anywhere text opens.
 export type RevealScope = "notes" | "other"

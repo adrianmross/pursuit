@@ -2,9 +2,9 @@
 
 import { useEffect, useState, type FormEvent } from "react"
 import { CircleAlert, Fingerprint, Trash2 } from "lucide-react"
-import { api } from "@/lib/api-client"
+import { api } from "@adrianmross/appkit-ui"
 import type { Page } from "@/lib/types"
-import { addPasskey, passkeyError, passkeysUsable, type Passkey } from "@/lib/passkeys"
+import { addPasskey, passkeyError, passkeysUsable, type Passkey } from "@adrianmross/appkit-ui"
 import { ConfirmDialog } from "@/components/ConfirmDialog"
 import { Alert, AlertDescription } from "@adrianmross/appkit-ui/ui/alert"
 import { Badge } from "@adrianmross/appkit-ui/ui/badge"

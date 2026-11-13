@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { Check, CircleAlert, Copy, KeyRound, Trash2 } from "lucide-react"
-import { api } from "@/lib/api-client"
+import { api } from "@adrianmross/appkit-ui"
 import type { Page, Token } from "@/lib/types"
 import { CommandBlock } from "@/components/CommandBlock"
 import { Alert, AlertDescription, AlertTitle } from "@adrianmross/appkit-ui/ui/alert"

@@ -2,8 +2,8 @@
 
 import { Fragment } from "react"
 import { Keyboard } from "lucide-react"
-import { BINDINGS, keyLabels, useKeyPrefs } from "@/lib/keybindings"
-import { cn } from "@/lib/utils"
+import { BINDINGS, keyLabels, useKeyPrefs } from "@adrianmross/appkit-ui"
+import { cn } from "@adrianmross/appkit-ui"
 import { FieldLegend, FieldSet } from "@adrianmross/appkit-ui/ui/field"
 import { Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemMedia, ItemSeparator, ItemTitle } from "@adrianmross/appkit-ui/ui/item"
 import { Kbd, KbdGroup } from "@adrianmross/appkit-ui/ui/kbd"

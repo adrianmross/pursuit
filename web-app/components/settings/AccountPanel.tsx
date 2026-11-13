@@ -2,9 +2,9 @@
 
 import { useCallback, useEffect, useState, type FormEvent } from "react"
 import { Info, KeyRound, LogOut, Monitor, Smartphone } from "lucide-react"
-import { useAuth } from "@/lib/auth"
-import { authClient } from "@/lib/betterauth"
-import { api } from "@/lib/api-client"
+import { useAuth } from "@adrianmross/appkit-ui"
+import { authClient } from "@adrianmross/appkit-ui"
+import { api } from "@adrianmross/appkit-ui"
 import type { Me } from "@/lib/types"
 import { UserAvatar, avatarDataURL, displayName } from "@/components/UserAvatar"
 import { Alert, AlertDescription } from "@adrianmross/appkit-ui/ui/alert"

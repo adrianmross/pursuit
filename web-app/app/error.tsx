@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { RotateCcw } from "lucide-react"
-import { useAuth } from "@/lib/auth"
+import { useAuth } from "@adrianmross/appkit-ui"
 import { Die, Ring, Sketch, Track } from "@/components/Sketch"
 import { ErrorScene } from "@/components/ErrorScene"
 import { Button, buttonVariants } from "@adrianmross/appkit-ui/ui/button"

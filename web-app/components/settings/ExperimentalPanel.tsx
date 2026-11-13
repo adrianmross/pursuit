@@ -1,7 +1,7 @@
 "use client"
 
 import { Fragment, useEffect, useState } from "react"
-import { api } from "@/lib/api-client"
+import { api } from "@adrianmross/appkit-ui"
 import { goToStripe, useFeatures, type Billing } from "@/lib/features"
 import { Badge } from "@adrianmross/appkit-ui/ui/badge"
 import { Button } from "@adrianmross/appkit-ui/ui/button"

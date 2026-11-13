@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { getPref, setPref } from "@/lib/settings"
+import { getPref, setPref } from "@adrianmross/appkit-ui"
 import { parseSearch } from "@/lib/search"
 import { Button } from "@adrianmross/appkit-ui/ui/button"
 import { Input } from "@adrianmross/appkit-ui/ui/input"

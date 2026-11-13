@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from "react"
 import { ChevronDown, Eye, GitCompareArrows } from "lucide-react"
-import { api } from "@/lib/api-client"
-import { useAuth } from "@/lib/auth"
+import { api } from "@adrianmross/appkit-ui"
+import { useAuth } from "@adrianmross/appkit-ui"
 import { useFeatures } from "@/lib/features"
 import type { Artifact, Document, Page } from "@/lib/types"
 import { Badge } from "@adrianmross/appkit-ui/ui/badge"

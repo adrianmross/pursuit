@@ -2,9 +2,9 @@
 
 import { Fragment, useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
-import { api } from "@/lib/api-client"
-import { useAuth } from "@/lib/auth"
-import { setPref } from "@/lib/settings"
+import { api } from "@adrianmross/appkit-ui"
+import { useAuth } from "@adrianmross/appkit-ui"
+import { setPref } from "@adrianmross/appkit-ui"
 import { ConfirmDialog } from "@/components/ConfirmDialog"
 import { Button } from "@adrianmross/appkit-ui/ui/button"
 import { ButtonGroup } from "@adrianmross/appkit-ui/ui/button-group"

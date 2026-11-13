@@ -2,8 +2,8 @@
 
 import { useEffect, useRef, useState } from "react"
 import { ChevronDown, ChevronUp } from "lucide-react"
-import { usePref } from "@/lib/use-pref"
-import { cn } from "@/lib/utils"
+import { usePref } from "@adrianmross/appkit-ui"
+import { cn } from "@adrianmross/appkit-ui"
 
 const MIN = 1
 const MAX = 9
