@@ -1,5 +1,5 @@
-github.com/adrianmross/appkit v0.0.0-20261113185400-9434d6b5b78b h1:atybonzsl+7n2wQSYTuXUV07oOe4uLnO0o5PrMUQbRk=
-github.com/adrianmross/appkit v0.0.0-20261113185400-9434d6b5b78b/go.mod h1:B9Y7OR3CRi2fZYR3v4h73Sc0Y+yrXl/6uaFMHXtsLak=
+github.com/adrianmross/appkit v0.1.0 h1:16J73vqt4piD0bWoNaeXBtyE/MU99zOUcWLWpx4Mijw=
+github.com/adrianmross/appkit v0.1.0/go.mod h1:B9Y7OR3CRi2fZYR3v4h73Sc0Y+yrXl/6uaFMHXtsLak=
 github.com/adrianmross/oauthlite v0.2.0 h1:Nx7S9iCoy3bu/0O1h5djHsV3KK7JvkK4uq/sUNhtLqY=
 github.com/adrianmross/oauthlite v0.2.0/go.mod h1:Y+RUg0Y2c2H5E4EttBgrejxeYyTt/00YpFljZc+/pbg=
 github.com/adrianmross/ratchet v0.1.0 h1:PJR1YcEhR1psSdxmCIQG9VsiYObIdXQRD4DO+EMEhy8=
