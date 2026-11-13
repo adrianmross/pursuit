@@ -589,7 +589,7 @@ func (s *Store) DeleteWebhook(ctx context.Context, userID, id string) error {
 }
 
 func (s *Store) GetEvent(ctx context.Context, userID, id string) (domain.Event, error) {
-	e, err := scanEvent(s.queryRow(ctx, `SELECT e.id, e.user_id, e.application_id, e.kind, e.from_status, e.to_status, e.title, e.body, e.occurred_at, e.created_at, e.actor_token_id, e.actor_name FROM events e JOIN applications a ON a.id = e.application_id WHERE a.user_id=? AND e.id=?`, userID, id))
+	e, err := scanEvent(s.queryRow(ctx, `SELECT `+eventCols+` FROM events e WHERE e.user_id=? AND e.subject_type='application' AND e.id=?`, userID, id))
 	if err == sql.ErrNoRows {
 		return domain.Event{}, domain.NotFound("event")
 	}

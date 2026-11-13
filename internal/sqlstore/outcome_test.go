@@ -8,7 +8,7 @@ import (
 // Migration 006 moves outcomes off the status column and restores the stage
 // the application was in from the status change that led into the outcome.
 func TestMigrateOutcomeBackfill(t *testing.T) {
-	s := openTest(t)
+	s := openBefore(t, "006")
 	ctx := context.Background()
 	exec := func(q string, args ...any) {
 		t.Helper()
@@ -25,7 +25,9 @@ func TestMigrateOutcomeBackfill(t *testing.T) {
 	}
 	exec(`INSERT INTO events (id, user_id, application_id, kind, from_status, to_status, occurred_at, created_at) VALUES ('e1','u','a1','status_change','interviewing','rejected',?,?)`, ts, ts)
 
-	exec(migrations[5].stmts[1])
+	if err := Migrate(ctx, s.db, s.dialect); err != nil {
+		t.Fatal(err)
+	}
 	for id, want := range map[string][2]string{"a1": {"interviewing", "rejected"}, "a2": {"applied", "ghosted"}} {
 		var status, outcome string
 		if err := s.db.QueryRowContext(ctx, rebind(s.dialect, `SELECT status, outcome FROM applications WHERE id=?`), id).Scan(&status, &outcome); err != nil {

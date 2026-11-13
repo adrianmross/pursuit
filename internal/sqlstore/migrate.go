@@ -13,8 +13,12 @@ const advisoryLockKey int64 = 594132718233451
 // Migrate applies every pending migration in one transaction, under the
 // same lock as bootstrap.
 func Migrate(ctx context.Context, db *sql.DB, dialect string) error {
-	ms := make([]ratchet.Migration, len(migrations))
-	for i, m := range migrations {
+	return migrateTo(ctx, db, dialect, migrations)
+}
+
+func migrateTo(ctx context.Context, db *sql.DB, dialect string, list []migration) error {
+	ms := make([]ratchet.Migration, len(list))
+	for i, m := range list {
 		ms[i] = ratchet.Migration{Version: m.version, Stmts: m.stmts}
 	}
 	return ratchet.Runner{Dialect: dialect, LockKey: advisoryLockKey}.Up(ctx, db, ms)
@@ -633,5 +637,39 @@ var migrations = []migration{{
 			expires_at BIGINT NOT NULL
 		)`,
 		`CREATE INDEX IF NOT EXISTS rate_limits_expires_idx ON rate_limits(expires_at)`,
+	},
+}, {
+	version: "030",
+	stmts: []string{
+		// Events stop being tied to applications: an event names its subject
+		// by type and id, and what is particular to its kind (here the status
+		// change) moves into data, a JSON object. The table is rebuilt
+		// because SQLite cannot drop a column that carries a foreign key.
+		// The owner is taken from the application, which is what reads
+		// checked until now.
+		`CREATE TABLE events_030 (
+			id TEXT PRIMARY KEY,
+			user_id TEXT NOT NULL REFERENCES users(id),
+			subject_type TEXT NOT NULL,
+			subject_id TEXT NOT NULL,
+			kind TEXT NOT NULL,
+			data TEXT NOT NULL DEFAULT '{}',
+			title TEXT NOT NULL DEFAULT '',
+			body TEXT NOT NULL DEFAULT '',
+			occurred_at TEXT NOT NULL,
+			created_at TEXT NOT NULL,
+			actor_token_id TEXT NOT NULL DEFAULT '',
+			actor_name TEXT NOT NULL DEFAULT ''
+		)`,
+		`INSERT INTO events_030 (id, user_id, subject_type, subject_id, kind, data, title, body, occurred_at, created_at, actor_token_id, actor_name)
+			SELECT e.id, a.user_id, 'application', e.application_id, e.kind,
+				'{"from_status":"' || replace(replace(e.from_status, '\', '\\'), '"', '\"') ||
+				'","to_status":"' || replace(replace(e.to_status, '\', '\\'), '"', '\"') || '"}',
+				e.title, e.body, e.occurred_at, e.created_at, e.actor_token_id, e.actor_name
+			FROM events e JOIN applications a ON a.id = e.application_id`,
+		`DROP TABLE events`,
+		`ALTER TABLE events_030 RENAME TO events`,
+		`CREATE INDEX events_subject_idx ON events(subject_type, subject_id, occurred_at, id)`,
+		`CREATE INDEX events_user_idx ON events(user_id, occurred_at, id)`,
 	},
 }}
