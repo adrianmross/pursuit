@@ -2,13 +2,13 @@
 
 import { Fragment, useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
-import { api } from "@/lib/api-client"
-import { useAuth } from "@/lib/auth"
-import { setPref } from "@/lib/settings"
-import { ConfirmDialog } from "@/components/ConfirmDialog"
-import { Button } from "@/components/ui/button"
-import { ButtonGroup } from "@/components/ui/button-group"
-import { Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemSeparator, ItemTitle } from "@/components/ui/item"
+import { api } from "@adrianmross/appkit-ui"
+import { useAuth } from "@adrianmross/appkit-ui"
+import { setPref } from "@adrianmross/appkit-ui"
+import { ConfirmDialog } from "@adrianmross/appkit-ui"
+import { Button } from "@adrianmross/appkit-ui/ui/button"
+import { ButtonGroup } from "@adrianmross/appkit-ui/ui/button-group"
+import { Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemSeparator, ItemTitle } from "@adrianmross/appkit-ui/ui/item"
 
 // Signs into a fresh seeded sandbox (POST /v1/demo). Only where the deployment has demo mode on.
 function Tutorial({ onClose }: { onClose: () => void }) {

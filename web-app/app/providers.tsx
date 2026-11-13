@@ -1,11 +1,12 @@
 "use client"
 
 import { useEffect } from "react"
+import "@/lib/appkit"
 import { ThemeProvider } from "next-themes"
-import { AuthProvider } from "@/lib/auth"
-import { applyAppearance } from "@/lib/settings"
-import { initTelemetry } from "@/lib/telemetry"
-import { TooltipProvider } from "@/components/ui/tooltip"
+import { AuthProvider } from "@adrianmross/appkit-ui"
+import { applyAppearance } from "@adrianmross/appkit-ui"
+import { initTelemetry } from "@adrianmross/appkit-ui"
+import { TooltipProvider } from "@adrianmross/appkit-ui/ui/tooltip"
 import type { Me } from "@/lib/types"
 
 export function Providers({ initialMe, children }: { initialMe: Me | null; children: React.ReactNode }) {

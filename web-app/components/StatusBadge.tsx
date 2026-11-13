@@ -1,5 +1,5 @@
 import { label, outcomeKind, statusCategory, statusTone } from "@/lib/status"
-import { Badge } from "@/components/ui/badge"
+import { Badge } from "@adrianmross/appkit-ui/ui/badge"
 
 const CATEGORY_CLASS: Record<string, string> = {
   action: "bg-amber-500/15 text-amber-700 dark:bg-amber-500/20 dark:text-amber-400",

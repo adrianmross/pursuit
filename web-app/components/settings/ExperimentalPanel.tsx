@@ -1,13 +1,13 @@
 "use client"
 
 import { Fragment, useEffect, useState } from "react"
-import { api } from "@/lib/api-client"
+import { api } from "@adrianmross/appkit-ui"
 import { goToStripe, useFeatures, type Billing } from "@/lib/features"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemSeparator, ItemTitle } from "@/components/ui/item"
-import { Spinner } from "@/components/ui/spinner"
-import { Switch } from "@/components/ui/switch"
+import { Badge } from "@adrianmross/appkit-ui/ui/badge"
+import { Button } from "@adrianmross/appkit-ui/ui/button"
+import { Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemSeparator, ItemTitle } from "@adrianmross/appkit-ui/ui/item"
+import { Spinner } from "@adrianmross/appkit-ui/ui/spinner"
+import { Switch } from "@adrianmross/appkit-ui/ui/switch"
 
 // Each feature's switch is the user's own on/off. A feature the server
 // isn't set up for, or the plan doesn't include, says why instead.

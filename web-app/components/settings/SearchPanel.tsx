@@ -2,11 +2,11 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { getPref, setPref } from "@/lib/settings"
+import { getPref, setPref } from "@adrianmross/appkit-ui"
 import { parseSearch } from "@/lib/search"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Switch } from "@/components/ui/switch"
+import { Button } from "@adrianmross/appkit-ui/ui/button"
+import { Input } from "@adrianmross/appkit-ui/ui/input"
+import { Switch } from "@adrianmross/appkit-ui/ui/switch"
 
 const QUALIFIERS: [string, string, string][] = [
   ["status:", "status:applied", "Exact status: to_apply, applied, screening, interviewing, offer, rejected, and the rest"],

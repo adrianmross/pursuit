@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { RotateCcw } from "lucide-react"
 import { SnakeEyes } from "@/components/Sketch"
-import { Button, buttonVariants } from "@/components/ui/button"
+import { Button, buttonVariants } from "@adrianmross/appkit-ui/ui/button"
 
 // Catches a failure in the core application fetch itself (the one thing
 // app/(app)/app/[id]/page.tsx awaits) — e.g. the exact FUNCTION_INVOCATION_TIMEOUT

@@ -1,12 +1,12 @@
 import { Suspense } from "react"
 import { notFound } from "next/navigation"
-import { EXPORT_MODE, pursuitApiAuthed, ApiError } from "@/lib/pursuit-api"
+import { EXPORT_MODE, serverApiAuthed, ApiError } from "@/lib/server"
 import type { Application, CustomField, Page } from "@/lib/types"
 import { CreateApplicationView } from "@/components/detail/CreateApplicationView"
 import { DetailShell, ShowIf } from "@/components/detail/DetailShell"
 import { EventsSection } from "@/components/detail/EventsSection"
 import { ArtifactsSection } from "@/components/detail/ArtifactsSection"
-import { EventsSkeleton, ArtifactsSkeleton } from "@/components/detail/SectionSkeletons"
+import { EventsSkeleton, ArtifactsSkeleton } from "@adrianmross/appkit-ui"
 
 export default async function ApplicationDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -19,8 +19,8 @@ export default async function ApplicationDetailPage({ params }: { params: Promis
   let fields: CustomField[]
   try {
     const [app, fieldsPage] = await Promise.all([
-      pursuitApiAuthed<Application>(`/v1/applications/${encodeURIComponent(id)}`),
-      pursuitApiAuthed<Page<CustomField>>("/v1/fields?limit=100"),
+      serverApiAuthed<Application>(`/v1/applications/${encodeURIComponent(id)}`),
+      serverApiAuthed<Page<CustomField>>("/v1/fields?limit=100"),
     ])
     application = app
     fields = fieldsPage.data || []

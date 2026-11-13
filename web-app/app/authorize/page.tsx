@@ -1,5 +1,5 @@
 import type { Metadata } from "next"
-import { allowTokenLogin } from "@/lib/cli-login"
+import { allowTokenLogin } from "@/lib/server"
 import { AuthorizePage } from "./authorize-page"
 
 export const metadata: Metadata = { title: "Sign in the CLI" }

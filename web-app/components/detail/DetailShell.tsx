@@ -2,11 +2,12 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react"
 import { useRouter } from "next/navigation"
-import { api, ApiError } from "@/lib/api-client"
-import { useAuth } from "@/lib/auth"
-import { useRevision } from "@/lib/live"
-import { OUTLINE_TABS, type Pref } from "@/lib/settings"
-import { usePref } from "@/lib/use-pref"
+import { api, ApiError } from "@adrianmross/appkit-ui"
+import { useAuth } from "@adrianmross/appkit-ui"
+import { useRevision } from "@adrianmross/appkit-ui"
+import { type Pref } from "@adrianmross/appkit-ui"
+import { OUTLINE_TABS } from "@/lib/settings"
+import { usePref } from "@adrianmross/appkit-ui"
 import type { Application, Artifact, CustomField, Event, Page } from "@/lib/types"
 import { DetailHeader } from "@/components/detail/DetailHeader"
 import { ListingCard } from "@/components/detail/ListingCard"
@@ -14,8 +15,8 @@ import { RejectChoice, RelatedCard } from "@/components/detail/RelatedCard"
 import { OutlineCard } from "@/components/detail/OutlineCard"
 import { EventsHistoryCard } from "@/components/detail/EventsHistoryCard"
 import { ArtifactsCard } from "@/components/detail/ArtifactsCard"
-import { SectionError } from "@/components/detail/SectionError"
-import { AttributesSkeleton, ArtifactsSkeleton, EventsSkeleton, HeaderSkeleton } from "@/components/detail/SectionSkeletons"
+import { SectionError } from "@adrianmross/appkit-ui"
+import { AttributesSkeleton, ArtifactsSkeleton, EventsSkeleton, HeaderSkeleton } from "@adrianmross/appkit-ui"
 
 export type DetailInitial = { application: Application; fields: CustomField[] }
 

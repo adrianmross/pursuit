@@ -1,24 +1,32 @@
 "use client"
 
+// ponytail: Pursuit's own copy of appkit-ui's SignInForm, kept for one thing.
+// The package wraps the brand's failure art in a <span>, so the Alert no
+// longer sees an icon and stacks the sketch above the message instead of
+// beside it. Delete this file and import SignInForm from appkit-ui once the
+// package renders failArt as the Alert's direct child. The consent pages
+// (/authorize, /device) already use the package's form and show the stacked
+// layout until then.
+
 import { useEffect, useState, type FormEvent } from "react"
 import Link from "next/link"
-import { api, EXPORT_MODE } from "@/lib/api-client"
-import { useAuth } from "@/lib/auth"
-import { authClient } from "@/lib/betterauth"
+import { api, EXPORT_MODE } from "@adrianmross/appkit-ui"
+import { useAuth } from "@adrianmross/appkit-ui"
+import { authClient } from "@adrianmross/appkit-ui"
 import { PRODUCT_NAME } from "@/lib/brand"
-import { Alert, AlertTitle } from "@/components/ui/alert"
-import { Button } from "@/components/ui/button"
-import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
-import { Input } from "@/components/ui/input"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { CommandBlock } from "@/components/CommandBlock"
-import { track } from "@/lib/telemetry"
-import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp"
+import { Alert, AlertTitle } from "@adrianmross/appkit-ui/ui/alert"
+import { Button } from "@adrianmross/appkit-ui/ui/button"
+import { Field, FieldGroup, FieldLabel } from "@adrianmross/appkit-ui/ui/field"
+import { Input } from "@adrianmross/appkit-ui/ui/input"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@adrianmross/appkit-ui/ui/card"
+import { CommandBlock } from "@adrianmross/appkit-ui"
+import { track } from "@adrianmross/appkit-ui"
+import { InputOTP, InputOTPGroup, InputOTPSlot } from "@adrianmross/appkit-ui/ui/input-otp"
 import { SnakeEyes } from "@/components/Sketch"
 import { SiteFooter } from "@/components/SiteFooter"
-import { ThemeToggle } from "@/components/ThemeToggle"
-import { cn } from "@/lib/utils"
-import { passkeyError, passkeysUsable, signInWithPasskey } from "@/lib/passkeys"
+import { ThemeToggle } from "@adrianmross/appkit-ui"
+import { cn } from "@adrianmross/appkit-ui"
+import { passkeyError, passkeysUsable, signInWithPasskey } from "@adrianmross/appkit-ui"
 import { Fingerprint } from "lucide-react"
 
 // A failed sign-in step: the message beside a sketched bad roll.

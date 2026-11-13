@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react"
 import { ChevronLeft, ChevronRight } from "lucide-react"
-import { cn } from "@/lib/utils"
+import { cn } from "@adrianmross/appkit-ui"
 import {
   label,
   OUTCOMES,
@@ -16,12 +16,12 @@ import {
   type Application,
 } from "@/lib/types"
 import { HoldIcon, OutcomePiece } from "@/components/Sketch"
-import { Kbd } from "@/components/ui/kbd"
+import { Kbd } from "@adrianmross/appkit-ui/ui/kbd"
 import { ProgressMark } from "@/components/ProgressMark"
 import { AddRoundIcon, RoundsList, TaskIcon, TaskList, useRounds, useTasks } from "@/components/Rounds"
-import { Button } from "@/components/ui/button"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { Button } from "@adrianmross/appkit-ui/ui/button"
+import { Popover, PopoverContent, PopoverTrigger } from "@adrianmross/appkit-ui/ui/popover"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@adrianmross/appkit-ui/ui/tooltip"
 
 const STEP: Record<string, number> = { ArrowRight: 1, ArrowUp: 1, PageUp: 1, ArrowLeft: -1, ArrowDown: -1, PageDown: -1 }
 

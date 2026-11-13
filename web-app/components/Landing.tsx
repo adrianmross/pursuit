@@ -9,12 +9,12 @@ import { CompanyAvatar } from "@/components/CompanyAvatar"
 import { ProgressMark } from "@/components/ProgressMark"
 import { SiteFooter } from "@/components/SiteFooter"
 import { StatusBadge } from "@/components/StatusBadge"
-import { ThemeToggle } from "@/components/ThemeToggle"
-import { Button, buttonVariants } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { cn } from "@/lib/utils"
-import { useAuth } from "@/lib/auth"
+import { ThemeToggle } from "@adrianmross/appkit-ui"
+import { Button, buttonVariants } from "@adrianmross/appkit-ui/ui/button"
+import { Card, CardContent, CardHeader, CardTitle } from "@adrianmross/appkit-ui/ui/card"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@adrianmross/appkit-ui/ui/table"
+import { cn } from "@adrianmross/appkit-ui"
+import { useAuth } from "@adrianmross/appkit-ui"
 
 // Everything in the hero is scripted, not real daemon data. The terminal run
 // stops at `approved` because this build enqueues submit work but never clicks Submit.

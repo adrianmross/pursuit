@@ -1,8 +1,8 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { apiHeaders, apiUrl } from "@/lib/api-client"
-import { usePref } from "@/lib/use-pref"
+import { apiHeaders, apiUrl } from "@adrianmross/appkit-ui"
+import { usePref } from "@adrianmross/appkit-ui"
 
 // ponytail: in-memory only, no eviction — fine for a session's worth of companies.
 // "default" sends nothing, so the server's default applies.

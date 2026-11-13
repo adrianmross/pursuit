@@ -2,12 +2,12 @@
 
 import { useRef, useState } from "react"
 import { FileUp } from "lucide-react"
-import { api, ApiError } from "@/lib/api-client"
+import { api, ApiError } from "@adrianmross/appkit-ui"
 import type { ImportResult } from "@/lib/types"
 import type { IMPORTERS } from "@/lib/importers"
-import { Button } from "@/components/ui/button"
-import { Item, ItemActions, ItemContent, ItemDescription, ItemMedia, ItemTitle } from "@/components/ui/item"
-import { Spinner } from "@/components/ui/spinner"
+import { Button } from "@adrianmross/appkit-ui/ui/button"
+import { Item, ItemActions, ItemContent, ItemDescription, ItemMedia, ItemTitle } from "@adrianmross/appkit-ui/ui/item"
+import { Spinner } from "@adrianmross/appkit-ui/ui/spinner"
 
 export function ImportCard({ importer }: { importer: (typeof IMPORTERS)[number] }) {
   const inputRef = useRef<HTMLInputElement>(null)

@@ -1,16 +1,16 @@
-import { pursuitApi } from "@/lib/pursuit-api"
+import { serverApi } from "@/lib/server"
 import type { Event, Page } from "@/lib/types"
 import { EventsHistoryCard } from "@/components/detail/EventsHistoryCard"
-import { SectionError } from "@/components/detail/SectionError"
+import { SectionError } from "@adrianmross/appkit-ui"
 
-// A 401 here deliberately doesn't redirect like pursuitApiAuthed would —
+// A 401 here deliberately doesn't redirect like serverApiAuthed would —
 // the core page already rendered (application was awaited and worked), so
 // a token that expires mid-request should surface as "this one section
 // couldn't load, retry," not yank the user off a page they're looking at.
 export async function EventsSection({ id }: { id: string }) {
   let page: Page<Event> | null = null
   try {
-    page = await pursuitApi<Page<Event>>(`/v1/applications/${encodeURIComponent(id)}/events?limit=100`)
+    page = await serverApi<Page<Event>>(`/v1/applications/${encodeURIComponent(id)}/events?limit=100`)
   } catch {
     // fall through — page stays null
   }

@@ -1,13 +1,13 @@
-// Writes registry.json from globals.css and the component list below, then
+// Writes registry.json from the appkit-ui theme (the tokens) and the component list below, then
 // `shadcn build` turns it into public/r/<name>.json, served at /r/<name>.json.
 // Run with `npm run registry`; commit both.
 import { readFileSync, writeFileSync } from "node:fs"
 
-const css = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8")
+const css = readFileSync(new URL("../node_modules/@adrianmross/appkit-ui/src/theme.css", import.meta.url), "utf8")
 
 function vars(selector) {
   const block = css.match(new RegExp(`^${selector.replace(".", "\\.")} \\{([^}]*)\\}`, "m"))
-  if (!block) throw new Error("no " + selector + " block in globals.css")
+  if (!block) throw new Error("no " + selector + " block in theme.css")
   return Object.fromEntries([...block[1].matchAll(/--([\w-]+):\s*([^;]+);/g)].map((m) => [m[1], m[2].trim()]))
 }
 

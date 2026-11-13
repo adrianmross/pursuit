@@ -2,10 +2,10 @@
 
 import Link from "next/link"
 import { ArrowLeft } from "lucide-react"
-import { useAuth } from "@/lib/auth"
+import { useAuth } from "@adrianmross/appkit-ui"
 import { Die, Four, Ring, Sketch, Track } from "@/components/Sketch"
 import { ErrorScene } from "@/components/ErrorScene"
-import { buttonVariants } from "@/components/ui/button"
+import { buttonVariants } from "@adrianmross/appkit-ui/ui/button"
 
 // Exported as 404.html; the Go server serves it, with a 404 status, for any
 // path that has no file of its own (internal/dashboard).

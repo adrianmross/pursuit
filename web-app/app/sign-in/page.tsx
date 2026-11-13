@@ -1,4 +1,4 @@
-import { EXPORT_MODE, pursuitApi } from "@/lib/pursuit-api"
+import { EXPORT_MODE, serverApi } from "@/lib/server"
 import { SignInGate } from "./sign-in-gate"
 
 export default async function SignInPage() {
@@ -6,7 +6,7 @@ export default async function SignInPage() {
   let demoAvailable = false
   if (!EXPORT_MODE) {
     try {
-      const result = await pursuitApi<{ allow_token_login: boolean; demo_available: boolean }>("/v1/auth/providers")
+      const result = await serverApi<{ allow_token_login: boolean; demo_available: boolean }>("/v1/auth/providers")
       allowTokenLogin = result.allow_token_login
       demoAvailable = result.demo_available
     } catch {

@@ -2,17 +2,17 @@
 
 import { useEffect, useState } from "react"
 import { Plus, SlidersHorizontal, Trash2 } from "lucide-react"
-import { api } from "@/lib/api-client"
+import { api } from "@adrianmross/appkit-ui"
 import type { CustomField, Page } from "@/lib/types"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { ButtonGroup } from "@/components/ui/button-group"
-import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty"
-import { Field, FieldDescription, FieldError, FieldLegend, FieldSet } from "@/components/ui/field"
-import { Input } from "@/components/ui/input"
-import { Item, ItemActions, ItemContent, ItemGroup, ItemTitle } from "@/components/ui/item"
-import { Spinner } from "@/components/ui/spinner"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Badge } from "@adrianmross/appkit-ui/ui/badge"
+import { Button } from "@adrianmross/appkit-ui/ui/button"
+import { ButtonGroup } from "@adrianmross/appkit-ui/ui/button-group"
+import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@adrianmross/appkit-ui/ui/empty"
+import { Field, FieldDescription, FieldError, FieldLegend, FieldSet } from "@adrianmross/appkit-ui/ui/field"
+import { Input } from "@adrianmross/appkit-ui/ui/input"
+import { Item, ItemActions, ItemContent, ItemGroup, ItemTitle } from "@adrianmross/appkit-ui/ui/item"
+import { Spinner } from "@adrianmross/appkit-ui/ui/spinner"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@adrianmross/appkit-ui/ui/select"
 
 const TYPES: [CustomField["type"], string][] = [
   ["text", "Text"],
