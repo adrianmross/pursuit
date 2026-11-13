@@ -2,7 +2,7 @@ import type { Metadata } from "next"
 import "./globals.css"
 import "@/lib/appkit"
 import { PRODUCT_NAME } from "@/lib/brand"
-import { getMe } from "@/lib/pursuit-api"
+import { getMe } from "@/lib/server"
 import { Providers } from "./providers"
 
 export const metadata: Metadata = {

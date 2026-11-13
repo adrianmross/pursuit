@@ -1,37 +1,10 @@
-import { NextResponse, type NextRequest } from "next/server"
-import { TOKEN_COOKIE } from "@/lib/pursuit-api"
+import { authProxy } from "@/lib/server"
 
 // Only runs on the hosted (server) build — static export has no proxy
 // (formerly "middleware") at runtime, self-hosted auth is gated
-// client-side instead (see lib/api-client.ts / AuthProvider).
-export default function proxy(request: NextRequest) {
-  const { pathname } = request.nextUrl
-  const isPublic =
-    pathname === "/" ||
-    pathname === "/sign-in" ||
-    pathname === "/device" ||
-    pathname === "/authorize" ||
-    pathname.startsWith("/api/auth/") ||
-    pathname.startsWith("/_next/") ||
-    pathname.startsWith("/brand/") ||
-    pathname === "/privacy" ||
-    pathname === "/terms" ||
-    pathname === "/docs" ||
-    pathname.startsWith("/docs/") ||
-    pathname.startsWith("/practice.html") ||
-    pathname === "/favicon.ico"
-  if (isPublic) return NextResponse.next()
-
-  const hasToken = request.cookies.has(TOKEN_COOKIE)
-  if (!hasToken) {
-    const url = request.nextUrl.clone()
-    url.pathname = "/sign-in"
-    // Come back here after signing in, e.g. to an invite link.
-    url.search = "?" + new URLSearchParams({ next: pathname + request.nextUrl.search })
-    return NextResponse.redirect(url)
-  }
-  return NextResponse.next()
-}
+// client-side instead (see AuthProvider). These open without signing in,
+// besides the sign-in and consent pages appkit-ui always leaves open.
+export default authProxy(["/", "/privacy", "/terms", "/docs", "/docs/", "/practice.html"])
 
 export const config = {
   matcher: ["/((?!api/proxy).*)"],

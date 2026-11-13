@@ -1,5 +1,5 @@
 import { ArrowRight, MousePointerClick } from "lucide-react"
-import { EXPORT_MODE, pursuitApiAuthed } from "@/lib/pursuit-api"
+import { EXPORT_MODE, serverApiAuthed } from "@/lib/server"
 import type { Application, Page } from "@/lib/types"
 import { Button } from "@adrianmross/appkit-ui/ui/button"
 import { Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemMedia, ItemTitle } from "@adrianmross/appkit-ui/ui/item"
@@ -15,7 +15,7 @@ export default async function Home() {
   // server at request time, so HomeCtaClient fetches it after mount.
   let cta = <HomeCtaClient />
   if (!EXPORT_MODE) {
-    const page = await pursuitApiAuthed<Page<Application>>("/v1/applications?limit=1")
+    const page = await serverApiAuthed<Page<Application>>("/v1/applications?limit=1")
     cta = <HomeCta hasApplications={page.page.total > 0} />
   }
 

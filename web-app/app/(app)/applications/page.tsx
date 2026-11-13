@@ -1,5 +1,5 @@
 import { Suspense } from "react"
-import { EXPORT_MODE, pursuitApiAuthed } from "@/lib/pursuit-api"
+import { EXPORT_MODE, serverApiAuthed } from "@/lib/server"
 import { buildApplicationsQuery } from "@/lib/pipeline-query"
 import { getDefaultSort, getDefaultStatus } from "@/lib/settings"
 import type { Application, CustomField, Page } from "@/lib/types"
@@ -31,8 +31,8 @@ export default async function PipelinePage({
 
   const qs = buildApplicationsQuery({ status, category, sort, archivedView, exclude })
   const [appsPage, fieldsPage] = await Promise.all([
-    pursuitApiAuthed<Page<Application>>("/v1/applications?" + qs.toString()),
-    pursuitApiAuthed<Page<CustomField>>("/v1/fields?limit=100"),
+    serverApiAuthed<Page<Application>>("/v1/applications?" + qs.toString()),
+    serverApiAuthed<Page<CustomField>>("/v1/fields?limit=100"),
   ])
 
   const initial: PipelineInitial = {
