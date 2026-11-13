@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.10.0](https://github.com/adrianmross/pursuit/compare/v0.9.0...v0.10.0) (2026-11-13)
+
+
+### Features
+
+* **pursuit:** Add an MCP server at /mcp so claude.ai connectors and ChatGPT apps can list, save and prepare your applications after signing in with OAuth ([#141](https://github.com/adrianmross/pursuit/issues/141)) ([956af79](https://github.com/adrianmross/pursuit/commit/956af793f5b2e6180e8718579da8bb258b374f3e))
+* **pursuit:** Let API keys expire, sign out other sessions when a passkey is removed or the email changes, and prefix the hosted app's sign-in cookie with __Host- in production ([#150](https://github.com/adrianmross/pursuit/issues/150)) ([58612a7](https://github.com/adrianmross/pursuit/commit/58612a70931d0aa80a6d88b0f408af05c1d4a252))
+* **pursuit:** Let ChatGPT and Claude apps sign in to Pursuit with OAuth: discovery documents, client metadata URLs and dynamic registration, a consent page that names the app, hour-long access tokens with rotating refresh tokens, and a Connected apps list in Settings ([#140](https://github.com/adrianmross/pursuit/issues/140)) ([80884a8](https://github.com/adrianmross/pursuit/commit/80884a8eab03fbe1584c5192489b035683b6a529))
+* **pursuit:** Treat dashboard sign-ins as sessions with idle and absolute lifetimes, a passkey step-up for approvals, and a Sessions list in Settings ([#138](https://github.com/adrianmross/pursuit/issues/138)) ([9b9811d](https://github.com/adrianmross/pursuit/commit/9b9811d4c3e1ede315e0e010d8753392910f5a5f))
+
+
+### Bug Fixes
+
+* **pursuit:** Answer a crashed request with 500 internal error instead of 409 conflict ([#142](https://github.com/adrianmross/pursuit/issues/142)) ([f835710](https://github.com/adrianmross/pursuit/commit/f835710a4d7caa7da8a25faafc2d1b768ff1ae49))
+* **pursuit:** Count rate limits in the database so they hold across serverless instances, add limits to the OAuth token endpoint and MCP calls, and let a refresh token be retried for a few seconds without revoking the connection ([#148](https://github.com/adrianmross/pursuit/issues/148)) ([9f996a6](https://github.com/adrianmross/pursuit/commit/9f996a6622e1be22ee868360ea56a4ac35a55e5e))
+* **pursuit:** Remove the Accent color, Row density and Striped rows settings, which changed nothing ([#159](https://github.com/adrianmross/pursuit/issues/159)) ([13714eb](https://github.com/adrianmross/pursuit/commit/13714ebe1296db944baf222a08cebdce3a238657))
+
 ## [0.9.0](https://github.com/adrianmross/pursuit/compare/v0.8.0...v0.9.0) (2026-11-09)
 
 
