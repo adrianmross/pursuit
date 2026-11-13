@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { ProgressMark } from "@/components/ProgressMark"
 import { StatusBadge } from "@/components/StatusBadge"
 import { Button } from "@adrianmross/appkit-ui/ui/button"
-import { SectionCard } from "@/components/detail/SectionCard"
+import { SectionCard } from "@adrianmross/appkit-ui"
 import { Item, ItemActions, ItemContent, ItemGroup, ItemMedia } from "@adrianmross/appkit-ui/ui/item"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@adrianmross/appkit-ui/ui/tooltip"
 

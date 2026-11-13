@@ -55,7 +55,7 @@ import {
   type StatusCategory,
 } from "@/lib/types"
 import { CompanyAvatar } from "@/components/CompanyAvatar"
-import { ConfirmDialog } from "@/components/ConfirmDialog"
+import { ConfirmDialog } from "@adrianmross/appkit-ui"
 import { ProgressMark } from "@/components/ProgressMark"
 import { StatusBadge } from "@/components/StatusBadge"
 import { TaskIcon } from "@/components/Rounds"

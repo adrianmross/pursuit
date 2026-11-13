@@ -1,7 +1,7 @@
 import { pursuitApi } from "@/lib/pursuit-api"
 import type { Artifact, Page } from "@/lib/types"
 import { ArtifactsCard } from "@/components/detail/ArtifactsCard"
-import { SectionError } from "@/components/detail/SectionError"
+import { SectionError } from "@adrianmross/appkit-ui"
 
 export async function ArtifactsSection({ id }: { id: string }) {
   let page: Page<Artifact> | null = null

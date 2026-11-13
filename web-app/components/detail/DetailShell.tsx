@@ -15,8 +15,8 @@ import { RejectChoice, RelatedCard } from "@/components/detail/RelatedCard"
 import { OutlineCard } from "@/components/detail/OutlineCard"
 import { EventsHistoryCard } from "@/components/detail/EventsHistoryCard"
 import { ArtifactsCard } from "@/components/detail/ArtifactsCard"
-import { SectionError } from "@/components/detail/SectionError"
-import { AttributesSkeleton, ArtifactsSkeleton, EventsSkeleton, HeaderSkeleton } from "@/components/detail/SectionSkeletons"
+import { SectionError } from "@adrianmross/appkit-ui"
+import { AttributesSkeleton, ArtifactsSkeleton, EventsSkeleton, HeaderSkeleton } from "@adrianmross/appkit-ui"
 
 export type DetailInitial = { application: Application; fields: CustomField[] }
 

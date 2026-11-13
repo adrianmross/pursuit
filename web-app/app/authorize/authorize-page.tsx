@@ -2,7 +2,7 @@
 
 import { Suspense } from "react"
 import { useSearchParams } from "next/navigation"
-import { AuthorizeConsent } from "@/components/CliLogin"
+import { AuthorizeConsent } from "@adrianmross/appkit-ui"
 
 function WithParams({ allowTokenLogin }: { allowTokenLogin: boolean }) {
   const params = useSearchParams()

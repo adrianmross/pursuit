@@ -11,7 +11,7 @@ import { setPref, type Pref } from "@adrianmross/appkit-ui"
 import { usePref } from "@adrianmross/appkit-ui"
 import type { Document, Page, StandingAnswer } from "@/lib/types"
 import { Button } from "@adrianmross/appkit-ui/ui/button"
-import { CommandBlock } from "@/components/CommandBlock"
+import { CommandBlock } from "@adrianmross/appkit-ui"
 import { Die, Sketch, Track } from "@/components/Sketch"
 
 const noop = () => () => {}

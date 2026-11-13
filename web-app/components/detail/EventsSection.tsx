@@ -1,7 +1,7 @@
 import { pursuitApi } from "@/lib/pursuit-api"
 import type { Event, Page } from "@/lib/types"
 import { EventsHistoryCard } from "@/components/detail/EventsHistoryCard"
-import { SectionError } from "@/components/detail/SectionError"
+import { SectionError } from "@adrianmross/appkit-ui"
 
 // A 401 here deliberately doesn't redirect like pursuitApiAuthed would —
 // the core page already rendered (application was awaited and worked), so
