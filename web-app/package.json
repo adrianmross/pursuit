@@ -12,7 +12,7 @@
     "registry": "node scripts/registry.mjs && shadcn build"
   },
   "dependencies": {
-    "@adrianmross/appkit-ui": "file:../../../../../../../private/tmp/claude-501/-Users-adrianmross/60db5ebb-0f15-4d54-afcb-b325e59de020/scratchpad/pack2/adrianmross-appkit-ui-0.1.0.tgz",
+    "@adrianmross/appkit-ui": "https://github.com/adrianmross/appkit/releases/download/v0.2.1/appkit-ui.tgz",
     "@codemirror/commands": "^6.11.1",
     "@codemirror/lang-markdown": "^6.5.2",
     "@codemirror/language": "^6.13.1",
