@@ -5,6 +5,7 @@ go 1.26.0
 toolchain go1.26.10
 
 require (
+	github.com/adrianmross/appkit v0.1.0
 	github.com/adrianmross/ratchet v0.1.0
 	github.com/adrianmross/tokenkeep v0.1.0
 	github.com/coreos/go-oidc/v3 v3.21.0
@@ -15,8 +16,9 @@ require (
 	github.com/ledongthuc/pdf v0.0.0-20261020125853-5e46805f718e
 	github.com/minio/minio-go/v7 v7.4.1
 	golang.org/x/oauth2 v0.37.0
-	modernc.org/sqlite v1.34.5
 )
+
+require modernc.org/sqlite v1.34.5 // indirect
 
 require (
 	github.com/adrianmross/oauthlite v0.2.0

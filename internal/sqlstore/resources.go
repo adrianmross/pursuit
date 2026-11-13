@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/adrianmross/appkit/httpx"
 	"github.com/pursuit/pursuit/internal/domain"
-	"github.com/pursuit/pursuit/internal/platform/httpx"
 )
 
 func (s *Store) CountUsers(ctx context.Context) (int, error) {

@@ -1,9 +1,11 @@
-github.com/adrianmross/tokenkeep v0.1.0 h1:Ewk89UXn2GV4xLmXtk/N+6c/AQ3uIrJzgyDNDfMvepg=
-github.com/adrianmross/tokenkeep v0.1.0/go.mod h1:P/KfbrsX2FVqDl0XrwNddLuSBU8k/08iqwTirEdoQRM=
-github.com/adrianmross/ratchet v0.1.0 h1:PJR1YcEhR1psSdxmCIQG9VsiYObIdXQRD4DO+EMEhy8=
-github.com/adrianmross/ratchet v0.1.0/go.mod h1:QPBPsf4c33h4V4/n5nARGr+XYp9h1brglA0y5OfoXc0=
+github.com/adrianmross/appkit v0.1.0 h1:16J73vqt4piD0bWoNaeXBtyE/MU99zOUcWLWpx4Mijw=
+github.com/adrianmross/appkit v0.1.0/go.mod h1:B9Y7OR3CRi2fZYR3v4h73Sc0Y+yrXl/6uaFMHXtsLak=
 github.com/adrianmross/oauthlite v0.2.0 h1:Nx7S9iCoy3bu/0O1h5djHsV3KK7JvkK4uq/sUNhtLqY=
 github.com/adrianmross/oauthlite v0.2.0/go.mod h1:Y+RUg0Y2c2H5E4EttBgrejxeYyTt/00YpFljZc+/pbg=
+github.com/adrianmross/ratchet v0.1.0 h1:PJR1YcEhR1psSdxmCIQG9VsiYObIdXQRD4DO+EMEhy8=
+github.com/adrianmross/ratchet v0.1.0/go.mod h1:QPBPsf4c33h4V4/n5nARGr+XYp9h1brglA0y5OfoXc0=
+github.com/adrianmross/tokenkeep v0.1.0 h1:Ewk89UXn2GV4xLmXtk/N+6c/AQ3uIrJzgyDNDfMvepg=
+github.com/adrianmross/tokenkeep v0.1.0/go.mod h1:P/KfbrsX2FVqDl0XrwNddLuSBU8k/08iqwTirEdoQRM=
 github.com/cespare/xxhash/v2 v2.3.0 h1:UL815xU9SqsFlibzuggzjXhog7bL6oX9BbNZnL2UFvs=
 github.com/cespare/xxhash/v2 v2.3.0/go.mod h1:VGX0DQ3Q6kWi7AoAeZDth3/j3BFtOZR5XLFGgcrjCOs=
 github.com/coreos/go-oidc/v3 v3.21.0 h1:wZo4Q9Pum8dYEj0eMUPrqR+kvuGkeUplbLpNCkBqoWM=

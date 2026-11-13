@@ -1,10 +1,10 @@
 package domain
 
 import (
-	"github.com/pursuit/pursuit/internal/platform/actor"
-	"github.com/pursuit/pursuit/internal/platform/apperr"
-	"github.com/pursuit/pursuit/internal/platform/paging"
-	"github.com/pursuit/pursuit/internal/platform/session"
+	"github.com/adrianmross/appkit/actor"
+	"github.com/adrianmross/appkit/apperr"
+	"github.com/adrianmross/appkit/paging"
+	"github.com/adrianmross/appkit/session"
 )
 
 // The app-agnostic types live in internal/platform. These aliases keep the

@@ -4,8 +4,8 @@ package service
 
 import (
 	"context"
-	"fmt"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strings"
 	"time"
@@ -13,13 +13,13 @@ import (
 	"github.com/go-webauthn/webauthn/webauthn"
 	"github.com/google/uuid"
 
+	"github.com/adrianmross/appkit/session"
 	"github.com/pursuit/pursuit/internal/auth"
 	"github.com/pursuit/pursuit/internal/billing"
 	"github.com/pursuit/pursuit/internal/blobstore"
-	"github.com/pursuit/pursuit/internal/embed"
 	"github.com/pursuit/pursuit/internal/domain"
+	"github.com/pursuit/pursuit/internal/embed"
 	"github.com/pursuit/pursuit/internal/links"
-	"github.com/pursuit/pursuit/internal/platform/session"
 	"github.com/pursuit/pursuit/internal/sqlstore"
 )
 
@@ -139,6 +139,7 @@ func (s *Service) sessions() *session.Manager {
 		LoginName: LoginTokenName, DemoName: demoTokenName,
 		IdleTTL: LoginIdleTTL, MaxTTL: LoginMaxTTL, StepUpWindow: StepUpWindow,
 		Scopes:       []string{"read", "write", "approve"},
+		TokenMarker:  "pst_",
 		Unauthorized: func() error { return domain.Unauthorized() },
 	}
 	if s.WebAuthn != nil {

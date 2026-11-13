@@ -6,8 +6,8 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/adrianmross/appkit/session"
 	"github.com/pursuit/pursuit/internal/domain"
-	"github.com/pursuit/pursuit/internal/platform/session"
 	"github.com/pursuit/pursuit/internal/service"
 )
 

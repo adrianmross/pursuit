@@ -7,9 +7,9 @@ import (
 	"net/url"
 	"strconv"
 
+	pcli "github.com/adrianmross/appkit/cli"
 	"github.com/pursuit/pursuit/internal/apiclient"
 	"github.com/pursuit/pursuit/internal/config"
-	pcli "github.com/pursuit/pursuit/internal/platform/cli"
 	"github.com/pursuit/pursuit/internal/version"
 )
 
