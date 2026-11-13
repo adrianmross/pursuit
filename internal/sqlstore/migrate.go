@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 
+	platform "github.com/adrianmross/appkit/migrations"
 	"github.com/adrianmross/ratchet"
 )
 
@@ -11,9 +12,19 @@ import (
 const advisoryLockKey int64 = 594132718233451
 
 // Migrate applies every pending migration in one transaction, under the
-// same lock as bootstrap.
+// same lock as bootstrap, and then appkit's platform set.
+//
+// The platform tables (users, tokens, audit, events and so on) were created
+// by the list below, and appkit's first migration creates the same tables
+// only if they are missing, so on a Pursuit database it changes nothing and
+// is recorded as appkit/001. Later platform changes arrive as appkit
+// migrations. The order matters: this list alters those tables, so it must
+// run first on an empty database.
 func Migrate(ctx context.Context, db *sql.DB, dialect string) error {
-	return migrateTo(ctx, db, dialect, migrations)
+	if err := migrateTo(ctx, db, dialect, migrations); err != nil {
+		return err
+	}
+	return platform.Up(ctx, db, dialect, advisoryLockKey)
 }
 
 func migrateTo(ctx context.Context, db *sql.DB, dialect string, list []migration) error {

@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/adrianmross/appkit/sqldb"
 	"github.com/pursuit/pursuit/internal/domain"
-	"github.com/pursuit/pursuit/internal/platform/sqldb"
 	"github.com/pursuit/pursuit/internal/sqlstore/sqlstoretest"
 )
 
