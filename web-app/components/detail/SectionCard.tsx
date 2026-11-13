@@ -3,8 +3,8 @@
 import { useEffect, useState, type ReactNode } from "react"
 import { ChevronDown } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { Card, CardContent, CardDescription, CardTitle } from "@/components/ui/card"
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
+import { Card, CardContent, CardDescription, CardTitle } from "@adrianmross/appkit-ui/ui/card"
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@adrianmross/appkit-ui/ui/collapsible"
 
 const key = (id: string) => `pursuit.section.${id}`
 

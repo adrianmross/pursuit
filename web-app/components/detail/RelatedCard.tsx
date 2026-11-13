@@ -6,13 +6,13 @@ import { Link2, Unlink, X } from "lucide-react"
 import { api, ApiError } from "@/lib/api-client"
 import { applicationHref } from "@/lib/links"
 import { displayed, markOf, outcomeKind, type Application, type Page } from "@/lib/types"
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@adrianmross/appkit-ui/ui/dialog"
 import { ProgressMark } from "@/components/ProgressMark"
 import { StatusBadge } from "@/components/StatusBadge"
-import { Button } from "@/components/ui/button"
+import { Button } from "@adrianmross/appkit-ui/ui/button"
 import { SectionCard } from "@/components/detail/SectionCard"
-import { Item, ItemActions, ItemContent, ItemGroup, ItemMedia } from "@/components/ui/item"
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { Item, ItemActions, ItemContent, ItemGroup, ItemMedia } from "@adrianmross/appkit-ui/ui/item"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@adrianmross/appkit-ui/ui/tooltip"
 
 function Action({ label, onClick, disabled, children }: { label: string; onClick: () => void; disabled: boolean; children: React.ReactNode }) {
   return (

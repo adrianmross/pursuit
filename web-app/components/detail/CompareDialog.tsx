@@ -5,8 +5,8 @@ import { EditorState } from "@codemirror/state"
 import { EditorView } from "@codemirror/view"
 import { MergeView, unifiedMergeView } from "@codemirror/merge"
 import { api } from "@/lib/api-client"
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Spinner } from "@/components/ui/spinner"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@adrianmross/appkit-ui/ui/dialog"
+import { Spinner } from "@adrianmross/appkit-ui/ui/spinner"
 
 type Side = { title: string; text: string; source?: string }
 type Comparison = { default: Side; current: Side; same: boolean }

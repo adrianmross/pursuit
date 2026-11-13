@@ -10,7 +10,7 @@ import { QUALIFIER_KEYS, matchesQualifiers, parseSearch, tokenAt, tokenize, type
 import { getPref } from "@/lib/settings"
 import { FILTERS, MORE, label, type Application, type Page } from "@/lib/types"
 import { cn } from "@/lib/utils"
-import { Input } from "@/components/ui/input"
+import { Input } from "@adrianmross/appkit-ui/ui/input"
 
 type Item = { id: string; group: string; text: string; hint?: string; apply?: string; appId?: string; count?: number }
 

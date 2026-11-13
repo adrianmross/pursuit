@@ -3,7 +3,7 @@
 import { useSyncExternalStore } from "react"
 import { Moon, Sun } from "lucide-react"
 import { useTheme } from "next-themes"
-import { Button } from "@/components/ui/button"
+import { Button } from "@adrianmross/appkit-ui/ui/button"
 import { cn } from "@/lib/utils"
 
 // Public pages: light or dark, nothing in between. It starts on whatever the system

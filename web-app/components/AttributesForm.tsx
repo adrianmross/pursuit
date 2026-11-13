@@ -2,9 +2,9 @@
 
 import { useId } from "react"
 import { FILTERS, MORE } from "@/lib/types"
-import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
-import { Input } from "@/components/ui/input"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Field, FieldGroup, FieldLabel } from "@adrianmross/appkit-ui/ui/field"
+import { Input } from "@adrianmross/appkit-ui/ui/input"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@adrianmross/appkit-ui/ui/select"
 
 export const STATUS_OPTIONS = FILTERS.concat(MORE).filter(([value]) => value)
 export const FIT_OPTIONS = ["strong", "reach", "maybe"]

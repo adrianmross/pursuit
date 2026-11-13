@@ -9,7 +9,7 @@ import { useAuth } from "@/lib/auth"
 import { setPref, type Pref } from "@/lib/settings"
 import { usePref } from "@/lib/use-pref"
 import type { Document, Page, StandingAnswer } from "@/lib/types"
-import { Button } from "@/components/ui/button"
+import { Button } from "@adrianmross/appkit-ui/ui/button"
 import { CommandBlock } from "@/components/CommandBlock"
 import { Die, Sketch, Track } from "@/components/Sketch"
 

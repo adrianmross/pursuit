@@ -4,11 +4,11 @@ import { useState, type DragEvent } from "react"
 import { FileUp } from "lucide-react"
 import { apiHeaders, apiUrl } from "@/lib/api-client"
 import { cn } from "@/lib/utils"
-import { Button } from "@/components/ui/button"
-import { ButtonGroup } from "@/components/ui/button-group"
-import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Spinner } from "@/components/ui/spinner"
+import { Button } from "@adrianmross/appkit-ui/ui/button"
+import { ButtonGroup } from "@adrianmross/appkit-ui/ui/button-group"
+import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@adrianmross/appkit-ui/ui/empty"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@adrianmross/appkit-ui/ui/select"
+import { Spinner } from "@adrianmross/appkit-ui/ui/spinner"
 
 // Drag-and-drop or browse upload to a multipart endpoint that takes
 // (kind, file): /v1/documents and /v1/applications/{id}/artifacts.

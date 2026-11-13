@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react"
 import { api } from "@/lib/api-client"
 import { useAuth } from "@/lib/auth"
-import { Button } from "@/components/ui/button"
+import { Button } from "@adrianmross/appkit-ui/ui/button"
 
 // Shown in a demo sandbox only: it is throwaway, so say so and offer the way out.
 export function DemoBanner() {

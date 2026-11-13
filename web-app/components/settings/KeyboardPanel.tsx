@@ -4,10 +4,10 @@ import { Fragment } from "react"
 import { Keyboard } from "lucide-react"
 import { BINDINGS, keyLabels, useKeyPrefs } from "@/lib/keybindings"
 import { cn } from "@/lib/utils"
-import { FieldLegend, FieldSet } from "@/components/ui/field"
-import { Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemMedia, ItemSeparator, ItemTitle } from "@/components/ui/item"
-import { Kbd, KbdGroup } from "@/components/ui/kbd"
-import { Switch } from "@/components/ui/switch"
+import { FieldLegend, FieldSet } from "@adrianmross/appkit-ui/ui/field"
+import { Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemMedia, ItemSeparator, ItemTitle } from "@adrianmross/appkit-ui/ui/item"
+import { Kbd, KbdGroup } from "@adrianmross/appkit-ui/ui/kbd"
+import { Switch } from "@adrianmross/appkit-ui/ui/switch"
 
 export function Keys({ combo }: { combo: string }) {
   return (

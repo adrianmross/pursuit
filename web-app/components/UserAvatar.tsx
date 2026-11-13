@@ -1,7 +1,7 @@
 "use client"
 
 import type { Me } from "@/lib/types"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Avatar, AvatarFallback, AvatarImage } from "@adrianmross/appkit-ui/ui/avatar"
 
 export function displayName(me: Me | null) {
   return me?.user?.name || me?.user?.email || me?.token.name || "Account"

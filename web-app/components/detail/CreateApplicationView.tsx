@@ -9,11 +9,11 @@ import { api, ApiError } from "@/lib/api-client"
 import { applicationHref } from "@/lib/links"
 import type { Application } from "@/lib/types"
 import { AttributesForm, EMPTY_ATTRIBUTES, type AttributesFormState } from "@/components/AttributesForm"
-import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Spinner } from "@/components/ui/spinner"
-import { Textarea } from "@/components/ui/textarea"
+import { Alert, AlertDescription } from "@adrianmross/appkit-ui/ui/alert"
+import { Button } from "@adrianmross/appkit-ui/ui/button"
+import { Card, CardContent, CardHeader, CardTitle } from "@adrianmross/appkit-ui/ui/card"
+import { Spinner } from "@adrianmross/appkit-ui/ui/spinner"
+import { Textarea } from "@adrianmross/appkit-ui/ui/textarea"
 
 export function CreateApplicationView() {
   const router = useRouter()

@@ -1,5 +1,5 @@
-import { Card, CardContent, CardHeader } from "@/components/ui/card"
-import { Skeleton } from "@/components/ui/skeleton"
+import { Card, CardContent, CardHeader } from "@adrianmross/appkit-ui/ui/card"
+import { Skeleton } from "@adrianmross/appkit-ui/ui/skeleton"
 
 export function HeaderSkeleton() {
   return (

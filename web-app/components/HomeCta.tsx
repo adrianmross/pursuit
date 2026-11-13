@@ -1,6 +1,6 @@
 import Link from "next/link"
 import { ArrowRight, Plus } from "lucide-react"
-import { Button } from "@/components/ui/button"
+import { Button } from "@adrianmross/appkit-ui/ui/button"
 
 // Pure presentation — hasApplications is resolved by the caller (server-side
 // on hosted, client-side in export mode; see app/(app)/page.tsx).

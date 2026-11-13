@@ -5,12 +5,12 @@ import { ExternalLink, RefreshCw } from "lucide-react"
 import { SOURCE_LABELS, type Application, type CustomField } from "@/lib/types"
 import { FIT_OPTIONS } from "@/components/AttributesForm"
 import { InlineSelect, InlineText } from "@/components/InlineEdit"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
-import { Field, FieldError, FieldTitle } from "@/components/ui/field"
-import { Spinner } from "@/components/ui/spinner"
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { Badge } from "@adrianmross/appkit-ui/ui/badge"
+import { Button } from "@adrianmross/appkit-ui/ui/button"
+import { Card, CardContent } from "@adrianmross/appkit-ui/ui/card"
+import { Field, FieldError, FieldTitle } from "@adrianmross/appkit-ui/ui/field"
+import { Spinner } from "@adrianmross/appkit-ui/ui/spinner"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@adrianmross/appkit-ui/ui/tooltip"
 
 function Name({ children }: { children: React.ReactNode }) {
   return <FieldTitle className="text-xs font-normal text-muted-foreground">{children}</FieldTitle>

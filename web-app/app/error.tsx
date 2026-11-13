@@ -5,7 +5,7 @@ import { RotateCcw } from "lucide-react"
 import { useAuth } from "@/lib/auth"
 import { Die, Ring, Sketch, Track } from "@/components/Sketch"
 import { ErrorScene } from "@/components/ErrorScene"
-import { Button, buttonVariants } from "@/components/ui/button"
+import { Button, buttonVariants } from "@adrianmross/appkit-ui/ui/button"
 
 // Any render or fetch failure below the root layout lands here. reset()
 // re-renders the segment (re-running its fetch) instead of leaving a dead page.

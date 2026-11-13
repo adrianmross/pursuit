@@ -1,8 +1,8 @@
 import { label } from "@/lib/types"
 import type { Event } from "@/lib/types"
 import { SectionCard } from "@/components/detail/SectionCard"
-import { Empty, EmptyHeader, EmptyTitle } from "@/components/ui/empty"
-import { Item, ItemContent, ItemDescription, ItemGroup, ItemTitle } from "@/components/ui/item"
+import { Empty, EmptyHeader, EmptyTitle } from "@adrianmross/appkit-ui/ui/empty"
+import { Item, ItemContent, ItemDescription, ItemGroup, ItemTitle } from "@adrianmross/appkit-ui/ui/item"
 
 function fmt(value?: string) {
   if (!value) return "—"

@@ -2,8 +2,8 @@
 
 import { useRouter } from "next/navigation"
 import { AlertCircle } from "lucide-react"
-import { Alert, AlertAction, AlertDescription } from "@/components/ui/alert"
-import { Button } from "@/components/ui/button"
+import { Alert, AlertAction, AlertDescription } from "@adrianmross/appkit-ui/ui/alert"
+import { Button } from "@adrianmross/appkit-ui/ui/button"
 
 // Shown when one section's fetch fails or times out — the point of the
 // whole per-section-Suspense design: this never blocks the rest of the

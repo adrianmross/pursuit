@@ -6,9 +6,9 @@ import { ChevronLeft, ChevronRight, Maximize2, Minimize2 } from "lucide-react"
 import { api } from "@/lib/api-client"
 import { cn } from "@/lib/utils"
 import type { Application, Interview, Page, Task } from "@/lib/types"
-import { Button } from "@/components/ui/button"
-import { ButtonGroup } from "@/components/ui/button-group"
-import { Card, CardContent } from "@/components/ui/card"
+import { Button } from "@adrianmross/appkit-ui/ui/button"
+import { ButtonGroup } from "@adrianmross/appkit-ui/ui/button-group"
+import { Card, CardContent } from "@adrianmross/appkit-ui/ui/card"
 
 type Kind = "round" | "task" | "applied"
 type CalEvent = { day: string; kind: Kind; title: string; where: string; href: string; done: boolean }

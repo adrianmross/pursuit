@@ -5,10 +5,10 @@ import { Check, ChevronRight, Copy, Search } from "lucide-react"
 import { api } from "@/lib/api-client"
 import type { Audit, Page } from "@/lib/types"
 import { cn } from "@/lib/utils"
-import { Button } from "@/components/ui/button"
-import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Button } from "@adrianmross/appkit-ui/ui/button"
+import { InputGroup, InputGroupAddon, InputGroupInput } from "@adrianmross/appkit-ui/ui/input-group"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@adrianmross/appkit-ui/ui/select"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@adrianmross/appkit-ui/ui/table"
 
 const RANGES: [string, string, number][] = [
   ["all", "All time", 0],

@@ -9,9 +9,9 @@ import { useLive, type LiveEvent } from "@/lib/live"
 import { label, type Application, type Page } from "@/lib/types"
 import { cn } from "@/lib/utils"
 import { Die, Sketch, Track } from "@/components/Sketch"
-import { Button } from "@/components/ui/button"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Button } from "@adrianmross/appkit-ui/ui/button"
+import { Popover, PopoverContent, PopoverTrigger } from "@adrianmross/appkit-ui/ui/popover"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@adrianmross/appkit-ui/ui/tabs"
 
 const rtf = new Intl.RelativeTimeFormat("en", { numeric: "auto", style: "short" })
 

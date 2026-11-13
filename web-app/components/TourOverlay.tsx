@@ -9,7 +9,7 @@ import { setPref } from "@/lib/settings"
 import { useAuth } from "@/lib/auth"
 import { usePref } from "@/lib/use-pref"
 import type { Application, Page } from "@/lib/types"
-import { Button } from "@/components/ui/button"
+import { Button } from "@adrianmross/appkit-ui/ui/button"
 
 // A step points at [data-tour=target] on a page matching `match`; `route` is where Next goes
 // ("{app}" is the first application). `open` waits for the visitor to open an application.

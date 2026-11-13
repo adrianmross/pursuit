@@ -30,7 +30,7 @@ import { api, ApiError } from "@/lib/api-client"
 import { useAuth } from "@/lib/auth"
 import { useRevision } from "@/lib/live"
 import { useShortcuts } from "@/lib/keybindings"
-import { Kbd } from "@/components/ui/kbd"
+import { Kbd } from "@adrianmross/appkit-ui/ui/kbd"
 import { getDefaultSort, getDefaultStatus } from "@/lib/settings"
 import { usePref } from "@/lib/use-pref"
 import { cn } from "@/lib/utils"
@@ -61,12 +61,12 @@ import { StatusBadge } from "@/components/StatusBadge"
 import { TaskIcon } from "@/components/Rounds"
 import { OutcomeChip, SectionLabel, StageHeading, StageSlider, stageTarget, StatusChooser, SubSteps } from "@/components/StatusChooser"
 import { STATUS_OPTIONS } from "@/components/AttributesForm"
-import { Alert, AlertTitle } from "@/components/ui/alert"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { ButtonGroup } from "@/components/ui/button-group"
-import { Checkbox } from "@/components/ui/checkbox"
-import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty"
+import { Alert, AlertTitle } from "@adrianmross/appkit-ui/ui/alert"
+import { Badge } from "@adrianmross/appkit-ui/ui/badge"
+import { Button } from "@adrianmross/appkit-ui/ui/button"
+import { ButtonGroup } from "@adrianmross/appkit-ui/ui/button-group"
+import { Checkbox } from "@adrianmross/appkit-ui/ui/checkbox"
+import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@adrianmross/appkit-ui/ui/empty"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -76,13 +76,13 @@ import {
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Spinner } from "@/components/ui/spinner"
-import { Toggle } from "@/components/ui/toggle"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+} from "@adrianmross/appkit-ui/ui/dropdown-menu"
+import { Popover, PopoverContent, PopoverTrigger } from "@adrianmross/appkit-ui/ui/popover"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@adrianmross/appkit-ui/ui/select"
+import { Spinner } from "@adrianmross/appkit-ui/ui/spinner"
+import { Toggle } from "@adrianmross/appkit-ui/ui/toggle"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@adrianmross/appkit-ui/ui/table"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@adrianmross/appkit-ui/ui/tooltip"
 
 // The filter's stops: "All" first, then every piece of the mark.
 const FILTER_STOPS: [string, string][] = [["", "All"], ...STAGE_STOPS]

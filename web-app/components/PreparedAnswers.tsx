@@ -6,10 +6,10 @@ import { Check, Sparkles } from "lucide-react"
 import type { Question } from "@/lib/types"
 import { api } from "@/lib/api-client"
 import { useAuth } from "@/lib/auth"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupTextarea } from "@/components/ui/input-group"
-import { Item, ItemContent, ItemDescription, ItemFooter, ItemGroup, ItemTitle } from "@/components/ui/item"
+import { Badge } from "@adrianmross/appkit-ui/ui/badge"
+import { Button } from "@adrianmross/appkit-ui/ui/button"
+import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupTextarea } from "@adrianmross/appkit-ui/ui/input-group"
+import { Item, ItemContent, ItemDescription, ItemFooter, ItemGroup, ItemTitle } from "@adrianmross/appkit-ui/ui/item"
 
 const humanize = (key: string) => key.replaceAll("_", " ").replace(/^./, (c) => c.toUpperCase())
 

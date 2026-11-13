@@ -10,7 +10,7 @@ import { EditorView, keymap } from "@codemirror/view"
 import { tags } from "@lezer/highlight"
 import { vim } from "@replit/codemirror-vim"
 import { usePref } from "@/lib/use-pref"
-import { Button } from "@/components/ui/button"
+import { Button } from "@adrianmross/appkit-ui/ui/button"
 
 export type NoteSection = {
   id: string

@@ -5,7 +5,7 @@ import { ThemeProvider } from "next-themes"
 import { AuthProvider } from "@/lib/auth"
 import { applyAppearance } from "@/lib/settings"
 import { initTelemetry } from "@/lib/telemetry"
-import { TooltipProvider } from "@/components/ui/tooltip"
+import { TooltipProvider } from "@adrianmross/appkit-ui/ui/tooltip"
 import type { Me } from "@/lib/types"
 
 export function Providers({ initialMe, children }: { initialMe: Me | null; children: React.ReactNode }) {

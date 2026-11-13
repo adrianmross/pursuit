@@ -10,7 +10,7 @@ import { useAuth } from "@/lib/auth"
 import { useShortcuts } from "@/lib/keybindings"
 import { label, statusesInCategory, type Application, type Page } from "@/lib/types"
 import { applicationHref } from "@/lib/links"
-import { Command, CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
+import { Command, CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@adrianmross/appkit-ui/ui/command"
 
 // Contains a render error to the palette: the dialog shows this instead of
 // the whole page falling through to app/error.tsx. Closing the dialog

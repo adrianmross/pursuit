@@ -12,11 +12,11 @@ import { PRODUCT_NAME } from "@/lib/brand"
 import { useAuth } from "@/lib/auth"
 import { SignInForm } from "@/components/SignInForm"
 import { ThemeToggle } from "@/components/ThemeToggle"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Badge } from "@/components/ui/badge"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button } from "@adrianmross/appkit-ui/ui/button"
+import { Input } from "@adrianmross/appkit-ui/ui/input"
+import { Label } from "@adrianmross/appkit-ui/ui/label"
+import { Badge } from "@adrianmross/appkit-ui/ui/badge"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@adrianmross/appkit-ui/ui/card"
 
 const SCOPE_HELP: Record<string, string> = {
   read: "See your applications, companies, and settings.",

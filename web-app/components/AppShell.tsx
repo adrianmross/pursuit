@@ -8,20 +8,20 @@ import { api } from "@/lib/api-client"
 import { useAuth } from "@/lib/auth"
 import { keyLabels, useShortcuts } from "@/lib/keybindings"
 import { cn } from "@/lib/utils"
-import { Kbd } from "@/components/ui/kbd"
+import { Kbd } from "@adrianmross/appkit-ui/ui/kbd"
 import { CommandPalette } from "@/components/CommandPalette"
 import { SettingsDialog } from "@/components/SettingsDialog"
 import { SearchBox } from "@/components/SearchBox"
 import { SiteFooter } from "@/components/SiteFooter"
 import { UserAvatar, displayName } from "@/components/UserAvatar"
 import { NotificationBell, describe, eventMeta } from "@/components/Notifications"
-import { Toaster } from "@/components/ui/sonner"
+import { Toaster } from "@adrianmross/appkit-ui/ui/sonner"
 import { DemoBanner } from "@/components/DemoBanner"
 import { toast } from "sonner"
 import { LiveProvider, type LiveEvent } from "@/lib/live"
 import { applicationHref } from "@/lib/links"
 import { Tour } from "@/components/Tour"
-import { Button } from "@/components/ui/button"
+import { Button } from "@adrianmross/appkit-ui/ui/button"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -29,7 +29,7 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
+} from "@adrianmross/appkit-ui/ui/dropdown-menu"
 
 function useMedia(query: string) {
   return useSyncExternalStore(

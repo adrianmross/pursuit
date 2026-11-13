@@ -3,10 +3,10 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react"
 import { Braces, Download, File, FileImage, FileText } from "lucide-react"
 import { api } from "@/lib/api-client"
-import { Button } from "@/components/ui/button"
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty"
-import { Spinner } from "@/components/ui/spinner"
+import { Button } from "@adrianmross/appkit-ui/ui/button"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@adrianmross/appkit-ui/ui/dialog"
+import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@adrianmross/appkit-ui/ui/empty"
+import { Spinner } from "@adrianmross/appkit-ui/ui/spinner"
 
 type Stored = { filename?: string; content_type?: string; body: string }
 
