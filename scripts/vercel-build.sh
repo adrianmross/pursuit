@@ -14,7 +14,7 @@ set -e
 # set at build time. The Neon integration provides the URL under other names.
 NEXT_PUBLIC_NEON_AUTH_URL=${NEXT_PUBLIC_NEON_AUTH_URL:-${VITE_NEON_AUTH_URL:-$NEON_AUTH_BASE_URL}}
 export NEXT_PUBLIC_NEON_AUTH_URL
-# Browser error reports and product events (web-app/lib/telemetry.ts). Unset
+# Browser error reports and product events (appkit-ui's telemetry, set up in web-app/lib/appkit.tsx). Unset
 # keeps both off.
 NEXT_PUBLIC_SENTRY_DSN=${PURSUIT_WEB_SENTRY_DSN:-}
 NEXT_PUBLIC_POSTHOG_KEY=${PURSUIT_POSTHOG_KEY:-}

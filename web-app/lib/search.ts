@@ -1,111 +1,64 @@
-import { getPref } from "@adrianmross/appkit-ui"
+import {
+  compareText,
+  matchesQualifiers as matches,
+  parseSearch as parse,
+  type Qualifier,
+  type SearchQualifier,
+} from "@adrianmross/appkit-ui"
+import { FILTERS, MORE } from "@/lib/types"
 
-export type SearchQualifier = { key: string; op: "=" | ">" | ">=" | "<" | "<="; value: string }
+// The search box's qualifiers: what `status:applied tag:remote` means for an
+// application, and the values offered after each colon.
+type Row = { status: string; tags?: string[]; applied_date?: string; company?: string; title?: string }
 
-export type ParsedSearch = { free: string; qualifiers: SearchQualifier[] }
+const STATUSES = FILTERS.concat(MORE).filter(([v]) => v)
+const ago = (days: number) => new Date(Date.now() - days * 864e5).toISOString().slice(0, 10)
+const uniq = (xs: (string | undefined)[]) => [...new Set(xs.filter((x): x is string => !!x && !/\s/.test(x)))]
+const having = (xs: string[], partial: string) => xs.filter((x) => x.toLowerCase().includes(partial.toLowerCase())).map((value) => ({ value }))
 
-const OPS = [">=", "<=", ">", "<"] as const
-
-export function parseSearch(input: string): ParsedSearch {
-  // With the syntax turned off in Settings, everything is plain text.
-  if (getPref("searchSyntax") === "off") return { free: input.trim(), qualifiers: [] }
-  const qualifiers: SearchQualifier[] = []
-  const free: string[] = []
-  for (const token of input.trim().split(/\s+/).filter(Boolean)) {
-    const m = token.match(/^([a-zA-Z_]+):(.*)$/)
-    if (!m) {
-      free.push(token)
-      continue
-    }
-    const [, key, rest] = m
-    let op: SearchQualifier["op"] = "="
-    let value = rest
-    for (const candidate of OPS) {
-      if (rest.startsWith(candidate)) {
-        op = candidate
-        value = rest.slice(candidate.length)
-        break
-      }
-    }
-    if (!value) {
-      // A known key with nothing after it is still being typed: ignore it
-      // rather than searching for the literal text "status:".
-      if (!QUALIFIER_KEYS.some(([k]) => k === key.toLowerCase())) free.push(token)
-      continue
-    }
-    qualifiers.push({ key: key.toLowerCase(), op, value })
-  }
-  return { free: free.join(" "), qualifiers }
-}
-
-function compareDates(rowValue: string | undefined, op: SearchQualifier["op"], value: string): boolean {
-  if (!rowValue) return false
-  if (op === "=") return rowValue.startsWith(value)
-  return op === ">" ? rowValue > value : op === ">=" ? rowValue >= value : op === "<" ? rowValue < value : rowValue <= value
-}
-
-export function matchesQualifiers(
-  row: { status: string; tags?: string[]; applied_date?: string; company?: string; title?: string },
-  qualifiers: SearchQualifier[],
-): boolean {
-  return qualifiers.every((q) => {
-    switch (q.key) {
-      case "status":
-        return row.status.toLowerCase() === q.value.toLowerCase()
-      case "tag":
-        return (row.tags || []).some((t) => t.toLowerCase() === q.value.toLowerCase())
-      case "applied":
-        return compareDates(row.applied_date, q.op, q.value)
-      case "company":
-        return (row.company || "").toLowerCase().includes(q.value.toLowerCase())
-      case "title":
-        return (row.title || "").toLowerCase().includes(q.value.toLowerCase())
-      default:
-        return true
-    }
-  })
-}
-
-export const QUALIFIER_KEYS: [string, string][] = [
-  ["status", "Stage or outcome, like applied"],
-  ["tag", "Applications with a tag"],
-  ["company", "Company name contains"],
-  ["title", "Role title contains"],
-  ["applied", "Applied date, like >2026-01-01"],
+export const QUALIFIERS: Qualifier<Row>[] = [
+  {
+    key: "status",
+    hint: "Stage or outcome, like applied",
+    match: (row, q) => row.status.toLowerCase() === q.value.toLowerCase(),
+    values: (partial) => {
+      const p = partial.toLowerCase()
+      return STATUSES.filter(([v, l]) => v.includes(p) || l.toLowerCase().includes(p)).map(([value, hint]) => ({ value, hint }))
+    },
+  },
+  {
+    key: "tag",
+    hint: "Applications with a tag",
+    match: (row, q) => (row.tags || []).some((t) => t.toLowerCase() === q.value.toLowerCase()),
+    values: (partial, rows) => having([...new Set(rows.flatMap((r) => r.tags || []))], partial),
+  },
+  {
+    key: "company",
+    hint: "Company name contains",
+    match: (row, q) => (row.company || "").toLowerCase().includes(q.value.toLowerCase()),
+    values: (partial, rows) => having(uniq(rows.map((r) => r.company)), partial),
+  },
+  {
+    key: "title",
+    hint: "Role title contains",
+    match: (row, q) => (row.title || "").toLowerCase().includes(q.value.toLowerCase()),
+    values: (partial, rows) => having(uniq(rows.flatMap((r) => (r.title || "").split(/\s+/))), partial),
+  },
+  {
+    key: "applied",
+    hint: "Applied date, like >2026-01-01",
+    match: (row, q) => compareText(row.applied_date, q.op, q.value),
+    values: (partial) =>
+      [
+        { value: ">" + ago(7), hint: "after 7 days ago" },
+        { value: ">" + ago(30), hint: "after 30 days ago" },
+        { value: ago(0).slice(0, 7), hint: "this month" },
+        { value: ago(0).slice(0, 4), hint: "this year" },
+      ].filter((v) => v.value.includes(partial.toLowerCase())),
+  },
 ]
 
-export type Token = { text: string; kind: "space" | "free" | "key" | "op" | "value" | "unknown" }
+const KEYS = QUALIFIERS.map((q) => q.key)
 
-// Splits input the way parseSearch reads it, for syntax highlighting. Unknown
-// keys still filter nothing, so they are marked rather than hidden.
-export function tokenize(input: string): Token[] {
-  const syntax = getPref("searchSyntax") !== "off"
-  const out: Token[] = []
-  for (const part of input.split(/(\s+)/)) {
-    if (!part) continue
-    if (/^\s+$/.test(part)) {
-      out.push({ text: part, kind: "space" })
-      continue
-    }
-    const m = syntax ? part.match(/^([a-zA-Z_]+):(.*)$/) : null
-    if (!m || !m[2]) {
-      out.push({ text: part, kind: "free" })
-      continue
-    }
-    const known = QUALIFIER_KEYS.some(([k]) => k === m[1].toLowerCase())
-    out.push({ text: m[1] + ":", kind: known ? "key" : "unknown" })
-    const op = OPS.find((o) => m[2].startsWith(o))
-    if (op) out.push({ text: op, kind: "op" })
-    out.push({ text: m[2].slice(op?.length || 0), kind: known ? "value" : "unknown" })
-  }
-  return out
-}
-
-// The whitespace-delimited word around the caret.
-export function tokenAt(input: string, caret: number) {
-  let start = caret
-  while (start > 0 && !/\s/.test(input[start - 1])) start--
-  let end = caret
-  while (end < input.length && !/\s/.test(input[end])) end++
-  return { start, end, text: input.slice(start, end) }
-}
+export const parseSearch = (input: string) => parse(input, KEYS)
+export const matchesQualifiers = (row: Row, qualifiers: SearchQualifier[]) => matches(row, qualifiers, QUALIFIERS)

@@ -10,8 +10,6 @@ import { BRAND } from "@/lib/brand"
 configure({ ...BRAND, footer: <SiteFooter />, failArt: <SnakeEyes className="w-full" /> })
 
 registerPrefs({
-  // ponytail: density, accent and stripes are read by nothing; they go when the settings dialog comes from appkit-ui.
-  density: "comfortable", accent: "neutral", stripes: "off",
   roundCounter: "wheel", faviconService: "default", funnel: "off",
   // The application page's cards ("on" or "off"), and where each outline tab
   // shows: "tab" inside Details, "card" as its own card, or "off".

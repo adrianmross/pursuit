@@ -28,7 +28,7 @@ import {
 } from "lucide-react"
 import { api, ApiError } from "@adrianmross/appkit-ui"
 import { useAuth } from "@adrianmross/appkit-ui"
-import { useRevision } from "@/lib/live"
+import { useRevision } from "@adrianmross/appkit-ui"
 import { useShortcuts } from "@adrianmross/appkit-ui"
 import { Kbd } from "@adrianmross/appkit-ui/ui/kbd"
 import { getDefaultSort, getDefaultStatus } from "@/lib/settings"

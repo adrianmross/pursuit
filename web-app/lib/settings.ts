@@ -23,16 +23,6 @@ export function setDefaultSort(value: string) {
   localStorage.setItem(DEFAULT_SORT_KEY, value)
 }
 
-export const ACCENTS = {
-  neutral: ["#141615", "#F1F1EE"],
-  forest: ["#173A2E", "#7CCBA8"],
-  blue: ["#2563EB", "#60A5FA"],
-  violet: ["#7C3AED", "#A78BFA"],
-  rose: ["#E11D48", "#FB7185"],
-  amber: ["#B45309", "#F5B84A"],
-} as const
-export type Accent = keyof typeof ACCENTS
-export type Density = "comfortable" | "compact"
 export type TabPlace = "tab" | "card" | "off"
 export const OUTLINE_TABS = [
   ["rounds", "Rounds", "tabRounds"],
