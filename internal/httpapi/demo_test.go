@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/pursuit/pursuit/internal/domain"
 	"github.com/pursuit/pursuit/internal/service"
@@ -23,6 +24,10 @@ func newDemoEnv(t *testing.T) *httptest.Server {
 	}
 	t.Cleanup(func() { db.Close() })
 	svc := service.New(db)
+	// Rate limits count in one-minute windows, so a clock that ticks over a
+	// minute mid-test would start a fresh window.
+	at := time.Now()
+	svc.Now = func() time.Time { return at }
 	api := &Server{Svc: svc, Log: slog.New(slog.NewTextHandler(io.Discard, nil)), DemoMode: true}
 	api.Ready.Store(true)
 	srv := httptest.NewServer(api.Handler())
