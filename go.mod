@@ -5,7 +5,7 @@ go 1.26.0
 toolchain go1.26.10
 
 require (
-	github.com/adrianmross/appkit v0.1.0
+	github.com/adrianmross/appkit v0.2.2
 	github.com/adrianmross/ratchet v0.1.0
 	github.com/adrianmross/tokenkeep v0.1.0
 	github.com/coreos/go-oidc/v3 v3.21.0
