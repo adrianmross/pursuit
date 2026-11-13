@@ -3,7 +3,7 @@
 import { useEffect, useSyncExternalStore } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@adrianmross/appkit-ui"
-import { SignInForm } from "@adrianmross/appkit-ui"
+import { SignInForm } from "@/components/SignInForm"
 
 const noop = () => () => {}
 const modeFromUrl = () => (new URLSearchParams(window.location.search).get("mode") === "sign-up" ? ("sign-up" as const) : ("sign-in" as const))
