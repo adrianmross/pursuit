@@ -6,14 +6,11 @@ import (
 	"cmp"
 	"context"
 	"crypto/subtle"
-	"encoding/json"
-	"errors"
 	"io"
 	"log/slog"
 	"mime"
 	"mime/multipart"
 	"net/http"
-	"net/http/httptest"
 	"net/url"
 	"os"
 	"regexp"
@@ -23,6 +20,7 @@ import (
 	"time"
 
 	"github.com/adrianmross/appkit/httpx"
+	"github.com/adrianmross/appkit/paging"
 	"github.com/adrianmross/appkit/session"
 	"github.com/pursuit/pursuit/internal/betterauth"
 	"github.com/pursuit/pursuit/internal/dashboard"
@@ -602,22 +600,11 @@ func auditTime(raw, name string) (string, error) {
 }
 
 func listQuery(q map[string][]string) (domain.ListQuery, error) {
-	var out domain.ListQuery
-	if v := first(q, "limit"); v != "" {
-		n, err := strconv.Atoi(v)
-		if err != nil {
-			return out, domain.Validation("invalid limit").WithHint("limit is an integer from 1 to 200")
-		}
-		out.Limit = n
+	pr, err := paging.ParseRequest(q)
+	out := domain.ListQuery{Limit: pr.Limit, Cursor: pr.Cursor, Sort: pr.Sort}
+	if err != nil {
+		return out, err
 	}
-	if v := first(q, "cursor"); v != "" {
-		c, err := domain.DecodeCursor(v)
-		if err != nil {
-			return out, err
-		}
-		out.Cursor = &c
-	}
-	out.Sort = first(q, "sort")
 	out.Q = first(q, "q")
 	out.Company = first(q, "company")
 	out.CompanyID = first(q, "company_id")
@@ -696,8 +683,6 @@ func (s *Server) read(w http.ResponseWriter, r *http.Request) ([]byte, bool) {
 	}
 	return b, true
 }
-
-var errBusy = errors.New("idempotency in progress")
 
 func (s *Server) mutate(w http.ResponseWriter, r *http.Request, status int, allowed []string, body []byte, fn func(ctx context.Context) (any, error)) {
 	httpx.Mutate(s.Svc.DB, w, r, status, allowed, body, fn)
@@ -809,67 +794,6 @@ func (s *Server) page(w http.ResponseWriter, r *http.Request, allow []string, fi
 		return
 	}
 	writeProjected(w, 200, obj, fields)
-}
-
-// pageSlice pages a list the service returns whole. Without limit it returns
-// every row, as these lists did before; with limit it pages by offset.
-// ponytail: offset cursor over an in-memory slice, fine for per-application lists; move to SQL keyset paging if one grows large.
-func pageSlice[T any](w http.ResponseWriter, r *http.Request, fieldAllow []string, load func(context.Context) ([]T, error), params ...string) {
-	q, err := query(r, append([]string{"limit", "cursor", "fields"}, params...)...)
-	if err != nil {
-		writeErr(w, err)
-		return
-	}
-	lq, err := listQuery(q)
-	if err != nil {
-		writeErr(w, err)
-		return
-	}
-	if lq.Limit < 0 || lq.Limit > 200 {
-		writeErr(w, domain.Validation("invalid limit").WithHint("limit is an integer from 1 to 200"))
-		return
-	}
-	fields := fieldsOf(q)
-	if len(fields) > 0 && fieldAllow == nil {
-		writeErr(w, domain.Validation("fields are not supported on this response"))
-		return
-	}
-	if err := domain.ValidateFields(fields, fieldAllow); err != nil {
-		writeErr(w, err)
-		return
-	}
-	offset := 0
-	if lq.Cursor != nil {
-		if err := domain.CheckCursorSort(*lq.Cursor, "offset"); err != nil {
-			writeErr(w, err)
-			return
-		}
-		offset, err = strconv.Atoi(lq.Cursor.ID)
-		if err != nil || offset < 0 {
-			writeErr(w, domain.Validation("invalid cursor").WithHint("pass next_cursor from the previous page unchanged"))
-			return
-		}
-	}
-	rows, err := load(r.Context())
-	if err != nil {
-		writeErr(w, err)
-		return
-	}
-	total := len(rows)
-	rows = rows[min(offset, total):]
-	limit := lq.Limit
-	if limit == 0 {
-		limit = len(rows)
-	}
-	out := domain.Page[T]{Data: rows[:min(limit, len(rows))], Page: domain.PageMeta{Limit: limit, Total: total}}
-	if out.Data == nil {
-		out.Data = []T{}
-	}
-	if next := offset + len(out.Data); next < total {
-		out.Page.HasMore = true
-		out.Page.NextCursor = domain.EncodeCursor("offset", "", strconv.Itoa(next))
-	}
-	writeProjected(w, 200, out, fields)
 }
 
 func (s *Server) listCompanies(w http.ResponseWriter, r *http.Request) {
@@ -1118,7 +1042,7 @@ func (s *Server) deleteRole(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) listInterviews(w http.ResponseWriter, r *http.Request) {
-	pageSlice(w, r, domain.InterviewFields, func(ctx context.Context) ([]domain.Interview, error) {
+	httpx.PageSlice(w, r, domain.InterviewFields, func(ctx context.Context) ([]domain.Interview, error) {
 		return s.Svc.ListInterviews(ctx, r.PathValue("id"))
 	})
 }
@@ -1130,13 +1054,13 @@ func (s *Server) compiledNotes(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) listRoundQuestions(w http.ResponseWriter, r *http.Request) {
-	pageSlice(w, r, domain.BankQuestionFields, func(ctx context.Context) ([]domain.BankQuestion, error) {
+	httpx.PageSlice(w, r, domain.BankQuestionFields, func(ctx context.Context) ([]domain.BankQuestion, error) {
 		return s.Svc.ListRoundQuestions(ctx, r.URL.Query().Get("q"))
 	}, "q")
 }
 
 func (s *Server) listNotes(w http.ResponseWriter, r *http.Request) {
-	pageSlice(w, r, domain.NoteFields, func(ctx context.Context) ([]domain.Note, error) {
+	httpx.PageSlice(w, r, domain.NoteFields, func(ctx context.Context) ([]domain.Note, error) {
 		return s.Svc.ListNotes(ctx, r.PathValue("id"))
 	})
 }
@@ -1210,7 +1134,7 @@ func (s *Server) deleteInterview(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) listTasks(w http.ResponseWriter, r *http.Request) {
-	pageSlice(w, r, domain.TaskFields, func(ctx context.Context) ([]domain.Task, error) {
+	httpx.PageSlice(w, r, domain.TaskFields, func(ctx context.Context) ([]domain.Task, error) {
 		return s.Svc.ListTasks(ctx, r.PathValue("id"))
 	})
 }
@@ -1680,14 +1604,14 @@ func (s *Server) listLinks(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, domain.Validation("invalid link status %q", first(raw, "status")).WithHint("status is live, closed, or unknown"))
 		return
 	}
-	attention, err := parseBoolFlag(first(raw, "attention"), "attention")
+	attention, err := httpx.BoolParam(first(raw, "attention"), "attention")
 	if err != nil {
 		writeErr(w, err)
 		return
 	}
 	var changed *bool
 	if rawChanged := first(raw, "changed"); rawChanged != "" {
-		v, err := parseBoolFlag(rawChanged, "changed")
+		v, err := httpx.BoolParam(rawChanged, "changed")
 		if err != nil {
 			writeErr(w, err)
 			return
@@ -1711,17 +1635,6 @@ func (s *Server) listLinks(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeProjected(w, 200, page, fields)
-}
-
-func parseBoolFlag(v, name string) (bool, error) {
-	switch strings.ToLower(strings.TrimSpace(v)) {
-	case "", "0", "false":
-		return false, nil
-	case "1", "true":
-		return true, nil
-	default:
-		return false, domain.Validation("invalid %s", name).WithHint(name + " is true or false")
-	}
 }
 
 func (s *Server) applyBatch(w http.ResponseWriter, r *http.Request) {
@@ -1756,90 +1669,15 @@ func (s *Server) applyBatch(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-const maxBatch = 100
-
 // batch runs each sub-request through the same routes as a direct call, as
 // the same actor, so scopes, validation, idempotency, and dry-run all apply
-// per item. Items run in order and are not atomic.
-// ponytail: sequential and non-atomic; wrap in one tx if partial batches bite.
+// per item.
 func (s *Server) batch(w http.ResponseWriter, r *http.Request) {
 	body, ok := s.read(w, r)
 	if !ok {
 		return
 	}
-	var in struct {
-		Requests []struct {
-			Method         string          `json:"method"`
-			Path           string          `json:"path"`
-			Body           json.RawMessage `json:"body"`
-			IdempotencyKey string          `json:"idempotency_key"`
-		} `json:"requests"`
-		StopOnError bool `json:"stop_on_error"`
-	}
-	if err := decode(body, &in); err != nil {
-		writeErr(w, err)
-		return
-	}
-	if strings.TrimSpace(r.Header.Get("Idempotency-Key")) != "" {
-		writeErr(w, domain.Validation("batch does not take an Idempotency-Key header").WithHint("put idempotency_key on each item"))
-		return
-	}
-	if len(in.Requests) == 0 || len(in.Requests) > maxBatch {
-		writeErr(w, domain.Validation("requests must hold 1 to %d items", maxBatch).WithHint("split larger batches"))
-		return
-	}
-	type result struct {
-		Status int             `json:"status"`
-		Body   json.RawMessage `json:"body,omitempty"`
-	}
-	results := make([]result, 0, len(in.Requests))
-	failed := 0
-	for _, item := range in.Requests {
-		method := strings.ToUpper(strings.TrimSpace(item.Method))
-		if method == "" {
-			method = http.MethodGet
-		}
-		u, err := url.Parse(item.Path)
-		if err != nil || !strings.HasPrefix(u.Path, "/v1/") || u.Path == "/v1/batch" || isPublic(u.Path) || isCron(u.Path) || u.Host != "" {
-			b, _ := marshal(map[string]any{"error": domain.Validation("invalid batch path %q", item.Path).WithHint("paths are /v1/... API routes other than /v1/batch")})
-			results = append(results, result{Status: 400, Body: b})
-			failed++
-			if in.StopOnError {
-				break
-			}
-			continue
-		}
-		var rdr io.Reader = http.NoBody
-		if len(item.Body) > 0 && string(item.Body) != "null" {
-			rdr = bytes.NewReader(item.Body)
-		}
-		sub, err := http.NewRequestWithContext(r.Context(), method, u.RequestURI(), rdr)
-		if err != nil {
-			writeErr(w, domain.Validation("%s", err.Error()))
-			return
-		}
-		sub.Header.Set("Content-Type", "application/json")
-		if dryRun(r) {
-			sub.Header.Set("X-Dry-Run", "true")
-		}
-		if item.IdempotencyKey != "" {
-			sub.Header.Set("Idempotency-Key", item.IdempotencyKey)
-		}
-		rec := httptest.NewRecorder()
-		s.mux.ServeHTTP(rec, sub)
-		out := bytes.TrimSpace(rec.Body.Bytes())
-		if len(out) > 0 && !json.Valid(out) {
-			out, _ = marshal(string(out))
-		}
-		results = append(results, result{Status: rec.Code, Body: out})
-		if rec.Code >= 400 {
-			failed++
-			if in.StopOnError {
-				break
-			}
-		}
-	}
-	writeJSON(w, 200, map[string]any{"results": results, "failed": failed})
+	httpx.Batch(s.mux, w, r, body, func(path string) bool { return isPublic(path) || isCron(path) })
 }
 
 func (s *Server) claim(w http.ResponseWriter, r *http.Request) {
@@ -1883,7 +1721,7 @@ func (s *Server) complete(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) listArtifacts(w http.ResponseWriter, r *http.Request) {
-	pageSlice(w, r, nil, func(ctx context.Context) ([]service.ArtifactView, error) {
+	httpx.PageSlice(w, r, nil, func(ctx context.Context) ([]service.ArtifactView, error) {
 		return s.Svc.ListArtifacts(ctx, r.PathValue("id"))
 	})
 }
@@ -1956,7 +1794,7 @@ func parseUpload(ct string, body []byte) (upload, error) {
 }
 
 func (s *Server) listDocuments(w http.ResponseWriter, r *http.Request) {
-	pageSlice(w, r, nil, s.Svc.ListDocuments)
+	httpx.PageSlice(w, r, nil, s.Svc.ListDocuments)
 }
 
 func (s *Server) addDocument(w http.ResponseWriter, r *http.Request) {
@@ -2032,13 +1870,13 @@ func (s *Server) getArtifact(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) listQuestions(w http.ResponseWriter, r *http.Request) {
-	pageSlice(w, r, nil, func(ctx context.Context) ([]service.QuestionView, error) {
+	httpx.PageSlice(w, r, nil, func(ctx context.Context) ([]service.QuestionView, error) {
 		return s.Svc.ListQuestions(ctx, r.PathValue("id"))
 	})
 }
 
 func (s *Server) listStanding(w http.ResponseWriter, r *http.Request) {
-	pageSlice(w, r, nil, s.Svc.ListStanding)
+	httpx.PageSlice(w, r, nil, s.Svc.ListStanding)
 }
 
 func (s *Server) setStanding(w http.ResponseWriter, r *http.Request) {
@@ -2130,7 +1968,7 @@ func (s *Server) checkAll(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) listHooks(w http.ResponseWriter, r *http.Request) {
-	pageSlice(w, r, nil, s.Svc.ListWebhooks)
+	httpx.PageSlice(w, r, nil, s.Svc.ListWebhooks)
 }
 
 func (s *Server) createHook(w http.ResponseWriter, r *http.Request) {
@@ -2172,35 +2010,9 @@ func (s *Server) jsonMut(w http.ResponseWriter, r *http.Request, status int, all
 }
 
 func (s *Server) getOne(w http.ResponseWriter, r *http.Request, allowed []string, load func(context.Context, string) (any, error)) {
-	if _, err := query(r, "fields"); err != nil {
-		writeErr(w, err)
-		return
-	}
-	fields := fieldsOf(r.URL.Query())
-	if err := domain.ValidateFields(fields, allowed); err != nil {
-		writeErr(w, err)
-		return
-	}
-	obj, err := load(r.Context(), r.PathValue("id"))
-	if err != nil {
-		writeErr(w, err)
-		return
-	}
-	writeProjected(w, 200, obj, fields)
+	httpx.GetOne(w, r, allowed, load)
 }
 
 func (s *Server) deleteOne(w http.ResponseWriter, r *http.Request, fn func(context.Context, string, int) (any, error)) {
-	if _, err := query(r, "version", "dry_run"); err != nil {
-		writeErr(w, err)
-		return
-	}
-	version, err := versionParam(r)
-	if err != nil {
-		writeErr(w, err)
-		return
-	}
-	id := r.PathValue("id")
-	s.mutate(w, r, 200, nil, []byte(strconv.Itoa(version)), func(ctx context.Context) (any, error) {
-		return fn(ctx, id, version)
-	})
+	httpx.DeleteOne(s.Svc.DB, w, r, fn)
 }
