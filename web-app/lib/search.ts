@@ -13,7 +13,7 @@ type Row = { status: string; tags?: string[]; applied_date?: string; company?: s
 
 const STATUSES = FILTERS.concat(MORE).filter(([v]) => v)
 const ago = (days: number) => new Date(Date.now() - days * 864e5).toISOString().slice(0, 10)
-const uniq = (xs: (string | undefined)[]) => [...new Set(xs.filter((x): x is string => !!x && !/\s/.test(x)))]
+const uniq = (xs: (string | undefined)[]) => [...new Set(xs.filter((x): x is string => !!x))]
 const having = (xs: string[], partial: string) => xs.filter((x) => x.toLowerCase().includes(partial.toLowerCase())).map((value) => ({ value }))
 
 export const QUALIFIERS: Qualifier<Row>[] = [
