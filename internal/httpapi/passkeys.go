@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"github.com/adrianmross/appkit/httpx"
+
 	"github.com/pursuit/pursuit/internal/domain"
 )
 
@@ -72,7 +74,7 @@ func (s *Server) passkeyRegisterFinish(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) listPasskeys(w http.ResponseWriter, r *http.Request) {
-	pageSlice(w, r, nil, s.Svc.ListPasskeys)
+	httpx.PageSlice(w, r, nil, s.Svc.ListPasskeys)
 }
 
 func (s *Server) deletePasskey(w http.ResponseWriter, r *http.Request) {

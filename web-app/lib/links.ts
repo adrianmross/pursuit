@@ -1,4 +1,4 @@
-import { EXPORT_MODE } from "@adrianmross/appkit-ui"
+import { exportMode } from "@adrianmross/appkit-ui"
 
 // Hosted: a real dynamic route, /app/[id]/page.tsx.
 // Export mode: static export can't enumerate every application id via
@@ -6,5 +6,5 @@ import { EXPORT_MODE } from "@adrianmross/appkit-ui"
 // in that build — a static /app/view page reads the id from a query
 // string instead, which needs nothing known at build time.
 export function applicationHref(id: string): string {
-  return EXPORT_MODE ? `/app/view?id=${encodeURIComponent(id)}` : `/app/${encodeURIComponent(id)}`
+  return exportMode() ? `/app/view?id=${encodeURIComponent(id)}` : `/app/${encodeURIComponent(id)}`
 }
