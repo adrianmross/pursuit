@@ -1,8 +1,6 @@
 package httpapi
 
 import (
-	"context"
-	"encoding/json"
 	"net/http"
 
 	"github.com/adrianmross/appkit/httpx"
@@ -10,9 +8,10 @@ import (
 	"github.com/pursuit/pursuit/internal/domain"
 )
 
-// Passkey routes. Registration and management need a signed-in human
-// (wrap authenticates /v1/passkeys like any /v1 route); login is public and
-// rate limited per IP. Every POST is same-origin JSON, like /v1/auth/session.
+// Passkeys are appkit's (account.Passkeys). Registration and management need
+// a signed-in human (wrap authenticates /v1/passkeys like any /v1 route);
+// login is public and rate limited per IP. Every POST is same-origin JSON,
+// like /v1/auth/session.
 //
 //   POST   /v1/passkeys/register/begin   -> {publicKey: ...} for navigator.credentials.create
 //   POST   /v1/passkeys/register/finish  {name, credential}
@@ -20,110 +19,61 @@ import (
 //   DELETE /v1/passkeys/{id}
 //   POST   /v1/auth/passkey/login/begin  -> {publicKey: ...} for navigator.credentials.get
 //   POST   /v1/auth/passkey/login/finish credential JSON; sets pursuit_session
+//
+// The list and the end of a sign-in call appkit from handlers here: the list
+// pages like Pursuit's other short lists, and the sign-in ends in Pursuit's
+// own session code, which audits the session it replaces.
+// ponytail: both go to appkit's routes once its list takes ?limit and
+// ?cursor and its sign-in audits the session it retires.
+
+var passkeyRoutes = []string{
+	"POST /v1/passkeys/register/begin",
+	"POST /v1/passkeys/register/finish",
+	"DELETE /v1/passkeys/{id}",
+	"POST /v1/auth/passkey/login/begin",
+}
 
 func (s *Server) registerPasskeys(mux *http.ServeMux) {
-	mux.HandleFunc("POST /v1/passkeys/register/begin", s.passkeyRegisterBegin)
-	mux.HandleFunc("POST /v1/passkeys/register/finish", s.passkeyRegisterFinish)
-	mux.HandleFunc("GET /v1/passkeys", s.listPasskeys)
-	mux.HandleFunc("DELETE /v1/passkeys/{id}", s.deletePasskey)
-	mux.HandleFunc("POST /v1/auth/passkey/login/begin", s.passkeyLoginBegin)
-	mux.HandleFunc("POST /v1/auth/passkey/login/finish", s.passkeyLoginFinish)
+	for _, pattern := range passkeyRoutes {
+		mux.HandleFunc(pattern, s.passkeysOn(s.accounts))
+	}
+	mux.HandleFunc("GET /v1/passkeys", s.passkeysOn(s.listPasskeys))
+	mux.HandleFunc("POST /v1/auth/passkey/login/finish", s.passkeysOn(s.passkeyLoginFinish))
 }
 
-// passkeyBody reads a same-origin JSON body.
-func (s *Server) passkeyBody(w http.ResponseWriter, r *http.Request) ([]byte, bool) {
-	if err := sameOriginJSON(r); err != nil {
-		writeErr(w, err)
-		return nil, false
+// passkeysOn answers for h while passkeys are off.
+func (s *Server) passkeysOn(h http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if s.Svc.Passkeys == nil {
+			writeErr(w, &domain.Error{Code: "not_found", Message: "passkeys are not enabled on this server", Hint: "the owner sets PURSUIT_WEBAUTHN_RP_ID to turn them on", Status: 404})
+			return
+		}
+		h(w, r)
 	}
-	return s.read(w, r)
-}
-
-func (s *Server) passkeyRegisterBegin(w http.ResponseWriter, r *http.Request) {
-	if _, ok := s.passkeyBody(w, r); !ok {
-		return
-	}
-	out, err := s.Svc.BeginPasskeyRegistration(r.Context())
-	if err != nil {
-		writeErr(w, err)
-		return
-	}
-	w.Header().Set("Cache-Control", "no-store")
-	writeJSON(w, 200, out)
-}
-
-func (s *Server) passkeyRegisterFinish(w http.ResponseWriter, r *http.Request) {
-	body, ok := s.passkeyBody(w, r)
-	if !ok {
-		return
-	}
-	var in struct {
-		Name       string          `json:"name"`
-		Credential json.RawMessage `json:"credential"`
-	}
-	if err := decode(body, &in); err != nil {
-		writeErr(w, err)
-		return
-	}
-	out, err := s.Svc.FinishPasskeyRegistration(r.Context(), in.Name, in.Credential)
-	if err != nil {
-		writeErr(w, err)
-		return
-	}
-	writeJSON(w, 201, out)
 }
 
 func (s *Server) listPasskeys(w http.ResponseWriter, r *http.Request) {
-	httpx.PageSlice(w, r, nil, s.Svc.ListPasskeys)
-}
-
-func (s *Server) deletePasskey(w http.ResponseWriter, r *http.Request) {
-	if _, err := query(r, "dry_run"); err != nil {
-		writeErr(w, err)
-		return
-	}
-	id := r.PathValue("id")
-	s.mutate(w, r, 200, nil, nil, func(ctx context.Context) (any, error) {
-		return s.Svc.DeletePasskey(ctx, id)
-	})
-}
-
-func (s *Server) passkeyLimited(w http.ResponseWriter, r *http.Request) bool {
-	if s.allow(r.Context(), rulePasskey, clientIP(r)) {
-		return false
-	}
-	w.Header().Set("Retry-After", "60")
-	writeErr(w, domain.RateLimited("too many passkey sign-ins from this address; wait a minute and try again"))
-	return true
-}
-
-func (s *Server) passkeyLoginBegin(w http.ResponseWriter, r *http.Request) {
-	if s.passkeyLimited(w, r) {
-		return
-	}
-	if _, ok := s.passkeyBody(w, r); !ok {
-		return
-	}
-	out, err := s.Svc.BeginPasskeyLogin(r.Context())
-	if err != nil {
-		writeErr(w, err)
-		return
-	}
-	w.Header().Set("Cache-Control", "no-store")
-	writeJSON(w, 200, out)
+	httpx.PageSlice(w, r, nil, s.Svc.Accounts().ListPasskeys)
 }
 
 // passkeyLoginFinish signs the browser in like the OIDC callback: the
 // login token goes straight into the httpOnly cookie, never to the page.
 func (s *Server) passkeyLoginFinish(w http.ResponseWriter, r *http.Request) {
-	if s.passkeyLimited(w, r) {
+	// Counted with the begin calls appkit limits: same rule, same key.
+	if !s.allow(r.Context(), rulePasskey, clientIP(r)) {
+		w.Header().Set("Retry-After", "60")
+		writeErr(w, domain.RateLimited("too many sign-in attempts from this address; wait a minute and try again"))
 		return
 	}
-	body, ok := s.passkeyBody(w, r)
+	if err := sameOriginJSON(r); err != nil {
+		writeErr(w, err)
+		return
+	}
+	body, ok := s.read(w, r)
 	if !ok {
 		return
 	}
-	secret, err := s.Svc.FinishPasskeyLogin(originCtx(r), body)
+	secret, err := s.Svc.Accounts().FinishPasskeyLogin(originCtx(r), body)
 	if err != nil {
 		writeErr(w, err)
 		return

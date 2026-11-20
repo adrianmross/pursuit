@@ -134,11 +134,11 @@ var sameJSON = map[string]string{"Content-Type": "application/json", "Sec-Fetch-
 func passkeyEnv(t *testing.T) *env {
 	t.Helper()
 	e := newEnv(t)
-	w, err := service.NewWebAuthn("localhost", []string{"http://localhost"})
+	w, err := service.NewPasskeys("localhost", []string{"http://localhost"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	e.svc.WebAuthn = w
+	e.svc.Passkeys = w
 	return e
 }
 
@@ -183,7 +183,7 @@ func TestPasskeysDisabledWithoutRPID(t *testing.T) {
 	if code, _ := e.json(t, http.MethodGet, "/v1/passkeys", e.token, nil); code != 404 {
 		t.Fatalf("list while off %d", code)
 	}
-	if w, err := service.NewWebAuthn("", []string{"http://localhost"}); w != nil || err != nil {
+	if w, err := service.NewPasskeys("", []string{"http://localhost"}); w != nil || err != nil {
 		t.Fatalf("empty RP ID should be off: %v %v", w, err)
 	}
 }
