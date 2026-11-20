@@ -9,7 +9,7 @@ import (
 	"github.com/pursuit/pursuit/internal/sqlstore"
 )
 
-// The OAuth server's and passkeys' bodies, which appkit's account package answers with.
+// The OAuth server's, passkeys' and account routes' bodies, which appkit's account package answers with.
 type (
 	DeviceAuthorization oauthlite.DeviceAuthorization
 	OAuthToken          oauthlite.Token
@@ -19,6 +19,8 @@ type (
 	ClientRegistration  account.ClientRegistration
 	ClientInfo          account.ClientInfo
 	PasskeyView         account.Passkey
+	MePatch             account.MePatch
+	TokenInput          account.TokenInput
 )
 
 // Bodies the handlers in internal/httpapi declare inline. They mirror those

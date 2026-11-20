@@ -153,11 +153,11 @@ func TestSessionExchangesBetterAuthJWT(t *testing.T) {
 	if code, _, _ := post(sign("hook@example.com", true)); code != 500 {
 		t.Fatalf("sign-up whose hook fails %d", code)
 	}
-	if _, err := e.svc.DB.FindUserByEmail(context.Background(), "hook@example.com"); !domain.IsCode(err, "not_found") {
+	if _, err := e.svc.Accounts().Store().FindUserByEmail(context.Background(), "hook@example.com"); !domain.IsCode(err, "not_found") {
 		t.Fatalf("user survived a failed hook: %v", err)
 	}
 	e.svc.OnUserCreated = hook
-	if _, err := e.svc.DB.FindUserByEmail(context.Background(), "neon@example.com"); err != nil {
+	if _, err := e.svc.Accounts().Store().FindUserByEmail(context.Background(), "neon@example.com"); err != nil {
 		t.Fatal(err)
 	}
 

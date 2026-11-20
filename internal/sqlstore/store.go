@@ -121,17 +121,6 @@ func parseTime(s string) (time.Time, error) {
 	return domain.ParseTime(s)
 }
 
-func optTime(s sql.NullString) (*time.Time, error) {
-	if !s.Valid || strings.TrimSpace(s.String) == "" {
-		return nil, nil
-	}
-	t, err := parseTime(s.String)
-	if err != nil {
-		return nil, err
-	}
-	return &t, nil
-}
-
 func optInt(n sql.NullInt64) *int64 {
 	if !n.Valid {
 		return nil
@@ -227,14 +216,10 @@ func sortSpec(kind string) (map[string]string, string, error) {
 		}, "-checked_at", nil
 	case "event":
 		return map[string]string{"occurred_at": "e.occurred_at", "created_at": "e.created_at"}, "-occurred_at", nil
-	case "audit":
-		return map[string]string{"created_at": "created_at"}, "-created_at", nil
 	case "tag":
 		return map[string]string{"name": "name", "created_at": "created_at"}, "name", nil
 	case "field":
 		return map[string]string{"name": "name", "created_at": "created_at"}, "name", nil
-	case "token":
-		return map[string]string{"created_at": "created_at", "name": "name"}, "-created_at", nil
 	default:
 		return nil, "", fmt.Errorf("unknown sort kind %s", kind)
 	}

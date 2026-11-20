@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/adrianmross/appkit/account"
+	"github.com/adrianmross/appkit/session"
 	"github.com/pursuit/pursuit/internal/domain"
 	"github.com/pursuit/pursuit/internal/links"
 	"github.com/pursuit/pursuit/internal/service"
@@ -48,6 +49,31 @@ func newEnv(t *testing.T) *env {
 	srv := httptest.NewServer(api.Handler())
 	t.Cleanup(srv.Close)
 	return &env{srv: srv, svc: svc, api: api, token: secret}
+}
+
+// signIn gives email a dashboard sign-in, as a provider or passkey sign-in
+// would, creating the user if nobody has that email. It returns the secret.
+func (e *env) signIn(t *testing.T, email string) string {
+	t.Helper()
+	ctx := context.Background()
+	a := e.svc.Accounts()
+	var user account.User
+	err := a.DB.WithLock(ctx, func(ctx context.Context) (err error) {
+		if user, err = a.Store().FindUserByEmail(ctx, email); domain.IsCode(err, "not_found") {
+			user, err = a.CreateUser(ctx, "", email)
+		}
+		return err
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	m := &session.Manager{Store: a.Store(), Now: func() time.Time { return e.svc.Now().UTC() }, NewID: a.ID,
+		LoginName: account.LoginName, IdleTTL: service.LoginIdleTTL, MaxTTL: service.LoginMaxTTL, Scopes: a.Scopes, TokenMarker: a.TokenMarker}
+	secret, _, err := m.Mint(ctx, user.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return secret
 }
 
 func (e *env) do(t *testing.T, method, path, token string, body []byte, headers map[string]string) (int, []byte, http.Header) {
@@ -885,49 +911,41 @@ func TestTrustProxyAuthAndCron(t *testing.T) {
 	}
 }
 
-func TestLoginIdentityTenantGating(t *testing.T) {
+// In multi-tenant mode a first verified email gets a user of its own, and
+// later sign-ins and bearer JWTs are that same user, with every scope.
+func TestBetterAuthProvisionsOneTenantPerEmail(t *testing.T) {
 	e := newEnv(t)
-	ctx := context.Background()
+	verifier, sign := fakeBetterAuth(t)
+	e.api.BetterAuth, e.api.TenantMode = verifier, "multi"
+	userID := func(code int, me map[string]any) string {
+		t.Helper()
+		if code != 200 {
+			t.Fatalf("%d %v", code, me)
+		}
+		return fmt.Sprint(me["user"].(map[string]any)["id"])
+	}
+	exchange := func(email string) string {
+		t.Helper()
+		code, b, _ := e.do(t, http.MethodPost, "/v1/auth/session", "", []byte(`{"token":"`+sign(email, true)+`"}`), map[string]string{"Content-Type": "application/json", "Sec-Fetch-Site": "same-origin"})
+		var me map[string]any
+		_ = json.Unmarshal(b, &me)
+		return userID(code, me)
+	}
+	second := exchange("second@example.com")
+	if code, owner := e.json(t, http.MethodGet, "/v1/me", e.token, nil); second == "" || second == userID(code, owner) {
+		t.Fatalf("a first sign-in should provision its own user, got %q", second)
+	}
+	if again := exchange("second@example.com"); again != second {
+		t.Fatalf("a second sign-in should reuse the same tenant, got %q vs %q", again, second)
+	}
 
-	if secret, err := e.svc.LoginIdentity(ctx, "adrian@localhost", "Adrian", false); err != nil || secret == "" {
-		t.Fatalf("single-tenant owner login: %v %q", err, secret)
+	code, me := e.json(t, http.MethodGet, "/v1/me", sign("third@example.com", true), nil)
+	third := userID(code, me)
+	if scopes := fmt.Sprint(me["token"].(map[string]any)["scopes"]); !strings.Contains(scopes, "approve") {
+		t.Fatalf("resolved actor should have full scopes, got %s", scopes)
 	}
-	if _, err := e.svc.LoginIdentity(ctx, "stranger@example.com", "Stranger", false); err == nil {
-		t.Fatal("single-tenant mode should refuse an unknown email")
-	}
-	secret, err := e.svc.LoginIdentity(ctx, "second@example.com", "Second", true)
-	if err != nil || secret == "" {
-		t.Fatalf("multi-tenant first login should provision a user: %v %q", err, secret)
-	}
-	u, err := e.svc.DB.FindUserByEmail(ctx, "second@example.com")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if secret2, err := e.svc.LoginIdentity(ctx, "second@example.com", "Second", true); err != nil || secret2 == "" {
-		t.Fatalf("second login for the same user: %v %q", err, secret2)
-	}
-	if u2, err := e.svc.DB.FindUserByEmail(ctx, "second@example.com"); err != nil || u2.ID != u.ID {
-		t.Fatalf("second login should reuse the same tenant, got %+v vs %+v (err %v)", u2, u, err)
-	}
-}
-
-func TestResolveTenantUser(t *testing.T) {
-	e := newEnv(t)
-	ctx := context.Background()
-
-	if _, err := e.svc.ResolveTenantUser(ctx, "third@example.com", "Third", false); err == nil {
-		t.Fatal("allowCreate=false should refuse an unknown email")
-	}
-	actor, err := e.svc.ResolveTenantUser(ctx, "third@example.com", "Third", true)
-	if err != nil || actor.UserID == "" {
-		t.Fatalf("first resolve should provision a user: %v %+v", err, actor)
-	}
-	if !actor.Can("approve") {
-		t.Fatalf("resolved actor should have full scopes, got %v", actor.Scopes)
-	}
-	actor2, err := e.svc.ResolveTenantUser(ctx, "third@example.com", "Third", true)
-	if err != nil || actor2.UserID != actor.UserID {
-		t.Fatalf("second resolve should reuse the same tenant: %v %+v vs %+v", err, actor2, actor)
+	if code, me = e.json(t, http.MethodGet, "/v1/me", sign("third@example.com", true), nil); userID(code, me) != third || third == second {
+		t.Fatalf("a second resolve should reuse the same tenant: %v vs %q", me, third)
 	}
 }
 

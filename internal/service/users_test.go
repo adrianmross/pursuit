@@ -10,7 +10,7 @@ import (
 	"github.com/pursuit/pursuit/internal/sqlstore/sqlstoretest"
 )
 
-// A first sign-in runs OnUserCreated once, a second does not, and a hook
+// A new user runs OnUserCreated through appkit's account layer, and a hook
 // that fails leaves no user behind.
 func TestOnUserCreated(t *testing.T) {
 	ctx := context.Background()
@@ -26,10 +26,15 @@ func TestOnUserCreated(t *testing.T) {
 		created = append(created, u.Email)
 		return nil
 	}
-	for range 2 {
-		if _, err := s.LoginIdentity(ctx, "a@example.com", "", true); err != nil {
-			t.Fatal(err)
-		}
+	create := func(email string) error {
+		a := s.Accounts()
+		return a.DB.WithLock(ctx, func(ctx context.Context) error {
+			_, err := a.CreateUser(ctx, "", email)
+			return err
+		})
+	}
+	if err := create("a@example.com"); err != nil {
+		t.Fatal(err)
 	}
 	if len(created) != 1 || created[0] != "a@example.com" {
 		t.Fatalf("hook ran for %v, want once for a@example.com", created)
@@ -37,10 +42,10 @@ func TestOnUserCreated(t *testing.T) {
 
 	boom := errors.New("boom")
 	s.OnUserCreated = func(context.Context, domain.User) error { return boom }
-	if _, err := s.LoginIdentity(ctx, "b@example.com", "", true); !errors.Is(err, boom) {
+	if err := create("b@example.com"); !errors.Is(err, boom) {
 		t.Fatalf("err = %v, want the hook's error", err)
 	}
-	if _, err := db.FindUserByEmail(ctx, "b@example.com"); !domain.IsCode(err, "not_found") {
+	if _, err := s.Accounts().Store().FindUserByEmail(ctx, "b@example.com"); !domain.IsCode(err, "not_found") {
 		t.Fatalf("user survived a failed hook: %v", err)
 	}
 }

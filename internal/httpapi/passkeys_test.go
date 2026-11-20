@@ -338,10 +338,7 @@ func TestPasskeyRegisterAndLogin(t *testing.T) {
 	// sessions are signed out (API keys are not).
 	var others []string
 	for i := 0; i < 2; i++ {
-		secret, err := e.svc.LoginIdentity(context.Background(), "adrian@localhost", "Adrian", false)
-		if err != nil {
-			t.Fatal(err)
-		}
+		secret := e.signIn(t, "adrian@localhost")
 		if code, _ := e.json(t, http.MethodGet, "/v1/me", secret, nil); code != 200 {
 			t.Fatalf("login session %d: %d", i, code)
 		}

@@ -208,7 +208,7 @@ func (s *Server) mcp(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized", "error_description": "sign in to use this server"})
 		return
 	}
-	actor, err := s.Svc.Authenticate(r.Context(), raw)
+	actor, err := s.Svc.Accounts().Authenticate(r.Context(), raw)
 	if err != nil || (actor.Resource != "" && actor.Resource != resource) {
 		w.Header().Set("WWW-Authenticate", challenge(`, error="invalid_token"`))
 		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "invalid_token", "error_description": "the token is invalid, expired or for another resource"})

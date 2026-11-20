@@ -4,100 +4,10 @@ import (
 	"context"
 	"encoding/base64"
 	"strings"
-	"time"
 
 	"github.com/pursuit/pursuit/internal/domain"
 	"github.com/pursuit/pursuit/internal/sqlstore"
 )
-
-const maxAvatar = 256 << 10
-
-type MePatch struct {
-	Name   *string `json:"name"`
-	Avatar *string `json:"avatar"`
-	Email  *string `json:"email"`
-	// AnnouncementsSeen only moves forward: an older time than the stored
-	// one is ignored, so a stale tab can't bring a dismissed card back.
-	AnnouncementsSeen *string `json:"announcements_seen"`
-}
-
-// UpdateMe changes the display name and avatar. Email is the identity key
-// for sign-in, so only the PURSUIT_TRUST_PROXY_AUTH owner may change it: the
-// platform in front authenticates them, not the email, and they are the only
-// user, so nothing else can be keyed on the old address.
-func (s *Service) UpdateMe(ctx context.Context, in MePatch) (domain.User, error) {
-	a, err := s.actor(ctx, true)
-	if err != nil {
-		return domain.User{}, err
-	}
-	user, err := s.DB.GetUser(ctx, a.UserID)
-	if err != nil {
-		return domain.User{}, err
-	}
-	oldEmail := user.Email
-	if in.Name != nil {
-		if user.Name, err = domain.RequireText("name", *in.Name, 200); err != nil {
-			return domain.User{}, err
-		}
-	}
-	if in.Avatar != nil {
-		v := strings.TrimSpace(*in.Avatar)
-		if v != "" && !validAvatar(v) {
-			return domain.User{}, domain.Validation("avatar must be a png, jpeg, or webp data URL").WithHint("data:image/png;base64,...")
-		}
-		if len(v) > maxAvatar {
-			return domain.User{}, domain.Validation("avatar is too large").WithHint("keep it under 256KB; resize to about 256px")
-		}
-		user.Avatar = v
-	}
-	if in.Email != nil {
-		if !a.Proxy {
-			return domain.User{}, domain.Validation("email is your sign-in and can't be changed here").WithHint("change it through your sign-in provider")
-		}
-		v, err := domain.ParseEmail(*in.Email)
-		if err != nil {
-			return domain.User{}, err
-		}
-		if v == "" {
-			return domain.User{}, domain.Validation("email is required")
-		}
-		user.Email = v
-	}
-	if in.AnnouncementsSeen != nil {
-		t, err := time.Parse(time.RFC3339, *in.AnnouncementsSeen)
-		if err != nil {
-			return domain.User{}, domain.Validation("announcements_seen must be an RFC 3339 time").WithHint("2026-11-07T00:00:00Z")
-		}
-		if v := t.UTC().Format(time.RFC3339); v > user.AnnouncementsSeen {
-			user.AnnouncementsSeen = v
-		}
-	}
-	err = s.DB.WithTx(ctx, func(ctx context.Context) error {
-		if err := s.DB.UpdateUserProfile(ctx, user); err != nil {
-			return err
-		}
-		if err := s.audit(ctx, a, "user.update", "user", user.ID, "updated profile", nil); err != nil {
-			return err
-		}
-		if user.Email != oldEmail {
-			return s.signOutOthers(ctx, a, "the email changed")
-		}
-		return nil
-	})
-	return user, err
-}
-
-// validAvatar admits only raster data URLs. SVG is excluded: it can carry
-// script and the dashboard renders this in an <img> on its own origin.
-func validAvatar(v string) bool {
-	for _, p := range []string{"data:image/png;base64,", "data:image/jpeg;base64,", "data:image/webp;base64,"} {
-		if rest, ok := strings.CutPrefix(v, p); ok {
-			_, err := base64.StdEncoding.DecodeString(rest)
-			return err == nil
-		}
-	}
-	return false
-}
 
 // DocumentView is a document without its body.
 type DocumentView struct {

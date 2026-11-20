@@ -106,21 +106,6 @@ func (s *Store) FirstUser(ctx context.Context) (domain.User, error) {
 	return u, err
 }
 
-func (s *Store) FindUserByEmail(ctx context.Context, email string) (domain.User, error) {
-	var u domain.User
-	var created string
-	err := s.queryRow(ctx, `SELECT id, name, email, avatar, announcements_seen, created_at FROM users WHERE lower(email)=lower(?)`, email).
-		Scan(&u.ID, &u.Name, &u.Email, &u.Avatar, &u.AnnouncementsSeen, &created)
-	if err == sql.ErrNoRows {
-		return domain.User{}, domain.NotFound("user")
-	}
-	if err != nil {
-		return domain.User{}, err
-	}
-	u.CreatedAt, err = parseTime(created)
-	return u, err
-}
-
 func (s *Store) GetUser(ctx context.Context, id string) (domain.User, error) {
 	var u domain.User
 	var created string
@@ -136,145 +121,7 @@ func (s *Store) GetUser(ctx context.Context, id string) (domain.User, error) {
 	return u, err
 }
 
-func (s *Store) UpdateUserProfile(ctx context.Context, u domain.User) error {
-	_, err := s.exec(ctx, `UPDATE users SET name=?, avatar=?, email=?, announcements_seen=? WHERE id=?`, u.Name, u.Avatar, u.Email, u.AnnouncementsSeen, u.ID)
-	return err
-}
-
-func (s *Store) CountTokens(ctx context.Context) (int, error) {
-	var n int
-	err := s.queryRow(ctx, `SELECT COUNT(*) FROM api_tokens`).Scan(&n)
-	return n, err
-}
-
-func (s *Store) CreateToken(ctx context.Context, t domain.Token) error {
-	expires := ""
-	if t.ExpiresAt != nil {
-		expires = formatTime(*t.ExpiresAt)
-	}
-	_, err := s.exec(ctx, `INSERT INTO api_tokens (id, user_id, name, token_hash, token_prefix, scopes, created_at, client, ip, client_id, resource, expires_at, family_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		t.ID, t.UserID, t.Name, t.Hash, t.Prefix, strings.Join(t.Scopes, ","), formatTime(t.CreatedAt), t.Client, t.IP, t.ClientID, t.Resource, expires, t.FamilyID)
-	return mapWriteErr(err)
-}
-
-func (s *Store) GetTokenByHash(ctx context.Context, hash string) (domain.Token, error) {
-	row := s.queryRow(ctx, `SELECT id, user_id, name, token_hash, token_prefix, scopes, created_at, last_used_at, revoked_at, client, ip, client_id, resource, expires_at, family_id FROM api_tokens WHERE token_hash=?`, hash)
-	t, err := scanToken(row)
-	if err == sql.ErrNoRows {
-		return domain.Token{}, domain.NotFound("token")
-	}
-	return t, err
-}
-
-func (s *Store) GetToken(ctx context.Context, userID, id string) (domain.Token, error) {
-	row := s.queryRow(ctx, `SELECT id, user_id, name, token_hash, token_prefix, scopes, created_at, last_used_at, revoked_at, client, ip, client_id, resource, expires_at, family_id FROM api_tokens WHERE user_id=? AND id=?`, userID, id)
-	t, err := scanToken(row)
-	if err == sql.ErrNoRows {
-		return domain.Token{}, domain.NotFound("token")
-	}
-	return t, err
-}
-
-func scanToken(row scanner) (domain.Token, error) {
-	var t domain.Token
-	var scopes, created string
-	var last, revoked, expires sql.NullString
-	err := row.Scan(&t.ID, &t.UserID, &t.Name, &t.Hash, &t.Prefix, &scopes, &created, &last, &revoked, &t.Client, &t.IP, &t.ClientID, &t.Resource, &expires, &t.FamilyID)
-	if err != nil {
-		return domain.Token{}, err
-	}
-	if scopes != "" {
-		t.Scopes = strings.Split(scopes, ",")
-	} else {
-		t.Scopes = []string{}
-	}
-	t.CreatedAt, err = parseTime(created)
-	if err != nil {
-		return domain.Token{}, err
-	}
-	t.LastUsedAt, err = optTime(last)
-	if err != nil {
-		return domain.Token{}, err
-	}
-	if t.RevokedAt, err = optTime(revoked); err != nil {
-		return domain.Token{}, err
-	}
-	t.ExpiresAt, err = optTime(expires)
-	return t, err
-}
-
 type scanner interface{ Scan(dest ...any) error }
-
-func (s *Store) ListTokens(ctx context.Context, userID string, q domain.ListQuery) ([]domain.Token, int, error) {
-	expr, desc, _, err := PrepareSort("token", q.Sort, q.Cursor)
-	if err != nil {
-		return nil, 0, err
-	}
-	w := where{}
-	w.add("user_id=?", userID)
-	if q.Cursor != nil && q.Cursor.ID != "" {
-		w.add(cursorSQL(expr, "id", desc), q.Cursor.K, q.Cursor.K, q.Cursor.ID)
-	}
-	limit := q.Limit
-	if limit <= 0 {
-		limit = 51
-	}
-	rows, err := s.query(ctx, `SELECT id, user_id, name, token_hash, token_prefix, scopes, created_at, last_used_at, revoked_at, client, ip, client_id, resource, expires_at, family_id FROM api_tokens `+w.sql()+` `+orderSQL(expr, "id", desc)+` LIMIT ?`, append(w.args, limit)...)
-	if err != nil {
-		return nil, 0, err
-	}
-	defer rows.Close()
-	var out []domain.Token
-	for rows.Next() {
-		t, err := scanToken(rows)
-		if err != nil {
-			return nil, 0, err
-		}
-		out = append(out, t)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, 0, err
-	}
-	var total int
-	if err := s.queryRow(ctx, `SELECT COUNT(*) FROM api_tokens WHERE user_id=?`, userID).Scan(&total); err != nil {
-		return nil, 0, err
-	}
-	if out == nil {
-		out = []domain.Token{}
-	}
-	return out, total, nil
-}
-
-func (s *Store) RevokeToken(ctx context.Context, userID, id, at string) (bool, error) {
-	res, err := s.exec(ctx, `UPDATE api_tokens SET revoked_at=? WHERE user_id=? AND id=? AND revoked_at IS NULL`, at, userID, id)
-	if err != nil {
-		return false, err
-	}
-	n, _ := res.RowsAffected()
-	return n == 1, nil
-}
-
-// RevokeExpiredLogins revokes every live token with this name that was last
-// used (or, never used, created) before idleBefore, or created before maxBefore.
-func (s *Store) RevokeExpiredLogins(ctx context.Context, name string, at, idleBefore, maxBefore time.Time) error {
-	_, err := s.exec(ctx, `UPDATE api_tokens SET revoked_at=? WHERE name=? AND revoked_at IS NULL AND (COALESCE(last_used_at, created_at) < ? OR created_at < ?)`, formatTime(at), name, formatTime(idleBefore), formatTime(maxBefore))
-	return err
-}
-
-// RevokeOtherLogins revokes a user's dashboard sign-ins except one.
-func (s *Store) RevokeOtherLogins(ctx context.Context, userID, name, exceptID string, at time.Time) (int, error) {
-	res, err := s.exec(ctx, `UPDATE api_tokens SET revoked_at=? WHERE user_id=? AND name=? AND id<>? AND revoked_at IS NULL`, formatTime(at), userID, name, exceptID)
-	if err != nil {
-		return 0, err
-	}
-	n, _ := res.RowsAffected()
-	return int(n), nil
-}
-
-func (s *Store) TouchToken(ctx context.Context, id string, at, staleBefore time.Time) error {
-	_, err := s.exec(ctx, `UPDATE api_tokens SET last_used_at=? WHERE id=? AND (last_used_at IS NULL OR last_used_at < ?)`, formatTime(at), id, formatTime(staleBefore))
-	return err
-}
 
 func (s *Store) CreateCompany(ctx context.Context, c domain.Company) error {
 	_, err := s.exec(ctx, `INSERT INTO companies (id, user_id, name, website, icon_url, notes, version, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -1458,78 +1305,6 @@ func (s *Store) CreateAudit(ctx context.Context, a domain.Audit) error {
 	return err
 }
 
-func (s *Store) ListAudit(ctx context.Context, userID string, q domain.ListQuery) ([]domain.Audit, int, error) {
-	expr, desc, _, err := PrepareSort("audit", q.Sort, q.Cursor)
-	if err != nil {
-		return nil, 0, err
-	}
-	w := where{}
-	w.add("user_id=?", userID)
-	if q.Actor != "" {
-		w.add("lower(actor_name)=lower(?)", q.Actor)
-	}
-	if q.Action != "" {
-		w.add("action=?", q.Action)
-	}
-	if q.EntityType != "" {
-		w.add("entity_type=?", q.EntityType)
-	}
-	if q.EntityID != "" {
-		w.add("entity_id=?", q.EntityID)
-	}
-	if q.Since != "" {
-		w.add("created_at>=?", q.Since)
-	}
-	if q.Until != "" {
-		w.add("created_at<=?", q.Until)
-	}
-	if q.Q != "" {
-		p := likeContains(q.Q)
-		w.add(`(lower(summary) LIKE ? ESCAPE '\' OR lower(action) LIKE ? ESCAPE '\' OR lower(entity_type) LIKE ? ESCAPE '\' OR lower(entity_id) LIKE ? ESCAPE '\' OR lower(actor_name) LIKE ? ESCAPE '\' OR lower(metadata) LIKE ? ESCAPE '\')`, p, p, p, p, p, p)
-	}
-	countWhere := w.sql()
-	countArgs := append([]any{}, w.args...)
-	if q.Cursor != nil && q.Cursor.ID != "" {
-		w.add(cursorSQL(expr, "id", desc), q.Cursor.K, q.Cursor.K, q.Cursor.ID)
-	}
-	limit := q.Limit
-	if limit <= 0 {
-		limit = 51
-	}
-	rows, err := s.query(ctx, `SELECT id, user_id, token_id, actor_name, action, entity_type, entity_id, summary, metadata, created_at FROM audit_log `+w.sql()+` `+orderSQL(expr, "id", desc)+` LIMIT ?`, append(w.args, limit)...)
-	if err != nil {
-		return nil, 0, err
-	}
-	defer rows.Close()
-	var out []domain.Audit
-	for rows.Next() {
-		var a domain.Audit
-		var meta, created string
-		if err := rows.Scan(&a.ID, &a.UserID, &a.TokenID, &a.ActorName, &a.Action, &a.EntityType, &a.EntityID, &a.Summary, &meta, &created); err != nil {
-			return nil, 0, err
-		}
-		if meta != "" {
-			a.Metadata = json.RawMessage(meta)
-		}
-		var perr error
-		if a.CreatedAt, perr = parseTime(created); perr != nil {
-			return nil, 0, perr
-		}
-		out = append(out, a)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, 0, err
-	}
-	var total int
-	if err := s.queryRow(ctx, `SELECT COUNT(*) FROM audit_log `+countWhere, countArgs...).Scan(&total); err != nil {
-		return nil, 0, err
-	}
-	if out == nil {
-		out = []domain.Audit{}
-	}
-	return out, total, nil
-}
-
 type IdemRecord = httpx.IdemRecord
 
 func (s *Store) GetIdempotency(ctx context.Context, tokenID, key string) (IdemRecord, bool, error) {
@@ -1558,14 +1333,5 @@ func (s *Store) InsertIdempotency(ctx context.Context, rec IdemRecord) error {
 
 func (s *Store) FinishIdempotency(ctx context.Context, tokenID, key string, status int, body string) error {
 	_, err := s.exec(ctx, `UPDATE idempotency_keys SET status_code=?, response_body=? WHERE token_id=? AND idem_key=?`, status, body, tokenID, key)
-	return err
-}
-
-// RevokeTokenFamily kills every access and refresh token issued from one consent.
-func (s *Store) RevokeTokenFamily(ctx context.Context, familyID, at string) error {
-	if _, err := s.exec(ctx, `UPDATE api_tokens SET revoked_at=? WHERE family_id=? AND revoked_at IS NULL`, at, familyID); err != nil {
-		return err
-	}
-	_, err := s.exec(ctx, `UPDATE oauth_refresh_tokens SET revoked_at=? WHERE family_id=? AND revoked_at=''`, at, familyID)
 	return err
 }

@@ -40,8 +40,17 @@ var sessionRoutes = []string{
 	"POST /v1/demo",
 }
 
+// Who is calling, their API tokens and the audit log are appkit's too.
+var accountRoutes = []string{
+	"GET /v1/me",
+	"POST /v1/tokens",
+	"GET /v1/tokens",
+	"DELETE /v1/tokens/{id}",
+	"GET /v1/audit",
+}
+
 func (s *Server) registerSession(mux *http.ServeMux) {
-	for _, pattern := range sessionRoutes {
+	for _, pattern := range append(sessionRoutes, accountRoutes...) {
 		mux.HandleFunc(pattern, s.accounts)
 	}
 	mux.HandleFunc("GET /v1/auth/{provider}/start", s.oidc)
@@ -86,9 +95,9 @@ func (s *Server) acct() *account.Accounts {
 }
 
 // accounts serves r from appkit. appkit registers every account route at
-// once, and some (/v1/me, /v1/tokens) are still Pursuit's own, so its routes
-// go on a mux of their own and only the patterns registered with this
-// handler are sent there.
+// once, and one (/v1/events) is Pursuit's own, so its routes go on a mux of
+// their own and only the patterns registered with this handler are sent
+// there.
 func (s *Server) accounts(w http.ResponseWriter, r *http.Request) {
 	mux := http.NewServeMux()
 	s.acct().Routes(mux)

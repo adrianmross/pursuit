@@ -14,14 +14,13 @@ import (
 const DefaultCLIClientID = "pursuit-cli"
 
 // Accounts is appkit's account layer on Pursuit's tables. It serves the
-// OAuth server (`pursuit auth login`, and the apps that register themselves
-// with their refresh tokens), passkeys, and every way into the dashboard:
-// the session cookie, an OIDC provider, Better Auth and the demo sandbox.
-// The HTTP layer adds what it is configured with (tenant mode, providers).
-// Users and tokens are still this package's own.
-// ponytail: built per call, like sessions(), because tests set Passkeys and
-// ClientDoc after the server exists; build it once when users and tokens
-// move here.
+// users, API tokens and audit listing, the OAuth server (`pursuit auth login`,
+// and the apps that register themselves with their refresh tokens), passkeys,
+// and every way into the dashboard: the session cookie, an OIDC provider,
+// Better Auth and the demo sandbox. The HTTP layer adds what it is
+// configured with (tenant mode, providers).
+// ponytail: built per call, because tests set Passkeys, ClientDoc and Now
+// after the server exists; build it once if that ever shows in a profile.
 func (s *Service) Accounts() *account.Accounts {
 	return &account.Accounts{
 		DB: s.DB.Core(), App: "pursuit", EnvPrefix: "PURSUIT_", TokenMarker: "pst_",

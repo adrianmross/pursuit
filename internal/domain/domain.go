@@ -813,14 +813,7 @@ type ListQuery struct {
 	Source        string
 	Tag           string
 	ApplicationID string
-	Actor         string
-	Action        string
-	// Since and Until bound audit entries by created_at (inclusive, UTC).
-	Since      string
-	Until      string
-	EntityType string
-	EntityID   string
-	Stale      bool
+	Stale         bool
 	// Archived, when true, lists only archived applications instead of the
 	// default (non-archived) view.
 	Archived  bool
@@ -841,8 +834,6 @@ var (
 	TaskFields        = []string{"id", "application_id", "stage", "round_id", "title", "notes", "due_at", "done_at", "version", "created_at", "updated_at"}
 	TagFields         = []string{"id", "name", "created_at"}
 	CustomFieldFields = []string{"id", "name", "type", "created_at"}
-	TokenFields       = []string{"id", "name", "prefix", "scopes", "created_at", "last_used_at", "revoked_at", "client", "ip", "current", "client_id", "expires_at"}
-	AuditFields       = []string{"id", "token_id", "actor_name", "action", "entity_type", "entity_id", "summary", "metadata", "created_at"}
 	LinkFields        = []string{"application_id", "role_id", "company", "title", "posting_url", "status", "detail", "http_status", "changed", "checked_at"}
 )
 
