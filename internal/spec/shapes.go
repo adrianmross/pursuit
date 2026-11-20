@@ -3,7 +3,21 @@ package spec
 import (
 	"encoding/json"
 
+	"github.com/adrianmross/appkit/account"
+	"github.com/adrianmross/oauthlite"
+
 	"github.com/pursuit/pursuit/internal/sqlstore"
+)
+
+// The OAuth server's bodies, which appkit's account package answers with.
+type (
+	DeviceAuthorization oauthlite.DeviceAuthorization
+	OAuthToken          oauthlite.Token
+	AuthorizeInput      oauthlite.AuthorizeInput
+	AuthorizeRequest    oauthlite.AuthorizeRequest
+	DeviceRequest       oauthlite.DeviceRequest
+	ClientRegistration  account.ClientRegistration
+	ClientInfo          account.ClientInfo
 )
 
 // Bodies the handlers in internal/httpapi declare inline. They mirror those

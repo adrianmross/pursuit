@@ -3,9 +3,11 @@ package httpapi
 import (
 	"encoding/json"
 	"io"
+	"mime"
 	"net/http"
 	"strings"
 
+	"github.com/adrianmross/appkit/account"
 	"github.com/adrianmross/appkit/session"
 	"github.com/pursuit/pursuit/internal/domain"
 	"github.com/pursuit/pursuit/internal/service"
@@ -17,6 +19,24 @@ import (
 const sessionCookie = "pursuit_session"
 
 var cookie = session.Cookie{Name: sessionCookie, MaxAge: service.LoginMaxTTL}
+
+// sameOrigin reports whether a browser sent r from this origin.
+var sameOrigin = session.SameOrigin
+
+// publicBase is the origin the caller reached us on.
+var publicBase = account.PublicBase
+
+// sameOriginJSON is the CSRF guard for a POST only the dashboard page makes:
+// a JSON body (not a simple form/text request), from this origin.
+func sameOriginJSON(r *http.Request) error {
+	if mt, _, err := mime.ParseMediaType(r.Header.Get("Content-Type")); err != nil || mt != "application/json" {
+		return domain.Validation("Content-Type must be application/json")
+	}
+	if !sameOrigin(r) {
+		return &domain.Error{Code: "forbidden", Message: "cross-origin request refused", Hint: "approve from the dashboard page itself", Status: 403}
+	}
+	return nil
+}
 
 // sessionCookieValue is the request's session token, "" without one.
 func sessionCookieValue(r *http.Request) string { return cookie.Value(r) }

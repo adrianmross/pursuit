@@ -18,7 +18,6 @@ import (
 	"github.com/pursuit/pursuit/internal/auth"
 	"github.com/pursuit/pursuit/internal/config"
 	"github.com/pursuit/pursuit/internal/domain"
-	"github.com/pursuit/pursuit/internal/service"
 )
 
 const (
@@ -65,6 +64,18 @@ func tokenSource(g globals, cfg config.Config) string {
 	return "none"
 }
 
+// loginScopes reads --scope: space- or comma-separated, each exactly read
+// or write. The server checks again; this only fails sooner.
+func loginScopes(raw string) ([]string, error) {
+	parts := strings.FieldsFunc(raw, func(r rune) bool { return r == ' ' || r == ',' })
+	for _, p := range parts {
+		if p != "read" && p != "write" {
+			return nil, fmt.Errorf("unknown scope %q", p)
+		}
+	}
+	return auth.NormalizeScopes(parts)
+}
+
 func runAuthLogin(e *exec) error {
 	server := config.ServerKey(e.cfg.ServerURL)
 	raw := e.Flag("scope")
@@ -74,7 +85,7 @@ func runAuthLogin(e *exec) error {
 	if strings.Contains(strings.ToLower(raw), "approve") {
 		return &exitError{Code: 2, Message: "pursuit auth login never grants approve", Hint: "approve in the dashboard, or have a human mint an approve token and pass it as PURSUIT_TOKEN"}
 	}
-	scopes, err := service.ParseOAuthScopes(raw)
+	scopes, err := loginScopes(raw)
 	if err != nil {
 		return &exitError{Code: 2, Message: "invalid --scope " + raw, Hint: "use read, write, or read,write (lowercase)"}
 	}
