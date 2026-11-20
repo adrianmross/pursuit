@@ -19,14 +19,13 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/adrianmross/appkit/account"
 	"github.com/adrianmross/appkit/httpx"
 	"github.com/adrianmross/appkit/paging"
 	"github.com/adrianmross/appkit/session"
-	"github.com/pursuit/pursuit/internal/betterauth"
 	"github.com/pursuit/pursuit/internal/dashboard"
 	"github.com/pursuit/pursuit/internal/domain"
 	"github.com/pursuit/pursuit/internal/impex"
-	"github.com/pursuit/pursuit/internal/oidcauth"
 	"github.com/pursuit/pursuit/internal/service"
 	"github.com/pursuit/pursuit/internal/spec"
 	"github.com/pursuit/pursuit/internal/version"
@@ -48,10 +47,10 @@ type Server struct {
 	// FaviconService is "on" or "off"; empty follows TenantMode (on when multi).
 	FaviconService string
 	// OIDC is nil when no social/OIDC login provider is configured.
-	OIDC *oidcauth.Manager
-	// BetterAuth is nil when no Neon Auth (Better Auth) JWT verifier is
+	OIDC *account.OIDC
+	// BetterAuth is nil when no Neon Auth (Better Auth) instance is
 	// configured. Only consulted in multi-tenant mode.
-	BetterAuth *betterauth.Verifier
+	BetterAuth *account.BetterAuth
 	// BetterAuthOrigin is Better Auth's scheme+host, added to the
 	// dashboard's connect-src so the browser's own client SDK can reach
 	// it directly (sign-up/sign-in, minting a JWT) alongside this origin.
@@ -79,7 +78,7 @@ type Server struct {
 	// DemoMode lets an unauthenticated caller in as a fresh, isolated,
 	// rate-limited throwaway tenant instead of requiring a token — a
 	// zero-signup tutorial for preview deployments. Never set this on a
-	// production/real-data deployment: see demo.go.
+	// production/real-data deployment: a sandbox is a token nobody proved who they are to get.
 	DemoMode bool
 
 	mux *http.ServeMux
@@ -87,61 +86,6 @@ type Server struct {
 
 func (s *Server) multiTenant() bool {
 	return strings.EqualFold(strings.TrimSpace(s.TenantMode), "multi")
-}
-
-// signupsOpen reports whether a verified identity with no Pursuit account
-// gets one. Only multi-tenant mode creates accounts; SignupsClosed pauses
-// that without touching existing users.
-func (s *Server) signupsOpen() bool {
-	return s.multiTenant() && !s.SignupsClosed
-}
-
-// signupsPaused turns "no account for this verified email" into an answer
-// the person can act on while sign-ups are closed.
-func (s *Server) signupsPaused(err error) error {
-	if s.multiTenant() && s.SignupsClosed && domain.IsCode(err, "unauthorized") {
-		return &domain.Error{Code: "forbidden", Message: "sign-ups are paused", Hint: "this email has no account yet; ask the owner for access", Status: 403}
-	}
-	return err
-}
-
-// authenticate dispatches a bearer token to the right verifier: Pursuit's
-// own tokens are prefixed "pst_"; anything else that looks like a JWT
-// (two dots) is checked against Better Auth, when configured and only
-// in multi-tenant mode. Falls back to Pursuit's own check otherwise, so
-// the usual "invalid token" error still comes from one place.
-func (s *Server) authenticate(ctx context.Context, raw string) (domain.Actor, error) {
-	if s.isBetterAuthJWT(raw) {
-		identity, err := s.verifyBetterAuth(ctx, raw)
-		if err != nil {
-			return domain.Actor{}, err
-		}
-		actor, err := s.Svc.ResolveTenantUser(ctx, identity.Email, identity.Name, s.signupsOpen())
-		return actor, s.signupsPaused(err)
-	}
-	return s.Svc.Authenticate(ctx, raw)
-}
-
-func (s *Server) isBetterAuthJWT(raw string) bool {
-	return s.BetterAuth != nil && s.multiTenant() && !strings.HasPrefix(raw, "pst_") && strings.Count(raw, ".") == 2
-}
-
-func (s *Server) verifyBetterAuth(ctx context.Context, raw string) (betterauth.Identity, error) {
-	identity, err := s.BetterAuth.Verify(ctx, raw)
-	if err != nil {
-		return betterauth.Identity{}, domain.Unauthorized()
-	}
-	// A JWT signature only proves the caller completed sign-up/sign-in
-	// with this email; it doesn't prove they own the inbox. Without
-	// that, anyone could type a stranger's email, "sign up", and be
-	// matched into that stranger's existing account. Require Better
-	// Auth's own email-verification claim before trusting it either
-	// way: the dashboard's "Create account" step will need Neon's
-	// email-verification plugin enabled before it can issue one.
-	if !identity.EmailVerified {
-		return betterauth.Identity{}, domain.Unauthorized()
-	}
-	return identity, nil
 }
 
 func (s *Server) Handler() http.Handler {
@@ -156,12 +100,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /reference", s.reference)
 	mux.HandleFunc("GET /", s.dashboard)
 
-	mux.HandleFunc("GET /v1/auth/providers", s.authProviders)
-	mux.HandleFunc("GET /v1/auth/{provider}/start", s.authStart)
-	mux.HandleFunc("GET /v1/auth/{provider}/callback", s.authCallback)
-	mux.HandleFunc("POST /v1/auth/session", s.createSession)
-	mux.HandleFunc("DELETE /v1/auth/session", s.deleteSession)
-	mux.HandleFunc("POST /v1/demo", s.startDemo)
+	s.registerSession(mux)
 	s.registerOAuth(mux)
 	s.registerPasskeys(mux)
 
@@ -310,7 +249,8 @@ func (s *Server) authorize(next http.Handler) http.Handler {
 		}
 		if !isPublic(r.URL.Path) {
 			gate := session.Gate{
-				Cookie: cookie, Authenticate: s.authenticate,
+				// appkit's check also takes a Better Auth JWT, in multi-tenant mode.
+				Cookie: cookie, Authenticate: s.acct().Authenticate,
 				Unauthorized: func() error { return domain.Unauthorized() }, CrossSite: crossSiteRefused,
 			}
 			if s.trustVercel() {
@@ -383,61 +323,6 @@ func (s *Server) proxyOwner(ctx context.Context) (domain.Actor, error) {
 	}
 	// Name is who acted in events and the audit log: the owner, not the platform.
 	return domain.Actor{UserID: user.ID, Name: cmp.Or(user.Name, user.Email), Scopes: []string{"read", "write", "approve"}, Proxy: true}, nil
-}
-
-func (s *Server) authProviders(w http.ResponseWriter, r *http.Request) {
-	type providerInfo struct {
-		Name  string `json:"name"`
-		Label string `json:"label"`
-	}
-	providers := []providerInfo{}
-	if s.OIDC != nil {
-		for _, p := range s.OIDC.Providers() {
-			providers = append(providers, providerInfo{Name: p.Name, Label: p.Label})
-		}
-	}
-	mode := "single"
-	if s.multiTenant() {
-		mode = "multi"
-	}
-	writeJSON(w, 200, map[string]any{"tenant_mode": mode, "providers": providers, "allow_token_login": !s.HideTokenLogin && !s.multiTenant(), "demo_available": s.DemoMode, "signups_open": s.signupsOpen(), "passkeys": s.Svc.Passkeys != nil})
-}
-
-func (s *Server) authStart(w http.ResponseWriter, r *http.Request) {
-	if s.OIDC == nil {
-		writeErr(w, domain.NotFound("provider"))
-		return
-	}
-	if err := s.OIDC.Start(w, r, r.PathValue("provider")); err != nil {
-		writeErr(w, domain.Validation("%s", err.Error()))
-	}
-}
-
-func (s *Server) authCallback(w http.ResponseWriter, r *http.Request) {
-	if s.OIDC == nil {
-		writeErr(w, domain.NotFound("provider"))
-		return
-	}
-	identity, err := s.OIDC.Callback(r.Context(), w, r, r.PathValue("provider"))
-	if err != nil {
-		s.log().Warn("oidc callback", "provider", r.PathValue("provider"), "err", err.Error())
-		writeErr(w, domain.Unauthorized())
-		return
-	}
-	if !identity.EmailVerified {
-		writeErr(w, domain.Unauthorized())
-		return
-	}
-	secret, err := s.Svc.LoginIdentity(originCtx(r), identity.Email, identity.Name, s.signupsOpen())
-	if err != nil {
-		writeErr(w, s.signupsPaused(err))
-		return
-	}
-	if actor, err := s.Svc.Authenticate(r.Context(), secret); err == nil {
-		s.retireSession(r, actor.UserID)
-	}
-	setSessionCookie(w, r, secret)
-	http.Redirect(w, r, "/start", http.StatusFound)
 }
 
 func (s *Server) cronSecret() string {

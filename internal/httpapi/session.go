@@ -1,9 +1,6 @@
 package httpapi
 
 import (
-	"encoding/json"
-	"io"
-	"mime"
 	"net/http"
 	"strings"
 
@@ -16,6 +13,7 @@ import (
 // sessionCookie holds the dashboard's token where page scripts can't read
 // it (httpOnly), instead of localStorage. Requests with a bearer token
 // never look at it. See session.Cookie for the __Host- prefix over HTTPS.
+// appkit sets and clears it (App + "_session"); authorize reads it here.
 const sessionCookie = "pursuit_session"
 
 var cookie = session.Cookie{Name: sessionCookie, MaxAge: service.LoginMaxTTL}
@@ -26,104 +24,77 @@ var sameOrigin = session.SameOrigin
 // publicBase is the origin the caller reached us on.
 var publicBase = account.PublicBase
 
-// sameOriginJSON is the CSRF guard for a POST only the dashboard page makes:
-// a JSON body (not a simple form/text request), from this origin.
-func sameOriginJSON(r *http.Request) error {
-	if mt, _, err := mime.ParseMediaType(r.Header.Get("Content-Type")); err != nil || mt != "application/json" {
-		return domain.Validation("Content-Type must be application/json")
-	}
-	if !sameOrigin(r) {
-		return &domain.Error{Code: "forbidden", Message: "cross-origin request refused", Hint: "approve from the dashboard page itself", Status: 403}
-	}
-	return nil
-}
-
-// sessionCookieValue is the request's session token, "" without one.
-func sessionCookieValue(r *http.Request) string { return cookie.Value(r) }
-
-func setSessionCookie(w http.ResponseWriter, r *http.Request, token string) { cookie.Set(w, r, token) }
-
-func clearSessionCookie(w http.ResponseWriter, r *http.Request) { cookie.Clear(w, r) }
-
-// retireSession replaces the browser's current dashboard session with a new
-// sign-in: a re-login (or step-up) must not leave the old token alive beside
-// the new one. Only a login token of the same user is revoked.
-func (s *Server) retireSession(r *http.Request, userID string) {
-	old := sessionCookieValue(r)
-	if !strings.HasPrefix(old, "pst_") {
-		return
-	}
-	if actor, err := s.Svc.Authenticate(r.Context(), old); err == nil && actor.Name == service.LoginTokenName && actor.UserID == userID {
-		if _, err := s.Svc.RevokeToken(domain.WithActor(r.Context(), actor), actor.TokenID); err != nil {
-			s.log().Warn("retire previous session", "err", err.Error())
-		}
-	}
-}
-
-// isHTTPS is true behind a TLS-terminating proxy (Vercel) too, so a local
-// `pursuit serve` on plain http still gets a cookie it can send back.
-var isHTTPS = session.IsHTTPS
-
 func crossSiteRefused() error {
 	return &domain.Error{Code: "forbidden", Message: "cross-origin request refused", Hint: "send Authorization: Bearer <token>, or make the change from the dashboard itself", Status: 403}
 }
 
-// createSession checks a token the way any request would, then stores it in
-// the session cookie and answers like GET /v1/me. A Better Auth JWT lives
-// about 15 minutes, so it is exchanged for a Pursuit login token (as the
-// OIDC callback does) instead of being stored. Same-origin JSON only, so
-// another site can't sign the browser into an account it chose.
-func (s *Server) createSession(w http.ResponseWriter, r *http.Request) {
-	if err := sameOriginJSON(r); err != nil {
-		writeErr(w, err)
-		return
-	}
-	var in struct {
-		Token string `json:"token"`
-	}
-	if err := json.NewDecoder(io.LimitReader(r.Body, 64<<10)).Decode(&in); err != nil || strings.TrimSpace(in.Token) == "" {
-		writeErr(w, domain.Validation(`body must be {"token": "..."}`))
-		return
-	}
-	token := strings.TrimSpace(in.Token)
-	if s.isBetterAuthJWT(token) {
-		identity, err := s.verifyBetterAuth(r.Context(), token)
-		if err != nil {
-			writeErr(w, err)
-			return
-		}
-		if token, err = s.Svc.LoginIdentity(originCtx(r), identity.Email, identity.Name, s.signupsOpen()); err != nil {
-			writeErr(w, s.signupsPaused(err))
-			return
-		}
-	}
-	actor, err := s.authenticate(r.Context(), token)
-	if err != nil {
-		writeErr(w, err)
-		return
-	}
-	if token != sessionCookieValue(r) {
-		s.retireSession(r, actor.UserID)
-	}
-	setSessionCookie(w, r, token)
-	s.me(w, r.WithContext(domain.WithActor(r.Context(), actor)))
+// Signing in to the dashboard is appkit's (account.Accounts): what the
+// sign-in page may offer, the session cookie (a pasted token is stored as
+// is; a Better Auth JWT lives about 15 minutes, so it is exchanged for a
+// login token), sign-out, an OIDC provider's redirect round trip, and the
+// demo sandbox.
+var sessionRoutes = []string{
+	"GET /v1/auth/providers",
+	"POST /v1/auth/session",
+	"DELETE /v1/auth/session",
+	"POST /v1/demo",
 }
 
-// deleteSession signs the dashboard out. It revokes the cookie's token when
-// sign-in minted it (named "login"); any other token stays valid, since the
-// CLI may also use it. The cookie is cleared either way.
-func (s *Server) deleteSession(w http.ResponseWriter, r *http.Request) {
-	if !sameOrigin(r) {
-		writeErr(w, crossSiteRefused())
+func (s *Server) registerSession(mux *http.ServeMux) {
+	for _, pattern := range sessionRoutes {
+		mux.HandleFunc(pattern, s.accounts)
+	}
+	mux.HandleFunc("GET /v1/auth/{provider}/start", s.oidc)
+	mux.HandleFunc("GET /v1/auth/{provider}/callback", s.oidc)
+}
+
+// oidc answers for appkit when no provider, or not this one, is configured:
+// appkit only has routes for the ones that are, and calls an unknown name a 404.
+func (s *Server) oidc(w http.ResponseWriter, r *http.Request) {
+	if s.OIDC == nil {
+		writeErr(w, domain.NotFound("provider"))
 		return
 	}
-	if c := sessionCookieValue(r); strings.HasPrefix(c, "pst_") {
-		if actor, err := s.Svc.Authenticate(r.Context(), c); err == nil && actor.Name == service.LoginTokenName {
-			if _, err := s.Svc.RevokeToken(domain.WithActor(r.Context(), actor), actor.TokenID); err != nil {
-				s.log().Warn("revoke login token on sign-out", "err", err.Error())
-			}
+	name := r.PathValue("provider")
+	for _, p := range s.OIDC.Providers {
+		if p.Name == name {
+			s.accounts(w, r)
+			return
 		}
 	}
-	clearSessionCookie(w, r)
-	w.WriteHeader(http.StatusNoContent)
+	if strings.HasSuffix(r.URL.Path, "/start") {
+		writeErr(w, domain.Validation("unknown provider %q", name))
+		return
+	}
+	writeErr(w, domain.Unauthorized())
+}
+
+// acct is appkit's account layer as this server is configured.
+func (s *Server) acct() *account.Accounts {
+	a := s.Svc.Accounts()
+	a.ClientIP, a.Log = clientIP, s.log()
+	a.MultiTenant, a.SignupsClosed, a.HideTokenLogin = s.multiTenant(), s.SignupsClosed, s.HideTokenLogin
+	a.OIDC = s.OIDC
+	if s.multiTenant() {
+		// Only multi-tenant mode takes Better Auth's word for who someone is.
+		a.BetterAuth = s.BetterAuth
+	}
+	if !s.DemoMode {
+		a.Demo = nil
+	}
+	return a
+}
+
+// accounts serves r from appkit. appkit registers every account route at
+// once, and some (/v1/me, /v1/tokens) are still Pursuit's own, so its routes
+// go on a mux of their own and only the patterns registered with this
+// handler are sent there.
+func (s *Server) accounts(w http.ResponseWriter, r *http.Request) {
+	mux := http.NewServeMux()
+	s.acct().Routes(mux)
+	if strings.HasPrefix(r.URL.Path, "/v1/auth/") {
+		// Nothing these answer with may be cached, a refusal for too many requests included.
+		w.Header().Set("Cache-Control", "no-store")
+	}
+	mux.ServeHTTP(w, r)
 }

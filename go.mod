@@ -3,20 +3,22 @@ module github.com/pursuit/pursuit
 go 1.26.10
 
 require (
-	github.com/adrianmross/appkit v0.5.0
+	github.com/adrianmross/appkit v0.6.0
 	github.com/adrianmross/ratchet v0.1.0
 	github.com/adrianmross/tokenkeep v0.1.0
-	github.com/coreos/go-oidc/v3 v3.21.0
 	github.com/getsentry/sentry-go v0.50.0
 	github.com/go-webauthn/webauthn v0.18.2
 	github.com/google/uuid v1.6.0
 	github.com/jackc/pgx/v5 v5.9.2
 	github.com/ledongthuc/pdf v0.0.0-20261020125853-5e46805f718e
 	github.com/minio/minio-go/v7 v7.4.1
-	golang.org/x/oauth2 v0.37.0
 )
 
-require modernc.org/sqlite v1.34.5 // indirect
+require (
+	github.com/coreos/go-oidc/v3 v3.21.0 // indirect
+	golang.org/x/oauth2 v0.37.0 // indirect
+	modernc.org/sqlite v1.34.5 // indirect
+)
 
 require (
 	github.com/adrianmross/oauthlite v0.2.0

@@ -6875,7 +6875,7 @@
         ]
       },
       "post": {
-        "description": "Verify a token (pst_, or a Better Auth JWT exchanged for a pst_ login token) and store the pst_ token in the httpOnly pursuit_session cookie, then answer like GET /v1/me. Requires Content-Type application/json and Sec-Fetch-Site same-origin or a matching Origin. Agents send Authorization: Bearer instead.",
+        "description": "Verify a token (pst_, or a Better Auth JWT exchanged for a pst_ login token) and store the pst_ token in the httpOnly pursuit_session cookie, then answer like GET /v1/me. Requires Content-Type application/json and Sec-Fetch-Site same-origin or a matching Origin. Agents send Authorization: Bearer instead. Limited to 20 a minute per client IP (429).",
         "operationId": "signIn",
         "requestBody": {
           "content": {
@@ -6906,6 +6906,9 @@
           },
           "403": {
             "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           },
           "default": {
             "content": {
@@ -7014,7 +7017,7 @@
     },
     "/v1/auth/{provider}/callback": {
       "get": {
-        "description": "Redirects to /#token=\u003csecret\u003e.",
+        "description": "Sets the httpOnly pursuit_session cookie and redirects to /start. A refused sign-in redirects to /sign-in?error=provider, or ?error=signups_paused when the email has no account and sign-ups are closed.",
         "operationId": "finishOIDCSignin",
         "parameters": [
           {
@@ -7030,8 +7033,14 @@
           "302": {
             "description": "Found"
           },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           },
           "default": {
             "content": {
@@ -7053,7 +7062,7 @@
     },
     "/v1/auth/{provider}/start": {
       "get": {
-        "description": "Redirects to the provider.",
+        "description": "Redirects to the provider, or to /sign-in?error=provider when it cannot be reached. Start and callback together are limited to 20 a minute per client IP (429).",
         "operationId": "startOIDCSignin",
         "parameters": [
           {
@@ -7069,8 +7078,14 @@
           "302": {
             "description": "Found"
           },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           },
           "default": {
             "content": {

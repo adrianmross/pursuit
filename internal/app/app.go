@@ -17,12 +17,11 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/pursuit/pursuit/internal/betterauth"
+	"github.com/adrianmross/appkit/account"
 	"github.com/pursuit/pursuit/internal/config"
 	"github.com/pursuit/pursuit/internal/domain"
 	"github.com/pursuit/pursuit/internal/httpapi"
 	"github.com/pursuit/pursuit/internal/links"
-	"github.com/pursuit/pursuit/internal/oidcauth"
 	"github.com/pursuit/pursuit/internal/service"
 	"github.com/pursuit/pursuit/internal/sqlstore"
 	"github.com/pursuit/pursuit/internal/telemetry"
@@ -162,33 +161,34 @@ func NewServer(ctx context.Context, store *sqlstore.Store, cfg config.Config, lo
 		log.Info("bootstrap token created", "token", secret, "hint", "save this token; it will not be shown again")
 	}
 
-	oidcMgr, err := buildOIDC(ctx, cfg)
+	oidc, err := buildOIDC(cfg)
 	if err != nil {
 		return nil, StageOIDC, err
 	}
-	var betterAuthVerifier *betterauth.Verifier
+	var betterAuth *account.BetterAuth
 	var betterAuthOrigin string
 	if cfg.BetterAuthBaseURL != "" {
-		betterAuthVerifier = betterauth.New(ctx, cfg.BetterAuthBaseURL, cfg.BetterAuthIssuer, cfg.BetterAuthAudience)
-		betterAuthOrigin = betterauth.Origin(cfg.BetterAuthBaseURL)
+		betterAuth = &account.BetterAuth{BaseURL: cfg.BetterAuthBaseURL, Issuer: cfg.BetterAuthIssuer, Audience: cfg.BetterAuthAudience}
+		betterAuthOrigin = betterAuth.Origin()
 	}
-	return &httpapi.Server{Svc: svc, Log: log, CORS: cfg.CORSOrigins, TrustProxyAuth: cfg.TrustProxyAuth, TenantMode: cfg.TenantMode, FaviconService: cfg.FaviconService, OIDC: oidcMgr, BetterAuth: betterAuthVerifier, BetterAuthOrigin: betterAuthOrigin, HideTokenLogin: cfg.HideTokenLogin, DemoMode: cfg.DemoMode, SignupsClosed: cfg.SignupsClosed, NoDocs: cfg.NoDocs}, "", nil
+	return &httpapi.Server{Svc: svc, Log: log, CORS: cfg.CORSOrigins, TrustProxyAuth: cfg.TrustProxyAuth, TenantMode: cfg.TenantMode, FaviconService: cfg.FaviconService, OIDC: oidc, BetterAuth: betterAuth, BetterAuthOrigin: betterAuthOrigin, HideTokenLogin: cfg.HideTokenLogin, DemoMode: cfg.DemoMode, SignupsClosed: cfg.SignupsClosed, NoDocs: cfg.NoDocs}, "", nil
 }
 
-// buildOIDC returns nil when no provider is configured.
-func buildOIDC(ctx context.Context, cfg config.Config) (*oidcauth.Manager, error) {
-	var specs []oidcauth.Spec
+// buildOIDC returns nil when no provider is configured. A provider's
+// endpoints and keys are fetched the first time someone signs in through it.
+func buildOIDC(cfg config.Config) (*account.OIDC, error) {
+	var providers []account.OIDCProvider
 	if cfg.OIDCGoogleID != "" && cfg.OIDCGoogleSecret != "" {
-		specs = append(specs, oidcauth.Spec{Name: "google", Label: "Google", IssuerURL: "https://accounts.google.com", ClientID: cfg.OIDCGoogleID, ClientSecret: cfg.OIDCGoogleSecret})
+		providers = append(providers, account.OIDCProvider{Name: "google", Label: "Google", IssuerURL: "https://accounts.google.com", ClientID: cfg.OIDCGoogleID, ClientSecret: cfg.OIDCGoogleSecret})
 	}
 	if cfg.OIDCIssuerURL != "" && cfg.OIDCIssuerID != "" && cfg.OIDCIssuerSecret != "" {
 		label := cfg.OIDCIssuerName
 		if label == "" {
 			label = "SSO"
 		}
-		specs = append(specs, oidcauth.Spec{Name: "custom", Label: label, IssuerURL: cfg.OIDCIssuerURL, ClientID: cfg.OIDCIssuerID, ClientSecret: cfg.OIDCIssuerSecret})
+		providers = append(providers, account.OIDCProvider{Name: "custom", Label: label, IssuerURL: cfg.OIDCIssuerURL, ClientID: cfg.OIDCIssuerID, ClientSecret: cfg.OIDCIssuerSecret})
 	}
-	if len(specs) == 0 {
+	if len(providers) == 0 {
 		return nil, nil
 	}
 	if cfg.SessionSecret == "" {
@@ -198,8 +198,7 @@ func buildOIDC(ctx context.Context, cfg config.Config) (*oidcauth.Manager, error
 	if base == "" {
 		return nil, fmt.Errorf("PURSUIT_SERVER (the deployment's public URL) is required when an OIDC provider is configured")
 	}
-	redirect := func(name string) string { return base + "/v1/auth/" + name + "/callback" }
-	return oidcauth.New(ctx, []byte(cfg.SessionSecret), specs, redirect)
+	return &account.OIDC{Providers: providers, CookieKey: []byte(cfg.SessionSecret), After: "/start", PublicURL: base}, nil
 }
 
 func runSweep(ctx context.Context, svc *service.Service, log *slog.Logger, cfg config.Config) {
