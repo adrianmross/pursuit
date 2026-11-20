@@ -139,7 +139,12 @@ in
         -e 's/^ARG GO_VERSION=.*/ARG GO_VERSION=${config.languages.go.package.version}/' \
         -e 's/^ARG NODE_VERSION=.*/ARG NODE_VERSION=${config.languages.javascript.package.version}/' \
         Dockerfile && rm Dockerfile.bak
-      go mod edit -toolchain=go${config.languages.go.package.version}
+      # Go refuses a toolchain line that only repeats the go line.
+      if grep -qx 'go ${config.languages.go.package.version}' go.mod; then
+        go mod edit -toolchain=none
+      else
+        go mod edit -toolchain=go${config.languages.go.package.version}
+      fi
     '';
   };
 

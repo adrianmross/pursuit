@@ -12,8 +12,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/adrianmross/appkit/account"
 	"github.com/pursuit/pursuit/internal/auth"
-	"github.com/pursuit/pursuit/internal/service"
 )
 
 const cimdID = "https://app.example.com/oauth/client.json"
@@ -193,16 +193,16 @@ func TestFetchClientDocRefusesPrivateAddresses(t *testing.T) {
 	srv.TLS = &tls.Config{}
 	srv.StartTLS()
 	defer srv.Close()
-	if _, err := service.FetchClientDoc(context.Background(), srv.URL+"/c.json"); err == nil {
+	if _, err := account.FetchClientDoc(context.Background(), srv.URL+"/c.json"); err == nil {
 		t.Fatal("fetched a loopback address")
 	}
 	for _, ip := range []string{"127.0.0.1", "::1", "10.1.2.3", "172.16.0.1", "192.168.1.1", "169.254.169.254", "100.64.0.1", "0.0.0.0", "fd00::1", "::ffff:10.0.0.1", "224.0.0.1"} {
-		if !service.BlockedIP(netip.MustParseAddr(ip)) {
+		if !account.BlockedIP(netip.MustParseAddr(ip)) {
 			t.Errorf("%s should be blocked", ip)
 		}
 	}
 	for _, ip := range []string{"8.8.8.8", "160.79.104.1", "2606:4700::1111"} {
-		if service.BlockedIP(netip.MustParseAddr(ip)) {
+		if account.BlockedIP(netip.MustParseAddr(ip)) {
 			t.Errorf("%s should be allowed", ip)
 		}
 	}
@@ -333,7 +333,7 @@ func TestOAuthRefreshRotation(t *testing.T) {
 	}
 
 	// Replaying the old one after the grace window is a theft signal: the whole connection goes.
-	clk.add(service.RefreshGrace + time.Second)
+	clk.add(account.RefreshGrace + time.Second)
 	if status, doc := e.refresh(t, clientID, refresh, nil); status != 400 || oauthError(doc) != "invalid_grant" {
 		t.Fatalf("replay: %d %v", status, doc)
 	}
@@ -491,7 +491,7 @@ func TestOAuthRefreshGraceWindow(t *testing.T) {
 	}
 
 	// Past the window the same token is reuse and the connection is revoked.
-	clk.add(service.RefreshGrace + time.Second)
+	clk.add(account.RefreshGrace + time.Second)
 	if _, doc := e.refresh(t, clientID, refresh, nil); oauthError(doc) != "invalid_grant" {
 		t.Errorf("late replay: %v", doc)
 	}
@@ -507,7 +507,7 @@ func TestRateLimitsAreSharedAndWindowed(t *testing.T) {
 		code, _ := e.form(t, "/v1/auth/token", url.Values{"grant_type": {"authorization_code"}})
 		return code
 	}
-	for i := 0; i < ruleToken.limit; i++ {
+	for i := 0; i < 60; i++ {
 		if code := tokenCall(); code != 400 {
 			t.Fatalf("call %d: %d", i+1, code)
 		}

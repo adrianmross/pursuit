@@ -1596,9 +1596,11 @@
             "type": "string"
           },
           "created_at": {
+            "format": "date-time",
             "type": "string"
           },
           "expires_at": {
+            "format": "date-time",
             "type": "string"
           },
           "requested_from": {

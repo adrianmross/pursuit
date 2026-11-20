@@ -21,12 +21,9 @@ type rateRule struct {
 }
 
 var (
-	ruleDemo     = rateRule{"demo", 5, time.Minute}      // minting a throwaway tenant writes a user, a token and seed data
-	ruleDevice   = rateRule{"device", 10, time.Minute}   // device login starts
-	ruleRegister = rateRule{"register", 20, time.Minute} // OAuth client registrations
-	rulePasskey  = rateRule{"passkey", 20, time.Minute}  // public passkey login calls
-	ruleToken    = rateRule{"token", 60, time.Minute}    // OAuth token endpoint, per IP
-	ruleMCP      = rateRule{"mcp", 120, time.Minute}     // MCP calls, per token
+	ruleDemo    = rateRule{"demo", 5, time.Minute}     // minting a throwaway tenant writes a user, a token and seed data
+	rulePasskey = rateRule{"passkey", 20, time.Minute} // public passkey login calls
+	ruleMCP     = rateRule{"mcp", 120, time.Minute}    // MCP calls, per token
 )
 
 // allow counts one request by subject against rule.

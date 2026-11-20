@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/adrianmross/oauthlite"
 	"github.com/pursuit/pursuit/internal/auth"
-	"github.com/pursuit/pursuit/internal/service"
 )
 
 // clock is a settable Service.Now for expiry and slow_down tests.
@@ -147,7 +147,7 @@ func TestValidLoopbackRedirect(t *testing.T) {
 		{"//127.0.0.1:5000/callback", false},
 		{"", false},
 	} {
-		if got := service.ValidLoopbackRedirect(tc.uri) == nil; got != tc.ok {
+		if got := oauthlite.ValidLoopbackRedirect(tc.uri) == nil; got != tc.ok {
 			t.Errorf("%q: ok=%v, want %v", tc.uri, got, tc.ok)
 		}
 	}
@@ -360,7 +360,7 @@ func TestOAuthDeviceFlow(t *testing.T) {
 	}
 	poll := func(device string) (int, map[string]any) {
 		t.Helper()
-		return e.form(t, "/v1/auth/token", url.Values{"grant_type": {service.DeviceCodeGrantType}, "device_code": {device}, "client_id": {"pursuit-cli"}})
+		return e.form(t, "/v1/auth/token", url.Values{"grant_type": {oauthlite.DeviceCodeGrantType}, "device_code": {device}, "client_id": {"pursuit-cli"}})
 	}
 	decide := func(token, userCode string, approve bool) int {
 		t.Helper()
@@ -479,18 +479,24 @@ func TestOAuthDeviceFlow(t *testing.T) {
 
 func TestOAuthDeviceMisc(t *testing.T) {
 	e := newEnv(t)
-	if _, doc := e.form(t, "/v1/auth/token", url.Values{"grant_type": {service.DeviceCodeGrantType}, "device_code": {"nope"}}); oauthError(doc) != "invalid_grant" {
+	if _, doc := e.form(t, "/v1/auth/token", url.Values{"grant_type": {oauthlite.DeviceCodeGrantType}, "device_code": {"nope"}}); oauthError(doc) != "invalid_grant" {
 		t.Fatalf("unknown: %v", doc)
 	}
 	if _, doc := e.form(t, "/v1/auth/token", url.Values{"grant_type": {"password"}}); oauthError(doc) != "unsupported_grant_type" {
 		t.Fatalf("grant type: %v", doc)
 	}
 	_, d := e.form(t, "/v1/auth/device_authorization", url.Values{})
-	if _, err := e.svc.DB.GetOAuthGrantByCode(context.Background(), "device", d["device_code"].(string)); err == nil {
+	stored := func(code string) (n int) {
+		if err := e.svc.DB.Core().QueryRow(context.Background(), `SELECT COUNT(*) FROM oauth_grants WHERE kind='device' AND code_hash=?`, code).Scan(&n); err != nil {
+			t.Fatal(err)
+		}
+		return n
+	}
+	if stored(d["device_code"].(string)) != 0 {
 		t.Fatal("raw device code found in the store")
 	}
-	if _, err := e.svc.DB.GetOAuthGrantByCode(context.Background(), "device", auth.Hash(d["device_code"].(string))); err != nil {
-		t.Fatal(err)
+	if stored(auth.Hash(d["device_code"].(string))) != 1 {
+		t.Fatal("the device code is not stored by its hash")
 	}
 	// Per-IP limit: 10 starts a minute, this was the first.
 	for i := 0; i < 9; i++ {

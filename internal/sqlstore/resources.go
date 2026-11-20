@@ -1560,3 +1560,12 @@ func (s *Store) FinishIdempotency(ctx context.Context, tokenID, key string, stat
 	_, err := s.exec(ctx, `UPDATE idempotency_keys SET status_code=?, response_body=? WHERE token_id=? AND idem_key=?`, status, body, tokenID, key)
 	return err
 }
+
+// RevokeTokenFamily kills every access and refresh token issued from one consent.
+func (s *Store) RevokeTokenFamily(ctx context.Context, familyID, at string) error {
+	if _, err := s.exec(ctx, `UPDATE api_tokens SET revoked_at=? WHERE family_id=? AND revoked_at IS NULL`, at, familyID); err != nil {
+		return err
+	}
+	_, err := s.exec(ctx, `UPDATE oauth_refresh_tokens SET revoked_at=? WHERE family_id=? AND revoked_at=''`, at, familyID)
+	return err
+}

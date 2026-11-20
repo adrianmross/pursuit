@@ -272,3 +272,6 @@ func changed(res sql.Result, probe func() (int, error), entity string) error {
 	}
 	return domain.VersionConflict(entity, cur)
 }
+
+// Core is the database handle appkit's packages work on.
+func (s *Store) Core() *sqldb.DB { return s.core }

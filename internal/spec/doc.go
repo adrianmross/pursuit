@@ -246,13 +246,13 @@ func build() []byte {
 	add("/v1/auth/device_authorization", "post", "Start a device login. RFC 8628 device authorization for `pursuit auth login --device`. scope is space or comma separated, each exactly read or write, default read write; anything else (approve, APPROVE, Read) is invalid_scope: OAuth never grants approve. client_id is at most 64 characters. limited to 10 starts a minute per client IP (429 slow_down). device codes last 10 minutes; poll /v1/auth/token no faster than interval. there is no verification_uri_complete: the human types the code", false, x{
 		"security":    []any{},
 		"requestBody": form(x{"client_id": str, "scope": str}),
-		"responses":   oauthResp(service.DeviceAuthorization{}),
+		"responses":   oauthResp(DeviceAuthorization{}),
 		"cli":         "pursuit auth login --device",
 	})
 	add("/v1/auth/register", "post", "Register an OAuth client. RFC 7591 dynamic client registration for apps that connect to Pursuit (a ChatGPT app, a Claude connector). JSON body with redirect_uris (1 to 5; https, or http on 127.0.0.1, [::1] or localhost) and client_name. Public clients only: token_endpoint_auth_method none, PKCE required. The client_id in the response is then used at /authorize. Clients can instead use an https URL as client_id that serves a client metadata document. Limited to 20 a minute per client IP (429 slow_down). A client that registered itself is shown as unverified on the consent page, and OAuth never grants approve", false, x{
 		"security": []any{},
-		"in":       service.ClientRegistration{},
-		"out":      service.ClientInfo{},
+		"in":       ClientRegistration{},
+		"out":      ClientInfo{},
 		"status":   201,
 		"errors":   []int{400, 429},
 	})
@@ -262,7 +262,7 @@ func build() []byte {
 			"grant_type": x{"type": "string", "enum": []string{"authorization_code", "refresh_token", "urn:ietf:params:oauth:grant-type:device_code"}},
 			"code":       str, "code_verifier": str, "redirect_uri": str, "device_code": str, "client_id": str, "refresh_token": str, "scope": str, "resource": str,
 		}, "grant_type"),
-		"responses": oauthResp(service.OAuthToken{}),
+		"responses": oauthResp(OAuthToken{}),
 		"cli":       "pursuit auth login",
 	})
 	add("/v1/auth/revoke", "post", "Revoke an OAuth token. RFC 7009 token revocation. holding the token is the authority; unknown tokens still return 200", false, x{
@@ -274,13 +274,13 @@ func build() []byte {
 		"cli": "pursuit auth logout",
 	})
 	add("/v1/oauth/authorize", "get", "Check a browser login. Validate a loopback request for the dashboard /authorize page without deciding it. requires the approve scope. returns the request as the server normalized it; a scope other than read or write is 400 invalid_scope. response_type is accepted and ignored", false, x{
-		"q": q("client_id", "redirect_uri", "code_challenge", "code_challenge_method", "state", "scope", "response_type", "resource"), "out": service.AuthorizeRequest{},
+		"q": q("client_id", "redirect_uri", "code_challenge", "code_challenge_method", "state", "scope", "response_type", "resource"), "out": AuthorizeRequest{},
 	})
 	add("/v1/oauth/authorize", "post", "Approve a browser login. Loopback consent, called by the dashboard /authorize page that `pursuit auth login` opens. requires a signed-in human session with the approve scope (not the PURSUIT_TRUST_PROXY_AUTH owner), Content-Type application/json, and Sec-Fetch-Site same-origin or an Origin matching the host. writes an oauth.approve or oauth.deny audit entry. redirect_uri must be http://127.0.0.1:<port>/callback or http://[::1]:<port>/callback. redirect_to is the callback with code and state, or error=access_denied when approve is false", false, x{
-		"in": service.AuthorizeInput{}, "out": Redirect{},
+		"in": AuthorizeInput{}, "out": Redirect{},
 	})
 	add("/v1/oauth/device", "get", "Get a device login. Look up a pending device login by user_code so the dashboard can show the requested scopes. requires the approve scope. requested_from is the IP that started the login", false, x{
-		"q": q("user_code"), "out": service.DeviceRequest{},
+		"q": q("user_code"), "out": DeviceRequest{},
 	})
 	add("/v1/oauth/device/approve", "post", "Approve a device login. Approve or deny a device login from the dashboard /device page. requires a signed-in human session with the approve scope (not the PURSUIT_TRUST_PROXY_AUTH owner), Content-Type application/json, and Sec-Fetch-Site same-origin or an Origin matching the host; the code alone approves nothing. writes an oauth.approve or oauth.deny audit entry. status is approved or denied", false, x{
 		"in": DeviceDecision{}, "out": Status{},
