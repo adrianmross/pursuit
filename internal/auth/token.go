@@ -1,50 +1,7 @@
-// Package auth hashes and generates Pursuit API tokens.
+// Package auth checks token scopes and makes the CLI's PKCE values.
 package auth
 
-import (
-	"crypto/rand"
-	"crypto/sha256"
-	"crypto/subtle"
-	"encoding/hex"
-	"strings"
-)
-
-// Hash returns the hex-encoded SHA-256 of a token secret.
-func Hash(secret string) string {
-	sum := sha256.Sum256([]byte(secret))
-	return hex.EncodeToString(sum[:])
-}
-
-// EqualHash reports whether a stored hex hash matches a secret.
-func EqualHash(storedHex, secret string) bool {
-	want, err := hex.DecodeString(storedHex)
-	if err != nil {
-		return false
-	}
-	sum := sha256.Sum256([]byte(secret))
-	return subtle.ConstantTimeCompare(want, sum[:]) == 1
-}
-
-// Generate returns a new secret, its display prefix, and its hash.
-func Generate() (secret, prefix, hash string, err error) {
-	buf := make([]byte, 32)
-	if _, err = rand.Read(buf); err != nil {
-		return "", "", "", err
-	}
-	secret = "pst_" + hex.EncodeToString(buf)
-	prefix = Prefix(secret)
-	hash = Hash(secret)
-	return secret, prefix, hash, nil
-}
-
-// Prefix is the non-secret identifier stored beside the hash.
-func Prefix(secret string) string {
-	secret = strings.TrimSpace(secret)
-	if len(secret) <= 12 {
-		return secret
-	}
-	return secret[:12]
-}
+import "strings"
 
 // NormalizeScopes accepts read, write, and approve.
 // write implies read. approve implies read and does not imply write.

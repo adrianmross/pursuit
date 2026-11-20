@@ -1235,12 +1235,6 @@ func (s *Service) ExportJSON(ctx context.Context) (ExportJSON, error) {
 	return ExportJSON{ExportedAt: s.now(), Applications: apps}, nil
 }
 
-func (s *Service) ListAudit(ctx context.Context, q domain.ListQuery) (domain.Page[domain.Audit], error) {
-	return listPage(s, ctx, false, "audit", q, s.DB.ListAudit, func(a domain.Audit) string {
-		return domain.FormatTime(a.CreatedAt)
-	}, func(a domain.Audit) string { return a.ID })
-}
-
 func listPage[T any](s *Service, ctx context.Context, write bool, kind string, q domain.ListQuery, load func(context.Context, string, domain.ListQuery) ([]T, int, error), key func(T) string, id func(T) string) (domain.Page[T], error) {
 	a, err := s.actor(ctx, write)
 	if err != nil {

@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/adrianmross/appkit/session"
 	"github.com/adrianmross/oauthlite"
 	"github.com/pursuit/pursuit/internal/auth"
 )
@@ -394,10 +395,7 @@ func TestOAuthDeviceFlow(t *testing.T) {
 			t.Fatalf("poll inside the raised interval: %v", doc)
 		}
 		// A different human approves; the token must belong to them.
-		other, err := e.svc.LoginIdentity(context.Background(), "other@example.com", "Other", true)
-		if err != nil {
-			t.Fatal(err)
-		}
+		other := e.signIn(t, "other@example.com")
 		_, otherUser, otherTok := meOf(t, e, other)
 		code, info := e.json(t, "GET", "/v1/oauth/device?user_code="+url.QueryEscape(strings.ToLower(userCode)), other, nil)
 		if code != 200 || info["status"] != "pending" || info["created_at"] == "" {
@@ -495,7 +493,7 @@ func TestOAuthDeviceMisc(t *testing.T) {
 	if stored(d["device_code"].(string)) != 0 {
 		t.Fatal("raw device code found in the store")
 	}
-	if stored(auth.Hash(d["device_code"].(string))) != 1 {
+	if stored(session.Hash(d["device_code"].(string))) != 1 {
 		t.Fatal("the device code is not stored by its hash")
 	}
 	// Per-IP limit: 10 starts a minute, this was the first.

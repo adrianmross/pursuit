@@ -6,6 +6,8 @@ import (
 	"cmp"
 	"context"
 	"crypto/subtle"
+	"encoding/base64"
+	"encoding/json"
 	"io"
 	"log/slog"
 	"mime"
@@ -104,7 +106,6 @@ func (s *Server) Handler() http.Handler {
 	s.registerOAuth(mux)
 	s.registerPasskeys(mux)
 
-	mux.HandleFunc("GET /v1/me", s.me)
 	mux.HandleFunc("PATCH /v1/me", s.updateMe)
 	mux.HandleFunc("GET /v1/answers/similar", s.similarAnswers)
 	mux.HandleFunc("GET /v1/features", s.listFeatures)
@@ -114,9 +115,6 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /v1/billing/portal", s.billingPortal)
 	mux.HandleFunc("POST /v1/billing/sync", s.billingSync)
 	mux.HandleFunc("POST /v1/billing/webhook", s.stripeWebhook)
-	mux.HandleFunc("POST /v1/tokens", s.createToken)
-	mux.HandleFunc("GET /v1/tokens", s.listTokens)
-	mux.HandleFunc("DELETE /v1/tokens/{id}", s.revokeToken)
 
 	mux.HandleFunc("GET /v1/companies", s.listCompanies)
 	mux.HandleFunc("POST /v1/companies", s.createCompany)
@@ -210,7 +208,6 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /v1/fields", s.listFields)
 	mux.HandleFunc("POST /v1/fields", s.createField)
 	mux.HandleFunc("DELETE /v1/fields/{id}", s.deleteField)
-	mux.HandleFunc("GET /v1/audit", s.listAudit)
 
 	mux.HandleFunc("POST /v1/import/csv", s.importCSV)
 	mux.HandleFunc("POST /v1/import/json", s.importJSON)
@@ -286,16 +283,10 @@ var (
 	fieldsOf       = httpx.FieldsOf
 	first          = httpx.First
 	decode         = httpx.Decode
-	dryRun         = httpx.DryRun
-	requestHash    = httpx.RequestHash
 	writeProjected = httpx.WriteProjected
-	project        = httpx.Project
-	projectBytes   = httpx.ProjectBytes
 	marshal        = httpx.Marshal
 	writeJSON      = httpx.WriteJSON
-	writeRaw       = httpx.WriteRaw
 	writeErr       = httpx.WriteErr
-	versionParam   = httpx.VersionParam
 )
 
 // trustVercel is off unless PURSUIT_TRUST_PROXY_AUTH is exactly "vercel".
@@ -471,19 +462,6 @@ func (s *Server) dashboard(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write(body)
 }
 
-// auditTime turns a date or RFC 3339 time into the stored fixed-width form.
-func auditTime(raw, name string) (string, error) {
-	if raw == "" {
-		return "", nil
-	}
-	for _, layout := range []string{time.RFC3339, "2006-01-02"} {
-		if t, err := time.Parse(layout, raw); err == nil {
-			return domain.FormatTime(t), nil
-		}
-	}
-	return "", domain.Validation("invalid %s", name).WithHint(name + " is a date (2026-10-30) or an RFC 3339 time")
-}
-
 func listQuery(q map[string][]string) (domain.ListQuery, error) {
 	pr, err := paging.ParseRequest(q)
 	out := domain.ListQuery{Limit: pr.Limit, Cursor: pr.Cursor, Sort: pr.Sort}
@@ -497,17 +475,6 @@ func listQuery(q map[string][]string) (domain.ListQuery, error) {
 	out.Source = first(q, "source")
 	out.Tag = first(q, "tag")
 	out.ApplicationID = first(q, "application_id")
-	out.Actor = first(q, "actor")
-	out.Action = first(q, "action")
-	out.EntityType = first(q, "entity_type")
-	out.EntityID = first(q, "entity_id")
-	var terr error
-	if out.Since, terr = auditTime(first(q, "since"), "since"); terr != nil {
-		return out, terr
-	}
-	if out.Until, terr = auditTime(first(q, "until"), "until"); terr != nil {
-		return out, terr
-	}
 	out.AfterID = first(q, "after")
 	for _, raw := range q["status"] {
 		for _, part := range strings.Split(raw, ",") {
@@ -599,62 +566,27 @@ func csvBody(r *http.Request, body []byte) ([]byte, error) {
 	return nil, domain.Validation("multipart body is missing file").WithHint("use a file field named file")
 }
 
-func (s *Server) me(w http.ResponseWriter, r *http.Request) {
-	if _, err := query(r, "fields"); err != nil {
-		writeErr(w, err)
-		return
-	}
-	me, err := s.Svc.Me(r.Context())
-	if err != nil {
-		writeErr(w, err)
-		return
-	}
-	writeProjected(w, 200, me, fieldsOf(r.URL.Query()))
-}
-
+// updateMe is appkit's, after one check appkit does not make: an avatar's
+// base64 must decode.
+// ponytail: goes, with the route joining accountRoutes, once appkit checks it.
 func (s *Server) updateMe(w http.ResponseWriter, r *http.Request) {
-	s.jsonMut(w, r, 200, nil, func(ctx context.Context, body []byte) (any, error) {
-		var in service.MePatch
-		if err := decode(body, &in); err != nil {
-			return nil, err
-		}
-		return s.Svc.UpdateMe(ctx, in)
-	})
-}
-
-func (s *Server) createToken(w http.ResponseWriter, r *http.Request) {
-	if _, err := query(r, "dry_run", "fields"); err != nil {
-		writeErr(w, err)
-		return
-	}
 	body, ok := s.read(w, r)
 	if !ok {
 		return
 	}
-	s.mutate(w, r, 201, nil, body, func(ctx context.Context) (any, error) {
-		var in service.TokenInput
-		if err := decode(body, &in); err != nil {
-			return nil, err
-		}
-		return s.Svc.CreateToken(ctx, in)
-	})
-}
-
-func (s *Server) listTokens(w http.ResponseWriter, r *http.Request) {
-	s.page(w, r, []string{"limit", "cursor", "sort", "fields"}, domain.TokenFields, func(ctx context.Context, q domain.ListQuery) (any, error) {
-		return s.Svc.ListTokens(ctx, q)
-	})
-}
-
-func (s *Server) revokeToken(w http.ResponseWriter, r *http.Request) {
-	if _, err := query(r, "dry_run"); err != nil {
-		writeErr(w, err)
-		return
+	var in struct {
+		Avatar *string `json:"avatar"`
 	}
-	id := r.PathValue("id")
-	s.mutate(w, r, 200, nil, nil, func(ctx context.Context) (any, error) {
-		return s.Svc.RevokeToken(ctx, id)
-	})
+	if json.Unmarshal(body, &in) == nil && in.Avatar != nil {
+		if _, data, ok := strings.Cut(strings.TrimSpace(*in.Avatar), ";base64,"); ok {
+			if _, err := base64.StdEncoding.DecodeString(data); err != nil {
+				writeErr(w, domain.Validation("avatar must be a png, jpeg, or webp data URL").WithHint("data:image/png;base64,..."))
+				return
+			}
+		}
+	}
+	r.Body = io.NopCloser(bytes.NewReader(body))
+	s.accounts(w, r)
 }
 
 func (s *Server) page(w http.ResponseWriter, r *http.Request, allow []string, fieldAllow []string, load func(context.Context, domain.ListQuery) (any, error)) {
@@ -1307,12 +1239,6 @@ func (s *Server) listEvents(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeProjected(w, 200, page, fields)
-}
-
-func (s *Server) listAudit(w http.ResponseWriter, r *http.Request) {
-	s.page(w, r, []string{"limit", "cursor", "sort", "q", "since", "until", "actor", "action", "entity_type", "entity_id", "fields"}, domain.AuditFields, func(ctx context.Context, q domain.ListQuery) (any, error) {
-		return s.Svc.ListAudit(ctx, q)
-	})
 }
 
 func (s *Server) importCSV(w http.ResponseWriter, r *http.Request) {

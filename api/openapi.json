@@ -11663,7 +11663,7 @@
         ]
       },
       "post": {
-        "description": "The secret is returned once. A token can only grant scopes it holds.",
+        "description": "The secret is returned once. A token can only grant scopes it holds. The name login is reserved for dashboard sign-ins (400).",
         "operationId": "createToken",
         "parameters": [
           {
