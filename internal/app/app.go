@@ -147,10 +147,10 @@ func NewServer(ctx context.Context, store *sqlstore.Store, cfg config.Config, lo
 	if len(origins) == 0 {
 		origins = []string{strings.TrimRight(cfg.ServerURL, "/")}
 	}
-	if svc.WebAuthn, err = service.NewWebAuthn(cfg.WebAuthnRPID, origins); err != nil {
+	if svc.Passkeys, err = service.NewPasskeys(cfg.WebAuthnRPID, origins); err != nil {
 		return nil, StagePasskeys, err
 	}
-	if svc.WebAuthn != nil {
+	if svc.Passkeys != nil {
 		log.Info("passkeys on", "rp_id", cfg.WebAuthnRPID, "origins", origins)
 	}
 

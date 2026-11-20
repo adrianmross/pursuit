@@ -400,7 +400,7 @@ func (s *Server) authProviders(w http.ResponseWriter, r *http.Request) {
 	if s.multiTenant() {
 		mode = "multi"
 	}
-	writeJSON(w, 200, map[string]any{"tenant_mode": mode, "providers": providers, "allow_token_login": !s.HideTokenLogin && !s.multiTenant(), "demo_available": s.DemoMode, "signups_open": s.signupsOpen(), "passkeys": s.Svc.WebAuthn != nil})
+	writeJSON(w, 200, map[string]any{"tenant_mode": mode, "providers": providers, "allow_token_login": !s.HideTokenLogin && !s.multiTenant(), "demo_available": s.DemoMode, "signups_open": s.signupsOpen(), "passkeys": s.Svc.Passkeys != nil})
 }
 
 func (s *Server) authStart(w http.ResponseWriter, r *http.Request) {

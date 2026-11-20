@@ -10,9 +10,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/go-webauthn/webauthn/webauthn"
 	"github.com/google/uuid"
 
+	"github.com/adrianmross/appkit/account"
 	"github.com/adrianmross/appkit/session"
 	"github.com/pursuit/pursuit/internal/auth"
 	"github.com/pursuit/pursuit/internal/billing"
@@ -33,8 +33,8 @@ type Service struct {
 	ResumeFile string
 	// Hooks is invoked after an event is stored. It must not block the caller for long.
 	Hooks func(userID string, ev domain.Event)
-	// WebAuthn is nil unless passkeys are configured (NewWebAuthn).
-	WebAuthn *webauthn.WebAuthn
+	// Passkeys is nil unless passkeys are configured (NewPasskeys).
+	Passkeys *account.Passkeys
 	// Stripe is nil unless billing is configured; then every configured
 	// feature is entitled (self-hosted). StripePrice is the plan's price.
 	// PremiumOn (PURSUIT_PREMIUM_FEATURES=on) lets premium features and Stripe billing work.
@@ -142,11 +142,8 @@ func (s *Service) sessions() *session.Manager {
 		TokenMarker:  "pst_",
 		Unauthorized: func() error { return domain.Unauthorized() },
 	}
-	if s.WebAuthn != nil {
-		m.HasStepUp = func(ctx context.Context, userID string) (bool, error) {
-			rows, err := s.DB.ListWebAuthnCredentials(ctx, userID)
-			return len(rows) > 0, err
-		}
+	if s.Passkeys != nil {
+		m.HasStepUp = s.DB.HasPasskey
 	}
 	return m
 }
