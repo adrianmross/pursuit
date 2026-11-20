@@ -38,4 +38,12 @@ func TestNewServer(t *testing.T) {
 	if _, stage, err := NewServer(ctx, store, cfg, slog.New(slog.DiscardHandler), ""); err == nil || stage != StageOIDC {
 		t.Fatalf("OIDC without a session secret: stage %q err %v", stage, err)
 	}
+
+	// With one, the provider is only looked up when someone signs in, and
+	// the dashboard's CSP gets Better Auth's origin, not its base path.
+	cfg.SessionSecret, cfg.BetterAuthBaseURL = "secret", "https://auth.example.com/neon/auth"
+	api, stage, err = NewServer(ctx, store, cfg, slog.New(slog.DiscardHandler), "")
+	if err != nil || api.OIDC == nil || api.OIDC.After != "/start" || api.BetterAuthOrigin != "https://auth.example.com" {
+		t.Fatalf("stage %q: %v %+v", stage, err, api)
+	}
 }

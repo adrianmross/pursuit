@@ -5,13 +5,15 @@ import (
 	"crypto/ed25519"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/pursuit/pursuit/internal/betterauth"
+	"github.com/adrianmross/appkit/account"
+	"github.com/pursuit/pursuit/internal/domain"
 )
 
 func TestSessionCookie(t *testing.T) {
@@ -30,7 +32,8 @@ func TestSessionCookie(t *testing.T) {
 		t.Fatalf("sign-in %d %s", code, b)
 	}
 	set := h.Get("Set-Cookie")
-	if !strings.Contains(set, sessionCookie+"="+e.token) || !strings.Contains(set, "HttpOnly") || !strings.Contains(set, "SameSite=Lax") {
+	// The name and lifetime are what browsers signed in before appkit set this cookie hold.
+	if !strings.Contains(set, "pursuit_session="+e.token) || !strings.Contains(set, "HttpOnly") || !strings.Contains(set, "SameSite=Lax") || !strings.Contains(set, "Max-Age=7776000") || !strings.Contains(set, "Path=/") {
 		t.Fatalf("cookie %q", set)
 	}
 	cookie := map[string]string{"Cookie": sessionCookie + "=" + e.token}
@@ -87,8 +90,8 @@ func TestProxyOwnerWritesNeedSameOrigin(t *testing.T) {
 }
 
 // fakeBetterAuth serves a JWKS for one Ed25519 key and signs JWTs with it,
-// so the real betterauth.Verifier checks them.
-func fakeBetterAuth(t *testing.T) (*betterauth.Verifier, func(email string, verified bool) string) {
+// so appkit's real verifier checks them.
+func fakeBetterAuth(t *testing.T) (*account.BetterAuth, func(email string, verified bool) string) {
 	t.Helper()
 	pub, priv, err := ed25519.GenerateKey(nil)
 	if err != nil {
@@ -107,7 +110,7 @@ func fakeBetterAuth(t *testing.T) (*betterauth.Verifier, func(email string, veri
 		in := b64([]byte(`{"alg":"EdDSA","typ":"JWT","kid":"k1"}`)) + "." + b64(claims)
 		return in + "." + b64(ed25519.Sign(priv, []byte(in)))
 	}
-	return betterauth.New(context.Background(), srv.URL, "", ""), sign
+	return &account.BetterAuth{BaseURL: srv.URL}, sign
 }
 
 func TestSessionExchangesBetterAuthJWT(t *testing.T) {
@@ -140,12 +143,33 @@ func TestSessionExchangesBetterAuthJWT(t *testing.T) {
 		t.Fatalf("login token should be revoked after sign-out, got %d", code)
 	}
 
+	// The JWT itself is a bearer token for the same user, with every scope.
+	if code, b, _ := e.do(t, http.MethodGet, "/v1/me", sign("neon@example.com", true), nil, nil); code != 200 || !strings.Contains(string(b), `"betterauth"`) || !strings.Contains(string(b), `"approve"`) {
+		t.Fatalf("me via the JWT %d %s", code, b)
+	}
+	// A new account gets its starting data in the transaction that creates it.
+	hook := e.svc.OnUserCreated
+	e.svc.OnUserCreated = func(context.Context, domain.User) error { return errors.New("boom") }
+	if code, _, _ := post(sign("hook@example.com", true)); code != 500 {
+		t.Fatalf("sign-up whose hook fails %d", code)
+	}
+	if _, err := e.svc.DB.FindUserByEmail(context.Background(), "hook@example.com"); !domain.IsCode(err, "not_found") {
+		t.Fatalf("user survived a failed hook: %v", err)
+	}
+	e.svc.OnUserCreated = hook
+	if _, err := e.svc.DB.FindUserByEmail(context.Background(), "neon@example.com"); err != nil {
+		t.Fatal(err)
+	}
+
 	if code, _, _ := post(sign("unverified@example.com", false)); code != 401 {
 		t.Fatalf("unverified email %d", code)
 	}
 	e.api.SignupsClosed = true
 	if code, b, _ := post(sign("stranger@example.com", true)); code != 403 || !strings.Contains(string(b), "paused") {
 		t.Fatalf("signups closed, unknown email %d %s", code, b)
+	}
+	if code, b, _ := e.do(t, http.MethodGet, "/v1/me", sign("stranger@example.com", true), nil, nil); code != 403 || !strings.Contains(string(b), "paused") {
+		t.Fatalf("signups closed, unknown email as a bearer %d %s", code, b)
 	}
 	// An existing user still signs in while sign-ups are closed.
 	if code, b, _ := post(sign("neon@example.com", true)); code != 200 {
@@ -162,5 +186,42 @@ func TestSessionExchangesBetterAuthJWT(t *testing.T) {
 	}
 	if code, _, _ := e.do(t, http.MethodGet, "/v1/me", e.token, nil, nil); code != 200 {
 		t.Fatalf("owner token should survive sign-out, got %d", code)
+	}
+}
+
+// The provider round trip is appkit's; what Pursuit answers itself is a
+// provider that isn't configured.
+func TestOIDCProviderRoutes(t *testing.T) {
+	e := newEnv(t)
+	noFollow := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+	get := func(path string) (int, string) {
+		t.Helper()
+		resp, err := noFollow.Get(e.srv.URL + path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp.Body.Close()
+		return resp.StatusCode, resp.Header.Get("Location")
+	}
+	if code, _ := get("/v1/auth/google/start"); code != 404 {
+		t.Fatalf("no provider configured: %d", code)
+	}
+	// An issuer nothing answers on: it is only looked up when someone signs in.
+	e.api.OIDC = &account.OIDC{Providers: []account.OIDCProvider{{Name: "custom", Label: "SSO", IssuerURL: "http://127.0.0.1:1", ClientID: "id", ClientSecret: "secret"}}, CookieKey: []byte("k"), After: "/start"}
+	if code, _ := get("/v1/auth/nope/start"); code != 400 {
+		t.Fatalf("unknown provider start: %d", code)
+	}
+	if code, _ := get("/v1/auth/nope/callback"); code != 401 {
+		t.Fatalf("unknown provider callback: %d", code)
+	}
+	if code, to := get("/v1/auth/custom/start"); code != 302 || to != "/sign-in?error=provider" {
+		t.Fatalf("provider that is down: %d %q", code, to)
+	}
+	if code, to := get("/v1/auth/custom/callback?code=c&state=s"); code != 302 || to != "/sign-in?error=provider" {
+		t.Fatalf("callback without a round trip: %d %q", code, to)
+	}
+	_, doc := e.json(t, http.MethodGet, "/v1/auth/providers", "", nil)
+	if list, _ := doc["providers"].([]any); len(list) != 1 || list[0].(map[string]any)["label"] != "SSO" {
+		t.Fatalf("providers: %v", doc)
 	}
 }

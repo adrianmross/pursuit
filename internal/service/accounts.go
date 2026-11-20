@@ -1,11 +1,13 @@
 package service
 
 import (
+	"context"
 	"strings"
 
 	"github.com/go-webauthn/webauthn/webauthn"
 
 	"github.com/adrianmross/appkit/account"
+	"github.com/pursuit/pursuit/internal/domain"
 )
 
 // DefaultCLIClientID is the client_id of `pursuit auth login`.
@@ -13,15 +15,24 @@ const DefaultCLIClientID = "pursuit-cli"
 
 // Accounts is appkit's account layer on Pursuit's tables. It serves the
 // OAuth server (`pursuit auth login`, and the apps that register themselves
-// with their refresh tokens) and passkeys. Sessions and tokens are still
-// this package's own.
+// with their refresh tokens), passkeys, and every way into the dashboard:
+// the session cookie, an OIDC provider, Better Auth and the demo sandbox.
+// The HTTP layer adds what it is configured with (tenant mode, providers).
+// Users and tokens are still this package's own.
 // ponytail: built per call, like sessions(), because tests set Passkeys and
-// ClientDoc after the server exists; build it once when sessions move here.
+// ClientDoc after the server exists; build it once when users and tokens
+// move here.
 func (s *Service) Accounts() *account.Accounts {
 	return &account.Accounts{
 		DB: s.DB.Core(), App: "pursuit", EnvPrefix: "PURSUIT_", TokenMarker: "pst_",
 		Scopes: []string{"read", "write", "approve"}, IdleTTL: LoginIdleTTL, MaxTTL: LoginMaxTTL,
 		Now: s.now, NewID: s.NewID,
+		OnUserCreated: func(ctx context.Context, u account.User) error {
+			if s.OnUserCreated == nil {
+				return nil
+			}
+			return s.OnUserCreated(ctx, domain.User(u))
+		},
 		OAuth: &account.OAuth{
 			ClientID: DefaultCLIClientID, ClientName: DefaultCLIClientID,
 			// OAuth never grants approve: approving stays a dashboard action,
@@ -32,6 +43,11 @@ func (s *Service) Accounts() *account.Accounts {
 			},
 		},
 		Passkeys: s.Passkeys,
+		// A demo sandbox starts with the example data so it isn't empty.
+		Demo: &account.Demo{Seed: func(ctx context.Context) error {
+			_, err := s.ImportSeed(ctx)
+			return err
+		}},
 	}
 }
 

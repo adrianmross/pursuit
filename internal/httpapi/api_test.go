@@ -16,7 +16,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pursuit/pursuit/internal/betterauth"
+	"github.com/adrianmross/appkit/account"
 	"github.com/pursuit/pursuit/internal/domain"
 	"github.com/pursuit/pursuit/internal/links"
 	"github.com/pursuit/pursuit/internal/service"
@@ -933,7 +933,7 @@ func TestResolveTenantUser(t *testing.T) {
 
 func TestAuthenticateSkipsBetterAuthOutsideMultiTenant(t *testing.T) {
 	e := newEnv(t)
-	e.api.BetterAuth = betterauth.New(context.Background(), "https://example.invalid", "", "")
+	e.api.BetterAuth = &account.BetterAuth{BaseURL: "https://example.invalid"}
 	// TenantMode defaults to "" (single), so a JWT-shaped bearer token
 	// must still fall through to Pursuit's own check and fail cleanly,
 	// never reaching the network for JWKS verification.

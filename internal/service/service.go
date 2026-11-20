@@ -276,33 +276,11 @@ func (s *Service) requireFresh(ctx context.Context, a domain.Actor) error {
 // CreateDemoSession provisions a throwaway tenant for the "try it without
 // an account" tutorial: a synthetic, unroutable user plus a token scoped
 // like the owner's, pre-loaded with the example seed data so it isn't
-// empty. The caller hands the returned secret back to the browser exactly
-// like any other token (localStorage, same sign-in flow) — demo mode is
-// just a token minted without proving who you are first, not a separate
-// auth path. Nothing here is persisted beyond that token: discarding it
-// (or minting a new one — e.g. "replay tutorial") abandons this tenant.
+// empty. Demo mode is just a token minted without proving who you are
+// first, not a separate auth path: discarding the token (or minting a new
+// one, "replay tutorial") abandons this tenant.
 func (s *Service) CreateDemoSession(ctx context.Context) (secret string, actor domain.Actor, err error) {
-	user, err := s.createUser(ctx, "Demo visitor", "demo-"+s.NewID()+"@pursuit.invalid")
-	if err != nil {
-		return "", domain.Actor{}, err
-	}
-	secret, prefix, hash, err := auth.Generate()
-	if err != nil {
-		return "", domain.Actor{}, err
-	}
-	scopes, err := auth.NormalizeScopes([]string{"read", "write", "approve"})
-	if err != nil {
-		return "", domain.Actor{}, err
-	}
-	tok := domain.Token{ID: s.NewID(), UserID: user.ID, Name: demoTokenName, Hash: hash, Prefix: prefix, Scopes: scopes, CreatedAt: s.now()}
-	if err := s.DB.CreateToken(ctx, tok); err != nil {
-		return "", domain.Actor{}, err
-	}
-	actor = domain.Actor{UserID: user.ID, TokenID: tok.ID, Name: tok.Name, Scopes: scopes, Demo: true}
-	if _, err := s.ImportSeed(domain.WithActor(ctx, actor)); err != nil {
-		return "", domain.Actor{}, err
-	}
-	return secret, actor, nil
+	return s.Accounts().CreateDemoSession(ctx)
 }
 
 // demoTTL is how long a throwaway demo tenant lives before SweepDemo removes it.

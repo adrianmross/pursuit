@@ -129,7 +129,7 @@ func TestDemoModeMintsIsolatedSandboxAndCanReplay(t *testing.T) {
 
 func TestDemoModeRateLimitsMinting(t *testing.T) {
 	srv := newDemoEnv(t)
-	limit := ruleDemo.limit
+	const limit = 5 // appkit's: sandboxes one address may mint a minute
 
 	var last int
 	for i := 0; i <= limit; i++ {
