@@ -1,0 +1,68 @@
+# What's new in 0.10
+
+## Connect Claude or ChatGPT
+
+Pursuit now has an MCP server at `/mcp`. Add it as a connector in claude.ai, or as an app in ChatGPT, and the assistant can work on your applications while you talk to it. It signs in with OAuth, so you never paste a token into it.
+
+When an app asks to connect, Pursuit shows who is asking and exactly what it would get.
+
+- **Read** lets it see your applications, companies and settings.
+- **Write** lets it create and change applications. It cannot approve anything.
+- **Approve is never offered.** Approving and submitting stay in the dashboard, with you.
+
+<Clip src="/docs/whats-new/0-10/consent" width={720} height={450} caption="The consent page names the app and lists what it would be allowed to do." />
+
+Anyone can register an app, and Pursuit does not verify them. The page says so, so approve only an app you just asked to connect.
+
+### See what is connected, and cut it off
+
+**Settings › Connected apps** lists every app you approved, when you approved it and when it was last used. **Disconnect** signs that app out at once.
+
+<Clip src="/docs/whats-new/0-10/connected" width={720} height={450} caption="Settings, Connected apps: Claude with read and write access, not used yet." />
+
+### What the assistant can do
+
+Five tools, all things you can already do in the dashboard: list your applications, read one, save a posting, prepare an application, and queue one to prepare later. Preparing fills in what Pursuit already knows and lists the questions it cannot answer; it does not submit.
+
+<Clip src="/docs/whats-new/0-10/mcp" width={720} height={450} caption="Asking the MCP server which tools it offers (names only here; the real answer also describes each one)." />
+
+Access tokens last an hour and renew with a refresh token that rotates every time it is used. A refresh that is retried within a few seconds, because a response got lost, is accepted instead of cutting the connection. The token endpoint and MCP calls are rate limited.
+
+For the endpoints and the discovery documents, see the [API reference](/api-reference) and [Auth](https://github.com/adrianmross/pursuit/blob/main/AUTH.md).
+
+## API keys that expire
+
+Choose how long a new API token lasts when you make it: **Never**, **30 days**, **90 days** or **1 year**. The token's row in the list says when it expires, and an expired token stops working. The token itself is shown once, as before.
+
+<Clip src="/docs/whats-new/0-10/api-key" width={720} height={450} caption="Settings, API tokens: a read and write token for 30 days, with its expiry in the list. The token is hidden in this recording." />
+
+Use a short life for anything you hand to an agent or a script you do not run every day.
+
+## Quoted values in search
+
+Search for a company with more than one word by putting its name in quotes: `company:"Adventure Works"`. The suggestions list offers the matching values as you type.
+
+<Clip src="/docs/whats-new/0-10/search" width={720} height={450} caption='Searching for company:"Adventure Works" finds the one application at that company.' />
+
+## Safer sign-in
+
+Dashboard sign-in is now a session with limits you can count on.
+
+- **It lapses.** A sign-in ends after 30 days without use, and in any case after 90 days.
+- **Approving asks again.** If you have a passkey, approving an application, or making an approve token, needs a sign-in from the last 15 minutes. Pursuit asks for the passkey when it has been longer.
+- **Other sessions end** when you remove a passkey or change your email, so a lost device cannot keep working.
+- **Your sessions are listed.** On the hosted service, a password account sees its sign-ins under **Settings › Account**, with a button to sign out the others.
+- **A hosted cookie is harder to misuse.** On the hosted service the sign-in cookie now carries the `__Host-` prefix, which keeps it on the one site that set it.
+
+On a self-hosted server with an identity provider configured, the sign-in page now shows a button for each one. A provider sign-in that is refused sends you back to the sign-in page with a message instead of an error page, and sign-in attempts are limited to 20 a minute from one address.
+
+## Also in 0.10
+
+- The **Accent color**, **Row density** and **Striped rows** settings are gone. They changed nothing.
+- Each settings label is now tied to its input, so a screen reader reads it with the field.
+- A request that crashes is answered with `500 internal error`. It used to say `409 conflict`.
+- Rate limits are counted in the database, so they hold when the hosted service runs on several instances.
+- API token names cannot be `login`, which Pursuit uses for dashboard sign-ins.
+- Several refusals from OAuth, passkeys and sign-in have new, plainer wording.
+
+[Full changelog for 0.10](/changelog#0100)

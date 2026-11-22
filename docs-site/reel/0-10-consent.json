@@ -1,0 +1,51 @@
+{
+  "url": "http://127.0.0.1:53998/authorize?response_type=code&client_id=pc_v6XDsaTsCLtDM1niIeQdsw&redirect_uri=http%3A%2F%2F127.0.0.1%3A53998%2F&code_challenge=0eYnNAMaW3Mgahy751vVXBcwDPDLFTIao8lkQ65cZUg&code_challenge_method=S256&scope=read%20write%20offline_access&state=reel",
+  "width": 960,
+  "height": 600,
+  "scale": 2,
+  "fps": 60,
+  "epoch": 1794236400,
+  "hold": [
+    "wait_ms="
+  ],
+  "block": [
+    "*/favicon*"
+  ],
+  "setup": [
+    {
+      "click": "#token"
+    },
+    {
+      "type": "pst_reelfixture"
+    },
+    {
+      "click": "text:Continue"
+    },
+    {
+      "pause": 1
+    }
+  ],
+  "style": {
+    "bare": true,
+    "width": 1440,
+    "height": 900,
+    "crf": 24
+  },
+  "dir": "../public/whats-new/0-10",
+  "scenes": [
+    {
+      "name": "consent",
+      "steps": [
+        {
+          "pause": 0.8
+        },
+        {
+          "hover": "text:write"
+        },
+        {
+          "pause": 2
+        }
+      ]
+    }
+  ]
+}

@@ -1,5 +1,13 @@
 [
   {
+    "id": "v0.10.0",
+    "release": "0.10.0",
+    "at": "2026-11-20T00:00:00Z",
+    "title": "Hire Pursuit 0.10 is here",
+    "body": "Connect Claude or ChatGPT with OAuth, API keys that expire, and quoted values in search.",
+    "href": "/docs/whats-new/0-10"
+  },
+  {
     "id": "v0.9.0",
     "release": "0.9.0",
     "at": "2026-11-09T00:00:00Z",

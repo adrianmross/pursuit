@@ -1,0 +1,147 @@
+{
+  "url": "http://127.0.0.1:53998/",
+  "width": 960,
+  "height": 600,
+  "scale": 2,
+  "fps": 60,
+  "epoch": 1794236400,
+  "hold": [
+    "wait_ms="
+  ],
+  "block": [
+    "*/favicon*"
+  ],
+  "setup": [
+    {
+      "click": "text:Log in"
+    },
+    {
+      "click": "#token"
+    },
+    {
+      "type": "pst_reelfixture"
+    },
+    {
+      "click": "text:Continue"
+    },
+    {
+      "click": "text:Skip for now"
+    },
+    {
+      "pause": 0.5
+    }
+  ],
+  "style": {
+    "bare": true,
+    "width": 1440,
+    "height": 900,
+    "crf": 24
+  },
+  "dir": "../public/whats-new/0-10",
+  "hide": [
+    "input[readonly]",
+    "code[class*=\"break-all\"]",
+    "[data-slot=\"item-description\"] code"
+  ],
+  "scenes": [
+    {
+      "name": "connected",
+      "steps": [
+        {
+          "pause": 0.6
+        },
+        {
+          "click": "text:DV"
+        },
+        {
+          "click": "text:Settings"
+        },
+        {
+          "click": "text:Connected apps"
+        },
+        {
+          "pause": 2
+        }
+      ]
+    },
+    {
+      "name": "mcp",
+      "request": {
+        "title": "Claude asks Pursuit what it can do",
+        "method": "POST",
+        "url": "https://hirepursuit.app/mcp",
+        "headers": {
+          "Authorization": "Bearer oauth-access-token",
+          "Content-Type": "application/json"
+        },
+        "body": "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/list\"}",
+        "status": 200,
+        "response": "{\n  \"jsonrpc\": \"2.0\",\n  \"id\": 2,\n  \"result\": {\n    \"tools\": [\n      \"list_applications\",\n      \"get_application\",\n      \"capture_posting\",\n      \"prepare_application\",\n      \"enqueue_prepare\"\n    ]\n  }\n}"
+      }
+    },
+    {
+      "name": "api-key",
+      "steps": [
+        {
+          "pause": 0.6
+        },
+        {
+          "click": "text:DV"
+        },
+        {
+          "click": "text:Settings"
+        },
+        {
+          "click": "text:API tokens"
+        },
+        {
+          "click": "[placeholder=\"e.g. laptop CLI\"]"
+        },
+        {
+          "type": "release-bot"
+        },
+        {
+          "click": "text:Read & write"
+        },
+        {
+          "click": "text:30 days"
+        },
+        {
+          "click": "text:Generate token"
+        },
+        {
+          "pause": 1.2
+        },
+        {
+          "scroll_to": "text:Active tokens"
+        },
+        {
+          "pause": 2.2
+        }
+      ]
+    },
+    {
+      "name": "search",
+      "steps": [
+        {
+          "pause": 0.6
+        },
+        {
+          "click": "[placeholder=\"Search applications\"]"
+        },
+        {
+          "type": "company:\"Adventure Works\""
+        },
+        {
+          "pause": 1.2
+        },
+        {
+          "press": "Escape"
+        },
+        {
+          "pause": 2
+        }
+      ]
+    }
+  ]
+}

@@ -75,6 +75,32 @@
           "pause": 3
         }
       ]
+    },
+    {
+      "name": "coming-soon",
+      "steps": [
+        {
+          "pause": 0.6
+        },
+        {
+          "click": "text:DV"
+        },
+        {
+          "click": "text:Settings"
+        },
+        {
+          "click": "text:Experimental"
+        },
+        {
+          "pause": 1.2
+        },
+        {
+          "click": "text:Plan"
+        },
+        {
+          "pause": 2.2
+        }
+      ]
     }
   ]
 }

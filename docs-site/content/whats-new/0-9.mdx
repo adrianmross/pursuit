@@ -1,3 +1,5 @@
+import { Callout } from "nextra/components"
+
 # What's new in 0.9
 
 ## A page like this one for every release worth it
@@ -16,9 +18,20 @@ The short walk through the dashboard used to be offered once, in a demo sandbox.
 
 <Clip src="/docs/whats-new/0-9/tour" width={720} height={450} caption="Settings, About, Replay tour: the tour starts again on the start page." />
 
+## Plans and early features: coming soon
+
+Smart search and tailored documents from [0.8](/whats-new/0-8), and the Plus plan that sells them, are parked for now. Settings shows them as **Coming soon**, switched off, under **Experimental** and **Plan**, and the Upgrade button is disabled. Nothing behind them answers while they are parked.
+
+<Callout type="info">
+  This applies to the hosted service and to a self-hosted server alike. To try them on your own server, set `PURSUIT_PREMIUM_FEATURES=on`. Stripe stays unconfigured until you do, even with `STRIPE_SECRET_KEY` set.
+</Callout>
+
+<Clip src="/docs/whats-new/0-9/coming-soon" width={720} height={450} caption="Settings, Experimental and Plan: smart search, tailored documents and Plus show as coming soon." />
+
 ## Also in 0.9
 
-- On the hosted service, <Premium /> features and plans show as coming soon until they are switched on. A self-hosted server still includes them.
 - For development, `devenv up --profile s3` runs a local S3 for documents, and a missing document bucket is now named in the error.
+- An unexpected server error is now written to the log instead of being hidden.
+- `PURSUIT_FIXED_TIME` freezes the server's clock, for recording demos and screenshots of the example data that come out the same every time. Never set it on a server people use.
 
 [Full changelog for 0.9](/changelog#090)
