@@ -1,0 +1,73 @@
+{
+  "url": "http://127.0.0.1:53998/",
+  "width": 960,
+  "height": 600,
+  "scale": 2,
+  "fps": 60,
+  "epoch": 1794236400,
+  "hold": [
+    "wait_ms="
+  ],
+  "block": [
+    "*/favicon*"
+  ],
+  "setup": [
+    {
+      "click": "text:Log in"
+    },
+    {
+      "click": "#token"
+    },
+    {
+      "type": "pst_reelfixture"
+    },
+    {
+      "click": "text:Continue"
+    },
+    {
+      "pause": 0.5
+    }
+  ],
+  "style": {
+    "bare": true,
+    "width": 1440,
+    "height": 900,
+    "crf": 24
+  },
+  "dir": "../public/whats-new/0-8",
+  "hide": [],
+  "scenes": [
+    {
+      "name": "compare",
+      "steps": [
+        {
+          "pause": 0.6
+        },
+        {
+          "click": "text:View applications"
+        },
+        {
+          "pause": 0.8
+        },
+        {
+          "click": "text:Technical Writer"
+        },
+        {
+          "pause": 1
+        },
+        {
+          "scroll_to": "text:Documents"
+        },
+        {
+          "pause": 1
+        },
+        {
+          "click": "text:Compare"
+        },
+        {
+          "pause": 3.5
+        }
+      ]
+    }
+  ]
+}
