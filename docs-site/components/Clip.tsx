@@ -1,4 +1,4 @@
-// A short looping clip: capped width, its height reserved up front so the page
+// A short looping clip with play, pause and replay controls: capped width, its height reserved up front so the page
 // doesn't jump as it loads, and a poster until the first frame arrives.
 // `src` is the path without an extension; the .webm, .mp4 and .png sit beside each other.
 export function Clip({ src, width, height, caption }: { src: string; width: number; height: number; caption: string }) {
@@ -8,6 +8,7 @@ export function Clip({ src, width, height, caption }: { src: string; width: numb
         autoPlay
         loop
         muted
+        controls
         playsInline
         preload="auto"
         poster={`${src}.png`}
