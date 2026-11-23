@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.10.1](https://github.com/adrianmross/pursuit/compare/v0.10.0...v0.10.1) (2026-11-22)
+
+
+### Bug Fixes
+
+* **pursuit:** Add What's new pages for 0.9 and 0.10 with a clip for each feature, and PURSUIT_FIXED_TIME to freeze the server clock so recordings of the example data repeat exactly ([#153](https://github.com/adrianmross/pursuit/issues/153)) ([6fa44db](https://github.com/adrianmross/pursuit/commit/6fa44db490dd28e898411f9651f79d77bddf0882))
+
 ## [0.10.0](https://github.com/adrianmross/pursuit/compare/v0.9.0...v0.10.0) (2026-11-20)
 
 
