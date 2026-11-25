@@ -1423,9 +1423,12 @@ func TestUpdateMe(t *testing.T) {
 	if code != 200 || user["name"] != "Ada" || user["avatar"] != png {
 		t.Fatalf("patch me %d %#v", code, user)
 	}
-	code, _ = e.json(t, http.MethodPatch, "/v1/me", e.token, map[string]any{"avatar": "data:image/svg+xml;base64,PHN2Zz4="})
-	if code < 400 || code >= 500 {
-		t.Fatalf("svg avatar accepted %d", code)
+	// An svg, and a png whose base64 does not decode.
+	for _, bad := range []string{"data:image/svg+xml;base64,PHN2Zz4=", "data:image/png;base64,!!!"} {
+		code, _ = e.json(t, http.MethodPatch, "/v1/me", e.token, map[string]any{"avatar": bad})
+		if code < 400 || code >= 500 {
+			t.Fatalf("avatar %q accepted %d", bad, code)
+		}
 	}
 	code, me := e.json(t, http.MethodGet, "/v1/me", e.token, nil)
 	if code != 200 || me["user"].(map[string]any)["name"] != "Ada" {
