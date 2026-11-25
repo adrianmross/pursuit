@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.11.0](https://github.com/adrianmross/pursuit/compare/v0.10.1...v0.11.0) (2026-11-25)
+
+
+### Features
+
+* **pursuit:** Name the JSON Schema of a tag response in a $schema field, served under /schemas/, and reword the tag routes' validation refusals, now that they are typed operations ([#172](https://github.com/adrianmross/pursuit/issues/172)) ([8d0b716](https://github.com/adrianmross/pursuit/commit/8d0b7160cbeb010f18c18e32dcda7c53ce0df367))
+
+
+### Bug Fixes
+
+* **pursuit:** Show play, pause and replay controls on the docs clips, and refilm the 0.8 compare clip sharper ([#169](https://github.com/adrianmross/pursuit/issues/169)) ([197a548](https://github.com/adrianmross/pursuit/commit/197a548cf52ed197d95249e37cd1c42cb5dff981))
+* **pursuit:** Upgrade Next.js to 16.4.6 for two cache disclosure advisories, which also fixes the web build ([#163](https://github.com/adrianmross/pursuit/issues/163)) ([e95e932](https://github.com/adrianmross/pursuit/commit/e95e932b8de5e67e5d7fbb5a13c0c4adac8daf4f))
+* **sqlstore:** freeze merged migrations and require a minor release for new ones ([#60](https://github.com/adrianmross/pursuit/issues/60)) ([0b499c4](https://github.com/adrianmross/pursuit/commit/0b499c4a3aaf92faf14936c147fbb9c0638f1c2c))
+
 ## [0.10.1](https://github.com/adrianmross/pursuit/compare/v0.10.0...v0.10.1) (2026-11-22)
 
 
