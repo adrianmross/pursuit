@@ -58,7 +58,7 @@ func (s *Service) guardTransition(ctx context.Context, a domain.Actor, appID, co
 		if !a.Can("approve") {
 			return domain.Forbidden("approve")
 		}
-		if err := s.requireFresh(ctx, a); err != nil {
+		if err := s.Accounts().RequireFresh(ctx, a); err != nil {
 			return err
 		}
 	}
@@ -338,7 +338,7 @@ func (s *Service) Approve(ctx context.Context, ids []string, note string) ([]dom
 	if !a.Can("approve") {
 		return nil, domain.Forbidden("approve")
 	}
-	if err := s.requireFresh(ctx, a); err != nil {
+	if err := s.Accounts().RequireFresh(ctx, a); err != nil {
 		return nil, err
 	}
 	if len(ids) == 0 {
