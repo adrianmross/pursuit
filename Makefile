@@ -16,9 +16,9 @@ linux: web
 run: build
 	./bin/pursuit serve
 
-# Regenerate api/openapi.json from internal/spec; go test fails when it drifts.
+# Regenerate api/openapi.json from internal/httpapi (internal/spec plus the Huma operations); go test fails when it drifts.
 openapi:
-	UPDATE_OPENAPI=1 go test -count=1 ./internal/spec -run TestOpenAPIFile
+	UPDATE_OPENAPI=1 go test -count=1 ./internal/httpapi -run TestOpenAPIFile
 
 # Validate api/openapi.json with the Redocly CLI pinned in scripts/openapi-lint (redocly.yaml).
 lint-openapi:

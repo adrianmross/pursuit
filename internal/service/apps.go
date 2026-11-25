@@ -92,7 +92,7 @@ type EventInput struct {
 }
 
 type TagInput struct {
-	Name string `json:"name"`
+	Name string `json:"name" minLength:"1" maxLength:"80" doc:"The tag's name; creating one that exists answers the existing tag."`
 }
 
 type AttachTagInput struct {

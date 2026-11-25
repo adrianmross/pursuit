@@ -8,8 +8,6 @@ import (
 	"strconv"
 	"strings"
 	"testing"
-
-	"github.com/pursuit/pursuit/internal/spec"
 )
 
 // TestOpenAPICoversRoutes fails when a route registered in Handler is
@@ -22,7 +20,7 @@ func TestOpenAPICoversRoutes(t *testing.T) {
 	var doc struct {
 		Paths map[string]map[string]any `json:"paths"`
 	}
-	if err := json.Unmarshal(spec.Document(), &doc); err != nil {
+	if err := json.Unmarshal(Document(), &doc); err != nil {
 		t.Fatal(err)
 	}
 	routes := regexp.MustCompile(`mux\.HandleFunc\("([A-Z]+) (/[^"]*)"`).FindAllStringSubmatch(string(src), -1)
@@ -46,7 +44,7 @@ func TestOpenAPICoversRoutes(t *testing.T) {
 func TestOpenAPIResponsesMatch(t *testing.T) {
 	e := newEnv(t)
 	var doc map[string]any
-	if err := json.Unmarshal(spec.Document(), &doc); err != nil {
+	if err := json.Unmarshal(Document(), &doc); err != nil {
 		t.Fatal(err)
 	}
 	send := func(method, path string, body any) map[string]any {
