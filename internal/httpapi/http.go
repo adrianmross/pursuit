@@ -6,8 +6,6 @@ import (
 	"cmp"
 	"context"
 	"crypto/subtle"
-	"encoding/base64"
-	"encoding/json"
 	"io"
 	"log/slog"
 	"mime"
@@ -106,7 +104,6 @@ func (s *Server) Handler() http.Handler {
 	s.registerOAuth(mux)
 	s.registerPasskeys(mux)
 
-	mux.HandleFunc("PATCH /v1/me", s.updateMe)
 	mux.HandleFunc("GET /v1/answers/similar", s.similarAnswers)
 	mux.HandleFunc("GET /v1/features", s.listFeatures)
 	mux.HandleFunc("PATCH /v1/features/{id}", s.updateFeature)
@@ -564,29 +561,6 @@ func csvBody(r *http.Request, body []byte) ([]byte, error) {
 		}
 	}
 	return nil, domain.Validation("multipart body is missing file").WithHint("use a file field named file")
-}
-
-// updateMe is appkit's, after one check appkit does not make: an avatar's
-// base64 must decode.
-// ponytail: goes, with the route joining accountRoutes, once appkit checks it.
-func (s *Server) updateMe(w http.ResponseWriter, r *http.Request) {
-	body, ok := s.read(w, r)
-	if !ok {
-		return
-	}
-	var in struct {
-		Avatar *string `json:"avatar"`
-	}
-	if json.Unmarshal(body, &in) == nil && in.Avatar != nil {
-		if _, data, ok := strings.Cut(strings.TrimSpace(*in.Avatar), ";base64,"); ok {
-			if _, err := base64.StdEncoding.DecodeString(data); err != nil {
-				writeErr(w, domain.Validation("avatar must be a png, jpeg, or webp data URL").WithHint("data:image/png;base64,..."))
-				return
-			}
-		}
-	}
-	r.Body = io.NopCloser(bytes.NewReader(body))
-	s.accounts(w, r)
 }
 
 func (s *Server) page(w http.ResponseWriter, r *http.Request, allow []string, fieldAllow []string, load func(context.Context, domain.ListQuery) (any, error)) {

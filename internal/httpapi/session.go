@@ -43,6 +43,7 @@ var sessionRoutes = []string{
 // Who is calling, their API tokens and the audit log are appkit's too.
 var accountRoutes = []string{
 	"GET /v1/me",
+	"PATCH /v1/me",
 	"POST /v1/tokens",
 	"GET /v1/tokens",
 	"DELETE /v1/tokens/{id}",

@@ -12,7 +12,6 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/adrianmross/appkit/account"
-	"github.com/adrianmross/appkit/session"
 	"github.com/pursuit/pursuit/internal/billing"
 	"github.com/pursuit/pursuit/internal/blobstore"
 	"github.com/pursuit/pursuit/internal/domain"
@@ -135,19 +134,7 @@ const LoginMaxTTL = 90 * 24 * time.Hour
 
 // StepUpWindow is how recently a dashboard sign-in must have authenticated to
 // approve, or to mint an approve token, when the user has a passkey.
-const StepUpWindow = 15 * time.Minute
-
-// requireFresh asks a dashboard session to re-prove itself before a
-// sensitive action, when the user has a passkey to do it with.
-func (s *Service) requireFresh(ctx context.Context, a domain.Actor) error {
-	// ponytail: appkit keeps this check to itself; the same three settings
-	// until Accounts exports RequireFresh.
-	m := &session.Manager{Now: s.now, LoginName: LoginTokenName, StepUpWindow: StepUpWindow}
-	if s.Passkeys != nil {
-		m.HasStepUp = s.DB.HasPasskey
-	}
-	return m.RequireFresh(ctx, a)
-}
+const StepUpWindow = account.StepUpWindow
 
 // CreateDemoSession provisions a throwaway tenant for the "try it without
 // an account" tutorial: a synthetic, unroutable user plus a token scoped

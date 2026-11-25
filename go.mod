@@ -3,7 +3,7 @@ module github.com/pursuit/pursuit
 go 1.26.10
 
 require (
-	github.com/adrianmross/appkit v0.6.0
+	github.com/adrianmross/appkit v0.6.1
 	github.com/adrianmross/ratchet v0.1.0
 	github.com/adrianmross/tokenkeep v0.1.0
 	github.com/getsentry/sentry-go v0.50.0
