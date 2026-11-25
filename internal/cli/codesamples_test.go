@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/pursuit/pursuit/internal/spec"
+	"github.com/pursuit/pursuit/internal/httpapi"
 )
 
 // TestOpenAPICodeSamples keeps the pursuit commands shown in the API
@@ -20,7 +20,7 @@ func TestOpenAPICodeSamples(t *testing.T) {
 			} `json:"x-codeSamples"`
 		} `json:"paths"`
 	}
-	if err := json.Unmarshal(spec.Document(), &doc); err != nil {
+	if err := json.Unmarshal(httpapi.Document(), &doc); err != nil {
 		t.Fatal(err)
 	}
 	global := map[string]bool{"json": true, "text": true, "dry-run": true, "all-pages": true, "server": true, "token": true, "config": true, "idempotency-key": true, "fields": true}

@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/danielgtaylor/huma/v2"
 	"github.com/pursuit/pursuit/internal/domain"
 	"github.com/pursuit/pursuit/internal/service"
 	"github.com/pursuit/pursuit/internal/sqlstore"
@@ -75,23 +76,13 @@ func build() []byte {
 	// (default 200), cli (the equivalent pursuit command), and id (operationId
 	// override). Anything else is copied onto the operation.
 	add := func(path, method, text string, write bool, extra x) {
-		title, desc := text, ""
-		for i := 0; i+1 < len(text); i++ {
-			if (text[i] == '.' || text[i] == ';') && text[i+1] == ' ' {
-				title, desc = text[:i], text[i+2:]
-				break
-			}
-		}
+		title, desc := titled(text)
 		op := x{"summary": upper(title)}
 		if tag := tagOf(path); tag != "" {
 			op["tags"] = []string{tag}
 		}
 		if desc != "" {
-			sentences := strings.Split(desc, ". ")
-			for i, s := range sentences {
-				sentences[i] = upper(s)
-			}
-			op["description"] = strings.Join(sentences, ". ") + "."
+			op["description"] = desc
 		}
 
 		var params []any
@@ -402,9 +393,6 @@ func build() []byte {
 	add("/v1/webhooks", "post", "Register a webhook. Every new event is posted to url; see Webhooks below for the payload", true, x{"in": WebhookInput{}, "out": service.WebhookView{}, "status": 201, "cli": "pursuit webhooks add https://example.com/hook"})
 	add("/v1/webhooks/{id}", "delete", "Delete a webhook", true, x{"out": domain.Deleted{}, "cli": "pursuit webhooks delete WEBHOOK_ID"})
 	add("/v1/events", "get", "List events. after plus wait_ms long-polls for the next event", false, x{"q": q("limit", "cursor", "sort", "application_id", "after", "wait_ms", "fields"), "list": domain.Event{}, "cli": "pursuit events --follow --timeout 25s"})
-	add("/v1/tags", "get", "List tags", false, x{"q": q("limit", "cursor", "sort", "q", "fields"), "list": domain.Tag{}, "cli": "pursuit tags list"})
-	add("/v1/tags", "post", "Create a tag", true, x{"in": service.TagInput{}, "out": domain.Tag{}, "status": 201, "cli": "pursuit tags create --name remote"})
-	add("/v1/tags/{id}", "delete", "Delete a tag", true, x{"out": domain.Deleted{}, "cli": "pursuit tags delete TAG_ID"})
 	add("/v1/fields", "get", "List custom fields", false, x{"q": q("limit", "cursor", "sort", "q", "fields"), "list": domain.CustomField{}, "cli": "pursuit fields list"})
 	add("/v1/fields", "post", "Create a custom field. type is text, number, or date", true, x{"in": service.FieldInput{}, "out": domain.CustomField{}, "status": 201, "cli": "pursuit fields create --name 'Salary range' --type text"})
 	add("/v1/fields/{id}", "delete", "Delete a custom field", true, x{"out": domain.Deleted{}, "cli": "pursuit fields delete FIELD_ID"})
@@ -479,6 +467,70 @@ func build() []byte {
 		panic(err)
 	}
 	return b
+}
+
+// titled splits "Title. Details" into the sidebar entry and the description.
+func titled(text string) (title, desc string) {
+	title = text
+	for i := 0; i+1 < len(text); i++ {
+		if (text[i] == '.' || text[i] == ';') && text[i+1] == ' ' {
+			title, desc = text[:i], text[i+2:]
+			break
+		}
+	}
+	if desc != "" {
+		sentences := strings.Split(desc, ". ")
+		for i, s := range sentences {
+			sentences[i] = upper(s)
+		}
+		desc = strings.Join(sentences, ". ") + "."
+	}
+	return title, desc
+}
+
+// Op is what Operation cannot read off a route's path and text.
+type Op struct {
+	// Status is what success answers with, 200 when zero.
+	Status int
+	// CLI is the equivalent pursuit command.
+	CLI string
+	// Errors are answers beyond the ones every route of its shape has.
+	Errors []int
+	// ID overrides the operationId made from the title.
+	ID string
+}
+
+// Operation describes a route registered with Huma in internal/httpapi, the
+// way add describes one listed in build: text is "Title. Details".
+func Operation(method, path, text string, o Op) huma.Operation {
+	title, desc := titled(text)
+	op := huma.Operation{
+		Method: strings.ToUpper(method), Path: path, Summary: upper(title), Description: desc,
+		OperationID: o.ID, DefaultStatus: o.Status,
+		Responses: map[string]*huma.Response{"default": {Description: "error", Content: map[string]*huma.MediaType{
+			"application/json": {Schema: &huma.Schema{Ref: "#/components/schemas/Error"}},
+		}}},
+	}
+	if op.OperationID == "" {
+		op.OperationID = operationID(title)
+	}
+	if tag := tagOf(path); tag != "" {
+		op.Tags = []string{tag}
+	}
+	codes := append([]int{400, 401, 403}, o.Errors...)
+	if strings.Contains(path, "{") {
+		codes = append(codes, 404)
+	}
+	if op.Method == "PATCH" {
+		codes = append(codes, 409)
+	}
+	for _, c := range codes {
+		op.Responses[strconv.Itoa(c)] = &huma.Response{Ref: "#/components/responses/" + errorNames[c]}
+	}
+	if o.CLI != "" {
+		op.Extensions = map[string]any{"x-codeSamples": []any{x{"lang": "shell", "label": "pursuit CLI", "source": o.CLI}}}
+	}
+	return op
 }
 
 func param(name, desc string, schema x) x {

@@ -1,4 +1,4 @@
-package spec
+package httpapi
 
 import (
 	"bytes"
@@ -9,7 +9,7 @@ import (
 )
 
 // TestOpenAPIFile keeps api/openapi.json equal to the served document.
-// UPDATE_OPENAPI=1 go test ./internal/spec rewrites it (make openapi).
+// UPDATE_OPENAPI=1 go test ./internal/httpapi rewrites it (make openapi).
 func TestOpenAPIFile(t *testing.T) {
 	path := filepath.Join("..", "..", "api", "openapi.json")
 	var want bytes.Buffer

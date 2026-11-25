@@ -23,6 +23,7 @@ import (
 	"github.com/adrianmross/appkit/httpx"
 	"github.com/adrianmross/appkit/paging"
 	"github.com/adrianmross/appkit/session"
+	"github.com/danielgtaylor/huma/v2"
 	"github.com/pursuit/pursuit/internal/dashboard"
 	"github.com/pursuit/pursuit/internal/domain"
 	"github.com/pursuit/pursuit/internal/impex"
@@ -82,6 +83,8 @@ type Server struct {
 	DemoMode bool
 
 	mux *http.ServeMux
+	// api holds the routes described as typed operations (huma.go).
+	api huma.API
 }
 
 func (s *Server) multiTenant() bool {
@@ -100,6 +103,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /reference", s.reference)
 	mux.HandleFunc("GET /", s.dashboard)
 
+	s.registerAPI(mux)
 	s.registerSession(mux)
 	s.registerOAuth(mux)
 	s.registerPasskeys(mux)
@@ -199,9 +203,6 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("DELETE /v1/webhooks/{id}", s.deleteHook)
 
 	mux.HandleFunc("GET /v1/events", s.listEvents)
-	mux.HandleFunc("GET /v1/tags", s.listTags)
-	mux.HandleFunc("POST /v1/tags", s.createTag)
-	mux.HandleFunc("DELETE /v1/tags/{id}", s.deleteTag)
 	mux.HandleFunc("GET /v1/fields", s.listFields)
 	mux.HandleFunc("POST /v1/fields", s.createField)
 	mux.HandleFunc("DELETE /v1/fields/{id}", s.deleteField)
@@ -373,7 +374,7 @@ func (s *Server) version(w http.ResponseWriter, r *http.Request) {
 func (s *Server) openapi(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(200)
-	_, _ = w.Write(spec.Document())
+	_, _ = w.Write(Document())
 }
 
 func (s *Server) llms(w http.ResponseWriter, r *http.Request) {
@@ -1114,33 +1115,6 @@ func (s *Server) detachTag(w http.ResponseWriter, r *http.Request) {
 	id, tagID := r.PathValue("id"), r.PathValue("tagID")
 	s.mutate(w, r, 200, domain.AppFields, nil, func(ctx context.Context) (any, error) {
 		return s.Svc.DetachTag(ctx, id, tagID)
-	})
-}
-
-func (s *Server) listTags(w http.ResponseWriter, r *http.Request) {
-	s.page(w, r, []string{"limit", "cursor", "sort", "q", "fields"}, domain.TagFields, func(ctx context.Context, q domain.ListQuery) (any, error) {
-		return s.Svc.ListTags(ctx, q)
-	})
-}
-
-func (s *Server) createTag(w http.ResponseWriter, r *http.Request) {
-	s.jsonMut(w, r, 201, domain.TagFields, func(ctx context.Context, body []byte) (any, error) {
-		var in service.TagInput
-		if err := decode(body, &in); err != nil {
-			return nil, err
-		}
-		return s.Svc.CreateTag(ctx, in)
-	})
-}
-
-func (s *Server) deleteTag(w http.ResponseWriter, r *http.Request) {
-	if _, err := query(r, "dry_run"); err != nil {
-		writeErr(w, err)
-		return
-	}
-	id := r.PathValue("id")
-	s.mutate(w, r, 200, nil, nil, func(ctx context.Context) (any, error) {
-		return s.Svc.DeleteTag(ctx, id)
 	})
 }
 
