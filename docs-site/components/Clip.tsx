@@ -1,20 +1,58 @@
-// A short looping clip with play, pause and replay controls: capped width, its height reserved up front so the page
-// doesn't jump as it loads, and a poster until the first frame arrives.
+"use client"
+
+import { useEffect, useRef } from "react"
+
+// A short looping clip with play, pause and replay controls. It plays while at
+// least half of it is on screen and pauses when it scrolls away, unless the
+// viewer paused it themselves: then it stays paused until they press play.
+// A capped width and a reserved height keep the page from jumping as it loads,
+// and a poster shows until the first frame arrives.
 // `src` is the path without an extension; the .webm, .mp4 and .png sit beside each other.
 export function Clip({ src, width, height, caption }: { src: string; width: number; height: number; caption: string }) {
+  const ref = useRef<HTMLVideoElement>(null)
+  const userPaused = useRef(false)
+  const visible = useRef(false)
+  const byCode = useRef(false) // the next pause event is ours, not the viewer's
+
+  useEffect(() => {
+    const v = ref.current
+    if (!v) return
+    const io = new IntersectionObserver(
+      ([entry]) => {
+        visible.current = entry.isIntersecting
+        if (entry.isIntersecting) {
+          if (!userPaused.current) void v.play().catch(() => {})
+        } else if (!v.paused) {
+          byCode.current = true
+          v.pause()
+        }
+      },
+      { threshold: 0.5 },
+    )
+    io.observe(v)
+    return () => io.disconnect()
+  }, [])
+
   return (
     <figure style={{ maxWidth: Math.min(width, 720), margin: "1.5rem 0" }}>
       <video
-        autoPlay
+        ref={ref}
         loop
         muted
         controls
         playsInline
-        preload="auto"
+        preload="metadata"
         poster={`${src}.png`}
         width={width}
         height={height}
         aria-label={caption}
+        onPause={() => {
+          if (byCode.current) byCode.current = false
+          else if (visible.current) userPaused.current = true
+        }}
+        onPlay={() => {
+          userPaused.current = false
+        }}
         style={{ width: "100%", height: "auto", aspectRatio: `${width} / ${height}`, borderRadius: 8, border: "1px solid var(--line, rgba(128,128,128,.25))" }}
       >
         <source src={`${src}.webm`} type="video/webm" />
