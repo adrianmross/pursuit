@@ -30,7 +30,7 @@ const xml = (s) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">"
 export function render(releases) {
   const page = releases
     .map((r) => `## ${r.version}\n\n${r.date} · [GitHub release](${REPO}/releases/tag/v${r.version})\n\n` +
-      r.groups.map((g) => `### ${g.title}\n\n${g.items.map((i) => `- ${mdx(nohash(i))}`).join("\n")}\n`).join("\n"))
+      r.groups.map((g) => `**${g.title}**\n\n${g.items.map((i) => `- ${mdx(nohash(i))}`).join("\n")}\n`).join("\n"))
     .join("\n")
   const html = (r) => r.groups.map((g) => `<h3>${xml(g.title)}</h3><ul>${g.items.map((i) => `<li>${xml(plain(i))}</li>`).join("")}</ul>`).join("")
   const atom = `<?xml version="1.0" encoding="utf-8"?>
