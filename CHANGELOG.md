@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.12.0](https://github.com/adrianmross/pursuit/compare/v0.11.0...v0.12.0) (2026-11-27)
+
+
+### Features
+
+* **pursuit:** Name the JSON Schema of custom field, webhook and standing answer responses in a $schema field and reword those routes' validation refusals, now that they are typed operations ([#176](https://github.com/adrianmross/pursuit/issues/176)) ([d416259](https://github.com/adrianmross/pursuit/commit/d4162594be5bb63b763f3d4ec671c1f9bb366a75))
+
+
+### Bug Fixes
+
+* **pursuit:** List only the versions in the changelog page's table of contents, not each release's Features and Bug Fixes ([#174](https://github.com/adrianmross/pursuit/issues/174)) ([e23d75d](https://github.com/adrianmross/pursuit/commit/e23d75d7873e3489df439cb7b0f733c4ec7a4f7e))
+* **pursuit:** Start each docs clip when it scrolls into view and pause it when it leaves, unless the viewer paused it ([#173](https://github.com/adrianmross/pursuit/issues/173)) ([5b6f20d](https://github.com/adrianmross/pursuit/commit/5b6f20dd574da48edab59c667441e00d66de81f2))
+
 ## [0.11.0](https://github.com/adrianmross/pursuit/compare/v0.10.1...v0.11.0) (2026-11-25)
 
 
