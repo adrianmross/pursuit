@@ -192,20 +192,11 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /v1/applications/{id}/compare", s.compareDocuments)
 	mux.HandleFunc("PATCH /v1/documents/{id}", s.updateDocument)
 	mux.HandleFunc("DELETE /v1/documents/{id}", s.deleteDocument)
-	mux.HandleFunc("GET /v1/standing", s.listStanding)
-	mux.HandleFunc("POST /v1/standing", s.setStanding)
-	mux.HandleFunc("DELETE /v1/standing/{key}", s.deleteStanding)
 	mux.HandleFunc("GET /v1/caps", s.caps)
 	mux.HandleFunc("POST /v1/links/check", s.checkAll)
 	mux.HandleFunc("GET /v1/cron/links", s.cronLinks)
-	mux.HandleFunc("GET /v1/webhooks", s.listHooks)
-	mux.HandleFunc("POST /v1/webhooks", s.createHook)
-	mux.HandleFunc("DELETE /v1/webhooks/{id}", s.deleteHook)
 
 	mux.HandleFunc("GET /v1/events", s.listEvents)
-	mux.HandleFunc("GET /v1/fields", s.listFields)
-	mux.HandleFunc("POST /v1/fields", s.createField)
-	mux.HandleFunc("DELETE /v1/fields/{id}", s.deleteField)
 
 	mux.HandleFunc("POST /v1/import/csv", s.importCSV)
 	mux.HandleFunc("POST /v1/import/json", s.importJSON)
@@ -1118,33 +1109,6 @@ func (s *Server) detachTag(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (s *Server) listFields(w http.ResponseWriter, r *http.Request) {
-	s.page(w, r, []string{"limit", "cursor", "sort", "q", "fields"}, domain.CustomFieldFields, func(ctx context.Context, q domain.ListQuery) (any, error) {
-		return s.Svc.ListFields(ctx, q)
-	})
-}
-
-func (s *Server) createField(w http.ResponseWriter, r *http.Request) {
-	s.jsonMut(w, r, 201, domain.CustomFieldFields, func(ctx context.Context, body []byte) (any, error) {
-		var in service.FieldInput
-		if err := decode(body, &in); err != nil {
-			return nil, err
-		}
-		return s.Svc.CreateField(ctx, in)
-	})
-}
-
-func (s *Server) deleteField(w http.ResponseWriter, r *http.Request) {
-	if _, err := query(r, "dry_run"); err != nil {
-		writeErr(w, err)
-		return
-	}
-	id := r.PathValue("id")
-	s.mutate(w, r, 200, nil, nil, func(ctx context.Context) (any, error) {
-		return s.Svc.DeleteField(ctx, id)
-	})
-}
-
 func (s *Server) setFieldValue(w http.ResponseWriter, r *http.Request) {
 	id, fieldID := r.PathValue("id"), r.PathValue("fieldID")
 	s.jsonMut(w, r, 200, domain.AppFields, func(ctx context.Context, body []byte) (any, error) {
@@ -1634,34 +1598,6 @@ func (s *Server) listQuestions(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (s *Server) listStanding(w http.ResponseWriter, r *http.Request) {
-	httpx.PageSlice(w, r, nil, s.Svc.ListStanding)
-}
-
-func (s *Server) setStanding(w http.ResponseWriter, r *http.Request) {
-	s.jsonMut(w, r, 200, nil, func(ctx context.Context, body []byte) (any, error) {
-		var in struct {
-			Key    string `json:"key"`
-			Answer string `json:"answer"`
-		}
-		if err := decode(body, &in); err != nil {
-			return nil, err
-		}
-		return s.Svc.SetStanding(ctx, in.Key, in.Answer)
-	})
-}
-
-func (s *Server) deleteStanding(w http.ResponseWriter, r *http.Request) {
-	if _, err := query(r, "dry_run"); err != nil {
-		writeErr(w, err)
-		return
-	}
-	key := r.PathValue("key")
-	s.mutate(w, r, 200, nil, []byte(key), func(ctx context.Context) (any, error) {
-		return s.Svc.DeleteStanding(ctx, key)
-	})
-}
-
 func (s *Server) caps(w http.ResponseWriter, r *http.Request) {
 	if _, err := query(r); err != nil {
 		writeErr(w, err)
@@ -1723,34 +1659,6 @@ func (s *Server) checkAll(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		return s.Svc.SweepOnce(ctx, in.Owner)
-	})
-}
-
-func (s *Server) listHooks(w http.ResponseWriter, r *http.Request) {
-	httpx.PageSlice(w, r, nil, s.Svc.ListWebhooks)
-}
-
-func (s *Server) createHook(w http.ResponseWriter, r *http.Request) {
-	s.jsonMut(w, r, 201, nil, func(ctx context.Context, body []byte) (any, error) {
-		var in struct {
-			URL    string `json:"url"`
-			Secret string `json:"secret"`
-		}
-		if err := decode(body, &in); err != nil {
-			return nil, err
-		}
-		return s.Svc.CreateWebhook(ctx, in.URL, in.Secret)
-	})
-}
-
-func (s *Server) deleteHook(w http.ResponseWriter, r *http.Request) {
-	if _, err := query(r, "dry_run"); err != nil {
-		writeErr(w, err)
-		return
-	}
-	id := r.PathValue("id")
-	s.mutate(w, r, 200, nil, nil, func(ctx context.Context) (any, error) {
-		return s.Svc.DeleteWebhook(ctx, id)
 	})
 }
 

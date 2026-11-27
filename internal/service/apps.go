@@ -818,8 +818,8 @@ func (s *Service) DeleteTag(ctx context.Context, id string) (domain.Deleted, err
 }
 
 type FieldInput struct {
-	Name string `json:"name"`
-	Type string `json:"type"`
+	Name string `json:"name" minLength:"1" maxLength:"80"`
+	Type string `json:"type" enum:"text,number,date"`
 }
 
 type SetFieldValueInput struct {

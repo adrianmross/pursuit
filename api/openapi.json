@@ -1485,7 +1485,17 @@
         "type": "object"
       },
       "CustomField": {
+        "additionalProperties": false,
         "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/CustomField.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
           "created_at": {
             "format": "date-time",
             "type": "string"
@@ -1946,14 +1956,35 @@
         "type": "object"
       },
       "FieldInput": {
+        "additionalProperties": false,
         "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/FieldInput.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
           "name": {
+            "maxLength": 80,
+            "minLength": 1,
             "type": "string"
           },
           "type": {
+            "enum": [
+              "text",
+              "number",
+              "date"
+            ],
             "type": "string"
           }
         },
+        "required": [
+          "name",
+          "type"
+        ],
         "type": "object"
       },
       "ImportPosting": {
@@ -2356,6 +2387,37 @@
         ],
         "type": "object"
       },
+      "PageCustomField": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/PageCustomField.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/CustomField"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "page": {
+            "$ref": "#/components/schemas/PageMeta"
+          }
+        },
+        "required": [
+          "data",
+          "page"
+        ],
+        "type": "object"
+      },
       "PageMeta": {
         "additionalProperties": false,
         "properties": {
@@ -2382,6 +2444,37 @@
         ],
         "type": "object"
       },
+      "PageStandingAnswer": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/PageStandingAnswer.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/StandingAnswer"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "page": {
+            "$ref": "#/components/schemas/PageMeta"
+          }
+        },
+        "required": [
+          "data",
+          "page"
+        ],
+        "type": "object"
+      },
       "PageTag": {
         "additionalProperties": false,
         "properties": {
@@ -2397,6 +2490,37 @@
           "data": {
             "items": {
               "$ref": "#/components/schemas/Tag"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "page": {
+            "$ref": "#/components/schemas/PageMeta"
+          }
+        },
+        "required": [
+          "data",
+          "page"
+        ],
+        "type": "object"
+      },
+      "PageWebhookView": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/PageWebhookView.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/WebhookView"
             },
             "type": [
               "array",
@@ -3012,7 +3136,17 @@
         "type": "object"
       },
       "StandingAnswer": {
+        "additionalProperties": false,
         "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/StandingAnswer.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
           "answer": {
             "type": "string"
           },
@@ -3035,14 +3169,32 @@
         "type": "object"
       },
       "StandingInput": {
+        "additionalProperties": false,
         "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/StandingInput.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
           "answer": {
+            "maxLength": 20000,
+            "minLength": 1,
             "type": "string"
           },
           "key": {
+            "description": "A word such as work_authorization or email.",
+            "minLength": 1,
             "type": "string"
           }
         },
+        "required": [
+          "key",
+          "answer"
+        ],
         "type": "object"
       },
       "Status": {
@@ -3431,18 +3583,45 @@
         "type": "object"
       },
       "WebhookInput": {
+        "additionalProperties": false,
         "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/WebhookInput.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
           "secret": {
+            "description": "Signs each delivery when set.",
+            "maxLength": 200,
             "type": "string"
           },
           "url": {
+            "description": "Where each new event is posted.",
+            "minLength": 1,
             "type": "string"
           }
         },
+        "required": [
+          "url"
+        ],
         "type": "object"
       },
       "WebhookView": {
+        "additionalProperties": false,
         "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/WebhookView.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
           "created_at": {
             "type": "string"
           },
@@ -3512,7 +3691,7 @@
     }
   },
   "info": {
-    "description": "The HTTP API behind the Pursuit dashboard and the `pursuit` CLI. Agents should prefer the CLI: `pursuit schema <command>` describes one command. The short agent guide is [/llms.txt](/llms.txt).\n\n## Authentication\n\nSend `Authorization: Bearer pst_...`. A token holds the scopes `read`, `write`, and `approve`. `write` does not include `approve`, and only `approve` can move an application toward submission. Tokens, scopes, and OAuth login are in [/auth.md](/auth.md).\n\n## Errors\n\nErrors are JSON: `{\"error\": {\"code\", \"message\", \"hint\", \"details\"}}`. 400 is validation, 401 a missing or bad token, 403 a missing scope, 404 not found, 409 a version or cap conflict.\n\n## Writes\n\nEvery write accepts `Idempotency-Key`, which replays a successful response, and `X-Dry-Run: true` (or `?dry_run=true`), which validates and writes nothing. A dry run answers `{\"dry_run\": true, \"hint\", \"data\"}` instead of the response shown. Creates answer 201. Updates and deletes of versioned records take `version` in the body, the query, or `If-Match`.\n\n## Pagination\n\nLists answer `{\"data\": [...], \"page\": {\"limit\", \"has_more\", \"next_cursor\", \"total\"}}`. They take `limit` (1-200) and `cursor`; pass `page.next_cursor` back unchanged until `has_more` is false. `fields=id,company` trims each record to those fields. `POST /v1/batch` runs up to 100 requests in one call.\n\n## Webhooks\n\nA registered webhook receives every new event as a POST; see **Webhooks** at the end of this page for the payload.",
+    "description": "The HTTP API behind the Pursuit dashboard and the `pursuit` CLI. Agents should prefer the CLI: `pursuit schema \u003ccommand\u003e` describes one command. The short agent guide is [/llms.txt](/llms.txt).\n\n## Authentication\n\nSend `Authorization: Bearer pst_...`. A token holds the scopes `read`, `write`, and `approve`. `write` does not include `approve`, and only `approve` can move an application toward submission. Tokens, scopes, and OAuth login are in [/auth.md](/auth.md).\n\n## Errors\n\nErrors are JSON: `{\"error\": {\"code\", \"message\", \"hint\", \"details\"}}`. 400 is validation, 401 a missing or bad token, 403 a missing scope, 404 not found, 409 a version or cap conflict.\n\n## Writes\n\nEvery write accepts `Idempotency-Key`, which replays a successful response, and `X-Dry-Run: true` (or `?dry_run=true`), which validates and writes nothing. A dry run answers `{\"dry_run\": true, \"hint\", \"data\"}` instead of the response shown. Creates answer 201. Updates and deletes of versioned records take `version` in the body, the query, or `If-Match`.\n\n## Pagination\n\nLists answer `{\"data\": [...], \"page\": {\"limit\", \"has_more\", \"next_cursor\", \"total\"}}`. They take `limit` (1-200) and `cursor`; pass `page.next_cursor` back unchanged until `has_more` is false. `fields=id,company` trims each record to those fields. `POST /v1/batch` runs up to 100 requests in one call.\n\n## Webhooks\n\nA registered webhook receives every new event as a POST; see **Webhooks** at the end of this page for the payload.",
     "license": {
       "identifier": "MIT",
       "name": "MIT"
@@ -8621,19 +8800,63 @@
         "operationId": "listCustomFields",
         "parameters": [
           {
-            "$ref": "#/components/parameters/limit"
+            "description": "Keep only these fields of the object, or of each item of a page.",
+            "explode": false,
+            "in": "query",
+            "name": "fields",
+            "schema": {
+              "description": "Keep only these fields of the object, or of each item of a page.",
+              "items": {
+                "type": "string"
+              },
+              "type": [
+                "array",
+                "null"
+              ]
+            }
           },
           {
-            "$ref": "#/components/parameters/cursor"
+            "description": "Page size, 1 to 200. Lists that return everything by default page only when it is set.",
+            "explode": false,
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "description": "Page size, 1 to 200. Lists that return everything by default page only when it is set.",
+              "format": "int64",
+              "maximum": 200,
+              "minimum": 1,
+              "type": "integer"
+            }
           },
           {
-            "$ref": "#/components/parameters/sort"
+            "description": "page.next_cursor from the previous page, unchanged.",
+            "explode": false,
+            "in": "query",
+            "name": "cursor",
+            "schema": {
+              "description": "page.next_cursor from the previous page, unchanged.",
+              "type": "string"
+            }
           },
           {
-            "$ref": "#/components/parameters/q"
+            "description": "A field name, with an optional leading - for descending.",
+            "explode": false,
+            "in": "query",
+            "name": "sort",
+            "schema": {
+              "description": "A field name, with an optional leading - for descending.",
+              "type": "string"
+            }
           },
           {
-            "$ref": "#/components/parameters/fields"
+            "description": "Text search.",
+            "explode": false,
+            "in": "query",
+            "name": "q",
+            "schema": {
+              "description": "Text search.",
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -8641,22 +8864,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "properties": {
-                    "data": {
-                      "items": {
-                        "$ref": "#/components/schemas/CustomField"
-                      },
-                      "type": "array"
-                    },
-                    "page": {
-                      "$ref": "#/components/schemas/PageMeta"
-                    }
-                  },
-                  "required": [
-                    "data",
-                    "page"
-                  ],
-                  "type": "object"
+                  "$ref": "#/components/schemas/PageCustomField"
                 }
               }
             },
@@ -8699,10 +8907,49 @@
         "operationId": "createCustomField",
         "parameters": [
           {
-            "$ref": "#/components/parameters/IdempotencyKey"
+            "description": "Keep only these fields of the object, or of each item of a page.",
+            "explode": false,
+            "in": "query",
+            "name": "fields",
+            "schema": {
+              "description": "Keep only these fields of the object, or of each item of a page.",
+              "items": {
+                "type": "string"
+              },
+              "type": [
+                "array",
+                "null"
+              ]
+            }
           },
           {
-            "$ref": "#/components/parameters/DryRun"
+            "description": "Run the write and roll it back; the answer is {dry_run, hint, data}.",
+            "explode": false,
+            "in": "query",
+            "name": "dry_run",
+            "schema": {
+              "description": "Run the write and roll it back; the answer is {dry_run, hint, data}.",
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "true or 1, as dry_run=true.",
+            "in": "header",
+            "name": "X-Dry-Run",
+            "schema": {
+              "description": "true or 1, as dry_run=true.",
+              "type": "string"
+            }
+          },
+          {
+            "description": "A repeat of the same request with the same key replays the first answer.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "schema": {
+              "description": "A repeat of the same request with the same key replays the first answer.",
+              "maxLength": 200,
+              "type": "string"
+            }
           }
         ],
         "requestBody": {
@@ -8764,18 +9011,57 @@
         "operationId": "deleteCustomField",
         "parameters": [
           {
+            "description": "Keep only these fields of the object, or of each item of a page.",
+            "explode": false,
+            "in": "query",
+            "name": "fields",
+            "schema": {
+              "description": "Keep only these fields of the object, or of each item of a page.",
+              "items": {
+                "type": "string"
+              },
+              "type": [
+                "array",
+                "null"
+              ]
+            }
+          },
+          {
+            "description": "Run the write and roll it back; the answer is {dry_run, hint, data}.",
+            "explode": false,
+            "in": "query",
+            "name": "dry_run",
+            "schema": {
+              "description": "Run the write and roll it back; the answer is {dry_run, hint, data}.",
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "true or 1, as dry_run=true.",
+            "in": "header",
+            "name": "X-Dry-Run",
+            "schema": {
+              "description": "true or 1, as dry_run=true.",
+              "type": "string"
+            }
+          },
+          {
+            "description": "A repeat of the same request with the same key replays the first answer.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "schema": {
+              "description": "A repeat of the same request with the same key replays the first answer.",
+              "maxLength": 200,
+              "type": "string"
+            }
+          },
+          {
             "in": "path",
             "name": "id",
             "required": true,
             "schema": {
               "type": "string"
             }
-          },
-          {
-            "$ref": "#/components/parameters/IdempotencyKey"
-          },
-          {
-            "$ref": "#/components/parameters/DryRun"
           }
         ],
         "responses": {
@@ -8788,6 +9074,9 @@
               }
             },
             "description": "OK"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
@@ -9791,7 +10080,7 @@
         ]
       },
       "post": {
-        "description": "Loopback consent, called by the dashboard /authorize page that `pursuit auth login` opens. Requires a signed-in human session with the approve scope (not the PURSUIT_TRUST_PROXY_AUTH owner), Content-Type application/json, and Sec-Fetch-Site same-origin or an Origin matching the host. Writes an oauth.approve or oauth.deny audit entry. redirect_uri must be http://127.0.0.1:<port>/callback or http://[::1]:<port>/callback. redirect_to is the callback with code and state, or error=access_denied when approve is false.",
+        "description": "Loopback consent, called by the dashboard /authorize page that `pursuit auth login` opens. Requires a signed-in human session with the approve scope (not the PURSUIT_TRUST_PROXY_AUTH owner), Content-Type application/json, and Sec-Fetch-Site same-origin or an Origin matching the host. Writes an oauth.approve or oauth.deny audit entry. redirect_uri must be http://127.0.0.1:\u003cport\u003e/callback or http://[::1]:\u003cport\u003e/callback. redirect_to is the callback with code and state, or error=access_denied when approve is false.",
         "operationId": "approveBrowserLogin",
         "requestBody": {
           "content": {
@@ -11058,10 +11347,43 @@
         "operationId": "listStandingAnswers",
         "parameters": [
           {
-            "$ref": "#/components/parameters/limit"
+            "description": "Keep only these fields of the object, or of each item of a page.",
+            "explode": false,
+            "in": "query",
+            "name": "fields",
+            "schema": {
+              "description": "Keep only these fields of the object, or of each item of a page.",
+              "items": {
+                "type": "string"
+              },
+              "type": [
+                "array",
+                "null"
+              ]
+            }
           },
           {
-            "$ref": "#/components/parameters/cursor"
+            "description": "Page size, 1 to 200. Without it the list returns every row.",
+            "explode": false,
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "description": "Page size, 1 to 200. Without it the list returns every row.",
+              "format": "int64",
+              "maximum": 200,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "page.next_cursor from the previous page, unchanged.",
+            "explode": false,
+            "in": "query",
+            "name": "cursor",
+            "schema": {
+              "description": "page.next_cursor from the previous page, unchanged.",
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -11069,22 +11391,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "properties": {
-                    "data": {
-                      "items": {
-                        "$ref": "#/components/schemas/StandingAnswer"
-                      },
-                      "type": "array"
-                    },
-                    "page": {
-                      "$ref": "#/components/schemas/PageMeta"
-                    }
-                  },
-                  "required": [
-                    "data",
-                    "page"
-                  ],
-                  "type": "object"
+                  "$ref": "#/components/schemas/PageStandingAnswer"
                 }
               }
             },
@@ -11127,10 +11434,49 @@
         "operationId": "setStandingAnswer",
         "parameters": [
           {
-            "$ref": "#/components/parameters/IdempotencyKey"
+            "description": "Keep only these fields of the object, or of each item of a page.",
+            "explode": false,
+            "in": "query",
+            "name": "fields",
+            "schema": {
+              "description": "Keep only these fields of the object, or of each item of a page.",
+              "items": {
+                "type": "string"
+              },
+              "type": [
+                "array",
+                "null"
+              ]
+            }
           },
           {
-            "$ref": "#/components/parameters/DryRun"
+            "description": "Run the write and roll it back; the answer is {dry_run, hint, data}.",
+            "explode": false,
+            "in": "query",
+            "name": "dry_run",
+            "schema": {
+              "description": "Run the write and roll it back; the answer is {dry_run, hint, data}.",
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "true or 1, as dry_run=true.",
+            "in": "header",
+            "name": "X-Dry-Run",
+            "schema": {
+              "description": "true or 1, as dry_run=true.",
+              "type": "string"
+            }
+          },
+          {
+            "description": "A repeat of the same request with the same key replays the first answer.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "schema": {
+              "description": "A repeat of the same request with the same key replays the first answer.",
+              "maxLength": 200,
+              "type": "string"
+            }
           }
         ],
         "requestBody": {
@@ -11193,18 +11539,57 @@
         "operationId": "deleteStandingAnswer",
         "parameters": [
           {
+            "description": "Keep only these fields of the object, or of each item of a page.",
+            "explode": false,
+            "in": "query",
+            "name": "fields",
+            "schema": {
+              "description": "Keep only these fields of the object, or of each item of a page.",
+              "items": {
+                "type": "string"
+              },
+              "type": [
+                "array",
+                "null"
+              ]
+            }
+          },
+          {
+            "description": "Run the write and roll it back; the answer is {dry_run, hint, data}.",
+            "explode": false,
+            "in": "query",
+            "name": "dry_run",
+            "schema": {
+              "description": "Run the write and roll it back; the answer is {dry_run, hint, data}.",
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "true or 1, as dry_run=true.",
+            "in": "header",
+            "name": "X-Dry-Run",
+            "schema": {
+              "description": "true or 1, as dry_run=true.",
+              "type": "string"
+            }
+          },
+          {
+            "description": "A repeat of the same request with the same key replays the first answer.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "schema": {
+              "description": "A repeat of the same request with the same key replays the first answer.",
+              "maxLength": 200,
+              "type": "string"
+            }
+          },
+          {
             "in": "path",
             "name": "key",
             "required": true,
             "schema": {
               "type": "string"
             }
-          },
-          {
-            "$ref": "#/components/parameters/IdempotencyKey"
-          },
-          {
-            "$ref": "#/components/parameters/DryRun"
           }
         ],
         "responses": {
@@ -11217,6 +11602,9 @@
               }
             },
             "description": "OK"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
@@ -11979,10 +12367,43 @@
         "operationId": "listWebhooks",
         "parameters": [
           {
-            "$ref": "#/components/parameters/limit"
+            "description": "Keep only these fields of the object, or of each item of a page.",
+            "explode": false,
+            "in": "query",
+            "name": "fields",
+            "schema": {
+              "description": "Keep only these fields of the object, or of each item of a page.",
+              "items": {
+                "type": "string"
+              },
+              "type": [
+                "array",
+                "null"
+              ]
+            }
           },
           {
-            "$ref": "#/components/parameters/cursor"
+            "description": "Page size, 1 to 200. Without it the list returns every row.",
+            "explode": false,
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "description": "Page size, 1 to 200. Without it the list returns every row.",
+              "format": "int64",
+              "maximum": 200,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "page.next_cursor from the previous page, unchanged.",
+            "explode": false,
+            "in": "query",
+            "name": "cursor",
+            "schema": {
+              "description": "page.next_cursor from the previous page, unchanged.",
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -11990,22 +12411,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "properties": {
-                    "data": {
-                      "items": {
-                        "$ref": "#/components/schemas/WebhookView"
-                      },
-                      "type": "array"
-                    },
-                    "page": {
-                      "$ref": "#/components/schemas/PageMeta"
-                    }
-                  },
-                  "required": [
-                    "data",
-                    "page"
-                  ],
-                  "type": "object"
+                  "$ref": "#/components/schemas/PageWebhookView"
                 }
               }
             },
@@ -12048,10 +12454,49 @@
         "operationId": "registerWebhook",
         "parameters": [
           {
-            "$ref": "#/components/parameters/IdempotencyKey"
+            "description": "Keep only these fields of the object, or of each item of a page.",
+            "explode": false,
+            "in": "query",
+            "name": "fields",
+            "schema": {
+              "description": "Keep only these fields of the object, or of each item of a page.",
+              "items": {
+                "type": "string"
+              },
+              "type": [
+                "array",
+                "null"
+              ]
+            }
           },
           {
-            "$ref": "#/components/parameters/DryRun"
+            "description": "Run the write and roll it back; the answer is {dry_run, hint, data}.",
+            "explode": false,
+            "in": "query",
+            "name": "dry_run",
+            "schema": {
+              "description": "Run the write and roll it back; the answer is {dry_run, hint, data}.",
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "true or 1, as dry_run=true.",
+            "in": "header",
+            "name": "X-Dry-Run",
+            "schema": {
+              "description": "true or 1, as dry_run=true.",
+              "type": "string"
+            }
+          },
+          {
+            "description": "A repeat of the same request with the same key replays the first answer.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "schema": {
+              "description": "A repeat of the same request with the same key replays the first answer.",
+              "maxLength": 200,
+              "type": "string"
+            }
           }
         ],
         "requestBody": {
@@ -12113,18 +12558,57 @@
         "operationId": "deleteWebhook",
         "parameters": [
           {
+            "description": "Keep only these fields of the object, or of each item of a page.",
+            "explode": false,
+            "in": "query",
+            "name": "fields",
+            "schema": {
+              "description": "Keep only these fields of the object, or of each item of a page.",
+              "items": {
+                "type": "string"
+              },
+              "type": [
+                "array",
+                "null"
+              ]
+            }
+          },
+          {
+            "description": "Run the write and roll it back; the answer is {dry_run, hint, data}.",
+            "explode": false,
+            "in": "query",
+            "name": "dry_run",
+            "schema": {
+              "description": "Run the write and roll it back; the answer is {dry_run, hint, data}.",
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "true or 1, as dry_run=true.",
+            "in": "header",
+            "name": "X-Dry-Run",
+            "schema": {
+              "description": "true or 1, as dry_run=true.",
+              "type": "string"
+            }
+          },
+          {
+            "description": "A repeat of the same request with the same key replays the first answer.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "schema": {
+              "description": "A repeat of the same request with the same key replays the first answer.",
+              "maxLength": 200,
+              "type": "string"
+            }
+          },
+          {
             "in": "path",
             "name": "id",
             "required": true,
             "schema": {
               "type": "string"
             }
-          },
-          {
-            "$ref": "#/components/parameters/IdempotencyKey"
-          },
-          {
-            "$ref": "#/components/parameters/DryRun"
           }
         ],
         "responses": {
@@ -12137,6 +12621,9 @@
               }
             },
             "description": "OK"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
