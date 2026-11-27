@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"strconv"
 	"sync"
 
 	"github.com/adrianmross/appkit/humax"
@@ -13,6 +14,7 @@ import (
 	"github.com/pursuit/pursuit/internal/domain"
 	"github.com/pursuit/pursuit/internal/service"
 	"github.com/pursuit/pursuit/internal/spec"
+	"github.com/pursuit/pursuit/internal/sqlstore"
 	"github.com/pursuit/pursuit/internal/version"
 )
 
@@ -23,6 +25,67 @@ func (s *Server) registerAPI(mux *http.ServeMux) {
 	// Document serves both kinds of route, so Huma's own /openapi.json is off.
 	s.api = humax.New(mux, "Pursuit", version.Version, func(c *huma.Config) { c.OpenAPIPath = "" })
 	s.registerTags()
+	s.registerFields()
+	s.registerWebhooks()
+	s.registerStanding()
+}
+
+// The inputs most operations share: a JSON body, a record named in the path,
+// or both.
+type (
+	bodyIn[B any] struct {
+		humax.Write
+		Body B
+	}
+	idWrite struct {
+		humax.Write
+		ID string `path:"id"`
+	}
+)
+
+// sliceIn is the query of a list that is loaded whole: it returns every row
+// unless limit is set, and pages by offset.
+type sliceIn struct {
+	humax.Fields
+	Limit  int    `query:"limit" minimum:"1" maximum:"200" doc:"Page size, 1 to 200. Without it the list returns every row."`
+	Cursor string `query:"cursor" doc:"page.next_cursor from the previous page, unchanged."`
+}
+
+// pageSlice is the page of rows that in asks for.
+// ponytail: httpx.PageSlice's paging, repeated; move both onto one function
+// in appkit's paging when another app needs it.
+func pageSlice[T any](in *sliceIn, rows []T, err error) (domain.Page[T], error) {
+	if err != nil {
+		return domain.Page[T]{}, err
+	}
+	offset := 0
+	if in.Cursor != "" {
+		c, err := paging.DecodeCursor(in.Cursor)
+		if err == nil {
+			err = paging.CheckCursorSort(c, "offset")
+		}
+		if err != nil {
+			return domain.Page[T]{}, err
+		}
+		if offset, err = strconv.Atoi(c.ID); err != nil || offset < 0 {
+			return domain.Page[T]{}, domain.Validation("invalid cursor").WithHint("pass next_cursor from the previous page unchanged")
+		}
+	}
+	total := len(rows)
+	rows = rows[min(offset, total):]
+	limit := in.Limit
+	if limit == 0 {
+		limit = len(rows)
+	}
+	out := domain.Page[T]{Data: rows[:min(limit, len(rows))], Page: domain.PageMeta{Limit: limit, Total: total}}
+	if out.Data == nil {
+		out.Data = []T{}
+	}
+	if next := offset + len(out.Data); next < total {
+		out.Page.HasMore = true
+		out.Page.NextCursor = paging.EncodeCursor("offset", "", strconv.Itoa(next))
+	}
+	return out, nil
 }
 
 // listIn is the query of a list that sorts and searches.
@@ -68,6 +131,72 @@ func (s *Server) registerTags() {
 			ID string `path:"id"`
 		}) (domain.Deleted, error) {
 			return s.Svc.DeleteTag(ctx, in.ID)
+		})
+}
+
+func (s *Server) registerFields() {
+	humax.Get(s.api, spec.Operation("GET", "/v1/fields", "List custom fields", spec.Op{CLI: "pursuit fields list"}), domain.CustomFieldFields,
+		func(ctx context.Context, in *listIn) (domain.Page[domain.CustomField], error) {
+			q, err := in.query()
+			if err != nil {
+				return domain.Page[domain.CustomField]{}, err
+			}
+			return s.Svc.ListFields(ctx, q)
+		})
+	humax.Mutate(s.api, s.Svc.DB, spec.Operation("POST", "/v1/fields", "Create a custom field. type is text, number, or date", spec.Op{Status: 201, CLI: "pursuit fields create --name 'Salary range' --type text"}), domain.CustomFieldFields,
+		func(ctx context.Context, in *bodyIn[service.FieldInput]) (domain.CustomField, error) {
+			return s.Svc.CreateField(ctx, in.Body)
+		})
+	humax.Mutate(s.api, s.Svc.DB, spec.Operation("DELETE", "/v1/fields/{id}", "Delete a custom field", spec.Op{CLI: "pursuit fields delete FIELD_ID"}), nil,
+		func(ctx context.Context, in *idWrite) (domain.Deleted, error) {
+			return s.Svc.DeleteField(ctx, in.ID)
+		})
+}
+
+// WebhookInput registers a webhook.
+type WebhookInput struct {
+	URL    string `json:"url" minLength:"1" doc:"Where each new event is posted."`
+	Secret string `json:"secret" required:"false" maxLength:"200" doc:"Signs each delivery when set."`
+}
+
+func (s *Server) registerWebhooks() {
+	humax.Get(s.api, spec.Operation("GET", "/v1/webhooks", "List webhooks. Without limit it returns all", spec.Op{CLI: "pursuit webhooks list"}), nil,
+		func(ctx context.Context, in *sliceIn) (domain.Page[service.WebhookView], error) {
+			rows, err := s.Svc.ListWebhooks(ctx)
+			return pageSlice(in, rows, err)
+		})
+	humax.Mutate(s.api, s.Svc.DB, spec.Operation("POST", "/v1/webhooks", "Register a webhook. Every new event is posted to url; see Webhooks below for the payload", spec.Op{Status: 201, CLI: "pursuit webhooks add https://example.com/hook"}), nil,
+		func(ctx context.Context, in *bodyIn[WebhookInput]) (service.WebhookView, error) {
+			return s.Svc.CreateWebhook(ctx, in.Body.URL, in.Body.Secret)
+		})
+	humax.Mutate(s.api, s.Svc.DB, spec.Operation("DELETE", "/v1/webhooks/{id}", "Delete a webhook", spec.Op{CLI: "pursuit webhooks delete WEBHOOK_ID"}), nil,
+		func(ctx context.Context, in *idWrite) (domain.Deleted, error) {
+			return s.Svc.DeleteWebhook(ctx, in.ID)
+		})
+}
+
+// StandingInput sets a standing answer.
+type StandingInput struct {
+	Key    string `json:"key" minLength:"1" doc:"A word such as work_authorization or email."`
+	Answer string `json:"answer" minLength:"1" maxLength:"20000"`
+}
+
+func (s *Server) registerStanding() {
+	humax.Get(s.api, spec.Operation("GET", "/v1/standing", "List standing answers. Without limit it returns all", spec.Op{CLI: "pursuit standing list"}), nil,
+		func(ctx context.Context, in *sliceIn) (domain.Page[sqlstore.StandingAnswer], error) {
+			rows, err := s.Svc.ListStanding(ctx)
+			return pageSlice(in, rows, err)
+		})
+	humax.Mutate(s.api, s.Svc.DB, spec.Operation("POST", "/v1/standing", "Set a standing answer. Profile values also load from PURSUIT_PROFILE", spec.Op{CLI: "pursuit standing set --key work_authorization --value 'US citizen'"}), nil,
+		func(ctx context.Context, in *bodyIn[StandingInput]) (sqlstore.StandingAnswer, error) {
+			return s.Svc.SetStanding(ctx, in.Body.Key, in.Body.Answer)
+		})
+	humax.Mutate(s.api, s.Svc.DB, spec.Operation("DELETE", "/v1/standing/{key}", "Delete a standing answer. A PURSUIT_PROFILE value for the same key still applies", spec.Op{CLI: "pursuit standing delete work_authorization"}), nil,
+		func(ctx context.Context, in *struct {
+			humax.Write
+			Key string `path:"key"`
+		}) (domain.Deleted, error) {
+			return s.Svc.DeleteStanding(ctx, in.Key)
 		})
 }
 

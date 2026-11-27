@@ -12,7 +12,6 @@ import (
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/pursuit/pursuit/internal/domain"
 	"github.com/pursuit/pursuit/internal/service"
-	"github.com/pursuit/pursuit/internal/sqlstore"
 	"github.com/pursuit/pursuit/internal/version"
 	"github.com/pursuit/pursuit/skills"
 )
@@ -383,19 +382,10 @@ func build() []byte {
 		DocumentID string `json:"document_id"`
 	}{}, "out": service.ArtifactView{}, "status": 201})
 	add("/v1/applications/{id}/compare", "get", "Kind=resume_pdf|cover_letter: the application's file next to your main document, as plain text extracted from PDF, Word or text: {default, current: {title, text, source: default|version|upload}, same}. needs tailored_documents", false, x{"q": q("kind"), "out": service.Comparison{}})
-	add("/v1/standing", "get", "List standing answers. Without limit it returns all", false, x{"q": q("limit", "cursor"), "list": sqlstore.StandingAnswer{}, "cli": "pursuit standing list"})
-	add("/v1/standing", "post", "Set a standing answer. Profile values also load from PURSUIT_PROFILE", true, x{"in": StandingInput{}, "out": sqlstore.StandingAnswer{}, "cli": "pursuit standing set --key work_authorization --value 'US citizen'"})
-	add("/v1/standing/{key}", "delete", "Delete a standing answer. A PURSUIT_PROFILE value for the same key still applies", true, x{"out": domain.Deleted{}, "cli": "pursuit standing delete work_authorization"})
 	add("/v1/caps", "get", "List company caps. Per-company application limits", false, x{"out": Caps{}, "cli": "pursuit caps"})
 	add("/v1/links/check", "post", "Check all postings. Sweeps every posting. one replica holds the advisory lock", true, x{"in": SweepInput{}, "out": service.CheckReport{}, "cli": "pursuit check-links --all"})
 	add("/v1/cron/links", "get", "Run the daily link check. For Vercel Cron. requires Authorization Bearer CRON_SECRET, not a Pursuit token", false, x{"x-internal": true, "out": service.CheckReport{}})
-	add("/v1/webhooks", "get", "List webhooks. Without limit it returns all", false, x{"q": q("limit", "cursor"), "list": service.WebhookView{}, "cli": "pursuit webhooks list"})
-	add("/v1/webhooks", "post", "Register a webhook. Every new event is posted to url; see Webhooks below for the payload", true, x{"in": WebhookInput{}, "out": service.WebhookView{}, "status": 201, "cli": "pursuit webhooks add https://example.com/hook"})
-	add("/v1/webhooks/{id}", "delete", "Delete a webhook", true, x{"out": domain.Deleted{}, "cli": "pursuit webhooks delete WEBHOOK_ID"})
 	add("/v1/events", "get", "List events. after plus wait_ms long-polls for the next event", false, x{"q": q("limit", "cursor", "sort", "application_id", "after", "wait_ms", "fields"), "list": domain.Event{}, "cli": "pursuit events --follow --timeout 25s"})
-	add("/v1/fields", "get", "List custom fields", false, x{"q": q("limit", "cursor", "sort", "q", "fields"), "list": domain.CustomField{}, "cli": "pursuit fields list"})
-	add("/v1/fields", "post", "Create a custom field. type is text, number, or date", true, x{"in": service.FieldInput{}, "out": domain.CustomField{}, "status": 201, "cli": "pursuit fields create --name 'Salary range' --type text"})
-	add("/v1/fields/{id}", "delete", "Delete a custom field", true, x{"out": domain.Deleted{}, "cli": "pursuit fields delete FIELD_ID"})
 	add("/v1/audit", "get", "List audit entries. Includes actor_name and metadata. q searches summary, action, entity, actor, and metadata. sort=created_at for oldest first", false, x{"q": q("limit", "cursor", "sort", "q", "since", "until", "actor", "action", "entity_type", "entity_id", "fields"), "list": domain.Audit{}, "cli": "pursuit audit list --entity-id APP_ID --sort created_at"})
 	add("/v1/import/csv", "post", "Import CSV. The tracker CSV, as text/csv or a multipart file field. Prepared maps to awaiting_review. Applied stays applied. the same posting_url updates the existing application", true, x{"in": text("text/csv"), "out": service.ImportResult{}, "cli": "pursuit import csv applications.csv"})
 	add("/v1/import/json", "post", "Import JSON. A JSON array of postings", true, x{"in": []ImportPosting{}, "out": service.ImportResult{}, "cli": "pursuit import json postings.json"})

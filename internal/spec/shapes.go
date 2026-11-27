@@ -104,18 +104,8 @@ type ArtifactFile struct {
 	CreatedAt     string `json:"created_at"`
 }
 
-type StandingInput struct {
-	Key    string `json:"key"`
-	Answer string `json:"answer"`
-}
-
 type SweepInput struct {
 	Owner string `json:"owner"`
-}
-
-type WebhookInput struct {
-	URL    string `json:"url"`
-	Secret string `json:"secret"`
 }
 
 type Caps struct {
